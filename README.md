@@ -86,7 +86,7 @@ cd docker
 docker compose up --build
 ```
 
-The API image uses `requirements-api.txt` and stays lightweight. The compose file expects NVIDIA GPU container support for the separate vLLM service.
+The API image uses `requirements-api.txt` and stays lightweight. The compose file expects NVIDIA GPU container support for the separate vLLM service. The default compose runtime pins `vllm/vllm-openai:v0.8.5` with `Qwen/Qwen2-VL-2B-Instruct` because this is compatible with local CUDA 12.x drivers and 8GB VRAM smoke tests; use Qwen2.5-VL or Qwen3-VL only after confirming the vLLM image, NVIDIA driver, and GPU memory support them.
 
 ## vLLM Serving
 
@@ -99,7 +99,7 @@ PORT=8001 \
 bash scripts/run_vllm_server.sh
 ```
 
-If Qwen3-VL is unavailable in the local environment, use the Qwen2.5-VL fallback config and record the change in `experiments/experiment_log.md`.
+If Qwen3-VL is unavailable in the local environment, use the Qwen2.5-VL or smaller Qwen2-VL fallback config and record the change in `experiments/experiment_log.md`. On the current local Docker path, the compose default uses the smaller Qwen2-VL 2B model for service validation.
 
 ## API Usage
 

@@ -1,2 +1,2 @@
 date,git_commit,model_name,model_size,inference_backend,prompt_version,temperature,top_p,max_tokens,input_type,dataset_version,task_type,metrics,result_summary,failure_cases,next_action
-
+2026-07-06,cb47796,Qwen/Qwen2-VL-2B-Instruct,2B,vLLM 0.8.5 Docker,prompt_image_understanding_v1,0.1,0.9,512,image_plus_text,sample_ota_images_v1,image_understanding,"health_ok; models_ok; image_understanding_ok","Docker API plus vLLM served Qwen2-VL-2B on local 8GB GPU and returned structured image-understanding output","latest image required CUDA>=13; Qwen2.5-VL-3B too tight for 8GB profiling; file URLs needed data URL conversion","Use Qwen2-VL-2B for Week 1 local demos; retry larger VLMs on larger GPU"

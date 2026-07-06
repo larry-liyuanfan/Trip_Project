@@ -1,6 +1,10 @@
+import base64
 import json
+import mimetypes
 import os
+from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import requests
 
@@ -53,7 +57,12 @@ class VLLMClient:
         if request.user_text:
             content.append({"type": "text", "text": request.user_text})
         for image_url in request.image_urls:
-            content.append({"type": "image_url", "image_url": {"url": image_url}})
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": normalize_image_url(image_url)},
+                }
+            )
 
         return {
             "model": self.model_name,
@@ -64,9 +73,37 @@ class VLLMClient:
         }
 
 
+def normalize_image_url(image_url: str) -> str:
+    if not image_url.startswith("file://"):
+        return image_url
+
+    parsed = urlparse(image_url)
+    raw_path = _file_url_to_path_text(parsed.netloc, unquote(parsed.path))
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = Path.cwd() / raw_path
+    if not path.exists():
+        return image_url
+
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{media_type};base64,{encoded}"
+
+
+def _file_url_to_path_text(netloc: str, path: str) -> str:
+    if netloc in ("", "localhost"):
+        if len(path) >= 3 and path[0] == "/" and path[2] == ":":
+            return path[1:]
+        return path.lstrip("/") if not Path(path).is_absolute() else path
+    if len(netloc) == 2 and netloc[1] == ":":
+        return f"{netloc}{path}"
+    return f"{netloc}{path}"
+
+
 def parse_model_response(content: str) -> ImageUnderstandingResponse:
+    json_content = strip_json_fence(content)
     try:
-        data = json.loads(content)
+        data = json.loads(json_content)
     except json.JSONDecodeError:
         return ImageUnderstandingResponse(
             image_summary=content,
@@ -75,13 +112,58 @@ def parse_model_response(content: str) -> ImageUnderstandingResponse:
             raw_model_output=content,
         )
 
-    structured = data.get("structured_info", data)
+    structured = normalize_structured_info(data.get("structured_info", data))
     return ImageUnderstandingResponse(
         image_summary=data.get("image_summary", ""),
         structured_info=StructuredImageInfo(**structured),
         confidence=float(data.get("confidence", structured.get("confidence", 0.5))),
         raw_model_output=content,
     )
+
+
+def strip_json_fence(content: str) -> str:
+    stripped = content.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    lines = stripped.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def normalize_structured_info(structured: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(structured)
+    normalized["objects"] = normalize_objects(normalized.get("objects", []))
+    for key in ["style", "ocr_text", "location_clues", "travel_intent"]:
+        normalized[key] = ensure_list(normalized.get(key, []))
+    normalized.pop("confidence", None)
+    normalized.pop("image_summary", None)
+    return normalized
+
+
+def normalize_objects(value: Any) -> list[str]:
+    items = value if isinstance(value, list) else [value]
+    objects: list[str] = []
+    for item in items:
+        if item is None:
+            continue
+        if isinstance(item, dict):
+            object_type = item.get("type") or item.get("name") or item.get("label")
+            if object_type:
+                objects.append(str(object_type))
+        else:
+            objects.append(str(item))
+    return objects
+
+
+def ensure_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    return [str(value)]
 
 
 def fallback_image_understanding(
@@ -116,4 +198,3 @@ def fallback_image_understanding(
         ),
         confidence=0.78,
     )
-

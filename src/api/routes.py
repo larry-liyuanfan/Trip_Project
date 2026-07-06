@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,7 @@ def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ota-multimodal-search-planning",
-        "model": "Qwen3-VL-2B-Instruct",
+        "model": os.getenv("VLLM_MODEL_NAME", "Qwen/Qwen2.5-VL-3B-Instruct"),
         "backend": "vLLM",
         "version": "0.1.0",
     }
@@ -75,4 +76,3 @@ def _load_sample_catalog() -> list[dict[str, Any]]:
     if not path.exists():
         return []
     return load_jsonl(path)
-
