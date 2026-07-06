@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -7,20 +7,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
-    git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/requirements.txt
-RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install -r /app/requirements.txt
+COPY requirements-api.txt /app/requirements-api.txt
+RUN python -m pip install --upgrade pip && \
+    python -m pip install -r /app/requirements-api.txt
 
 COPY . /app
 
 EXPOSE 8000 8001
 
 CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
-

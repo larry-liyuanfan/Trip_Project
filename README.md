@@ -86,7 +86,7 @@ cd docker
 docker compose up --build
 ```
 
-The compose file expects NVIDIA GPU container support for the vLLM service.
+The API image uses `requirements-api.txt` and stays lightweight. The compose file expects NVIDIA GPU container support for the separate vLLM service.
 
 ## vLLM Serving
 
@@ -166,4 +166,3 @@ Initial metrics:
 - Add embedding index for visual and semantic retrieval.
 - Add model comparison experiments for Qwen-VL and DeepSeek-VL2.
 - Add lightweight UI or notebook demo.
-

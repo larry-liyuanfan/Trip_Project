@@ -7,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      VLLM_BASE_URL: "http://vllm:8001"
+      VLLM_BASE_URL: "http://vllm:8000"
       VLLM_MODEL_NAME: "Qwen/Qwen3-VL-2B-Instruct"
     volumes:
       - ../data:/app/data
@@ -42,4 +42,3 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-
