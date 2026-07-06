@@ -24,7 +24,7 @@
 ## EXP-20260706-002
 
 - date: 2026-07-06
-- git_commit: cb47796
+- git_commit: e63a00e
 - model_name: Qwen/Qwen2-VL-2B-Instruct
 - model_size: 2B
 - inference_backend: vLLM 0.8.5 Docker
