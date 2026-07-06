@@ -1,0 +1,7 @@
+temperature: 0.1
+top_p: 0.9
+max_tokens: 512
+prompt_version: prompt_image_understanding_v1
+input_type: image_plus_text
+dataset_version: sample_ota_images_v1
+

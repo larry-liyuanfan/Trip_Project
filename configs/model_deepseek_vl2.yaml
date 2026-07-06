@@ -1,0 +1,7 @@
+model_name: deepseek-ai/deepseek-vl2-tiny
+served_model_name: DeepSeek-VL2-Tiny
+backend: transformers
+task: model_comparison
+precision: bf16
+notes: Week 2 or Week 3 comparison candidate. Validate vLLM support before serving.
+

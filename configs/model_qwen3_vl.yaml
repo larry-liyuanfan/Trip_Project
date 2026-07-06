@@ -1,0 +1,9 @@
+model_name: Qwen/Qwen3-VL-2B-Instruct
+served_model_name: Qwen3-VL-2B-Instruct
+backend: vLLM
+task: image_understanding
+precision: auto
+max_model_len: 8192
+gpu_memory_utilization: 0.85
+notes: Primary Week 1 candidate. Verify exact checkpoint availability before final run.
+

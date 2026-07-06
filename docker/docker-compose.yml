@@ -1,0 +1,45 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ota-multimodal-api
+    ports:
+      - "8000:8000"
+    environment:
+      VLLM_BASE_URL: "http://vllm:8001"
+      VLLM_MODEL_NAME: "Qwen/Qwen3-VL-2B-Instruct"
+    volumes:
+      - ../data:/app/data
+      - ../experiments:/app/experiments
+    depends_on:
+      - vllm
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: ota-vllm-server
+    ports:
+      - "8001:8000"
+    environment:
+      HF_HOME: /models/huggingface
+    volumes:
+      - ../models:/models
+    command:
+      - --model
+      - Qwen/Qwen3-VL-2B-Instruct
+      - --served-model-name
+      - Qwen3-VL-2B-Instruct
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --max-model-len
+      - "8192"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+

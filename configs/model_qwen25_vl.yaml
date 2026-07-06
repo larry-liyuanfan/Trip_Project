@@ -1,0 +1,9 @@
+model_name: Qwen/Qwen2.5-VL-3B-Instruct
+served_model_name: Qwen2.5-VL-3B-Instruct
+backend: vLLM
+task: image_understanding
+precision: auto
+max_model_len: 8192
+gpu_memory_utilization: 0.85
+notes: Engineering fallback if Qwen3-VL checkpoint or local VRAM is unavailable.
+
