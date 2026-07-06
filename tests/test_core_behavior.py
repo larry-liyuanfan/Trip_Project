@@ -1,4 +1,5 @@
 import unittest
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from src.inference.client import parse_model_response
 from src.inference.schemas import ImageUnderstandingRequest
 from src.planning.itinerary_planner import build_itinerary
 from src.retrieval.keyword_retriever import KeywordRetriever
+from src.data.yelp_open_dataset import prepare_yelp_subset
 
 
 class CoreBehaviorTest(unittest.TestCase):
@@ -131,6 +133,89 @@ class CoreBehaviorTest(unittest.TestCase):
 
         self.assertTrue(catalog_path.exists())
         self.assertTrue(catalog_path.read_text(encoding="utf-8").strip())
+
+    def test_prepare_yelp_subset_filters_ota_businesses_and_writes_outputs(self):
+        with TemporaryDirectory() as tmpdir:
+            raw_dir = Path(tmpdir) / "raw"
+            output_dir = Path(tmpdir) / "processed"
+            raw_dir.mkdir()
+            (raw_dir / "yelp_academic_dataset_business.json").write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "business_id": "biz_cafe",
+                                "name": "Sample Yelp Cafe",
+                                "city": "Shanghai",
+                                "state": "SH",
+                                "stars": 4.5,
+                                "review_count": 20,
+                                "categories": "Cafes, Restaurants, Coffee & Tea",
+                                "attributes": {"OutdoorSeating": "True"},
+                                "is_open": 1,
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "business_id": "biz_auto",
+                                "name": "Sample Auto Repair",
+                                "city": "Shanghai",
+                                "state": "SH",
+                                "stars": 4.0,
+                                "review_count": 10,
+                                "categories": "Auto Repair",
+                                "is_open": 1,
+                            }
+                        ),
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (raw_dir / "yelp_academic_dataset_review.json").write_text(
+                json.dumps(
+                    {
+                        "review_id": "rev_1",
+                        "business_id": "biz_cafe",
+                        "stars": 5,
+                        "text": "Quiet cafe near the museum, good for a relaxed afternoon.",
+                        "date": "2024-01-01",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (raw_dir / "photos.json").write_text(
+                json.dumps(
+                    {
+                        "photo_id": "photo_1",
+                        "business_id": "biz_cafe",
+                        "caption": "latte and window seat",
+                        "label": "inside",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            manifest = prepare_yelp_subset(raw_dir=raw_dir, output_dir=output_dir)
+
+            catalog = [
+                json.loads(line)
+                for line in (output_dir / "poi_catalog.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            reviews = [
+                json.loads(line)
+                for line in (output_dir / "reviews.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            multimodal = [
+                json.loads(line)
+                for line in (output_dir / "multimodal_items.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(manifest["business_count"], 1)
+        self.assertEqual(catalog[0]["poi_id"], "yelp_biz_cafe")
+        self.assertEqual(catalog[0]["category"], "Cafe")
+        self.assertIn("coffee & tea", catalog[0]["tags"])
+        self.assertEqual(reviews[0]["poi_id"], "yelp_biz_cafe")
+        self.assertEqual(multimodal[0]["image_path"], "data/yelp/raw/photos/photo_1.jpg")
 
 
 if __name__ == "__main__":

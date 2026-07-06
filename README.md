@@ -136,7 +136,13 @@ Use:
 
 ## Data
 
-Week 1 uses a small mock sample catalog in `data/samples/`. Yelp Open Dataset integration is planned after the service and schema are stable.
+Week 1 uses a small mock sample catalog in `data/samples/`. Yelp Open Dataset can be integrated by placing the official raw JSON files under `data/yelp/raw/` and running:
+
+```bash
+python scripts/prepare_yelp_subset.py --raw-dir data/yelp/raw --output-dir data/yelp/processed/ota_subset_v1
+```
+
+See `docs/yelp_dataset.md` for the expected raw files and generated schemas.
 
 ## Evaluation
 
