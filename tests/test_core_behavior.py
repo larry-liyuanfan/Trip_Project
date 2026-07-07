@@ -1,5 +1,8 @@
 import unittest
 import json
+import tarfile
+import zipfile
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -8,6 +11,7 @@ from src.api.routes import health, image_understanding
 from src.inference.client import VLLMClient
 from src.inference.client import parse_model_response
 from src.inference.schemas import ImageUnderstandingRequest
+from src.data.yelp_archives import extract_yelp_archives, extract_yelp_photo_files
 from src.planning.itinerary_planner import build_itinerary
 from src.retrieval.keyword_retriever import KeywordRetriever
 from src.data.yelp_open_dataset import prepare_yelp_subset
@@ -216,6 +220,97 @@ class CoreBehaviorTest(unittest.TestCase):
         self.assertIn("coffee & tea", catalog[0]["tags"])
         self.assertEqual(reviews[0]["poi_id"], "yelp_biz_cafe")
         self.assertEqual(multimodal[0]["image_path"], "data/yelp/raw/photos/photo_1.jpg")
+
+    def test_extract_yelp_archives_handles_gzipped_tar_files_inside_zip(self):
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            json_zip = workspace / "Yelp-JSON.zip"
+            photos_zip = workspace / "Yelp-Photos.zip"
+            raw_dir = workspace / "raw"
+
+            self._write_zip_with_gzipped_tar(
+                json_zip,
+                "Yelp JSON/yelp_dataset.tar",
+                {
+                    "yelp_academic_dataset_business.json": {"business_id": "biz_1"},
+                    "yelp_academic_dataset_review.json": {"review_id": "rev_1"},
+                    "yelp_academic_dataset_user.json": {"user_id": "ignored"},
+                },
+            )
+            self._write_zip_with_gzipped_tar(
+                photos_zip,
+                "Yelp Photos/yelp_photos.tar",
+                {
+                    "photos.json": {"photo_id": "photo_1", "business_id": "biz_1"},
+                    "photos/photo_1.jpg": b"fake-image",
+                },
+            )
+
+            manifest = extract_yelp_archives(
+                json_zip_path=json_zip,
+                photos_zip_path=photos_zip,
+                raw_dir=raw_dir,
+                include_photo_files=False,
+            )
+
+            self.assertTrue((raw_dir / "yelp_academic_dataset_business.json").exists())
+            self.assertTrue((raw_dir / "yelp_academic_dataset_review.json").exists())
+            self.assertTrue((raw_dir / "photos.json").exists())
+            self.assertFalse((raw_dir / "photos" / "photo_1.jpg").exists())
+            self.assertEqual(
+                sorted(record["output_name"] for record in manifest["extracted_files"]),
+                [
+                    "photos.json",
+                    "yelp_academic_dataset_business.json",
+                    "yelp_academic_dataset_review.json",
+                ],
+            )
+
+    def test_extract_yelp_photo_files_extracts_only_requested_images(self):
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            photos_zip = workspace / "Yelp-Photos.zip"
+            raw_dir = workspace / "raw"
+
+            self._write_zip_with_gzipped_tar(
+                photos_zip,
+                "Yelp Photos/yelp_photos.tar",
+                {
+                    "photos/photo_1.jpg": b"selected",
+                    "photos/photo_2.jpg": b"ignored",
+                },
+            )
+
+            manifest = extract_yelp_photo_files(
+                photos_zip_path=photos_zip,
+                raw_dir=raw_dir,
+                photo_ids={"photo_1"},
+            )
+
+            self.assertEqual((raw_dir / "photos" / "photo_1.jpg").read_bytes(), b"selected")
+            self.assertFalse((raw_dir / "photos" / "photo_2.jpg").exists())
+            self.assertEqual(manifest["requested_photo_count"], 1)
+            self.assertEqual(manifest["extracted_photo_count"], 1)
+
+    def _write_zip_with_gzipped_tar(
+        self,
+        zip_path: Path,
+        tar_name: str,
+        records: dict[str, dict[str, object] | bytes],
+    ) -> None:
+        tar_buffer = BytesIO()
+        with tarfile.open(fileobj=tar_buffer, mode="w:gz") as archive:
+            for member_name, payload in records.items():
+                if isinstance(payload, bytes):
+                    body = payload
+                else:
+                    body = (json.dumps(payload) + "\n").encode("utf-8")
+                info = tarfile.TarInfo(member_name)
+                info.size = len(body)
+                archive.addfile(info, BytesIO(body))
+        with zipfile.ZipFile(zip_path, "w") as archive:
+            archive.writestr(tar_name, tar_buffer.getvalue())
+            archive.writestr(f"__MACOSX/{tar_name}", b"ignored")
 
 
 if __name__ == "__main__":

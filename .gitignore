@@ -10,7 +10,8 @@ env/
 .env.local
 data/raw/
 data/yelp/
+data/*.zip
+data/*.tar
 models/
 outputs/
 *.log
-

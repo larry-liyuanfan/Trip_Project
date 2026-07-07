@@ -8,6 +8,7 @@ Planned data sources:
 - `data/yelp/raw/`: local Yelp Open Dataset downloads from the official source.
 - `data/yelp/processed/`: generated OTA subsets from `scripts/prepare_yelp_subset.py`.
 - `data/raw/`: ignored local raw downloads.
+- `data/*.zip`: ignored local Yelp archive downloads.
 
 Do not commit large raw datasets or model weights.
 
