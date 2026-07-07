@@ -32,6 +32,4 @@ Build the reproducible engineering foundation for a VLM-based OTA multimodal sea
 - API starts locally with deterministic fallback.
 - `/health` returns service metadata.
 - `/v1/image-understanding` returns structured fields.
-- Retrieval and travel planning modules have minimal behavior.
 - Experiment files exist and define reproducible logging fields.
-

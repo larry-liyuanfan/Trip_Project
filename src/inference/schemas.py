@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -26,18 +26,4 @@ class ImageUnderstandingResponse(BaseModel):
     structured_info: StructuredImageInfo
     confidence: float = 0.0
     raw_model_output: str | None = None
-
-
-class VisualSearchRequest(BaseModel):
-    image_urls: list[str] = Field(default_factory=list)
-    query_text: str = ""
-    city: str | None = None
-    top_k: int = 5
-    retrieval_mode: Literal["keyword", "embedding", "hybrid"] = "hybrid"
-
-
-class TravelPlanningRequest(BaseModel):
-    image_urls: list[str] = Field(default_factory=list)
-    reviews: list[str] = Field(default_factory=list)
-    preferences: dict[str, Any] = Field(default_factory=dict)
 

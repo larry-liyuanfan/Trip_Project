@@ -47,7 +47,7 @@ data/yelp/processed/ota_subset_v1/manifest.json
 
 ## Output Schemas
 
-`poi_catalog.jsonl` maps Yelp businesses into the retrieval catalog:
+`poi_catalog.jsonl` maps Yelp businesses into a reviewed POI catalog format:
 
 ```json
 {
@@ -96,9 +96,9 @@ data/yelp/processed/ota_subset_v1/manifest.json
 
 ## Usage In This Project
 
-- Retrieval: point `HybridRetriever` at `poi_catalog.jsonl` for keyword/hybrid search.
-- Planning: feed `reviews.jsonl` into preference and itinerary planning.
-- Multimodal evaluation: use `multimodal_items.jsonl` to pair image files with POI metadata and expected fields.
+- Catalog review: inspect `poi_catalog.jsonl` to confirm OTA-relevant business filtering.
+- Review text preparation: inspect `reviews.jsonl` as bounded review text attached to selected POIs.
+- Multimodal metadata preparation: use `multimodal_items.jsonl` to pair local Yelp photo files with POI metadata.
 - Experiment tracking: record output directory, script arguments, Git commit, and metrics in `experiments/`.
 
 ## Notes

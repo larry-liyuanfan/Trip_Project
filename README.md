@@ -1,31 +1,29 @@
-# OTA Multimodal Search and Travel Planning System
+# OTA Multimodal Search Foundation
 
-VLM-based OTA multimodal intelligent search and travel planning system.
+VLM-based OTA image understanding and data preparation foundation.
 
-This repository is not a generic chatbot demo. It is structured as an AI Search / Multimodal Search application for OTA scenarios:
+This branch contains the reviewed current-week engineering scope:
 
 ```text
-Image / Text / Reviews / Preferences
+Image / Text
 -> VLM Multimodal Understanding
 -> Structured Information Extraction
--> Visual / Keyword / Hybrid Retrieval
--> Candidate POI / Product Ranking
--> Travel Planning
 -> Evaluation & Experiment Tracking
 ```
 
 ## Project Overview
 
-The project builds a minimal but extensible OTA pipeline for:
+The current-week scope covers:
 
 - image-to-structured-info extraction from travel-related images;
-- visual search over restaurants, cafes, hotels, attractions, and products;
-- multimodal travel planning from images, reviews, and user preferences;
-- reproducible vLLM serving and experiment tracking.
+- reproducible Docker and vLLM serving;
+- FastAPI smoke endpoints for health and image understanding;
+- Yelp Open Dataset preparation into project-local JSONL files;
+- experiment logging templates and smoke-test records.
 
 ## Motivation
 
-OTA users often search with vague intent and visual references: a cafe photo, a hotel room screenshot, a restaurant dish, or a scenic street. The system turns those multimodal signals into searchable structured fields and planning inputs.
+OTA users often search with vague intent and visual references: a cafe photo, a hotel room screenshot, a restaurant dish, or a scenic street. The current branch focuses on turning those images into structured fields that can be reviewed and tested.
 
 ## System Architecture
 
@@ -34,8 +32,6 @@ Client
   -> FastAPI business API
   -> vLLM OpenAI-compatible VLM service
   -> Structured extraction
-  -> Retrieval baseline
-  -> Travel planner
   -> Experiment records
 ```
 
@@ -43,8 +39,8 @@ Client
 
 - Dockerized API and vLLM serving layout.
 - Qwen3-VL primary model config with Qwen2.5-VL fallback.
-- DeepSeek-VL2 config for later comparison.
-- `/health`, `/v1/image-understanding`, `/v1/visual-search`, `/v1/travel-planning`.
+- DeepSeek-VL2 config file for model selection review.
+- `/health`, `/v1/image-understanding`.
 - Deterministic fallback responses when live vLLM is not configured.
 - Sample POI catalog and review snippets.
 - Experiment log and results CSV templates.
@@ -150,25 +146,9 @@ Initial metrics:
 
 - JSON parse success rate;
 - structured field accuracy;
-- Top-K hit rate for retrieval;
-- Recall@K;
-- planning relevance and route reasonability by human review.
-
-## Roadmap
-
-- Week 1: Docker, vLLM serving, API smoke tests, repository and experiment standards.
-- Week 2: image-to-structured-info pipeline and sample evaluation set.
-- Week 3: visual search with keyword / embedding / hybrid retrieval and Top-K metrics.
-- Week 4: multimodal travel planning, demo, final report, and resume packaging.
+- API response availability;
+- vLLM service availability.
 
 ## Weekly Progress
 
-- Week 1: Initial engineering scaffold created.
-
-## Future Work
-
-- Add live VLM output parsing hardening.
-- Integrate Yelp Open Dataset subset.
-- Add embedding index for visual and semantic retrieval.
-- Add model comparison experiments for Qwen-VL and DeepSeek-VL2.
-- Add lightweight UI or notebook demo.
+- Week 1: Docker/vLLM serving, image-understanding API, sample data, Yelp data preparation, and experiment records.
