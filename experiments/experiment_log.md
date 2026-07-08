@@ -45,15 +45,15 @@
 ## EXP-20260707-001
 
 - date: 2026-07-07
-- git_commit: tracked-in-this-commit
-- model_name: N/A
-- model_size: N/A
-- inference_backend: N/A
-- serving_command: N/A
-- prompt_version: N/A
-- temperature: N/A
-- top_p: N/A
-- max_tokens: N/A
+- git_commit: e099de5
+- model_name: not_applicable_data_preparation
+- model_size: not_applicable_data_preparation
+- inference_backend: not_applicable_data_preparation
+- serving_command: not_applicable_data_preparation
+- prompt_version: not_applicable_data_preparation
+- temperature: not_applicable_data_preparation
+- top_p: not_applicable_data_preparation
+- max_tokens: not_applicable_data_preparation
 - input_type: yelp_json_reviews_photo_metadata
 - dataset_version: yelp_ota_subset_v1
 - task_type: data_preparation

@@ -25,7 +25,7 @@ Build the reproducible engineering foundation for a VLM-based OTA multimodal sea
 - [x] Add model selection document.
 - [x] Add API design document.
 - [x] Prepare 10+ real local Yelp subset images.
-- [ ] Add multi-image live vLLM test. Stretch item; not required for Week 1 acceptance.
+- [x] Add multi-image live vLLM test. Completed on dev as a stretch item; not required for Week 1 acceptance.
 
 ## Acceptance Criteria
 
