@@ -14,9 +14,9 @@ Build the reproducible engineering foundation for a VLM-based OTA multimodal sea
 - [x] Add FastAPI business API scaffold.
 - [x] Add image-understanding fallback path for local smoke tests.
 - [x] Add experiment log and results templates.
-- [ ] Start real vLLM service on GPU.
-- [ ] Verify live image input inference.
-- [ ] Record first real model experiment with Git commit.
+- [x] Start real vLLM service on GPU.
+- [x] Verify live image input inference.
+- [x] Record first real model experiment with Git commit.
 
 ## P1 Checklist
 
@@ -24,8 +24,8 @@ Build the reproducible engineering foundation for a VLM-based OTA multimodal sea
 - [x] Add sample POI catalog and reviews.
 - [x] Add model selection document.
 - [x] Add API design document.
-- [ ] Add 10-20 real sample images.
-- [ ] Add multi-image live vLLM test.
+- [x] Prepare 10+ real local Yelp subset images.
+- [ ] Add multi-image live vLLM test. Stretch item; not required for Week 1 acceptance.
 
 ## Acceptance Criteria
 
