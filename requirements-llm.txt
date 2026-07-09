@@ -1,0 +1,2 @@
+vllm>=0.8.0
+qwen-vl-utils>=0.0.8

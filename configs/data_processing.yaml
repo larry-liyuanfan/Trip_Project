@@ -1,0 +1,25 @@
+paths:
+  business_json: data/yelp/raw/yelp_academic_dataset_business.json
+  review_json: data/yelp/raw/yelp_academic_dataset_review.json
+  photo_json: data/yelp/raw/photos.json
+  image_root: data/yelp/raw/photos
+  interim_dir: data/yelp/interim
+  processed_dir: data/yelp/processed
+  logs_dir: data/yelp/logs
+  validation_dir: data/yelp/validation
+  report_path: reports/yelp_multimodal_data_processing_report_part1.md
+output:
+  format: parquet
+review_filters:
+  min_text_length: 20
+  reject_symbol_only: true
+processing_limits:
+  max_businesses: null
+  max_reviews: 10000
+  max_photos: null
+weak_alignment:
+  max_reviews_per_business: 5
+  max_images_per_business: 5
+clip_denoising:
+  enabled: false
+  threshold: 0.25

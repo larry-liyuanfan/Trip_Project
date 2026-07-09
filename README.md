@@ -47,12 +47,12 @@ Client
 
 ## Quick Start
 
-Create a local environment:
+Create a local API environment:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-api.txt
 ```
 
 Run the API:
@@ -83,6 +83,29 @@ docker compose up --build
 ```
 
 The API image uses `requirements-api.txt` and stays lightweight. The compose file expects NVIDIA GPU container support for the separate vLLM service. The default compose runtime pins `vllm/vllm-openai:v0.8.5` with `Qwen/Qwen2-VL-2B-Instruct` because this is compatible with local CUDA 12.x drivers and 8GB VRAM smoke tests; use Qwen2.5-VL or Qwen3-VL only after confirming the vLLM image, NVIDIA driver, and GPU memory support them.
+
+## Dependency Sets
+
+Install only the dependency group needed for the task:
+
+```bash
+pip install -r requirements-api.txt
+pip install -r requirements-data.txt
+pip install -r requirements-llm.txt
+```
+
+- `requirements-api.txt`: FastAPI service and smoke-test dependencies.
+- `requirements-data.txt`: Week 2 Yelp data processing dependencies only.
+- `requirements-llm.txt`: vLLM and Qwen-VL utilities for live model serving.
+- `requirements.txt`: safe default aggregate for API + data dependencies. It intentionally does not install vLLM.
+
+For the Week 2 data pipeline, use only:
+
+```bash
+pip install -r requirements-data.txt
+```
+
+Do not install `vllm` in a native Windows Python environment unless live model serving is explicitly needed. Prefer Docker or WSL2 for `requirements-llm.txt`, because vLLM/GPU/CUDA compatibility is much easier to control there.
 
 ## vLLM Serving
 
@@ -140,6 +163,39 @@ python scripts/prepare_yelp_subset.py --raw-dir data/yelp/raw --output-dir data/
 
 See `docs/yelp_dataset.md` for the expected raw files and generated schemas.
 
+Week 2 adds a reusable multimodal processing pipeline configured by `configs/data_processing.yaml`. Expected local layout:
+
+```text
+data/yelp/
+├── raw/
+├── interim/
+├── processed/
+├── logs/
+└── validation/
+reports/
+└── figures/
+```
+
+The Yelp download and archive extraction step was completed before this Week 2 processing flow. Week 2 consumes the normalized raw files and local image directory under `data/yelp/raw/`.
+
+Run the full offline data-processing flow:
+
+```bash
+pip install -r requirements-data.txt
+python scripts/parse_yelp_json.py --config configs/data_processing.yaml
+python scripts/build_yelp_alignment.py --config configs/data_processing.yaml
+python scripts/run_clip_denoising.py --config configs/data_processing.yaml
+python scripts/generate_yelp_report.py --config configs/data_processing.yaml
+```
+
+Outputs include interim business/review/photo tables, image validation summaries, strong image-caption pairs, medium image-business pairs, bounded weak business-level image-review groups, dataset statistics, optional denoising status, and `reports/yelp_multimodal_data_processing_report_part1.md`. Install `pyarrow` for true Parquet output; without a local Parquet engine, the scripts keep running with a CSV fallback at the configured table path.
+
+The default config caps review parsing for quick local verification. A full raw Yelp review pass should first add chunked table writing or another bounded-memory output path before removing the cap.
+
+Week 2 mentor-facing report:
+
+- `reports/yelp_multimodal_data_processing_report_part1.md`
+
 ## Evaluation
 
 Initial metrics:
@@ -147,7 +203,17 @@ Initial metrics:
 - JSON parse success rate;
 - structured field accuracy;
 - API response availability;
-- vLLM service availability.
+- vLLM service availability;
+- Top-K hit rate for retrieval;
+- Recall@K;
+- planning relevance and route reasonability by human review.
+
+## Roadmap
+
+- Week 1: Docker, vLLM serving, API smoke tests, repository and experiment standards.
+- Week 2: Yelp multimodal dataset parsing, validation, alignment, and report draft.
+- Week 3: visual search with keyword / embedding / hybrid retrieval and Top-K metrics.
+- Week 4: multimodal travel planning, demo, final report, and resume packaging.
 
 ## Weekly Progress
 
