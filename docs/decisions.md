@@ -1,6 +1,6 @@
 # Technical Decisions
 
-Record decisions that affect architecture, reproducibility, model serving, data handling, or review scope.
+Record decisions that affect architecture, reproducibility, model serving, data handling, branching, or review scope.
 
 ## ADR-001: Keep API Tests Independent from Live vLLM
 
@@ -25,6 +25,22 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **Decision**: Track experiment commands, parameters, outcomes, and failures in `experiments/` and summarize them in `docs/experiments.md`.
 - **Reason**: Weekly mentor review needs clear evidence of what was run and what changed.
 - **Consequence**: Model, prompt, data, and serving changes should update experiment documentation before review.
+
+## ADR-004: Use `dev`, `stg`, and `main` for Weekly Delivery
+
+- **Date**: 2026-07-09
+- **Status**: Accepted
+- **Decision**: Use `feature/* -> dev -> stg -> main` as the promotion flow. Daily work happens on `dev` or `feature/*`; verified weekly deliverables promote to `stg`; milestone or mentor-confirmed stable versions promote from `stg` to `main`.
+- **Reason**: This separates active development and experiments from mentor-reviewed weekly deliverables and milestone-level stable code.
+- **Consequence**: Before merging into `stg`, provide a changed-files summary, verification commands and results, expected outputs, known limitations, updated documentation, and a proposed weekly tag such as `week2-yelp-data-processing`.
+
+## ADR-005: Build Week 2 Yelp Processing as a Config-Driven Offline Pipeline
+
+- **Date**: 2026-07-09
+- **Status**: Accepted
+- **Decision**: Add a reusable offline pipeline for Yelp JSONL parsing, local image validation, multimodal alignment generation, optional CLIP denoising, and report generation.
+- **Reason**: Weekly review needs reproducible data preparation artifacts without requiring live VLM serving, GPU access, or committed raw Yelp files.
+- **Consequence**: Raw and generated data stay under ignored `data/yelp/` paths; scripts must tolerate missing optional CLIP and Parquet dependencies while documenting the fallback.
 
 ## Decision Template
 

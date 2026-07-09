@@ -1,46 +1,25 @@
-# Experiment Summary
+# Experiment Notes
 
-Use this file as a high-level index of experiments. Detailed records remain in:
+## Week 2 Data Processing Baseline
 
-- `experiments/experiment_log.md`
-- `experiments/results.csv`
-- `experiments/failure_cases.md`
+- Dataset source: local Yelp Open Dataset files under `data/yelp/raw/`.
+- Config: `configs/data_processing.yaml`.
+- Base pipeline does not require GPU, CLIP, live vLLM, or `requirements-llm.txt`.
+- Week 2 data-only dependency install: `pip install -r requirements-data.txt`.
+- CLIP denoising is disabled by default and records a skipped status in `data/yelp/processed/clip_denoising_summary.json`.
+- Generated large outputs remain under ignored `data/yelp/` directories.
 
-## Current Experiment Tracking Rules
+Record future full-dataset runs with command, Git commit, raw file availability, output counts, runtime, and any skipped dependency notes.
 
-Each experiment should record:
+### Local smoke run on 2026-07-09
 
-- date and git commit;
-- model name and size, or `not_applicable_data_preparation` for data-only work;
-- inference backend and serving command;
-- prompt version and generation parameters;
-- dataset version and task type;
-- metrics, summary, failure cases, and next action.
-
-## Recorded Experiments
-
-| ID | Purpose | Main Result | Detailed Record |
-|---|---|---|---|
-| EXP-20260706-001 | Initial scaffold and fallback image understanding | Fallback path available before live vLLM startup | `experiments/experiment_log.md` |
-| EXP-20260706-002 | Docker + vLLM live image smoke test | Qwen2-VL-2B served through vLLM Docker and returned image-understanding output | `experiments/experiment_log.md` |
-
-## Verification Commands
-
-```bash
-python -m unittest discover -s tests
-python scripts/test_health.py
-python scripts/test_image_understanding.py
-```
-
-For Yelp subset preparation:
-
-```bash
-python scripts/prepare_yelp_subset.py --raw-dir data/yelp/raw --output-dir data/yelp/processed/ota_subset_v1
-```
-
-## Experiment Update Checklist
-
-- Add or update an entry in `experiments/experiment_log.md`.
-- Add numeric or tabular results to `experiments/results.csv` when applicable.
-- Add reproducible failures to `experiments/failure_cases.md`.
-- Summarize mentor-relevant progress in `docs/weekly_log.md`.
+- Command sequence: parse, alignment, CLIP denoising, report generation with `configs/data_processing.yaml`.
+- Review processing limit: 10000 reviews.
+- Parsed rows: 150346 businesses, 10000 reviews, 200100 photo metadata records.
+- Image validation: 581 valid images, 199519 missing images, 0 corrupted images.
+- Alignment rows: 581 strong image-caption pairs, 581 medium image-business pairs, 38 weak business-level groups.
+- Data quality statistics: valid image ratio, photo label distribution, caption length statistics, and denoising before/after counts are recorded in `dataset_statistics.json` and the report.
+- CLIP denoising: skipped by config.
+- Storage behavior: real Parquet files were written because a pandas Parquet engine is available locally.
+- Output validation: `scripts/validate_week2_pipeline.py` confirmed expected files, columns, image paths, report counts, and Parquet format.
+- Scale limitation: the smoke run uses a 10,000-review cap; full review parsing should use chunked writes or another bounded-memory output strategy before setting `processing_limits.max_reviews` to `null`.

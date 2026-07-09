@@ -1,78 +1,36 @@
 # Weekly Log
 
-Use this file for concise weekly progress records. Keep detailed mentor-facing prose in `docs/internship_weekly_summary.md` when needed.
+## 2026-07-09: Week 2 Yelp Multimodal Dataset Pipeline
 
-## Week 1: Engineering Foundation and Data Preparation
+- Added a config-driven Yelp processing pipeline under `configs/data_processing.yaml`.
+- Added line-by-line JSONL reading for business, review, and photo metadata in the capped smoke-run pipeline.
+- Added image validation for missing, valid, and unreadable local images.
+- Added strong, medium, and weak alignment builders with bounded weak grouping.
+- Added optional CLIP denoising interface that writes skipped status when disabled or unavailable.
+- Added report generation for `reports/yelp_multimodal_data_processing_report_part1.md`.
+- Added focused unit tests in `tests/test_yelp_data_pipeline.py`.
+- Split dependencies so Week 2 data processing uses `requirements-data.txt` and does not require native Windows vLLM installation.
+- Treated Yelp download/archive extraction as a Week 1 prerequisite; Week 2 consumes normalized files under `data/yelp/raw/`.
 
-### Completed
-
-- Created the project scaffold for an OTA multimodal search and travel planning system.
-- Added FastAPI endpoints for health, image understanding, visual search, and travel planning.
-- Added deterministic fallback behavior so local tests do not require a live vLLM server.
-- Added Docker and vLLM serving configuration for local GPU smoke tests.
-- Added sample POI, review, and image data under `data/samples/`.
-- Added Yelp Open Dataset preparation logic and tests.
-- Created experiment logs, results table, and failure-case tracking under `experiments/`.
-
-### Verification
-
-```bash
-python -m unittest discover -s tests
-python scripts/test_health.py
-python scripts/test_image_understanding.py
-```
-
-### Notes
-
-- Use smaller VLM models for local 8GB GPU validation when larger Qwen-VL variants are not stable.
-- Keep raw datasets and generated large outputs out of Git.
-
-### Review and Report - 2026-07-09
-
-Changed files reviewed:
-
-- New review/control documents: `AGENTS.md`, `docs/requirements.md`, `docs/weekly_log.md`, `docs/decisions.md`, `docs/experiments.md`, `docs/internship_weekly_summary.md`.
-- Local raw Yelp archives were present under `data/` and must remain uncommitted.
-
-Verification completed:
+Verification commands:
 
 ```bash
 python -m unittest discover -s tests -v
-python scripts/test_health.py
-python scripts/test_image_understanding.py
+python scripts/parse_yelp_json.py --config configs/data_processing.yaml
+python scripts/build_yelp_alignment.py --config configs/data_processing.yaml
+python scripts/run_clip_denoising.py --config configs/data_processing.yaml
+python scripts/generate_yelp_report.py --config configs/data_processing.yaml
+python scripts/validate_week2_pipeline.py --config configs/data_processing.yaml
 ```
 
-Results:
+Verification results on 2026-07-09:
 
-- Unit tests passed: 9/9.
-- Health smoke test passed and returned the OTA multimodal service metadata.
-- Image-understanding smoke test passed and returned structured JSON output from the running API.
-
-Review findings:
-
-- Week 1 acceptance is mostly satisfied for scaffold, API fallback behavior, smoke tests, Docker/vLLM documentation, sample data, and Yelp JSONL subset preparation.
-- Raw Yelp archives were detected at `data/Yelp-JSON.zip` and `data/Yelp-Photos.zip`; `.gitignore` now ignores `data/Yelp-*.zip`, but the files should not be staged or committed.
-- Current Yelp preparation code expects extracted raw JSON/metadata files under `data/yelp/raw/`; it does not currently implement direct extraction from the official zip/tar archives. Any report language should avoid claiming archive extraction support unless that code is added.
-- Live VLM JSON parsing is usable for the current smoke result, but malformed or truncated model JSON remains a known future hardening task.
-
-## Weekly Log Template
-
-```markdown
-## Week X: Task Name
-
-### Completed
-
-- Item completed
-
-### Verification
-
-- `command` should pass and produce expected output.
-
-### Issues / Risks
-
-- Risk or blocker
-
-### Next Steps
-
-- Next action
-```
+- Unit tests: 24 tests passed.
+- Parse command: 150346 businesses, 10000 capped reviews, 200100 photo metadata rows, 581 valid local images.
+- Alignment command: 581 strong pairs, 581 medium pairs, 38 weak business-level groups.
+- Data quality statistics: valid image ratio, label distribution, caption length statistics, and denoising before/after counts are included in dataset statistics and the report.
+- CLIP denoising: skipped because `clip_denoising.enabled` is false.
+- Report generation: wrote 10 sections to `reports/yelp_multimodal_data_processing_report_part1.md`.
+- Output validation: all expected files, required columns, alignment image paths, report counts, and storage format checks passed.
+- Local storage note: `pyarrow` is available in the current environment, so real Parquet files were written.
+- Scale note: the current implementation is verified for the capped smoke run; full review parsing should add chunked writes before removing the review cap.

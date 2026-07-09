@@ -1,71 +1,43 @@
-# Weekly Requirements
+# Project Requirements
 
-This file is the source of truth for mentor-provided weekly requirements, deliverables, and acceptance criteria. Add new weeks at the top or below the current active week, then keep implementation scoped to that section.
-
-## Week 1: Engineering Foundation and Data Preparation
+## Week 2: Yelp Multimodal Dataset Processing Pipeline
 
 ### Background
-
-Build the reproducible foundation for an OTA multimodal VLM search and travel planning project.
-
-### Goals
-
-- Establish the repository structure, local setup, Docker layout, and FastAPI scaffold.
-- Validate vLLM-compatible image understanding through a deterministic fallback and local smoke tests.
-- Prepare a Yelp Open Dataset subset workflow for OTA-style POI, review, and image metadata.
-- Create repeatable experiment records.
-
-### Non-goals
-
-- Do not build a full UI.
-- Do not commit raw Yelp archives, extracted images, model weights, or local environment files.
-- Do not require live GPU inference for every local test.
-
-### Deliverables
-
-- `src/` modules for API, inference, retrieval, planning, data, and evaluation.
-- `docker/` service definitions and vLLM launch script.
-- `data/samples/` mock catalog, reviews, and image.
-- Experiment records under `experiments/`.
-- Supporting docs under `docs/`.
-
-### Acceptance Criteria
-
-- `python -m unittest discover -s tests` passes.
-- `python scripts/test_health.py` verifies the health endpoint.
-- `python scripts/test_image_understanding.py` returns structured image-understanding output.
-- Yelp subset preparation can generate POI, review, and multimodal JSONL outputs from local raw files.
-
-### Risks / Questions
-
-- Local GPU memory may require smaller VLM models for smoke tests.
-- vLLM image, CUDA, and NVIDIA driver versions must remain compatible.
-- Live model JSON output may be malformed and needs parser hardening in later weeks.
-
-## New Weekly Requirement Template
-
-```markdown
-## Week X: Task Name
-
-### Background
+Week 1 established the project scaffold and small Yelp subset workflow. Week 2 builds a reproducible pipeline for parsing, validating, aligning, and reporting Yelp multimodal data.
 
 ### Goals
-
-- Goal 1
+- Normalize Yelp raw, interim, processed, logs, and report directories.
+- Consume the Week 1 downloaded/extracted Yelp files from the normalized raw directory.
+- Read business, review, and photo JSONL files line by line for the capped smoke-run pipeline.
+- Validate local photo files and record image metadata.
+- Build strong image-caption pairs, medium image-business pairs, and weak image-review pairs.
+- Provide an optional CLIP denoising interface that does not block the pipeline.
+- Generate `reports/yelp_multimodal_data_processing_report_part1.md`.
 
 ### Non-goals
-
-- Out-of-scope item
+- Do not commit raw Yelp archives, extracted images, or large generated Parquet files.
+- Do not require GPU or CLIP for the base pipeline.
+- Do not build model training or a UI this week.
 
 ### Deliverables
-
-- Deliverable 1
+- Config-driven parsing and alignment scripts.
+- Reusable `src/data/` modules for JSONL parsing, validation, alignment, statistics, templates, and optional denoising.
+- Interim Parquet outputs, processed alignment outputs, statistics JSON, and report draft for the configured smoke-run scope.
+- Tests for parsers, validation, alignment, denoising skip behavior, and report generation.
 
 ### Acceptance Criteria
-
-- Verification command and expected result
+- `python -m unittest discover -s tests -v` passes.
+- Week 2 data processing can be installed with `pip install -r requirements-data.txt` without installing `vllm`.
+- Parsing script writes business, review, photo, image-index, review-stats, and validation-summary outputs.
+- Alignment script writes strong, medium, weak, and dataset-statistics outputs.
+- Denoising script either writes denoised pairs or a skipped-status summary without failing.
+- Report generator writes the Week 2 report using real statistics or explicit `TODO` markers.
 
 ### Risks / Questions
-
-- Open issue or technical risk
-```
+- Official Yelp archives may need manual extraction before parsing unless archive extraction is added.
+- The Yelp download/extraction step is treated as a completed prerequisite for this Week 2 processing review.
+- Full review/photo data may be large, so the current capped smoke run should not be uncapped until chunked table writing or another bounded-memory output strategy is added.
+- CLIP dependencies and GPU availability are uncertain.
+- Local environments without `pyarrow` will run with a CSV fallback at the configured output path until dependencies are installed.
+- The default config caps review parsing for smoke verification; full-dataset review parsing should add chunked writes or another bounded-memory output strategy before removing the cap.
+- vLLM should not be installed in native Windows Python by default; use Docker or WSL2 for live LLM serving dependencies.
