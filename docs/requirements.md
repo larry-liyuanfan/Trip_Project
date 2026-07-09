@@ -39,5 +39,5 @@ Week 1 established the project scaffold and small Yelp subset workflow. Week 2 b
 - Full review/photo data may be large, so the current capped smoke run should not be uncapped until chunked table writing or another bounded-memory output strategy is added.
 - CLIP dependencies and GPU availability are uncertain.
 - Local environments without `pyarrow` will run with a CSV fallback at the configured output path until dependencies are installed.
-- The default config caps review parsing for smoke verification; set `processing_limits.max_reviews` to `null` for a full-dataset run.
+- The default config caps review parsing for smoke verification; full-dataset review parsing should add chunked writes or another bounded-memory output strategy before removing the cap.
 - vLLM should not be installed in native Windows Python by default; use Docker or WSL2 for live LLM serving dependencies.
