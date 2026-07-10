@@ -233,10 +233,15 @@ class CoreBehaviorTest(unittest.TestCase):
                 "Yelp JSON/yelp_dataset.tar",
                 {
                     "yelp_academic_dataset_business.json": {"business_id": "biz_1"},
+                    "yelp_academic_dataset_checkin.json": {"business_id": "biz_1"},
                     "yelp_academic_dataset_review.json": {"review_id": "rev_1"},
-                    "yelp_academic_dataset_user.json": {"user_id": "ignored"},
+                    "yelp_academic_dataset_tip.json": {"tip_id": "tip_1"},
+                    "yelp_academic_dataset_user.json": {"user_id": "user_1"},
                 },
             )
+            with zipfile.ZipFile(json_zip, "a") as archive:
+                archive.writestr("Yelp JSON/Yelp Dataset Documentation & ToS copy.pdf", b"json-doc")
+                archive.writestr("__MACOSX/Yelp JSON/._Yelp Dataset Documentation & ToS copy.pdf", b"ignored")
             self._write_zip_with_gzipped_tar(
                 photos_zip,
                 "Yelp Photos/yelp_photos.tar",
@@ -245,6 +250,8 @@ class CoreBehaviorTest(unittest.TestCase):
                     "photos/photo_1.jpg": b"fake-image",
                 },
             )
+            with zipfile.ZipFile(photos_zip, "a") as archive:
+                archive.writestr("Yelp Photos/Yelp Dataset Documentation & ToS.pdf", b"photo-doc")
 
             manifest = extract_yelp_archives(
                 json_zip_path=json_zip,
@@ -262,9 +269,14 @@ class CoreBehaviorTest(unittest.TestCase):
                 [
                     "photos.json",
                     "yelp_academic_dataset_business.json",
+                    "yelp_academic_dataset_checkin.json",
                     "yelp_academic_dataset_review.json",
+                    "yelp_academic_dataset_tip.json",
+                    "yelp_academic_dataset_user.json",
                 ],
             )
+            self.assertTrue((raw_dir / "docs" / "Yelp Dataset Documentation & ToS copy.pdf").exists())
+            self.assertTrue((raw_dir / "docs" / "Yelp Dataset Documentation & ToS.pdf").exists())
 
     def test_extract_yelp_photo_files_extracts_only_requested_images(self):
         with TemporaryDirectory() as tmpdir:
@@ -291,6 +303,37 @@ class CoreBehaviorTest(unittest.TestCase):
             self.assertFalse((raw_dir / "photos" / "photo_2.jpg").exists())
             self.assertEqual(manifest["requested_photo_count"], 1)
             self.assertEqual(manifest["extracted_photo_count"], 1)
+
+    def test_extract_yelp_archives_can_extract_the_full_photo_directory(self):
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            json_zip = workspace / "Yelp-JSON.zip"
+            photos_zip = workspace / "Yelp-Photos.zip"
+            raw_dir = workspace / "raw"
+            self._write_zip_with_gzipped_tar(
+                json_zip,
+                "Yelp JSON/yelp_dataset.tar",
+                {"yelp_academic_dataset_business.json": {"business_id": "biz_1"}},
+            )
+            self._write_zip_with_gzipped_tar(
+                photos_zip,
+                "Yelp Photos/yelp_photos.tar",
+                {
+                    "photos.json": {"photo_id": "photo_1", "business_id": "biz_1"},
+                    "photos/photo_1.jpg": b"first-image",
+                    "photos/photo_2.jpg": b"second-image",
+                },
+            )
+
+            extract_yelp_archives(
+                json_zip_path=json_zip,
+                photos_zip_path=photos_zip,
+                raw_dir=raw_dir,
+                include_photo_files=True,
+            )
+
+            self.assertEqual((raw_dir / "photos" / "photo_1.jpg").read_bytes(), b"first-image")
+            self.assertEqual((raw_dir / "photos" / "photo_2.jpg").read_bytes(), b"second-image")
 
     def _write_zip_with_gzipped_tar(
         self,

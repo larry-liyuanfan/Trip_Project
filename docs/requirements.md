@@ -8,10 +8,10 @@ Week 1 established the project scaffold and small Yelp subset workflow. Week 2 b
 ### Goals
 - Normalize Yelp raw, interim, processed, logs, and report directories.
 - Consume the Week 1 downloaded/extracted Yelp files from the normalized raw directory.
-- Read business, review, and photo JSONL files line by line for the capped smoke-run pipeline.
+- Read business, review, and photo JSONL files line by line for the full processing pipeline.
 - Validate local photo files and record image metadata.
-- Build strong image-caption pairs, medium image-business pairs, and weak image-review pairs.
-- Provide an optional CLIP denoising interface that does not block the pipeline.
+- Build strong valid-image/non-empty-caption pairs, medium image-business pairs, and weak image-review pairs.
+- Provide a reproducible CLIP denoising stage that runs in a dedicated GPU Docker task without adding torch or vLLM to the base data environment.
 - Generate `reports/yelp_multimodal_data_processing_report_part1.md`.
 
 ### Non-goals
@@ -21,8 +21,8 @@ Week 1 established the project scaffold and small Yelp subset workflow. Week 2 b
 
 ### Deliverables
 - Config-driven parsing and alignment scripts.
-- Reusable `src/data/` modules for JSONL parsing, validation, alignment, statistics, templates, and optional denoising.
-- Interim Parquet outputs, processed alignment outputs, statistics JSON, and report draft for the configured smoke-run scope.
+- Reusable `src/data/` modules for archive extraction, JSONL parsing, validation, alignment, statistics, templates, and optional denoising.
+- Interim Parquet outputs, processed alignment outputs, statistics JSON, and report draft for the full local Yelp run.
 - Tests for parsers, validation, alignment, denoising skip behavior, and report generation.
 
 ### Acceptance Criteria
@@ -30,14 +30,14 @@ Week 1 established the project scaffold and small Yelp subset workflow. Week 2 b
 - Week 2 data processing can be installed with `pip install -r requirements-data.txt` without installing `vllm`.
 - Parsing script writes business, review, photo, image-index, review-stats, and validation-summary outputs.
 - Alignment script writes strong, medium, weak, and dataset-statistics outputs.
-- Denoising script either writes denoised pairs or a skipped-status summary without failing.
+- Denoising task writes a row-level denoised table, a summary, and similarity distribution; disabled/dependency-unavailable paths still write an explicit skipped summary.
 - Report generator writes the Week 2 report using real statistics or explicit `TODO` markers.
 
 ### Risks / Questions
 - Official Yelp archives may need manual extraction before parsing unless archive extraction is added.
 - The Yelp download/extraction step is treated as a completed prerequisite for this Week 2 processing review.
-- Full review/photo data may be large, so the current capped smoke run should not be uncapped until chunked table writing or another bounded-memory output strategy is added.
-- CLIP dependencies and GPU availability are uncertain.
+- Full review/photo data is large, so review output uses chunked table writing to keep memory bounded.
+- CLIP requires the `clip-denoising` Docker profile and exclusive GPU access. Stop vLLM before full CLIP inference on the local 8GB GPU.
 - Local environments without `pyarrow` will run with a CSV fallback at the configured output path until dependencies are installed.
-- The default config caps review parsing for smoke verification; full-dataset review parsing should add chunked writes or another bounded-memory output strategy before removing the cap.
+- The default config sets `processing_limits.max_reviews` to `null` and uses chunked review writes for full-dataset parsing.
 - vLLM should not be installed in native Windows Python by default; use Docker or WSL2 for live LLM serving dependencies.

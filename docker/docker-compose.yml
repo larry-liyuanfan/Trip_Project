@@ -51,3 +51,29 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  # One-off task container. Run it with `docker compose run --rm clip-denoising`
+  # after stopping vLLM so the 8GB GPU is reserved for CLIP batch inference.
+  clip-denoising:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.clip
+    profiles: ["data"]
+    working_dir: /workspace
+    environment:
+      HF_HOME: /models/huggingface
+      HF_HUB_DISABLE_XET: "1"
+    volumes:
+      - ..:/workspace
+      - ../models:/models
+    command:
+      - scripts/run_clip_denoising.py
+      - --config
+      - configs/data_processing.yaml
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

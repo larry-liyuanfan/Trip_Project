@@ -1,8 +1,11 @@
 import importlib.util
 import re
+import csv
+import json
 from pathlib import Path
 from typing import Any
 
+from src.data.clip_denoising import DENOISED_PAIR_FIELDS
 from src.data.jsonl_utils import read_table
 from src.data.yelp_paths import resolve_pipeline_paths
 
@@ -14,7 +17,7 @@ EXPECTED_FILES = {
     "photo_image_index": ("interim_dir", "photo_image_index", {"photo_id", "business_id", "image_path", "image_valid"}),
     "review_business_stats": ("interim_dir", "review_business_stats", {"business_id", "valid_review_count"}),
     "strong_pairs": ("processed_dir", "strong_image_caption_pairs", {"business_id", "photo_id", "image_path", "caption", "label"}),
-    "medium_pairs": ("processed_dir", "image_business_attribute_pairs", {"business_id", "photo_id", "image_path", "business_description"}),
+    "medium_pairs": ("processed_dir", "image_business_attribute_pairs", {"business_id", "photo_id", "image_path", "business_description", "attribute_dimension_labels"}),
     "weak_pairs": ("processed_dir", "business_level_weak_pairs", {"business_id", "photo_ids", "image_paths", "review_texts"}),
 }
 
@@ -37,15 +40,20 @@ def validate_week2_outputs(config: dict[str, Any]) -> dict[str, Any]:
             counts[logical_name] = 0
             columns[logical_name] = []
             continue
-        rows = read_table(path)
-        counts[logical_name] = len(rows)
-        observed_columns = set(rows[0].keys()) if rows else set()
+        counts[logical_name], observed_columns = inspect_table(path)
         columns[logical_name] = sorted(observed_columns)
         missing_columns = required_columns - observed_columns
         if missing_columns:
             errors.append(f"{logical_name} is missing columns: {sorted(missing_columns)}")
 
     _validate_alignment_image_paths(table_paths, errors)
+    clip_errors = validate_clip_denoising_output(
+        paths["processed_dir"],
+        output_format,
+        config.get("clip_denoising", {}),
+        set(DENOISED_PAIR_FIELDS),
+    )
+    errors.extend(clip_errors)
     _validate_report_counts(paths["report_path"], counts, errors, warnings)
     _validate_storage_format(table_paths, output_format, paths["report_path"], errors, warnings)
 
@@ -57,6 +65,60 @@ def validate_week2_outputs(config: dict[str, Any]) -> dict[str, Any]:
         "columns": columns,
         "files": {key: str(path) for key, path in table_paths.items()},
     }
+
+
+def inspect_table(path: Path) -> tuple[int, set[str]]:
+    """Read Parquet metadata first so full review tables are not materialized."""
+    if path.suffix == ".parquet" and importlib.util.find_spec("pyarrow") is not None:
+        import pyarrow.parquet as pq
+
+        parquet_file = pq.ParquetFile(path)
+        # Arrow schema names preserve top-level list/struct fields, while the
+        # physical Parquet schema exposes nested children as generic `element`.
+        return parquet_file.metadata.num_rows, set(parquet_file.schema_arrow.names)
+    rows = read_table(path)
+    return len(rows), set(rows[0].keys()) if rows else set()
+
+
+def validate_clip_denoising_output(
+    processed_dir: Path,
+    output_format: str,
+    clip_config: dict[str, Any],
+    required_columns: set[str],
+) -> list[str]:
+    """Verify the one-off CLIP task wrote a complete table and matching summary."""
+    summary_path = processed_dir / "clip_denoising_summary.json"
+    if not clip_config.get("enabled", False) and not summary_path.exists():
+        return []
+
+    errors: list[str] = []
+    extension = "csv" if output_format.lower() == "csv" else "parquet"
+    output_name = str(clip_config.get("output_filename", "weak_pairs_denoised"))
+    output_path = processed_dir / f"{output_name}.{extension}"
+    if not summary_path.exists():
+        return [f"Missing CLIP denoising summary: {summary_path}"]
+    if not output_path.exists():
+        return [f"Missing CLIP denoised output: {output_path}"]
+
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    rows = read_table(output_path)
+    columns = _table_columns(output_path)
+    missing_columns = required_columns - columns
+    if missing_columns:
+        errors.append(f"CLIP denoised output is missing columns: {sorted(missing_columns)}")
+    retained_pairs = int(summary.get("retained_pairs", 0))
+    if retained_pairs != len(rows):
+        errors.append(f"CLIP summary retained_pairs={retained_pairs} does not match output rows={len(rows)}")
+    for index, row in enumerate(rows):
+        image_path = row.get("image_path")
+        if not image_path or not Path(str(image_path)).exists():
+            errors.append(f"CLIP denoised row {index} has missing image_path: {image_path}")
+            break
+    return errors
+
+
+def _table_columns(path: Path) -> set[str]:
+    return inspect_table(path)[1]
 
 
 def _validate_alignment_image_paths(table_paths: dict[str, Path], errors: list[str]) -> None:

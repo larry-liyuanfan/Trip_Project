@@ -51,7 +51,18 @@ def write_table(path: Path, rows: Iterable[dict[str, Any]], output_format: str =
     actual = requested
     error = None
     if requested == "parquet":
-        if importlib.util.find_spec("pyarrow") is None and importlib.util.find_spec("fastparquet") is None:
+        if importlib.util.find_spec("pyarrow") is not None:
+            try:
+                import pyarrow as pa
+                import pyarrow.parquet as pq
+
+                table = pa.Table.from_pylist(records)
+                pq.write_table(table, path)
+            except Exception as exc:
+                actual = "csv_fallback"
+                error = str(exc)
+                _write_csv(path, records)
+        elif importlib.util.find_spec("fastparquet") is None:
             actual = "csv_fallback"
             error = "No pandas Parquet engine installed; wrote CSV fallback"
             _write_csv(path, records)
@@ -72,10 +83,120 @@ def write_table(path: Path, rows: Iterable[dict[str, Any]], output_format: str =
     return {"path": str(path), "rows": len(records), "requested_format": requested, "actual_format": actual, "error": error}
 
 
+class TableStreamWriter:
+    def __init__(
+        self,
+        path: Path,
+        output_format: str = "parquet",
+        fieldnames: list[str] | None = None,
+        chunk_size: int = 50000,
+        parquet_schema: Any | None = None,
+    ) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.output_format = output_format.lower()
+        self.fieldnames = fieldnames
+        self.chunk_size = chunk_size
+        self.rows_written = 0
+        self.buffer: list[dict[str, Any]] = []
+        self.actual_format = self.output_format
+        self.error: str | None = None
+        self._csv_handle = None
+        self._csv_writer = None
+        self._parquet_writer = None
+        self._parquet_schema = parquet_schema
+
+        if self.output_format == "parquet" and (
+            importlib.util.find_spec("pyarrow") is None
+            or importlib.util.find_spec("pyarrow.parquet") is None
+        ):
+            self.actual_format = "csv_fallback"
+            self.error = "No pyarrow Parquet engine installed; wrote CSV fallback"
+        elif self.output_format not in {"parquet", "csv"}:
+            raise ValueError(f"Unsupported output format: {output_format}")
+
+    def write(self, row: dict[str, Any]) -> None:
+        self.buffer.append(row)
+        if len(self.buffer) >= self.chunk_size:
+            self.flush()
+
+    def flush(self) -> None:
+        if not self.buffer:
+            return
+        if self.actual_format == "parquet":
+            self._flush_parquet()
+        else:
+            self._flush_csv()
+        self.rows_written += len(self.buffer)
+        self.buffer = []
+
+    def close(self) -> dict[str, Any]:
+        self.flush()
+        if self.rows_written == 0:
+            self._write_empty_table()
+        if self._csv_handle is not None:
+            self._csv_handle.close()
+        if self._parquet_writer is not None:
+            self._parquet_writer.close()
+        return {
+            "path": str(self.path),
+            "rows": self.rows_written,
+            "requested_format": self.output_format,
+            "actual_format": self.actual_format,
+            "error": self.error,
+        }
+
+    def _write_empty_table(self) -> None:
+        """Materialize an empty table so downstream schema validation can run."""
+        if self.actual_format == "parquet":
+            import pyarrow as pa
+            import pyarrow.parquet as pq
+
+            schema = self._parquet_schema or pa.schema([(fieldname, pa.string()) for fieldname in self.fieldnames or []])
+            pq.write_table(pa.Table.from_pylist([], schema=schema), self.path)
+        elif self.fieldnames is not None:
+            self._csv_handle = self.path.open("w", encoding="utf-8", newline="")
+            self._csv_writer = csv.DictWriter(self._csv_handle, fieldnames=self.fieldnames)
+            self._csv_writer.writeheader()
+
+    def _flush_csv(self) -> None:
+        if self.fieldnames is None:
+            self.fieldnames = sorted({key for record in self.buffer for key in record.keys()})
+        if self._csv_handle is None:
+            self._csv_handle = self.path.open("w", encoding="utf-8", newline="")
+            self._csv_writer = csv.DictWriter(self._csv_handle, fieldnames=self.fieldnames)
+            self._csv_writer.writeheader()
+        assert self._csv_writer is not None
+        for record in self.buffer:
+            self._csv_writer.writerow({key: _serialize_cell(record.get(key)) for key in self.fieldnames})
+
+    def _flush_parquet(self) -> None:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        if self.fieldnames is None:
+            self.fieldnames = sorted({key for record in self.buffer for key in record.keys()})
+        rows = [{key: record.get(key) for key in self.fieldnames} for record in self.buffer]
+        table = pa.Table.from_pylist(rows, schema=self._parquet_schema)
+        if self._parquet_schema is None:
+            self._parquet_schema = table.schema
+        if self._parquet_writer is None:
+            self._parquet_writer = pq.ParquetWriter(self.path, table.schema)
+        self._parquet_writer.write_table(table)
+
+
 def read_table(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     if importlib.util.find_spec("pyarrow") is not None or importlib.util.find_spec("fastparquet") is not None:
+        if path.suffix == ".parquet" and importlib.util.find_spec("pyarrow") is not None:
+            try:
+                import pyarrow.parquet as pq
+
+                records = pq.read_table(path).to_pylist()
+                return [{key: _normalize_cell(value) for key, value in row.items()} for row in records]
+            except Exception:
+                pass
         try:
             import pandas as pd
 

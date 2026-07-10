@@ -9,7 +9,10 @@ from typing import Any
 
 JSON_DATASET_FILES = {
     "yelp_academic_dataset_business.json",
+    "yelp_academic_dataset_checkin.json",
     "yelp_academic_dataset_review.json",
+    "yelp_academic_dataset_tip.json",
+    "yelp_academic_dataset_user.json",
 }
 PHOTO_METADATA_FILES = {"photos.json", "photo.json", "yelp_academic_dataset_photo.json"}
 
@@ -24,6 +27,8 @@ def extract_yelp_archives(
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     extracted_files: list[dict[str, Any]] = []
+    documentation_files: list[dict[str, Any]] = []
+    documentation_files.extend(extract_documentation_from_zip(Path(json_zip_path), raw_dir))
     extracted_files.extend(
         extract_selected_members_from_zip_tar(
             zip_path=Path(json_zip_path),
@@ -33,6 +38,7 @@ def extract_yelp_archives(
         )
     )
     if photos_zip_path:
+        documentation_files.extend(extract_documentation_from_zip(Path(photos_zip_path), raw_dir))
         extracted_files.extend(
             extract_selected_members_from_zip_tar(
                 zip_path=Path(photos_zip_path),
@@ -49,12 +55,41 @@ def extract_yelp_archives(
         "photos_zip_path": str(photos_zip_path) if photos_zip_path else None,
         "include_photo_files": include_photo_files,
         "extracted_files": extracted_files,
+        "documentation_files": documentation_files,
     }
     (raw_dir / "extract_manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     return manifest
+
+
+def extract_documentation_from_zip(zip_path: Path, raw_dir: Path) -> list[dict[str, Any]]:
+    extracted: list[dict[str, Any]] = []
+    docs_dir = raw_dir / "docs"
+    with zipfile.ZipFile(zip_path) as zip_archive:
+        for member_name in zip_archive.namelist():
+            normalized = normalized_member_name(member_name)
+            if is_macos_resource(normalized) or normalized.endswith("/"):
+                continue
+            filename = Path(normalized).name.lower()
+            if "documentation" not in filename and "tos" not in filename:
+                continue
+            output_name = Path(normalized).name
+            target_path = safe_output_path(raw_dir, f"docs/{output_name}")
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            with zip_archive.open(member_name) as source, target_path.open("wb") as output:
+                shutil.copyfileobj(source, output, length=1024 * 1024)
+            extracted.append(
+                {
+                    "archive": str(zip_path),
+                    "zip_member": member_name,
+                    "output_name": f"docs/{output_name}",
+                    "output_path": str(target_path),
+                    "size": target_path.stat().st_size,
+                }
+            )
+    return extracted
 
 
 def extract_yelp_photo_files(
