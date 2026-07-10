@@ -6,11 +6,11 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.data.image_validation import validate_photo_images
-from src.data.jsonl_utils import iter_jsonl, limit_records, write_json, write_table
-from src.data.parse_business import parse_business_records
-from src.data.parse_photos import parse_photo_records
-from src.data.parse_reviews import parse_review_records
+from src.data.image_validation import iter_validated_photo_images
+from src.data.jsonl_utils import TableStreamWriter, iter_jsonl, limit_records, write_json, write_table
+from src.data.parse_business import stream_business_records
+from src.data.parse_photos import stream_photo_records
+from src.data.parse_reviews import stream_review_records
 from src.data.yelp_paths import create_output_directories, load_config, resolve_pipeline_paths
 
 
@@ -20,39 +20,109 @@ def run_parse(config: dict[str, Any]) -> dict[str, Any]:
     output_format = config.get("output", {}).get("format", "parquet")
     limits = config.get("processing_limits", {})
     interim = paths["interim_dir"]
+    chunk_size = int(config.get("output", {}).get("chunk_size", 50000))
+    image_validation_config = config.get("image_validation", {})
+    image_workers = int(image_validation_config.get("workers", 8))
+    image_batch_size = int(image_validation_config.get("batch_size", 512))
 
+    business_writer = TableStreamWriter(
+        interim / f"business.{_extension(output_format)}",
+        output_format=output_format,
+        chunk_size=chunk_size,
+    )
     business_records, business_json_summary = iter_jsonl(paths["business_json"])
-    businesses = parse_business_records(limit_records(business_records, _optional_int(limits.get("max_businesses"))))
+    business_parse_summary = stream_business_records(
+        limit_records(business_records, _optional_int(limits.get("max_businesses"))),
+        row_sink=business_writer.write,
+    )
+    business_output_summary = business_writer.close()
 
+    review_writer = TableStreamWriter(
+        interim / f"reviews.{_extension(output_format)}",
+        output_format=output_format,
+        fieldnames=["review_id", "business_id", "user_id", "stars", "useful", "funny", "cool", "text", "date"],
+        chunk_size=chunk_size,
+    )
     review_records, review_json_summary = iter_jsonl(paths["review_json"])
-    reviews, review_stats, review_filter_summary = parse_review_records(
+    review_stats, review_filter_summary = stream_review_records(
         limit_records(review_records, _optional_int(limits.get("max_reviews"))),
+        row_sink=review_writer.write,
         min_text_length=int(config.get("review_filters", {}).get("min_text_length", 20)),
         reject_symbol_only=bool(config.get("review_filters", {}).get("reject_symbol_only", True)),
     )
+    review_output_summary = review_writer.close()
+
+    photo_writer = TableStreamWriter(
+        interim / f"photos.{_extension(output_format)}",
+        output_format=output_format,
+        fieldnames=["photo_id", "business_id", "caption", "label", "image_path"],
+        chunk_size=chunk_size,
+    )
+    image_index_writer = TableStreamWriter(
+        interim / f"photo_image_index.{_extension(output_format)}",
+        output_format=output_format,
+        fieldnames=["photo_id", "business_id", "image_path", "image_valid", "image_width", "image_height", "validation_error"],
+        chunk_size=chunk_size,
+        parquet_schema=_image_index_parquet_schema(output_format),
+    )
+    image_summary = {"total_images": 0, "valid_images": 0, "missing_images": 0, "corrupted_images": 0}
+
+    photo_validation_batch: list[dict[str, Any]] = []
+
+    def flush_photo_validation_batch() -> None:
+        if not photo_validation_batch:
+            return
+        for image_index, image_status in iter_validated_photo_images(
+            photo_validation_batch,
+            workers=image_workers,
+        ):
+            image_index_writer.write(image_index)
+            image_summary["total_images"] += 1
+            if image_status == "valid":
+                image_summary["valid_images"] += 1
+            elif image_status == "missing":
+                image_summary["missing_images"] += 1
+            else:
+                image_summary["corrupted_images"] += 1
+        photo_validation_batch.clear()
+
+    def emit_photo_and_validation(photo: dict[str, Any]) -> None:
+        photo_writer.write(photo)
+        photo_validation_batch.append(photo)
+        if len(photo_validation_batch) >= image_batch_size:
+            flush_photo_validation_batch()
 
     photo_records, photo_json_summary = iter_jsonl(paths["photo_json"])
-    photos = parse_photo_records(limit_records(photo_records, _optional_int(limits.get("max_photos"))), image_root=paths["image_root"])
-    image_index, image_summary = validate_photo_images(photos)
+    photo_parse_summary = stream_photo_records(
+        limit_records(photo_records, _optional_int(limits.get("max_photos"))),
+        image_root=paths["image_root"],
+        row_sink=emit_photo_and_validation,
+    )
+    flush_photo_validation_batch()
+    photo_output_summary = photo_writer.close()
+    image_index_output_summary = image_index_writer.close()
 
     output_summaries = [
-        write_table(interim / f"business.{_extension(output_format)}", businesses, output_format),
-        write_table(interim / f"reviews.{_extension(output_format)}", reviews, output_format),
-        write_table(interim / f"photos.{_extension(output_format)}", photos, output_format),
-        write_table(interim / f"photo_image_index.{_extension(output_format)}", image_index, output_format),
+        business_output_summary,
+        review_output_summary,
+        photo_output_summary,
+        image_index_output_summary,
         write_table(interim / f"review_business_stats.{_extension(output_format)}", review_stats, output_format),
     ]
     summary = {
-        "business_count": len(businesses),
-        "review_count": len(reviews),
-        "photo_count": len(photos),
+        "business_count": business_parse_summary["parsed_businesses"],
+        "review_count": review_filter_summary["valid_reviews"],
+        "photo_count": photo_parse_summary["parsed_photos"],
         "valid_image_count": image_summary["valid_images"],
+        "businesses_with_valid_reviews": len(review_stats),
         "jsonl": {
             "business": business_json_summary,
             "review": review_json_summary,
             "photo": photo_json_summary,
         },
         "review_filters": review_filter_summary,
+        "business_parsing": business_parse_summary,
+        "photo_parsing": photo_parse_summary,
         "image_validation": image_summary,
         "outputs": output_summaries,
     }
@@ -69,6 +139,26 @@ def _optional_int(value: Any) -> int | None:
 
 def _extension(output_format: str) -> str:
     return "csv" if output_format.lower() == "csv" else "parquet"
+
+
+def _image_index_parquet_schema(output_format: str) -> Any | None:
+    if output_format.lower() != "parquet":
+        return None
+    try:
+        import pyarrow as pa
+    except ImportError:
+        return None
+    return pa.schema(
+        [
+            ("photo_id", pa.string()),
+            ("business_id", pa.string()),
+            ("image_path", pa.string()),
+            ("image_valid", pa.bool_()),
+            ("image_width", pa.int64()),
+            ("image_height", pa.int64()),
+            ("validation_error", pa.string()),
+        ]
+    )
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

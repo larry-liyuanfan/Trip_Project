@@ -97,6 +97,7 @@ pip install -r requirements-llm.txt
 - `requirements-api.txt`: FastAPI service and smoke-test dependencies.
 - `requirements-data.txt`: Week 2 Yelp data processing dependencies only.
 - `requirements-llm.txt`: vLLM and Qwen-VL utilities for live model serving.
+- `requirements-clip.txt`: table dependencies added to the dedicated CUDA CLIP container.
 - `requirements.txt`: safe default aggregate for API + data dependencies. It intentionally does not install vLLM.
 
 For the Week 2 data pipeline, use only:
@@ -176,7 +177,17 @@ reports/
 └── figures/
 ```
 
-The Yelp download and archive extraction step was completed before this Week 2 processing flow. Week 2 consumes the normalized raw files and local image directory under `data/yelp/raw/`.
+Extract the official Yelp archives into the normalized raw directory when starting from zip files:
+
+```bash
+python scripts/extract_yelp_archives.py \
+  --json-zip data/Yelp-JSON.zip \
+  --photos-zip data/Yelp-Photos.zip \
+  --raw-dir data/yelp/raw \
+  --include-photo-files
+```
+
+This extracts the 5 core JSON files, `photos.json`, the `photos/` image directory, and official documentation/ToS files under `data/yelp/raw/docs/`.
 
 Run the full offline data-processing flow:
 
@@ -184,13 +195,20 @@ Run the full offline data-processing flow:
 pip install -r requirements-data.txt
 python scripts/parse_yelp_json.py --config configs/data_processing.yaml
 python scripts/build_yelp_alignment.py --config configs/data_processing.yaml
-python scripts/run_clip_denoising.py --config configs/data_processing.yaml
+docker compose -f docker/docker-compose.yml stop vllm
+docker compose -f docker/docker-compose.yml --profile data run --rm clip-denoising
 python scripts/generate_yelp_report.py --config configs/data_processing.yaml
 ```
 
 Outputs include interim business/review/photo tables, image validation summaries, strong image-caption pairs, medium image-business pairs, bounded weak business-level image-review groups, dataset statistics, optional denoising status, and `reports/yelp_multimodal_data_processing_report_part1.md`. Install `pyarrow` for true Parquet output; without a local Parquet engine, the scripts keep running with a CSV fallback at the configured table path.
 
-The default config caps review parsing for quick local verification. A full raw Yelp review pass should first add chunked table writing or another bounded-memory output path before removing the cap.
+The default config uses `processing_limits.max_reviews: null` for full review parsing and writes review rows in chunks to avoid holding the full review table in memory.
+
+### CLIP Denoising Runtime
+
+`clip-denoising` is a one-off GPU Docker task, separate from the API and vLLM service. It mounts the project root at `/workspace` and `models/` at `/models`, so it reads `data/yelp/processed/business_level_weak_pairs.parquet`, caches `openai/clip-vit-base-patch32`, and writes `weak_pairs_denoised.parquet` plus `clip_denoising_summary.json` back to the host.
+
+Stop `vllm` before running CLIP on the local 8GB GPU. The CLIP task needs GPU memory for model inference; it must not share the GPU with the running Qwen service. Restart `vllm` afterwards with `docker compose -f docker/docker-compose.yml start vllm`.
 
 Week 2 mentor-facing report:
 
