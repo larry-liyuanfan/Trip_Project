@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import Any, Iterable
 
-from src.data.text_templates import business_description
+from src.data.text_templates import business_description, mapping_value
 
 
 def build_strong_alignment(
@@ -13,7 +13,9 @@ def build_strong_alignment(
     for photo in photos:
         photo_id = str(photo.get("photo_id"))
         image = valid_images.get(photo_id)
-        if not image:
+        caption = str(photo.get("caption") or "").strip()
+        # Caption-bearing rows are the actual single-image/single-text supervision set.
+        if not image or not caption:
             continue
         rows.append(
             {
@@ -21,7 +23,7 @@ def build_strong_alignment(
                 "photo_id": photo_id,
                 "business_id": photo.get("business_id"),
                 "image_path": image.get("image_path"),
-                "caption": photo.get("caption") or "",
+                "caption": caption,
                 "label": photo.get("label") or "",
                 "alignment_type": "strong",
             }
@@ -50,10 +52,22 @@ def build_medium_alignment(
                 "business_id": business.get("business_id"),
                 "image_path": image.get("image_path"),
                 "business_description": business_description(business),
+                # Keep explicit attribute labels so VLM tasks can target parking,
+                # ambience, hours, and service attributes instead of only free text.
+                "attribute_dimension_labels": attribute_dimension_labels(business),
                 "alignment_type": "medium",
             }
         )
     return rows
+
+
+def attribute_dimension_labels(business: dict[str, Any]) -> list[str]:
+    labels: list[str] = []
+    attributes = mapping_value(business.get("attributes"))
+    labels.extend(str(key) for key, value in attributes.items() if value not in {None, "", "None"})
+    if mapping_value(business.get("hours")):
+        labels.append("hours")
+    return sorted(set(labels))
 
 
 def build_weak_alignment(

@@ -10,16 +10,29 @@ paths:
   report_path: reports/yelp_multimodal_data_processing_report_part1.md
 output:
   format: parquet
+  chunk_size: 50000
+image_validation:
+  # Each batch is bounded before thread workers open and decode local images.
+  workers: 16
+  batch_size: 512
 review_filters:
   min_text_length: 20
   reject_symbol_only: true
 processing_limits:
   max_businesses: null
-  max_reviews: 10000
+  max_reviews: null
   max_photos: null
 weak_alignment:
   max_reviews_per_business: 5
   max_images_per_business: 5
 clip_denoising:
-  enabled: false
+  # Full CLIP inference is executed by the dedicated GPU Docker task, not the
+  # native Windows data environment used for parsing and alignment.
+  enabled: true
   threshold: 0.25
+  model_id: openai/clip-vit-base-patch32
+  device: cuda
+  candidate_batch_size: 256
+  image_batch_size: 32
+  text_batch_size: 128
+  output_filename: weak_pairs_denoised

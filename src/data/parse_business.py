@@ -1,4 +1,6 @@
 import ast
+import json
+from collections.abc import Callable
 from typing import Any, Iterable
 
 
@@ -39,6 +41,33 @@ def parse_business_record(record: dict[str, Any]) -> dict[str, Any]:
 
 def parse_business_records(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [parse_business_record(record) for record in records]
+
+
+def stream_business_records(
+    records: Iterable[dict[str, Any]],
+    row_sink: Callable[[dict[str, Any]], None],
+) -> dict[str, int]:
+    """Parse business JSONL rows directly into a caller-owned table writer."""
+    summary = {"input_businesses": 0, "parsed_businesses": 0, "missing_business_id": 0}
+    for record in records:
+        summary["input_businesses"] += 1
+        row = parse_business_record(record)
+        if not row.get("business_id"):
+            summary["missing_business_id"] += 1
+            continue
+        # Yelp attributes and hours have different nested keys per business.
+        # Store them as JSON text so every Parquet chunk shares one schema.
+        row_sink(serialize_business_nested_fields(row))
+        summary["parsed_businesses"] += 1
+    return summary
+
+
+def serialize_business_nested_fields(row: dict[str, Any]) -> dict[str, Any]:
+    serialized = dict(row)
+    for key in ("attributes", "hours"):
+        value = serialized.get(key) or {}
+        serialized[key] = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return serialized
 
 
 def parse_categories(categories: Any) -> list[str]:

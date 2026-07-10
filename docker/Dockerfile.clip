@@ -1,0 +1,15 @@
+# Reuse the vLLM CUDA/PyTorch runtime without turning the vLLM service itself
+# into a batch-processing container. The project source is mounted at runtime.
+FROM vllm/vllm-openai:v0.8.5
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/models/huggingface \
+    HF_HUB_DISABLE_XET=1
+
+WORKDIR /workspace
+
+COPY requirements-clip.txt /tmp/requirements-clip.txt
+RUN python3 -m pip install --no-cache-dir -r /tmp/requirements-clip.txt
+
+ENTRYPOINT ["python3"]
