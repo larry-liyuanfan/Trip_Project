@@ -27,7 +27,6 @@ data/*.tgz
 models/
 outputs/
 *.log
-AGENTS.md
 docs/internship_weekly_summary.md
 docs/week3_technical_plan.md
 docs/superpowers/
