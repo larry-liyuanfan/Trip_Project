@@ -1,3 +1,5 @@
+"""Expose the Week 1 Yelp subset builder as a repository-root command."""
+
 import sys
 from pathlib import Path
 

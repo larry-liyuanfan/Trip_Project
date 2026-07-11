@@ -1,3 +1,5 @@
+"""OpenAI-compatible vLLM client, response normalization, and local fallback."""
+
 import base64
 import json
 import mimetypes
@@ -25,6 +27,7 @@ class VLLMClient:
         model_name: str | None = None,
         timeout_seconds: int = 60,
     ) -> None:
+        """Configure the endpoint, served model name, and request timeout."""
         self.base_url = (base_url or os.getenv("VLLM_BASE_URL") or "").rstrip("/")
         self.model_name = model_name or os.getenv("VLLM_MODEL_NAME", "Qwen3-VL-2B-Instruct")
         self.timeout_seconds = timeout_seconds
@@ -32,6 +35,7 @@ class VLLMClient:
     def understand_images(
         self, request: ImageUnderstandingRequest
     ) -> ImageUnderstandingResponse:
+        """Call live vLLM when configured, otherwise return deterministic output."""
         if not self.base_url:
             return fallback_image_understanding(request)
 
@@ -51,6 +55,7 @@ class VLLMClient:
             return fallback
 
     def _build_chat_payload(self, request: ImageUnderstandingRequest) -> dict[str, Any]:
+        """Encode text and image parts in the OpenAI multimodal message format."""
         content: list[dict[str, Any]] = [
             {"type": "text", "text": get_image_understanding_prompt(request.prompt_version)}
         ]
@@ -74,6 +79,7 @@ class VLLMClient:
 
 
 def normalize_image_url(image_url: str) -> str:
+    """Convert an existing local file URL to a data URL for container access."""
     if not image_url.startswith("file://"):
         return image_url
 
@@ -91,6 +97,7 @@ def normalize_image_url(image_url: str) -> str:
 
 
 def _file_url_to_path_text(netloc: str, path: str) -> str:
+    """Normalize POSIX, relative, UNC-like, and Windows-drive file URL forms."""
     if netloc in ("", "localhost"):
         if len(path) >= 3 and path[0] == "/" and path[2] == ":":
             return path[1:]
@@ -101,6 +108,7 @@ def _file_url_to_path_text(netloc: str, path: str) -> str:
 
 
 def parse_model_response(content: str) -> ImageUnderstandingResponse:
+    """Parse model JSON while preserving raw text when structured parsing fails."""
     json_content = strip_json_fence(content)
     try:
         data = json.loads(json_content)
@@ -122,6 +130,7 @@ def parse_model_response(content: str) -> ImageUnderstandingResponse:
 
 
 def strip_json_fence(content: str) -> str:
+    """Remove an optional Markdown JSON fence around model output."""
     stripped = content.strip()
     if not stripped.startswith("```"):
         return stripped
@@ -134,6 +143,7 @@ def strip_json_fence(content: str) -> str:
 
 
 def normalize_structured_info(structured: dict[str, Any]) -> dict[str, Any]:
+    """Coerce model-dependent field shapes into the stable Pydantic contract."""
     normalized = dict(structured)
     normalized["objects"] = normalize_objects(normalized.get("objects", []))
     for key in ["style", "ocr_text", "location_clues", "travel_intent"]:
@@ -144,6 +154,7 @@ def normalize_structured_info(structured: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_objects(value: Any) -> list[str]:
+    """Reduce string or object-style visual detections to object labels."""
     items = value if isinstance(value, list) else [value]
     objects: list[str] = []
     for item in items:
@@ -159,6 +170,7 @@ def normalize_objects(value: Any) -> list[str]:
 
 
 def ensure_list(value: Any) -> list[str]:
+    """Normalize an optional scalar or sequence into a string list."""
     if value is None:
         return []
     if isinstance(value, list):
@@ -169,6 +181,7 @@ def ensure_list(value: Any) -> list[str]:
 def fallback_image_understanding(
     request: ImageUnderstandingRequest,
 ) -> ImageUnderstandingResponse:
+    """Return predictable structured signals for tests without live vLLM."""
     joined = " ".join(request.image_urls + [request.user_text or ""]).lower()
     if "museum" in joined:
         return ImageUnderstandingResponse(

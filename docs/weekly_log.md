@@ -1,5 +1,14 @@
 # Weekly Log
 
+## 2026-07-06: Week 1 OTA Multimodal VLM Foundation
+
+- Added the repository structure, FastAPI application, deterministic fallback, retrieval baseline, and planning baseline.
+- Added Dockerized API and vLLM services and verified live single-image inference with `Qwen/Qwen2-VL-2B-Instruct`.
+- Added the Yelp sample preparation workflow and generated 200 businesses, 1,000 reviews, and 581 multimodal items.
+- Added experiment logs, results, failure cases, API design, and model-selection notes.
+- Added a multi-image live test as a stretch item; malformed small-model JSON remains a documented non-blocking limitation.
+- Completed checklist and evidence are retained in `docs/weekly_delivery.md`.
+
 ## 2026-07-10: Week 2 Yelp Multimodal Dataset Pipeline
 
 - Added a config-driven Yelp processing pipeline under `configs/data_processing.yaml`.
@@ -7,7 +16,7 @@
 - Added chunked table writing for business, review, photo, and image-index outputs; nested business fields are serialized to a stable Parquet schema.
 - Added bounded parallel image validation for missing, valid, and unreadable local images.
 - Added strong, medium, and weak alignment builders; strong pairs require both a valid image and non-empty caption.
-- Added optional CLIP denoising interface that writes skipped status when disabled or unavailable.
+- Added operational CLIP denoising with an explicit skipped status when disabled or unavailable.
 - Added report generation for `reports/yelp_multimodal_data_processing_report_part1.md`.
 - Added focused unit tests in `tests/test_yelp_data_pipeline.py`.
 - Split dependencies so Week 2 data processing uses `requirements-data.txt` and does not require native Windows vLLM installation.
@@ -25,7 +34,7 @@ python scripts/generate_yelp_report.py --config configs/data_processing.yaml
 python scripts/validate_week2_pipeline.py --config configs/data_processing.yaml
 ```
 
-Verification results on 2026-07-09:
+Verification results on 2026-07-10:
 
 - Unit tests: 43 tests passed.
 - Parse command: 150346 businesses, 6989830 valid reviews, 200100 photo metadata rows, 199994 valid local images.

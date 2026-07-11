@@ -369,7 +369,7 @@ class YelpDataPipelineTest(unittest.TestCase):
                     "filtered_missing_identifier": 0,
                 }
             },
-            clip={"status": "completed", "threshold": 0.25},
+            clip={"status": "completed", "threshold": 0.25, "input_pairs": 4, "retained_pairs": 1},
         )
 
         self.assertIn(
@@ -377,6 +377,12 @@ class YelpDataPipelineTest(unittest.TestCase):
             report,
         )
         self.assertIn("CLIP threshold: 0.25", report)
+        self.assertIn("CLIP retention rate: 25.00%", report)
+        self.assertIn("## 1. Week 2 目标与验收范围", report)
+        self.assertIn("## 3. 目录分层与端到端处理流程", report)
+        self.assertIn("### 4.1 商家结构化表", report)
+        self.assertIn("## 10. 输出清单、复现命令、限制与后续计划", report)
+        self.assertIn("| `business.parquet` |", report)
 
     def test_table_csv_fallback_round_trips_scalar_and_structured_values(self):
         from src.data.jsonl_utils import read_table, write_table

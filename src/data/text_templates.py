@@ -1,8 +1,11 @@
+"""Convert structured Yelp business knowledge into stable natural language."""
+
 import json
 from typing import Any
 
 
 def business_description(business: dict[str, Any]) -> str:
+    """Render identity, categories, rating, attributes, and hours as one text."""
     parts = [
         business.get("name"),
         ", ".join(business.get("categories") or []),
@@ -21,6 +24,7 @@ def business_description(business: dict[str, Any]) -> str:
 
 
 def mapping_value(value: Any) -> dict[str, Any]:
+    """Accept in-memory mappings or JSON text from stable Parquet fields."""
     if isinstance(value, dict):
         return value
     if isinstance(value, str):

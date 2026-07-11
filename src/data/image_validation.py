@@ -1,3 +1,5 @@
+"""Validate local Yelp images while retaining missing and corruption reasons."""
+
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -7,6 +9,7 @@ from PIL import Image
 
 
 def validate_photo_images(photo_rows: Iterable[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Collect validated index rows for tests and small in-memory callers."""
     rows: list[dict[str, Any]] = []
     summary = stream_validate_photo_images(photo_rows, rows.append)
     return rows, summary

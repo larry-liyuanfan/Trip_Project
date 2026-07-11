@@ -39,6 +39,24 @@ Client
   -> Experiment records
 ```
 
+## Repository Layout
+
+```text
+src/          reusable API, inference, retrieval, planning, data, and evaluation code
+scripts/      repository-root command entry points; no business logic duplication
+configs/      model, inference, and data-pipeline configuration
+data/         checked-in samples plus ignored Yelp raw/interim/processed layers
+docker/       API, vLLM, and one-off CLIP runtime definitions
+docs/         durable requirements, decisions, weekly delivery, and technical references
+reports/      generated mentor-facing report artifacts
+experiments/  reproducible experiment logs, metrics, and failure cases
+tests/        unittest behavior and data-pipeline contract coverage
+```
+
+`docs/weekly_delivery.md` is the single complete Week 1/Week 2 delivery record;
+`docs/weekly_log.md` is only the concise timeline. Generated reports stay under
+`reports/`, and agent plans or personal internship notes remain ignored.
+
 ## Features
 
 - Dockerized API and vLLM serving layout.
@@ -160,7 +178,11 @@ Use:
 
 ## Data
 
-Week 1 uses a small mock sample catalog in `data/samples/`. Yelp Open Dataset can be integrated by placing the official raw JSON files under `data/yelp/raw/` and running:
+### Week 1: Engineering Baseline
+
+Week 1 established Docker/vLLM serving, FastAPI image understanding,
+deterministic fallback behavior, experiment tracking, and a small Yelp sample.
+The sample workflow remains available and is not replaced by Week 2:
 
 ```bash
 python scripts/prepare_yelp_subset.py --raw-dir data/yelp/raw --output-dir data/yelp/processed/ota_subset_v1
@@ -168,7 +190,11 @@ python scripts/prepare_yelp_subset.py --raw-dir data/yelp/raw --output-dir data/
 
 See `docs/yelp_dataset.md` for the expected raw files and generated schemas.
 
-Week 2 adds a reusable multimodal processing pipeline configured by `configs/data_processing.yaml`. Expected local layout:
+### Week 2: Full Yelp Data Pipeline
+
+Week 2 consumes the previously downloaded Yelp archives and adds a reusable
+full-data processing pipeline configured by `configs/data_processing.yaml`.
+Expected local layout:
 
 ```text
 data/yelp/
@@ -217,6 +243,7 @@ Stop `vllm` before running CLIP on the local 8GB GPU. The CLIP task needs GPU me
 Week 2 mentor-facing report:
 
 - `reports/yelp_multimodal_data_processing_report_part1.md`
+- `docs/weekly_delivery.md` contains the completed Week 1 and Week 2 checklists and measured results.
 
 ## Evaluation
 
@@ -237,7 +264,8 @@ Initial metrics:
 
 ## Weekly Progress
 
-- Week 1: Initial engineering scaffold created.
+- Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
+- Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
 
 ## Future Work
 

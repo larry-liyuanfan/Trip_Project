@@ -1,3 +1,5 @@
+"""Build quality-labeled Yelp image-text and image-business alignments."""
+
 from collections import defaultdict
 from typing import Any, Iterable
 
@@ -8,6 +10,7 @@ def build_strong_alignment(
     photos: Iterable[dict[str, Any]],
     image_index: Iterable[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Join readable images to non-empty native captions by `photo_id`."""
     valid_images = _valid_image_by_photo_id(image_index)
     rows = []
     for photo in photos:
@@ -36,6 +39,7 @@ def build_medium_alignment(
     image_index: Iterable[dict[str, Any]],
     businesses: Iterable[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Join readable images to standardized business knowledge by `business_id`."""
     valid_images = _valid_image_by_photo_id(image_index)
     business_by_id = {str(row.get("business_id")): row for row in businesses if row.get("business_id")}
     rows = []
@@ -62,6 +66,7 @@ def build_medium_alignment(
 
 
 def attribute_dimension_labels(business: dict[str, Any]) -> list[str]:
+    """List populated attribute families represented in a business description."""
     labels: list[str] = []
     attributes = mapping_value(business.get("attributes"))
     labels.extend(str(key) for key, value in attributes.items() if value not in {None, "", "None"})
@@ -77,6 +82,7 @@ def build_weak_alignment(
     max_reviews_per_business: int,
     max_images_per_business: int,
 ) -> list[dict[str, Any]]:
+    """Create bounded business-level image and review collections."""
     valid_images = _valid_image_by_photo_id(image_index)
     photos_by_business: dict[str, list[dict[str, Any]]] = defaultdict(list)
     reviews_by_business: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -106,6 +112,7 @@ def build_weak_alignment(
 
 
 def _valid_image_by_photo_id(image_index: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Index only image rows that passed existence and readability checks."""
     return {
         str(row.get("photo_id")): row
         for row in image_index

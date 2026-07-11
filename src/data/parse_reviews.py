@@ -1,3 +1,5 @@
+"""Filter Yelp reviews and aggregate bounded per-business review statistics."""
+
 import re
 from collections import defaultdict
 from collections.abc import Callable
@@ -12,6 +14,7 @@ def parse_review_records(
     min_text_length: int = 20,
     reject_symbol_only: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, int]]:
+    """Collect parsed reviews while preserving filter and business summaries."""
     parsed: list[dict[str, Any]] = []
     stats, summary = stream_review_records(
         records,
@@ -28,6 +31,7 @@ def stream_review_records(
     min_text_length: int = 20,
     reject_symbol_only: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Emit valid reviews immediately and record every rejection reason."""
     counts: dict[str, int] = defaultdict(int)
     star_sums: dict[str, float] = defaultdict(float)
     star_counts: dict[str, int] = defaultdict(int)
@@ -80,6 +84,7 @@ def parse_review_record(
     min_text_length: int = 20,
     reject_symbol_only: bool = True,
 ) -> tuple[dict[str, Any] | None, str | None]:
+    """Validate one review and return either its row or a named filter reason."""
     if not record.get("review_id") or not record.get("business_id"):
         return None, "filtered_missing_identifier"
     text = record.get("text")

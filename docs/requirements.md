@@ -1,5 +1,21 @@
 # Project Requirements
 
+## Week 1: OTA Multimodal VLM Engineering Foundation
+
+### Goals
+
+- Establish the Python, Docker, FastAPI, and vLLM project foundation.
+- Support deterministic fallback tests without requiring a live GPU service.
+- Verify a live single-image multimodal request on the local GPU.
+- Prepare a small Yelp OTA sample and reproducible experiment records.
+
+### Acceptance Criteria
+
+- API health and image-understanding routes return structured responses.
+- Docker serves the selected VLM through an OpenAI-compatible endpoint.
+- Sample POIs, reviews, and images are available without committing raw Yelp data.
+- Unit tests and experiment logs record the verified Week 1 state.
+
 ## Week 2: Yelp Multimodal Dataset Processing Pipeline
 
 ### Background

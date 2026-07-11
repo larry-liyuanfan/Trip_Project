@@ -1,3 +1,5 @@
+"""Extract only photo files referenced by the lightweight Week 1 subset."""
+
 import argparse
 import json
 import sys
@@ -9,6 +11,7 @@ from src.data.yelp_archives import extract_yelp_photo_files, read_photo_ids_from
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser for subset photo extraction."""
     parser = argparse.ArgumentParser(description="Extract only Yelp photos referenced by a processed multimodal subset.")
     parser.add_argument("--photos-zip", type=Path, default=Path("data/Yelp-Photos.zip"))
     parser.add_argument(
@@ -21,6 +24,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Resolve referenced photo IDs, extract them, and print the manifest summary."""
     args = build_arg_parser().parse_args()
     photo_ids = read_photo_ids_from_multimodal_items(args.multimodal_items)
     manifest = extract_yelp_photo_files(

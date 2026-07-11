@@ -1,3 +1,5 @@
+"""Thin API routes that delegate inference, retrieval, and planning work."""
+
 import os
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,7 @@ router = APIRouter()
 
 @router.get("/health")
 def health() -> dict[str, str]:
+    """Return service identity and the configured live-model name."""
     return {
         "status": "ok",
         "service": "ota-multimodal-search-planning",
@@ -30,12 +33,14 @@ def health() -> dict[str, str]:
 
 @router.post("/v1/image-understanding")
 def image_understanding(request: ImageUnderstandingRequest) -> dict[str, Any]:
+    """Extract structured travel signals from one or more images."""
     response = VLLMClient().understand_images(request)
     return response.model_dump()
 
 
 @router.post("/v1/visual-search")
 def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
+    """Combine VLM-derived terms with the current hybrid retrieval baseline."""
     understanding = VLLMClient().understand_images(
         ImageUnderstandingRequest(
             image_urls=request.image_urls,
@@ -65,6 +70,7 @@ def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
 
 @router.post("/v1/travel-planning")
 def travel_planning(request: TravelPlanningRequest) -> dict[str, Any]:
+    """Retrieve candidate POIs and build a preference-aware sample itinerary."""
     catalog = _load_sample_catalog()
     query = " ".join(request.reviews + request.preferences.get("interests", []))
     candidates = HybridRetriever(catalog).search(query, top_k=4) or catalog[:2]
@@ -72,6 +78,7 @@ def travel_planning(request: TravelPlanningRequest) -> dict[str, Any]:
 
 
 def _load_sample_catalog() -> list[dict[str, Any]]:
+    """Load the lightweight checked-in catalog used before a full index exists."""
     path = Path("data/samples/poi_catalog.jsonl")
     if not path.exists():
         return []

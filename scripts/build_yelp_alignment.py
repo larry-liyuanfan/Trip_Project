@@ -1,3 +1,5 @@
+"""Build strong, medium, and bounded weak Yelp alignment artifacts."""
+
 import argparse
 import json
 import sys
@@ -13,6 +15,7 @@ from src.data.yelp_paths import create_output_directories, load_config, resolve_
 
 
 def run_alignment(config: dict[str, Any]) -> dict[str, Any]:
+    """Join parsed tables into alignment datasets and write measured statistics."""
     create_output_directories(config)
     paths = resolve_pipeline_paths(config)
     output_format = config.get("output", {}).get("format", "parquet")
@@ -78,6 +81,7 @@ def read_bounded_reviews_for_weak_alignment(
     max_reviews_per_business: int,
     target_business_ids: set[str],
 ) -> list[dict[str, Any]]:
+    """Read only the first bounded reviews for businesses that have valid images."""
     if review_path.suffix == ".parquet":
         try:
             import pyarrow.parquet as pq
@@ -115,18 +119,21 @@ def read_bounded_reviews_for_weak_alignment(
 
 
 def _read_json(path: Path) -> dict[str, Any]:
+    """Read an optional JSON summary, returning an empty mapping when absent."""
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser for the alignment stage."""
     parser = argparse.ArgumentParser(description="Build Yelp multimodal alignment datasets.")
     parser.add_argument("--config", type=Path, default=Path("configs/data_processing.yaml"))
     return parser
 
 
 def main() -> None:
+    """Run alignment generation from the configured repository-root paths."""
     args = build_arg_parser().parse_args()
     summary = run_alignment(load_config(args.config))
     print(json.dumps(summary, ensure_ascii=False, indent=2))

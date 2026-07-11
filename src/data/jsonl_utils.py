@@ -1,3 +1,5 @@
+"""JSONL and tabular I/O helpers with bounded Parquet/CSV fallback writes."""
+
 import json
 import csv
 import importlib.util
@@ -6,9 +8,11 @@ from typing import Any, Iterable
 
 
 def iter_jsonl(path: Path) -> tuple[Iterable[dict[str, Any]], dict[str, int]]:
+    """Return a lazy JSONL iterator and counters updated as rows are consumed."""
     summary = {"path": str(path), "total_lines": 0, "records": 0, "malformed_lines": 0}
 
     def iterator() -> Iterable[dict[str, Any]]:
+        """Yield mapping rows while counting malformed and non-object records."""
         if not path.exists():
             return
         with path.open("r", encoding="utf-8") as handle:
@@ -32,6 +36,7 @@ def iter_jsonl(path: Path) -> tuple[Iterable[dict[str, Any]], dict[str, int]]:
 
 
 def limit_records(records: Iterable[dict[str, Any]], max_records: int | None) -> Iterable[dict[str, Any]]:
+    """Apply an optional smoke-test cap without materializing the iterable."""
     if max_records is None:
         yield from records
         return
@@ -40,11 +45,13 @@ def limit_records(records: Iterable[dict[str, Any]], max_records: int | None) ->
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Write a UTF-8 indented JSON artifact and create parent directories."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def write_table(path: Path, rows: Iterable[dict[str, Any]], output_format: str = "parquet") -> dict[str, Any]:
+    """Write a bounded table and record any explicit CSV fallback."""
     path.parent.mkdir(parents=True, exist_ok=True)
     records = list(rows)
     requested = output_format.lower()
@@ -84,6 +91,7 @@ def write_table(path: Path, rows: Iterable[dict[str, Any]], output_format: str =
 
 
 class TableStreamWriter:
+    """Buffer rows in bounded chunks while preserving one output schema."""
     def __init__(
         self,
         path: Path,
@@ -92,6 +100,7 @@ class TableStreamWriter:
         chunk_size: int = 50000,
         parquet_schema: Any | None = None,
     ) -> None:
+        """Configure output format, chunk size, field order, and optional schema."""
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.output_format = output_format.lower()
@@ -116,11 +125,13 @@ class TableStreamWriter:
             raise ValueError(f"Unsupported output format: {output_format}")
 
     def write(self, row: dict[str, Any]) -> None:
+        """Queue one row and flush when the configured chunk bound is reached."""
         self.buffer.append(row)
         if len(self.buffer) >= self.chunk_size:
             self.flush()
 
     def flush(self) -> None:
+        """Persist the current buffer using the selected storage backend."""
         if not self.buffer:
             return
         if self.actual_format == "parquet":
@@ -131,6 +142,7 @@ class TableStreamWriter:
         self.buffer = []
 
     def close(self) -> dict[str, Any]:
+        """Flush remaining rows, materialize empty schemas, and close handles."""
         self.flush()
         if self.rows_written == 0:
             self._write_empty_table()
@@ -160,6 +172,7 @@ class TableStreamWriter:
             self._csv_writer.writeheader()
 
     def _flush_csv(self) -> None:
+        """Append serialized rows to a single-header CSV stream."""
         if self.fieldnames is None:
             self.fieldnames = sorted({key for record in self.buffer for key in record.keys()})
         if self._csv_handle is None:
@@ -171,6 +184,7 @@ class TableStreamWriter:
             self._csv_writer.writerow({key: _serialize_cell(record.get(key)) for key in self.fieldnames})
 
     def _flush_parquet(self) -> None:
+        """Append an Arrow table while enforcing the first or explicit schema."""
         import pyarrow as pa
         import pyarrow.parquet as pq
 
@@ -186,6 +200,7 @@ class TableStreamWriter:
 
 
 def read_table(path: Path) -> list[dict[str, Any]]:
+    """Read Parquet when possible, otherwise decode the documented CSV fallback."""
     if not path.exists():
         return []
     if importlib.util.find_spec("pyarrow") is not None or importlib.util.find_spec("fastparquet") is not None:
@@ -209,6 +224,7 @@ def read_table(path: Path) -> list[dict[str, Any]]:
 
 
 def _write_csv(path: Path, records: list[dict[str, Any]]) -> None:
+    """Write scalar and JSON-serialized structured cells to CSV."""
     fieldnames = sorted({key for record in records for key in record.keys()})
     with path.open("w", encoding="utf-8", newline="") as handle:
         if not fieldnames:
@@ -221,6 +237,7 @@ def _write_csv(path: Path, records: list[dict[str, Any]]) -> None:
 
 
 def _read_csv(path: Path) -> list[dict[str, Any]]:
+    """Read CSV rows and restore supported scalar and structured cell types."""
     if path.stat().st_size == 0:
         return []
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -228,6 +245,7 @@ def _read_csv(path: Path) -> list[dict[str, Any]]:
 
 
 def _serialize_cell(value: Any) -> Any:
+    """Serialize nested cells as JSON and represent nulls as empty strings."""
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
     if value is None:
@@ -236,6 +254,7 @@ def _serialize_cell(value: Any) -> Any:
 
 
 def _deserialize_cell(value: str) -> Any:
+    """Restore JSON, booleans, and numeric values from a CSV cell."""
     if value == "":
         return None
     if value[:1] in {"[", "{"}:
@@ -254,11 +273,11 @@ def _deserialize_cell(value: str) -> Any:
 
 
 def _normalize_cell(value: Any) -> Any:
+    """Convert Arrow and NumPy containers to plain Python values recursively."""
     if hasattr(value, "tolist"):
         return value.tolist()
     if isinstance(value, dict):
         return {key: _normalize_cell(child) for key, child in value.items()}
     if isinstance(value, list):
         return [_normalize_cell(child) for child in value]
-    return value
     return value
