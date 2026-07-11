@@ -1,9 +1,12 @@
+"""Smoke-test single-image understanding through the local API."""
+
 import json
 
 import requests
 
 
 def main() -> None:
+    """Submit the checked-in sample image and print the structured response."""
     payload = {
         "image_urls": ["file://data/samples/images/cafe_001.jpg"],
         "user_text": "这张图可能适合什么旅行场景？",
@@ -21,4 +24,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -1,3 +1,5 @@
+"""Compute measured scale, balance, and coverage statistics from output rows."""
+
 from collections import Counter
 from typing import Any
 
@@ -11,6 +13,7 @@ def build_dataset_statistics(
     medium: list[dict[str, Any]],
     weak: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    """Summarize actual parsed and aligned populations for reporting."""
     categories = Counter()
     business_by_id = {}
     cities = set()
@@ -51,6 +54,7 @@ def build_dataset_statistics(
 
 
 def caption_length_stats(lengths: list[int]) -> dict[str, Any]:
+    """Return count and character-length bounds for strong-pair captions."""
     if not lengths:
         return {
             "caption_count": 0,

@@ -1,5 +1,13 @@
 # Experiment Notes
 
+## Week 1 Serving and API Baseline
+
+- Runtime: `vllm/vllm-openai:v0.8.5` with `Qwen/Qwen2-VL-2B-Instruct` on the local 8GB NVIDIA GPU.
+- Verified `/health`, `/v1/models`, and live single-image `/v1/image-understanding` requests.
+- Deterministic fallback remained available when the live service was absent.
+- Yelp sample preparation produced 200 businesses, 1,000 reviews, and 581 multimodal items.
+- Multi-image structured JSON quality remained a stretch limitation and was recorded in `experiments/failure_cases.md`.
+
 ## Week 2 Data Processing Baseline
 
 - Dataset source: local Yelp Open Dataset files under `data/yelp/raw/`.

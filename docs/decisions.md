@@ -42,6 +42,14 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **Reason**: Weekly review needs reproducible data preparation artifacts without requiring live VLM serving, GPU access, or committed raw Yelp files.
 - **Consequence**: Raw and generated data stay under ignored `data/yelp/` paths; scripts must tolerate missing optional CLIP and Parquet dependencies while documenting the fallback.
 
+## ADR-006: Keep One Canonical Weekly Delivery Record
+
+- **Date**: 2026-07-11
+- **Status**: Accepted
+- **Decision**: Append each completed week to `docs/weekly_delivery.md`; keep `docs/weekly_log.md` as a concise timeline and avoid separate plan/delivery files per week.
+- **Reason**: Separate Week 1 and Week 2 files drifted across branches and obscured earlier completed work.
+- **Consequence**: Checklist state is finalized on `dev` before promotion, then inherited unchanged by `stg` and `main` through merge-based promotion.
+
 ## Decision Template
 
 ```markdown

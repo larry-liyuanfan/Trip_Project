@@ -66,7 +66,7 @@ python scripts/extract_yelp_subset_photos.py \
 
 ## Output Schemas
 
-`poi_catalog.jsonl` maps Yelp businesses into a reviewed POI catalog format:
+`poi_catalog.jsonl` maps Yelp businesses into the retrieval catalog:
 
 ```json
 {
@@ -115,9 +115,9 @@ python scripts/extract_yelp_subset_photos.py \
 
 ## Usage In This Project
 
-- Catalog review: inspect `poi_catalog.jsonl` to confirm OTA-relevant business filtering.
-- Review text preparation: inspect `reviews.jsonl` as bounded review text attached to selected POIs.
-- Multimodal metadata preparation: use `multimodal_items.jsonl` to pair local Yelp photo files with POI metadata.
+- Retrieval: point `HybridRetriever` at `poi_catalog.jsonl` for keyword/hybrid search.
+- Planning: feed `reviews.jsonl` into preference and itinerary planning.
+- Multimodal evaluation: use `multimodal_items.jsonl` to pair image files with POI metadata and expected fields.
 - Experiment tracking: record output directory, script arguments, Git commit, and metrics in `experiments/`.
 
 ## Notes

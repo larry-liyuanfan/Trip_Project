@@ -1,3 +1,5 @@
+"""Expose normalized Yelp archive extraction as a repository-root command."""
+
 import sys
 from pathlib import Path
 

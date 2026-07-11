@@ -1,3 +1,5 @@
+"""Parse Yelp businesses and stabilize variable nested attributes for tables."""
+
 import ast
 import json
 from collections.abc import Callable
@@ -18,6 +20,7 @@ SELECTED_ATTRIBUTE_KEYS = {
 
 
 def parse_business_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Extract core business fields and selected flattened attributes."""
     attributes = record.get("attributes") or {}
     parsed = {
         "business_id": record.get("business_id"),
@@ -40,6 +43,7 @@ def parse_business_record(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def parse_business_records(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Parse a bounded iterable into an in-memory business table."""
     return [parse_business_record(record) for record in records]
 
 
@@ -63,6 +67,7 @@ def stream_business_records(
 
 
 def serialize_business_nested_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Serialize variable attributes and hours for a stable Parquet schema."""
     serialized = dict(row)
     for key in ("attributes", "hours"):
         value = serialized.get(key) or {}
@@ -71,6 +76,7 @@ def serialize_business_nested_fields(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def parse_categories(categories: Any) -> list[str]:
+    """Normalize comma-separated or list categories to lowercase labels."""
     if not categories:
         return []
     if isinstance(categories, list):
@@ -79,6 +85,7 @@ def parse_categories(categories: Any) -> list[str]:
 
 
 def flatten_selected_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
+    """Flatten only attribute families needed by downstream OTA tasks."""
     flattened: dict[str, Any] = {}
     for key, value in attributes.items():
         if key not in SELECTED_ATTRIBUTE_KEYS:
@@ -93,6 +100,7 @@ def flatten_selected_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
 
 
 def _parse_possible_literal(value: Any) -> Any:
+    """Safely decode Yelp's stringified list and mapping attribute values."""
     if not isinstance(value, str):
         return value
     stripped = value.strip()

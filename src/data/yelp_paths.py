@@ -1,3 +1,5 @@
+"""Load shared Yelp pipeline configuration and resolve repository paths."""
+
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
 
 
 def load_config(path: Path | str) -> dict[str, Any]:
+    """Merge an optional YAML file over safe pipeline defaults."""
     config_path = Path(path)
     config = deep_merge(DEFAULT_CONFIG, {})
     if config_path.exists():
@@ -32,11 +35,13 @@ def load_config(path: Path | str) -> dict[str, Any]:
 
 
 def resolve_pipeline_paths(config: dict[str, Any]) -> dict[str, Path]:
+    """Convert configured path strings to `Path` objects without absolutizing."""
     paths = config.get("paths", {})
     return {key: Path(value) for key, value in paths.items()}
 
 
 def create_output_directories(config: dict[str, Any]) -> None:
+    """Create generated-data and report parent directories from configuration."""
     paths = resolve_pipeline_paths(config)
     for key in ["interim_dir", "processed_dir", "logs_dir", "validation_dir"]:
         paths[key].mkdir(parents=True, exist_ok=True)
@@ -44,6 +49,7 @@ def create_output_directories(config: dict[str, Any]) -> None:
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge nested mappings while leaving caller inputs unchanged."""
     result = {key: value.copy() if isinstance(value, dict) else value for key, value in base.items()}
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(result.get(key), dict):
@@ -54,6 +60,7 @@ def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]
 
 
 def parse_simple_yaml(text: str) -> dict[str, Any]:
+    """Use PyYAML when available and a minimal mapping parser otherwise."""
     try:
         import yaml  # type: ignore
 
@@ -63,6 +70,7 @@ def parse_simple_yaml(text: str) -> dict[str, Any]:
 
 
 def _parse_indented_mapping(text: str) -> dict[str, Any]:
+    """Parse the mapping-only YAML subset used by project configuration."""
     root: dict[str, Any] = {}
     stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
     for raw_line in text.splitlines():
@@ -86,6 +94,7 @@ def _parse_indented_mapping(text: str) -> dict[str, Any]:
 
 
 def _parse_scalar(value: str) -> Any:
+    """Decode booleans, nulls, integers, floats, and quoted strings."""
     stripped = value.strip("'\"")
     lowered = stripped.lower()
     if lowered == "true":

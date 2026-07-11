@@ -41,7 +41,7 @@ services:
       - "0.75"
       - --enforce-eager
       - --limit-mm-per-prompt
-      - '{"images":1,"videos":0}'
+      - '{"image":2,"video":0}'
       - --mm-processor-kwargs
       - '{"min_pixels":3136,"max_pixels":262144}'
     deploy:

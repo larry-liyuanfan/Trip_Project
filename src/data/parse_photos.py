@@ -1,9 +1,12 @@
+"""Parse Yelp photo metadata and map each photo ID to its local JPEG path."""
+
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Iterable
 
 
 def parse_photo_records(records: Iterable[dict[str, Any]], image_root: Path) -> list[dict[str, Any]]:
+    """Collect parsed photo rows for bounded callers and tests."""
     rows: list[dict[str, Any]] = []
     for record in records:
         row = parse_photo_record(record, image_root)
@@ -13,6 +16,7 @@ def parse_photo_records(records: Iterable[dict[str, Any]], image_root: Path) -> 
 
 
 def parse_photo_record(record: dict[str, Any], image_root: Path) -> dict[str, Any] | None:
+    """Convert one metadata row, rejecting records without a `photo_id`."""
     photo_id = record.get("photo_id")
     if not photo_id:
         return None

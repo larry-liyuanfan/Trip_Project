@@ -1,29 +1,31 @@
-# OTA Multimodal Search Foundation
+# OTA Multimodal Search and Travel Planning System
 
-VLM-based OTA image understanding and data preparation foundation.
+VLM-based OTA multimodal intelligent search and travel planning system.
 
-This branch contains the reviewed current-week engineering scope:
+This repository is not a generic chatbot demo. It is structured as an AI Search / Multimodal Search application for OTA scenarios:
 
 ```text
-Image / Text
+Image / Text / Reviews / Preferences
 -> VLM Multimodal Understanding
 -> Structured Information Extraction
+-> Visual / Keyword / Hybrid Retrieval
+-> Candidate POI / Product Ranking
+-> Travel Planning
 -> Evaluation & Experiment Tracking
 ```
 
 ## Project Overview
 
-The current-week scope covers:
+The project builds a minimal but extensible OTA pipeline for:
 
 - image-to-structured-info extraction from travel-related images;
-- reproducible Docker and vLLM serving;
-- FastAPI smoke endpoints for health and image understanding;
-- Yelp Open Dataset preparation into project-local JSONL files;
-- experiment logging templates and smoke-test records.
+- visual search over restaurants, cafes, hotels, attractions, and products;
+- multimodal travel planning from images, reviews, and user preferences;
+- reproducible vLLM serving and experiment tracking.
 
 ## Motivation
 
-OTA users often search with vague intent and visual references: a cafe photo, a hotel room screenshot, a restaurant dish, or a scenic street. The current branch focuses on turning those images into structured fields that can be reviewed and tested.
+OTA users often search with vague intent and visual references: a cafe photo, a hotel room screenshot, a restaurant dish, or a scenic street. The system turns those multimodal signals into searchable structured fields and planning inputs.
 
 ## System Architecture
 
@@ -32,15 +34,35 @@ Client
   -> FastAPI business API
   -> vLLM OpenAI-compatible VLM service
   -> Structured extraction
+  -> Retrieval baseline
+  -> Travel planner
   -> Experiment records
 ```
+
+## Repository Layout
+
+```text
+src/          reusable API, inference, retrieval, planning, data, and evaluation code
+scripts/      repository-root command entry points; no business logic duplication
+configs/      model, inference, and data-pipeline configuration
+data/         checked-in samples plus ignored Yelp raw/interim/processed layers
+docker/       API, vLLM, and one-off CLIP runtime definitions
+docs/         durable requirements, decisions, weekly delivery, and technical references
+reports/      generated mentor-facing report artifacts
+experiments/  reproducible experiment logs, metrics, and failure cases
+tests/        unittest behavior and data-pipeline contract coverage
+```
+
+`docs/weekly_delivery.md` is the single complete Week 1/Week 2 delivery record;
+`docs/weekly_log.md` is only the concise timeline. Generated reports stay under
+`reports/`, and agent plans or personal internship notes remain ignored.
 
 ## Features
 
 - Dockerized API and vLLM serving layout.
 - Qwen3-VL primary model config with Qwen2.5-VL fallback.
-- DeepSeek-VL2 config file for model selection review.
-- `/health`, `/v1/image-understanding`.
+- DeepSeek-VL2 config for later comparison.
+- `/health`, `/v1/image-understanding`, `/v1/visual-search`, `/v1/travel-planning`.
 - Deterministic fallback responses when live vLLM is not configured.
 - Sample POI catalog and review snippets.
 - Experiment log and results CSV templates.
@@ -156,7 +178,11 @@ Use:
 
 ## Data
 
-Week 1 uses a small mock sample catalog in `data/samples/`. Yelp Open Dataset can be integrated by placing the official raw JSON files under `data/yelp/raw/` and running:
+### Week 1: Engineering Baseline
+
+Week 1 established Docker/vLLM serving, FastAPI image understanding,
+deterministic fallback behavior, experiment tracking, and a small Yelp sample.
+The sample workflow remains available and is not replaced by Week 2:
 
 ```bash
 python scripts/prepare_yelp_subset.py --raw-dir data/yelp/raw --output-dir data/yelp/processed/ota_subset_v1
@@ -164,7 +190,11 @@ python scripts/prepare_yelp_subset.py --raw-dir data/yelp/raw --output-dir data/
 
 See `docs/yelp_dataset.md` for the expected raw files and generated schemas.
 
-Week 2 adds a reusable multimodal processing pipeline configured by `configs/data_processing.yaml`. Expected local layout:
+### Week 2: Full Yelp Data Pipeline
+
+Week 2 consumes the previously downloaded Yelp archives and adds a reusable
+full-data processing pipeline configured by `configs/data_processing.yaml`.
+Expected local layout:
 
 ```text
 data/yelp/
@@ -213,6 +243,7 @@ Stop `vllm` before running CLIP on the local 8GB GPU. The CLIP task needs GPU me
 Week 2 mentor-facing report:
 
 - `reports/yelp_multimodal_data_processing_report_part1.md`
+- `docs/weekly_delivery.md` contains the completed Week 1 and Week 2 checklists and measured results.
 
 ## Evaluation
 
@@ -220,8 +251,6 @@ Initial metrics:
 
 - JSON parse success rate;
 - structured field accuracy;
-- API response availability;
-- vLLM service availability;
 - Top-K hit rate for retrieval;
 - Recall@K;
 - planning relevance and route reasonability by human review.
@@ -235,4 +264,13 @@ Initial metrics:
 
 ## Weekly Progress
 
-- Week 1: Docker/vLLM serving, image-understanding API, sample data, Yelp data preparation, and experiment records.
+- Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
+- Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
+
+## Future Work
+
+- Add live VLM output parsing hardening.
+- Integrate Yelp Open Dataset subset.
+- Add embedding index for visual and semantic retrieval.
+- Add model comparison experiments for Qwen-VL and DeepSeek-VL2.
+- Add lightweight UI or notebook demo.

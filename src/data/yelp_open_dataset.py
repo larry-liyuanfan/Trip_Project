@@ -1,3 +1,5 @@
+"""Prepare the bounded Week 1 OTA sample from Yelp Open Dataset JSONL files."""
+
 import argparse
 import json
 from collections.abc import Iterable
@@ -45,6 +47,7 @@ def prepare_yelp_subset(
     max_reviews_per_business: int = 5,
     include_closed: bool = False,
 ) -> dict[str, Any]:
+    """Build sample catalog, review, photo, and manifest artifacts."""
     raw_dir = Path(raw_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -100,6 +103,7 @@ def select_ota_businesses(
     max_businesses: int | None,
     include_closed: bool,
 ) -> list[dict[str, Any]]:
+    """Select open OTA-relevant businesses up to the optional sample cap."""
     selected: list[dict[str, Any]] = []
     for business in businesses:
         if not include_closed and business.get("is_open") == 0:
@@ -114,6 +118,7 @@ def select_ota_businesses(
 
 
 def business_to_poi_record(business: dict[str, Any]) -> dict[str, Any]:
+    """Convert a Yelp business row to the sample retrieval catalog schema."""
     categories = parse_categories(business.get("categories"))
     primary_category = infer_primary_category(categories)
     name = business.get("name", "")
@@ -144,6 +149,7 @@ def select_reviews(
     poi_ids: dict[str, str],
     max_reviews_per_business: int,
 ) -> list[dict[str, Any]]:
+    """Collect a bounded number of reviews for each selected business."""
     selected: list[dict[str, Any]] = []
     counts: dict[str, int] = {}
     for review in reviews:
@@ -171,6 +177,7 @@ def select_photo_records(
     photos: Iterable[dict[str, Any]],
     poi_ids: dict[str, str],
 ) -> list[dict[str, Any]]:
+    """Link selected business IDs to photo metadata and expected local paths."""
     records: list[dict[str, Any]] = []
     for photo in photos:
         business_id = photo.get("business_id")
@@ -193,6 +200,7 @@ def select_photo_records(
 
 
 def parse_categories(categories: Any) -> list[str]:
+    """Normalize Yelp category strings or lists to lowercase values."""
     if not categories:
         return []
     if isinstance(categories, list):
@@ -201,10 +209,12 @@ def parse_categories(categories: Any) -> list[str]:
 
 
 def is_ota_relevant(categories: list[str]) -> bool:
+    """Return whether any category belongs to the OTA-oriented allowlist."""
     return any(category in OTA_CATEGORY_KEYWORDS for category in categories)
 
 
 def infer_primary_category(categories: list[str]) -> str:
+    """Map detailed Yelp categories to a stable sample POI type."""
     priority = [
         ("Cafe", {"cafes", "coffee & tea"}),
         ("Restaurant", {"restaurants", "food"}),
@@ -221,6 +231,7 @@ def infer_primary_category(categories: list[str]) -> str:
 
 
 def iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
+    """Yield non-empty JSONL objects from a UTF-8 source."""
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
             stripped = line.strip()
@@ -229,6 +240,7 @@ def iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
 
 
 def write_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:
+    """Write records as UTF-8 JSON Lines with stable newline behavior."""
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -239,6 +251,7 @@ def find_first_existing(
     filenames: list[str],
     required: bool = True,
 ) -> Path | None:
+    """Resolve accepted Yelp filename variants or raise when required."""
     for filename in filenames:
         path = directory / filename
         if path.exists():
@@ -250,6 +263,7 @@ def find_first_existing(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser for bounded sample preparation."""
     parser = argparse.ArgumentParser(description="Prepare a small OTA subset from Yelp Open Dataset JSONL files.")
     parser.add_argument("--raw-dir", type=Path, default=Path("data/yelp/raw"))
     parser.add_argument("--output-dir", type=Path, default=Path("data/yelp/processed/ota_subset_v1"))
@@ -260,6 +274,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Build the sample and print its manifest."""
     args = build_arg_parser().parse_args()
     manifest = prepare_yelp_subset(
         raw_dir=args.raw_dir,

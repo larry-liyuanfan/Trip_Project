@@ -12,6 +12,8 @@ from src.inference.client import VLLMClient
 from src.inference.client import parse_model_response
 from src.inference.schemas import ImageUnderstandingRequest
 from src.data.yelp_archives import extract_yelp_archives, extract_yelp_photo_files
+from src.planning.itinerary_planner import build_itinerary
+from src.retrieval.keyword_retriever import KeywordRetriever
 from src.data.yelp_open_dataset import prepare_yelp_subset
 
 
@@ -84,6 +86,51 @@ class CoreBehaviorTest(unittest.TestCase):
         self.assertEqual(response.structured_info.style, ["warm"])
         self.assertEqual(response.structured_info.ocr_text, ["Cafe"])
         self.assertEqual(response.confidence, 0.8)
+
+    def test_keyword_retriever_returns_ranked_matching_pois(self):
+        catalog = [
+            {
+                "poi_id": "poi_001",
+                "name": "Sample Cafe",
+                "category": "Cafe",
+                "tags": ["coffee", "quiet", "afternoon tea"],
+                "description": "Cozy cafe for relaxed city walks.",
+            },
+            {
+                "poi_id": "poi_002",
+                "name": "Sample Museum",
+                "category": "Museum",
+                "tags": ["art", "exhibition"],
+                "description": "Museum with cultural exhibitions.",
+            },
+        ]
+        retriever = KeywordRetriever(catalog)
+
+        results = retriever.search("quiet coffee afternoon", top_k=1)
+
+        self.assertEqual(results[0]["poi_id"], "poi_001")
+        self.assertGreater(results[0]["score"], 0)
+        self.assertIn("coffee", results[0]["matched_reasons"])
+
+    def test_travel_planning_uses_preferences_and_candidates(self):
+        candidates = [
+            {"poi_id": "poi_002", "name": "Sample Museum", "category": "Museum"},
+            {"poi_id": "poi_001", "name": "Sample Cafe", "category": "Cafe"},
+        ]
+
+        itinerary = build_itinerary(
+            candidates=candidates,
+            preferences={
+                "city": "Shanghai",
+                "duration": "1 day",
+                "pace": "relaxed",
+                "interests": ["coffee", "museum"],
+            },
+        )
+
+        self.assertTrue(itinerary["summary"].startswith("Relaxed 1 day itinerary"))
+        self.assertEqual(len(itinerary["itinerary"]), 2)
+        self.assertEqual(itinerary["itinerary"][0]["poi_name"], "Sample Museum")
 
     def test_sample_catalog_exists_and_is_jsonl(self):
         catalog_path = Path("data/samples/poi_catalog.jsonl")

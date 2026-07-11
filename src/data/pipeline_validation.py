@@ -1,3 +1,5 @@
+"""Validate Week 2 output presence, schemas, counts, paths, and storage format."""
+
 import importlib.util
 import re
 import csv
@@ -23,6 +25,7 @@ EXPECTED_FILES = {
 
 
 def validate_week2_outputs(config: dict[str, Any]) -> dict[str, Any]:
+    """Run the complete output contract and return errors without hiding gaps."""
     paths = resolve_pipeline_paths(config)
     output_format = config.get("output", {}).get("format", "parquet")
     extension = "csv" if output_format == "csv" else "parquet"
@@ -118,10 +121,12 @@ def validate_clip_denoising_output(
 
 
 def _table_columns(path: Path) -> set[str]:
+    """Return logical top-level columns without materializing Parquet rows."""
     return inspect_table(path)[1]
 
 
 def _validate_alignment_image_paths(table_paths: dict[str, Path], errors: list[str]) -> None:
+    """Ensure every strong, medium, and weak output references local files."""
     for logical_name in ["strong_pairs", "medium_pairs"]:
         for index, row in enumerate(read_table(table_paths[logical_name])):
             image_path = row.get("image_path")
@@ -139,6 +144,7 @@ def _validate_alignment_image_paths(table_paths: dict[str, Path], errors: list[s
 
 
 def _validate_report_counts(report_path: Path, counts: dict[str, int], errors: list[str], warnings: list[str]) -> None:
+    """Check that the mentor report states each measured output count."""
     if not report_path.exists():
         errors.append(f"Missing report file: {report_path}")
         return
@@ -165,6 +171,7 @@ def _validate_storage_format(
     errors: list[str],
     warnings: list[str],
 ) -> None:
+    """Confirm configured Parquet outputs are real Parquet or documented fallback."""
     if output_format != "parquet":
         return
     parquet_engine_available = importlib.util.find_spec("pyarrow") is not None or importlib.util.find_spec("fastparquet") is not None
@@ -180,6 +187,7 @@ def _validate_storage_format(
 
 
 def _is_parquet_file(path: Path) -> bool:
+    """Identify Parquet files from their required leading magic bytes."""
     try:
         with path.open("rb") as handle:
             return handle.read(4) == b"PAR1"
