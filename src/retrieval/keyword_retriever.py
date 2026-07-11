@@ -1,3 +1,5 @@
+"""Deterministic token-overlap retrieval baseline for the sample catalog."""
+
 import re
 from collections.abc import Iterable
 from typing import Any
@@ -7,10 +9,13 @@ TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
 
 
 class KeywordRetriever:
+    """Rank catalog rows by normalized query-token overlap."""
     def __init__(self, catalog: Iterable[dict[str, Any]]) -> None:
+        """Materialize the small catalog for repeatable searches."""
         self.catalog = list(catalog)
 
     def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+        """Return the highest-scoring rows with matched-token explanations."""
         query_tokens = set(_tokenize(query))
         ranked: list[dict[str, Any]] = []
 
@@ -34,6 +39,7 @@ class KeywordRetriever:
 
 
 def _item_text(item: dict[str, Any]) -> str:
+    """Combine searchable catalog fields into one tokenization surface."""
     fields = [
         item.get("name", ""),
         item.get("category", ""),
@@ -44,5 +50,6 @@ def _item_text(item: dict[str, Any]) -> str:
 
 
 def _tokenize(text: str) -> list[str]:
+    """Extract lowercase ASCII word and number tokens."""
     return [token.lower() for token in TOKEN_RE.findall(text)]
 

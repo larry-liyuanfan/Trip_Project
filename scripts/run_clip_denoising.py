@@ -1,3 +1,5 @@
+"""Run row-level CLIP filtering for bounded Yelp weak-alignment groups."""
+
 import argparse
 import json
 import sys
@@ -11,6 +13,7 @@ from src.data.yelp_paths import create_output_directories, load_config, resolve_
 
 
 def run_from_config(config_path: Path) -> dict[str, object]:
+    """Load a YAML configuration and execute the CLIP task."""
     config = load_config(config_path)
     return run_with_config(config)
 
@@ -37,12 +40,14 @@ def run_with_config(config: dict[str, object]) -> dict[str, object]:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser for the one-off CLIP task."""
     parser = argparse.ArgumentParser(description="Optionally denoise weak Yelp image-text pairs with CLIP.")
     parser.add_argument("--config", type=Path, default=Path("configs/data_processing.yaml"))
     return parser
 
 
 def main() -> None:
+    """Run CLIP denoising and print its measured summary."""
     args = build_arg_parser().parse_args()
     print(json.dumps(run_from_config(args.config), ensure_ascii=False, indent=2))
 

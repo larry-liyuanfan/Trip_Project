@@ -1,3 +1,5 @@
+"""Stream Yelp JSONL sources into validated interim tables and summaries."""
+
 import argparse
 import json
 import sys
@@ -15,6 +17,7 @@ from src.data.yelp_paths import create_output_directories, load_config, resolve_
 
 
 def run_parse(config: dict[str, Any]) -> dict[str, Any]:
+    """Parse all configured source records with bounded memory and image workers."""
     create_output_directories(config)
     paths = resolve_pipeline_paths(config)
     output_format = config.get("output", {}).get("format", "parquet")
@@ -70,6 +73,7 @@ def run_parse(config: dict[str, Any]) -> dict[str, Any]:
     photo_validation_batch: list[dict[str, Any]] = []
 
     def flush_photo_validation_batch() -> None:
+        """Validate and persist the current bounded photo batch, then release it."""
         if not photo_validation_batch:
             return
         for image_index, image_status in iter_validated_photo_images(
@@ -87,6 +91,7 @@ def run_parse(config: dict[str, Any]) -> dict[str, Any]:
         photo_validation_batch.clear()
 
     def emit_photo_and_validation(photo: dict[str, Any]) -> None:
+        """Write photo metadata and queue the same row for local image validation."""
         photo_writer.write(photo)
         photo_validation_batch.append(photo)
         if len(photo_validation_batch) >= image_batch_size:
@@ -132,16 +137,19 @@ def run_parse(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _optional_int(value: Any) -> int | None:
+    """Normalize nullable YAML limits to either an integer or no limit."""
     if value in {None, "null", "None", ""}:
         return None
     return int(value)
 
 
 def _extension(output_format: str) -> str:
+    """Return the configured table filename extension."""
     return "csv" if output_format.lower() == "csv" else "parquet"
 
 
 def _image_index_parquet_schema(output_format: str) -> Any | None:
+    """Define stable image-index types when the PyArrow engine is available."""
     if output_format.lower() != "parquet":
         return None
     try:
@@ -162,12 +170,14 @@ def _image_index_parquet_schema(output_format: str) -> Any | None:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser for JSONL parsing."""
     parser = argparse.ArgumentParser(description="Parse Yelp JSONL files into interim tabular outputs.")
     parser.add_argument("--config", type=Path, default=Path("configs/data_processing.yaml"))
     return parser
 
 
 def main() -> None:
+    """Run the parsing stage and print its validation summary."""
     args = build_arg_parser().parse_args()
     summary = run_parse(load_config(args.config))
     print(json.dumps(summary, ensure_ascii=False, indent=2))

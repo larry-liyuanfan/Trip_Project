@@ -13,6 +13,16 @@ The raw dataset is not committed to this repository. Keep local downloads under:
 data/yelp/raw/
 ```
 
+If the official downloads are stored as local zip files under `data/`, first extract
+the Week 1 raw inputs:
+
+```bash
+python scripts/extract_yelp_archives.py \
+  --json-zip data/Yelp-JSON.zip \
+  --photos-zip data/Yelp-Photos.zip \
+  --raw-dir data/yelp/raw
+```
+
 Expected raw files:
 
 ```text
@@ -43,6 +53,15 @@ data/yelp/processed/ota_subset_v1/poi_catalog.jsonl
 data/yelp/processed/ota_subset_v1/reviews.jsonl
 data/yelp/processed/ota_subset_v1/multimodal_items.jsonl
 data/yelp/processed/ota_subset_v1/manifest.json
+```
+
+To materialize only the photos referenced by the processed multimodal subset:
+
+```bash
+python scripts/extract_yelp_subset_photos.py \
+  --photos-zip data/Yelp-Photos.zip \
+  --multimodal-items data/yelp/processed/ota_subset_v1/multimodal_items.jsonl \
+  --raw-dir data/yelp/raw
 ```
 
 ## Output Schemas

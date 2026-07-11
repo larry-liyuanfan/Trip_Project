@@ -1,3 +1,5 @@
+"""Safely extract normalized Yelp source files from nested zip/tar archives."""
+
 import argparse
 import json
 import shutil
@@ -23,6 +25,7 @@ def extract_yelp_archives(
     photos_zip_path: Path | None = None,
     include_photo_files: bool = False,
 ) -> dict[str, Any]:
+    """Extract required JSON, optional photos, and official documentation."""
     raw_dir = Path(raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
 
@@ -65,6 +68,7 @@ def extract_yelp_archives(
 
 
 def extract_documentation_from_zip(zip_path: Path, raw_dir: Path) -> list[dict[str, Any]]:
+    """Copy documentation and terms files into the normalized raw docs layer."""
     extracted: list[dict[str, Any]] = []
     docs_dir = raw_dir / "docs"
     with zipfile.ZipFile(zip_path) as zip_archive:
@@ -97,6 +101,7 @@ def extract_yelp_photo_files(
     raw_dir: Path,
     photo_ids: set[str],
 ) -> dict[str, Any]:
+    """Extract only requested subset photo IDs and write a manifest."""
     raw_dir = Path(raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
     wanted_names = {f"photos/{photo_id}.jpg" for photo_id in photo_ids}
@@ -122,6 +127,7 @@ def extract_yelp_photo_files(
 
 
 def read_photo_ids_from_multimodal_items(path: Path) -> set[str]:
+    """Collect unique photo IDs referenced by a subset JSONL artifact."""
     photo_ids: set[str] = set()
     with Path(path).open("r", encoding="utf-8") as handle:
         for line in handle:
@@ -140,6 +146,7 @@ def extract_selected_members_from_zip_tar(
     wanted_names: set[str],
     include_photo_files: bool,
 ) -> list[dict[str, Any]]:
+    """Stream selected members from tar files nested inside an official zip."""
     extracted: list[dict[str, Any]] = []
     remaining = set(wanted_names)
     with zipfile.ZipFile(zip_path) as zip_archive:
@@ -190,15 +197,18 @@ def extract_selected_members_from_zip_tar(
 
 
 def normalized_member_name(name: str) -> str:
+    """Normalize archive separators and remove harmless leading relative marks."""
     return name.replace("\\", "/").lstrip("./")
 
 
 def is_macos_resource(name: str) -> bool:
+    """Identify metadata files added by macOS rather than the Yelp dataset."""
     normalized = normalized_member_name(name)
     return normalized.startswith("__MACOSX/") or "/._" in normalized or normalized.startswith("._")
 
 
 def safe_output_path(raw_dir: Path, member_name: str) -> Path:
+    """Reject path traversal before writing an archive member."""
     target = (raw_dir / member_name).resolve()
     raw_root = raw_dir.resolve()
     if target != raw_root and raw_root not in target.parents:
@@ -207,6 +217,7 @@ def safe_output_path(raw_dir: Path, member_name: str) -> Path:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser for full archive extraction."""
     parser = argparse.ArgumentParser(description="Extract Yelp Open Dataset zip/tar archives for Week 1 data prep.")
     parser.add_argument("--json-zip", type=Path, default=Path("data/Yelp-JSON.zip"))
     parser.add_argument("--photos-zip", type=Path, default=Path("data/Yelp-Photos.zip"))
@@ -216,6 +227,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Extract available archives and print the reproducibility manifest."""
     args = build_arg_parser().parse_args()
     photos_zip_path = args.photos_zip if args.photos_zip.exists() else None
     manifest = extract_yelp_archives(

@@ -87,6 +87,7 @@ def stream_clip_denoising(
     batch_size = int(config.get("candidate_batch_size", 256))
 
     def counted_candidate_rows() -> Iterable[dict[str, Any]]:
+        """Track consumed groups while yielding their row-level candidates."""
         nonlocal input_groups
         for group in weak_pairs:
             input_groups += 1
@@ -159,6 +160,7 @@ def _iter_candidate_rows(weak_pairs: Iterable[dict[str, Any]]) -> Iterable[dict[
 
 
 def _count_groups_and_candidates(weak_pairs: Iterable[dict[str, Any]]) -> tuple[int, int]:
+    """Count skipped-mode inputs without loading an expanded candidate table."""
     group_count = 0
     candidate_count = 0
     for group in weak_pairs:
@@ -168,6 +170,7 @@ def _count_groups_and_candidates(weak_pairs: Iterable[dict[str, Any]]) -> tuple[
 
 
 def _batched(rows: Iterable[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
+    """Yield bounded candidate batches and reject invalid batch sizes."""
     if batch_size < 1:
         raise ValueError("candidate_batch_size must be at least 1")
     batch: list[dict[str, Any]] = []
@@ -187,6 +190,7 @@ def _skipped_summary(
     threshold: float,
     model_id: str,
 ) -> dict[str, Any]:
+    """Build an explicit non-failing summary when scoring cannot run."""
     return {
         "status": "skipped",
         "reason": reason,
@@ -208,6 +212,7 @@ def _similarity_distribution(
     minimum: float | None,
     maximum: float | None,
 ) -> dict[str, float | int] | str:
+    """Summarize streaming similarity accumulators without retaining scores."""
     if not count or minimum is None or maximum is None:
         return "not_available"
     return {
@@ -222,6 +227,7 @@ class _TransformersClipScorer:
     """Batch CLIP scorer that deduplicates image and text encodes per batch."""
 
     def __init__(self, config: dict[str, Any]) -> None:
+        """Load the configured CLIP model and enforce the requested device."""
         import torch
         from transformers import CLIPModel, CLIPProcessor
 
@@ -237,6 +243,7 @@ class _TransformersClipScorer:
         self.processor = CLIPProcessor.from_pretrained(model_id)
 
     def __call__(self, candidates: list[dict[str, Any]]) -> list[float | None]:
+        """Score candidates after deduplicating repeated images and texts."""
         image_paths = list(dict.fromkeys(row["image_path"] for row in candidates))
         texts = list(dict.fromkeys(row["review_text"] for row in candidates))
         image_embeddings = self._image_embeddings(image_paths)
@@ -252,6 +259,7 @@ class _TransformersClipScorer:
         return scores
 
     def _image_embeddings(self, image_paths: list[str]) -> dict[str, Any]:
+        """Decode readable images and return normalized embeddings by path."""
         from PIL import Image
 
         embeddings: dict[str, Any] = {}
@@ -275,6 +283,7 @@ class _TransformersClipScorer:
         return embeddings
 
     def _text_embeddings(self, texts: list[str]) -> dict[str, Any]:
+        """Return normalized CLIP text embeddings keyed by review text."""
         embeddings: dict[str, Any] = {}
         for batch_texts in _plain_batches(texts, self.text_batch_size):
             inputs = self.processor(text=batch_texts, return_tensors="pt", padding=True, truncation=True).to(self.device)
@@ -286,6 +295,7 @@ class _TransformersClipScorer:
 
 
 def _plain_batches(values: list[Any], batch_size: int) -> Iterable[list[Any]]:
+    """Slice an in-memory value list into model-sized batches."""
     if batch_size < 1:
         raise ValueError("CLIP batch sizes must be at least 1")
     for start in range(0, len(values), batch_size):
