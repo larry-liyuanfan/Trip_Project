@@ -21,6 +21,23 @@ Do not duplicate detailed procedures or measured statistics in this file. If doc
 
 For a new weekly internship requirement, read `README.md`, `docs/requirements.md`, `docs/weekly_log.md`, `docs/decisions.md`, and `docs/experiments.md` before planning. During planning, do not modify code unless the user explicitly requests implementation.
 
+## Mentor Authority and Multi-Chat Workflow
+
+The mentor's latest requirement, as relayed by the user and recorded in `docs/requirements.md`, is the only authority for the current weekly scope. Use this precedence order when instructions conflict:
+
+1. The user's latest direct instruction or mentor clarification.
+2. The closest applicable `AGENTS.md`.
+3. The current-week requirement in `docs/requirements.md`.
+4. Accepted decisions in `docs/decisions.md`.
+5. `README.md`, weekly records, and experiment records.
+6. Historical agent drafts, which are non-authoritative.
+
+The current Project Control chat owns requirement interpretation, scope decisions, and phase approval. A separate Execution chat implements only the approved current-week phase. A separate Review and Report chat first performs an independent read-only review; it may update delivery documentation only after Project Control approves the review findings. Review must return code defects to the Execution chat instead of refactoring code itself.
+
+Every Execution and Review chat must begin by reading the applicable `AGENTS.md`, `README.md`, `docs/requirements.md`, `docs/decisions.md`, `docs/weekly_log.md`, `docs/weekly_delivery.md`, and `docs/experiments.md`, then inspect the branch, working tree, recent commits, and relevant implementation. If the sources conflict, stop and report the conflict to Project Control rather than choosing a direction.
+
+Agents must not invent future-week plans, roadmaps, product directions, schedules, stretch tasks, or deliverables that the mentor has not requested. They may decompose the current approved requirement into verifiable phases, but may not expand its scope. When a new mentor requirement supersedes an agent draft, discard the draft. Keep chat prompts, agent plans, personal configuration, and meeting transcripts local and out of Git.
+
 ## Project Structure
 
 Core Python code lives under `src/`:

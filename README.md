@@ -255,22 +255,7 @@ Initial metrics:
 - Recall@K;
 - planning relevance and route reasonability by human review.
 
-## Roadmap
-
-- Week 1: Docker, vLLM serving, API smoke tests, repository and experiment standards.
-- Week 2: Yelp multimodal dataset parsing, validation, alignment, and report draft.
-- Week 3: visual search with keyword / embedding / hybrid retrieval and Top-K metrics.
-- Week 4: multimodal travel planning, demo, final report, and resume packaging.
-
 ## Weekly Progress
 
 - Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
-
-## Future Work
-
-- Add live VLM output parsing hardening.
-- Integrate Yelp Open Dataset subset.
-- Add embedding index for visual and semantic retrieval.
-- Add model comparison experiments for Qwen-VL and DeepSeek-VL2.
-- Add lightweight UI or notebook demo.
