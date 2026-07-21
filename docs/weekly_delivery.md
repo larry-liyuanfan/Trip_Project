@@ -103,6 +103,78 @@ python -m unittest discover -s tests -v
 - CLIP used `openai/clip-vit-base-patch32` on CUDA. vLLM must be stopped first because both workloads cannot safely share the local 8GB GPU.
 - The mentor-facing output is `reports/yelp_multimodal_data_processing_report_part1.md`.
 
+## Week 3: Zero-Shot Evaluation Framework
+
+### Objective and Status
+
+Build an auditable three-scenario zero-shot evaluation framework with stable
+data contracts, multimodal prompts, strict structured output, a
+configuration-driven runner, metrics, and reporting. Local implementation and
+the frozen human-authored manifests and real run artifacts are validated. The
+delivery remains `PARTIAL` because baseline semantic metrics and several
+mentor-required gold dimensions are unsupported by the frozen data.
+
+### Completion Checklist
+
+- [x] Implement manifest inputs, image SHA-256 validation, exclusion tracking, duplicate rejection, and local initialization.
+- [x] Implement baseline and standardized multimodal requests without changing the three baseline prompt texts.
+- [x] Expose the complete Schema contract and enforce scenario-specific images, bounded evidence, and itinerary structure.
+- [x] Implement strict JSON handling, pre-run registry validation, scene ownership validation, runner metadata, and error separation.
+- [x] Implement completed-run metadata consistency checks and explicit failed-run rejection, metrics, summaries, and error export.
+- [x] Implement deterministic non-gold annotation suggestions and the human annotation application gate.
+- [x] Restore and validate the frozen human-authored manifests without relabeling.
+- [x] Validate completed full `baseline_minimal_v1` run `week3_baseline_full_20260721_003`.
+- [x] Validate the optional `standardized_v1` run on the identical frozen set.
+- [x] Generate an evidence-backed status report with unsupported metrics marked `PENDING`.
+- [x] Record Project Control's frozen-v1 decision: no v2 dataset, annotation reopening, supplemental labels, or v2 rescoring.
+- [x] Receive Project Control approval of the final actual diff and evidence boundary.
+
+Current verification restores all 450 completed annotations and 450 exclusion
+rows. Both named completed runs pass artifact validation; no equivalent live
+requests were repeated. The final repository suite passes 203 Python tests.
+
+### Evaluation Data Counts
+
+| Scenario | target_count | candidate_count | annotated_count | validated_count | tested_count |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Product understanding | 200 | 200 | 200 | 200 | 200 |
+| After-sales issue recognition | 150 | 150 | 150 | 150 | 150 |
+| Itinerary constraint understanding | 100 | 100 | 100 | 100 | 100 |
+
+The local Yelp source data and Week 2 processed artifacts exist. The exclusion
+registry contains 450 candidates. `tested_count` is bound to the completed
+baseline run. Unknown and empty semantic fields remain frozen limitations and
+reduce metric support rather than release eligibility.
+
+Product `price_range=unknown` is an allowed evidence-based result, and product
+`visible_facilities` is non-empty for 128 samples and empty for 72. The 100
+empty itinerary `style_preferences` arrays are recorded as a probable
+historical UI field-exposure or serialization defect without blaming the
+annotator. Itinerary style, after-sales facility-damage, and baseline
+natural-language semantic metrics remain `PENDING`; the Week 3 status is
+`PARTIAL`.
+
+### Verification Evidence and Boundaries
+
+- Synthetic/mock framework verification: PASS，不属于真实模型 baseline，不计入 tested_count。
+- `stage3_dry_run_20260713_001`: `baseline_minimal_v1`, `selected_count=0`, `record_count=0`.
+- `stage3_dry_run_20260713_002`: `baseline_minimal_v1`, `selected_count=0`, `record_count=0`.
+- Both dry-runs belong to Stage 3 and validate only the zero-selection framework path.
+- 2026-07-14 `/v1/models` 探测成功，返回 `Qwen/Qwen2-VL-2B-Instruct`；未发送 Week 3 图片请求，未产生模型输出或延迟指标。
+- Runs `week3_baseline_full_20260721_003` and `week3_standardized_full_20260721_001` each retain 450 records and pass restored-manifest provenance validation.
+- Historical comparison `week3_prompt_pair_strict_20260721_001` remains optional traceability evidence and is not a Week 3 completion gate.
+- Baseline semantic task metrics are `PENDING`; invalid natural-language JSON is not treated as semantic zero.
+- The current status and data defects are documented in `reports/week3_zero_shot_baseline_report.md`.
+
+The standalone status report is
+`reports/week3_zero_shot_baseline_report.md`.
+
+### Review boundary
+
+Project Control approved one complete Week 3 commit and push to `dev` for the
+frozen-v1 `PARTIAL` delivery. The delivery must not be promoted to `stg`,
+merged to `stg`, tagged, or expanded into follow-up work.
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`

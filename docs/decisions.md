@@ -50,6 +50,14 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **Reason**: Separate Week 1 and Week 2 files drifted across branches and obscured earlier completed work.
 - **Consequence**: Checklist state is finalized on `dev` before promotion, then inherited unchanged by `stg` and `main` through merge-based promotion.
 
+## ADR-007: Freeze the Week 3 v1 Evaluation Labels
+
+- **Date**: 2026-07-21
+- **Status**: Accepted
+- **Decision**: Keep the existing `week3_evaluation_v1` manifests and completed run artifacts immutable. Do not create `week3_gold_v2`, reopen the annotation UI, request supplemental labels, or perform v2 rescoring. Treat evidence-supported `unknown` values as completed labels rather than omissions. Keep itinerary image-style preference, after-sales facility-damage, and baseline natural-language semantic metrics `PENDING` where the frozen evidence does not support them.
+- **Reason**: Project Control approved the frozen-v1 route after reviewing the annotation audit, historical UI backups, corrected product-facility statistics, and run provenance. The 100 empty itinerary style arrays are recorded as a probable historical field-exposure or serialization defect and are not attributed to the annotator.
+- **Consequence**: Week 3 remains `PARTIAL`; reports must preserve support counts and limitations without modifying gold labels, rerunning equivalent inference, or converting sampling metadata into gold coverage.
+
 ## Decision Template
 
 ```markdown

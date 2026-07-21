@@ -245,17 +245,76 @@ Week 2 mentor-facing report:
 - `reports/yelp_multimodal_data_processing_report_part1.md`
 - `docs/weekly_delivery.md` contains the completed Week 1 and Week 2 checklists and measured results.
 
+### Week 3: Zero-Shot Evaluation Framework
+
+Week 3 is `PARTIAL`. The frozen human-authored manifests have been restored to
+the exact version used by the completed real baseline, and both real run
+artifacts pass provenance validation. Baseline semantic task metrics remain
+`PENDING` because its intentionally minimal Prompt produced unparsed natural
+language, and frozen gold coverage limitations are reported without relabeling.
+
+| Scenario | target_count | candidate_count | annotated_count | validated_count | tested_count |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Product understanding | 200 | 200 | 200 | 200 | 200 |
+| After-sales issue recognition | 150 | 150 | 150 | 150 | 150 |
+| Itinerary constraint understanding | 100 | 100 | 100 | 100 | 100 |
+
+`tested_count` above is bound to completed run
+`week3_baseline_full_20260721_003`. Run eligibility checks human completion,
+valid/readable inputs, required structure, non-rejection, sampling strata, and
+evaluation isolation. It does not reinterpret `unknown` or empty semantic
+fields as complete mentor coverage. The after-sales set contains 76 public
+Yelp and 74 business-synthetic samples.
+
+One human annotator is sufficient. Model outputs and deterministic suggestions
+must not replace the human labels. Unknown values are allowed when evidence is
+insufficient and must be reported as a data limitation rather than guessed.
+
+Project Control selected the frozen-v1 route for final review. Product labels
+will not be reopened, no `week3_gold_v2` or v2 rescoring will be created, and
+the historical annotation UI will not be repaired or reopened for this
+delivery. The empty itinerary style field is recorded as a probable historical
+UI field-exposure or serialization defect, not annotator omission. Unsupported
+itinerary-style, after-sales facility-damage, and baseline semantic metrics
+remain `PENDING`; Week 3 remains `PARTIAL`.
+
+The core local commands are:
+
+```bash
+python scripts/prepare_week3_evaluation.py init
+python scripts/build_week3_candidate_manifests.py --config configs/evaluation_week3.yaml
+python scripts/validate_week3_evaluation.py
+python scripts/run_week3_evaluation.py --config configs/evaluation_week3.yaml --run-id <run-id> --mode live --run-scope full --prompt-version baseline_minimal_v1
+python scripts/score_week3_evaluation.py --config configs/evaluation_week3.yaml --run-id <run-id>
+```
+
+The recorded baseline should be reused while its provenance remains valid; do
+not repeat equivalent live requests. The standardized Prompt and JSON Schema
+files are design deliverables. A paired comparison, bootstrap analysis,
+annotation UI, or training pipeline is not required for Week 3.
+
+See `reports/week3_zero_shot_baseline_report.md` for the status report and
+`docs/evaluation_data_contracts.md`, `docs/prompt_architecture.md`,
+`docs/evaluation_framework.md`, `docs/evaluation_metrics.md`, and
+`docs/week3_annotation_guidelines.md` for the
+technical contracts.
+
 ## Evaluation
 
-Initial metrics:
+The Week 3 evaluation framework defines scenario-specific structured metrics.
+The real baseline measured format compliance and latency over 450 records.
+Its unparsed semantic task metrics remain `PENDING`; the report keeps these
+separate from the measured 0% JSON compliance result.
 
-- JSON parse success rate;
-- structured field accuracy;
-- Top-K hit rate for retrieval;
-- Recall@K;
-- planning relevance and route reasonability by human review.
+Framework metric groups include:
+
+- product label accuracy, completeness, and format compliance;
+- after-sales issue/severity accuracy, key-information F1, and OCR recall;
+- itinerary constraint accuracy, element completeness, and format compliance;
+- inference latency and representative error cases.
 
 ## Weekly Progress
 
 - Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
+- Week 3: `PARTIAL`. Engineering and real baseline traceability are verified; semantic baseline metrics and several mentor-required gold dimensions remain unsupported by the frozen data.

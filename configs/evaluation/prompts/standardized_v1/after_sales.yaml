@@ -1,0 +1,4 @@
+scenario: after_sales
+schema_name: after_sales_v1.schema.json
+task_instruction: >-
+  定位图片中的旅游售后异常，识别问题类型、严重度、关键事实与可见 OCR 文本；将直接可见事实写入 observed_evidence，无法确认的信息标记为 unknown。

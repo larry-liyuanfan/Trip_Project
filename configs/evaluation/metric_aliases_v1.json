@@ -1,0 +1,66 @@
+{
+  "version": "metric_aliases_v1",
+  "fields": {
+    "business_category": {
+      "酒店": "hotel",
+      "住宿": "hotel",
+      "景点": "attraction",
+      "餐厅": "restaurant",
+      "餐馆": "restaurant",
+      "其他": "other",
+      "未知": "unknown"
+    },
+    "price_range": {
+      "mid-range": "mid_range",
+      "mid range": "mid_range",
+      "经济型": "budget",
+      "中档": "mid_range",
+      "高端": "premium",
+      "豪华": "luxury",
+      "未知": "unknown"
+    },
+    "style_tags": {
+      "现代风": "modern",
+      "安静型": "quiet"
+    },
+    "visible_facilities": {
+      "swimming pool": "pool",
+      "游泳池": "pool",
+      "泳池": "pool",
+      "水疗": "spa"
+    },
+    "issue_type": {
+      "卫生污渍": "hygiene_stain",
+      "设施损坏": "facility_damage",
+      "景点关闭": "attraction_closure",
+      "交通延误": "transport_delay",
+      "其他": "other",
+      "未知": "unknown"
+    },
+    "severity": {
+      "低": "low",
+      "中": "medium",
+      "高": "high",
+      "严重": "critical",
+      "未知": "unknown"
+    },
+    "key_information": {},
+    "ocr_text": {},
+    "hard_constraints": {
+      "公共交通": "public transport",
+      "公交出行": "public transport"
+    },
+    "soft_constraints": {
+      "安静酒店": "quiet hotel"
+    },
+    "required_itinerary_elements": {
+      "交通方式": "transport",
+      "住宿": "hotel"
+    },
+    "constraint_status": {
+      "满足": "satisfied",
+      "违反": "violated",
+      "未知": "unknown"
+    }
+  }
+}
