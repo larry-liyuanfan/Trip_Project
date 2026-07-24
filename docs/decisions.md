@@ -66,6 +66,14 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **Reason**: The mentor explicitly prioritized removal of low-quality images so the zero-shot baseline can serve as a fair reference for later comparison. The frozen-v1 set has unsupported facility-damage and itinerary-style dimensions.
 - **Consequence**: V2 full baseline and standardized runs cannot begin until the 70 after-sales replacements and 100 itinerary style supplements are complete. Existing itinerary non-style labels are inherited, not re-entered. Standardized v2 may use a separately versioned bounded itinerary Schema and output-type skeleton to improve raw JSON/Schema compliance, while strict format compliance remains separate from semantic quality.
 
+## ADR-009: Score Minimal-Baseline Semantics with a Gold-Independent Lexical Track
+
+- **Date**: 2026-07-25
+- **Status**: Accepted
+- **Decision**: Use `baseline_semantic_coding_v1` to convert the immutable `baseline_minimal_v1` raw text into predictions before loading human gold. The encoder accepts only the scenario, raw output, a fixed versioned codebook derived from existing Schemas and annotation definitions, and general text normalization. Gold is joined only in the scoring stage.
+- **Reason**: The mentor requires baseline business metrics, while the minimal Prompt intentionally produces unconstrained natural language. A deterministic lexical track measures supported semantics without changing the Prompt, rerunning inference, adding manual output coding, or treating JSON failure as semantic failure.
+- **Consequence**: Store the lexical metrics as an independent scoring track with explicit support counts and codebook SHA-256. Preserve baseline JSON/Schema rates, raw output, latency, and run provenance. Do not compare this track to the standardized strict-structured track as if their difference were a pure Prompt effect.
+
 ## Decision Template
 
 ```markdown

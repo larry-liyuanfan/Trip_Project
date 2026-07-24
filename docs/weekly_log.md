@@ -164,3 +164,12 @@ as the current validated dataset or accepted baseline.
 - Standardized v2 JSON/Schema rates are product 79%/75%, after-sales 96.67%/96%, and itinerary 90%/88%. Strict semantic metrics and their support counts are recorded in the baseline report.
 - Generated paired comparison `week3_v2_prompt_pair_20260724_001` over 450 identical samples with 2,000 bootstrap iterations. Comparison is limited to format, Schema, and latency because baseline semantic output has not been deterministically parsed.
 - Week 3 remains `PARTIAL` solely because the mentor-required minimal baseline's natural-language semantic task metrics are unsupported by the current reproducible scoring track.
+
+## 2026-07-25: Week 3 deterministic baseline semantic scoring
+
+- Added `baseline_semantic_coding_v1`, a fixed lexical codebook and encoder whose prediction interface accepts only `scenario` and `raw_output`; the codebook is loaded independently and human gold is joined only after all predictions are complete.
+- Generated immutable score `week3_v2_baseline_full_20260724_001__baseline_semantic_coding_v1` for the existing 450-record baseline without any model request, Prompt change, Schema change, manifest change, or relabeling.
+- Preserved baseline JSON and Schema compliance at 0% for all scenarios. Semantic metrics are stored on a separate track with per-metric support counts and codebook SHA-256 `563dc0747f92b6ccaa37466045cb0e74229787824013d59a5f6f26261bb033a6`.
+- Moved the earlier gold-leaking semantic score and incompatible cross-track comparison unchanged into ignored quarantine with a hash disposition record.
+- Final verification passed 226 Python tests, standalone v2 validation, both run-bound validators, semantic score integrity checks, and Git diff/boundary checks.
+- Week 3 status is `READY / COMPLETED`; the deterministic lexical method and its limitations are documented without attributing cross-track differences solely to Prompt behavior.

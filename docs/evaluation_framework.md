@@ -121,8 +121,13 @@ python scripts/run_week3_evaluation.py --config configs/evaluation_week3.yaml --
 ## Current Limitations
 
 - The frozen manifests contain 450 completed, structurally eligible records and the after-sales source mix is 76 public Yelp plus 74 business synthetic. Product unknown scalars, missing after-sales category coverage, and 100 empty itinerary style preferences remain metric/data limitations rather than run blockers.
-- Stage 3 does not calculate task metrics or error aggregates.
+- Stage 3 does not calculate task metrics or error aggregates; the separate scorer now supports the approved `baseline_semantic_coding_v1` lexical track.
 - No live request is implied by a mock or dry-run status.
 - Existing real run records are immutable and should not be repeated merely to recreate equivalent evidence.
 
 Stage 4 scoring is separate from this runner. The mentor-required metric definitions and scoring command are documented in `docs/evaluation_metrics.md`.
+
+The deterministic baseline coding stage reads only `scenario`, `raw_output`,
+the versioned codebook, and normalization rules. It completes predictions
+before manifests or annotations are loaded. The scoring stage then joins those
+frozen predictions to human gold by `sample_id`.

@@ -30,6 +30,7 @@ data/eval/images/
 data/eval/logs/
 data/eval/manifests/
 data/eval/readiness/
+data/eval/quarantine/
 data/eval/runs/
 data/eval/scores/
 data/eval/registry/

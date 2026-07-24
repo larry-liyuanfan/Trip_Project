@@ -33,6 +33,7 @@ def compare_runs(
     comparison_id: str,
     baseline_run_id: str,
     standardized_run_id: str,
+    baseline_score_id: str | None = None,
     bootstrap_iterations: int = 2000,
 ) -> dict[str, Any]:
     """Validate two runs, compare paired scores, and write generated evidence."""
@@ -65,12 +66,39 @@ def compare_runs(
     verify_artifact_hashes(project_root, standardized_metadata["artifact_hashes"])
     validate_comparable_runs(baseline_metadata, standardized_metadata)
 
+    resolved_baseline_score_id = baseline_score_id or baseline_run_id
+    if COMPARISON_ID_PATTERN.fullmatch(resolved_baseline_score_id) is None:
+        raise ComparisonValidationError(
+            "baseline_score_id contains unsupported characters"
+        )
     baseline_score_path = (
         project_root
         / paths["scores_dir"]
-        / baseline_run_id
+        / resolved_baseline_score_id
         / "sample_scores.jsonl"
     )
+    if baseline_score_id is not None:
+        baseline_score_summary_path = (
+            project_root
+            / paths["scores_dir"]
+            / resolved_baseline_score_id
+            / "score_summary.json"
+        )
+        try:
+            baseline_score_summary = json.loads(
+                baseline_score_summary_path.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ComparisonValidationError(
+                f"cannot read baseline semantic score summary: {exc}"
+            ) from exc
+        if (
+            baseline_score_summary.get("score_id") != resolved_baseline_score_id
+            or baseline_score_summary.get("run_id") != baseline_run_id
+        ):
+            raise ComparisonValidationError(
+                "baseline semantic score is not bound to the requested run"
+            )
     standardized_score_path = (
         project_root
         / paths["scores_dir"]
@@ -88,13 +116,18 @@ def compare_runs(
     metadata = {
         "comparison_id": comparison_id,
         "baseline_run_id": baseline_run_id,
+        "baseline_score_id": resolved_baseline_score_id,
         "standardized_run_id": standardized_run_id,
         "dataset_version": baseline_metadata["dataset_version"],
         "selected_sample_ids_sha256": baseline_metadata[
             "selected_sample_ids_sha256"
         ],
         "paired_sample_count": len(sample_rows),
-        "scoring_track": "strict_business",
+        "scoring_track": (
+            "deterministic_baseline_semantic_vs_strict_business"
+            if baseline_score_id is not None
+            else "strict_business"
+        ),
         "bootstrap_iterations": bootstrap_iterations,
         "score_artifact_hashes": build_artifact_hashes(
             project_root,
@@ -147,6 +180,7 @@ def run_cli(argv: list[str] | None = None, *, root: Path | None = None) -> dict[
     parser.add_argument("--config", default="configs/evaluation_week3.yaml")
     parser.add_argument("--comparison-id", required=True)
     parser.add_argument("--baseline-run-id", required=True)
+    parser.add_argument("--baseline-score-id")
     parser.add_argument("--standardized-run-id", required=True)
     parser.add_argument("--bootstrap-iterations", type=int, default=2000)
     args = parser.parse_args(argv)
@@ -156,6 +190,7 @@ def run_cli(argv: list[str] | None = None, *, root: Path | None = None) -> dict[
         comparison_id=args.comparison_id,
         baseline_run_id=args.baseline_run_id,
         standardized_run_id=args.standardized_run_id,
+        baseline_score_id=args.baseline_score_id,
         bootstrap_iterations=args.bootstrap_iterations,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))

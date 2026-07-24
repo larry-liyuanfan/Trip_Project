@@ -247,7 +247,7 @@ Week 2 mentor-facing report:
 
 ### Week 3: Zero-Shot Evaluation Framework
 
-Week 3 is `PARTIAL`. The immutable v1 manifests and runs remain historical
+Week 3 is `READY / COMPLETED`. The immutable v1 manifests and runs remain historical
 evidence. After the mentor requested removal of low-quality images for a fair
 baseline/comparison set, the active work moved to a separately versioned v2
 dataset; v1 files and runs are never overwritten.
@@ -284,6 +284,7 @@ python scripts/validate_week3_evaluation.py
 python scripts/validate_week3_evaluation.py --config configs/evaluation_week3_v2.yaml
 python scripts/run_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id <run-id> --mode live --run-scope full --prompt-version baseline_minimal_v1
 python scripts/score_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id <run-id>
+python scripts/score_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id week3_v2_baseline_full_20260724_001 --semantic-coding-config configs/evaluation/baseline_semantic_coding_v1.json --score-id week3_v2_baseline_full_20260724_001__baseline_semantic_coding_v1
 ```
 
 Prepare the separately versioned candidates with
@@ -302,10 +303,11 @@ technical contracts.
 
 The Week 3 evaluation framework defines scenario-specific structured metrics.
 The completed v2 baseline measured format compliance and latency over 450
-records. The same-set standardized v2 run measured strict structured-business
-metrics over another 450 persisted records. The baseline's unparsed semantic
-task metrics remain `PENDING`; the report keeps these separate from the
-measured 0% JSON compliance result.
+records. Its natural-language business metrics are now measured independently
+by the fixed, gold-independent `baseline_semantic_coding_v1` lexical track.
+The same-set standardized v2 run retains its strict structured-business
+metrics. The report keeps the two scoring tracks separate and preserves the
+baseline's measured 0% JSON and Schema compliance.
 
 Framework metric groups include:
 
@@ -318,4 +320,4 @@ Framework metric groups include:
 
 - Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
-- Week 3: `PARTIAL`. Data, real baseline, standardized v2, scoring, and paired comparison are complete and traceable; only the unconstrained baseline's unparsed semantic task metrics remain `PENDING`.
+- Week 3: `READY / COMPLETED`. Data, human gold, real baseline, deterministic baseline semantic scoring, standardized v2, and reporting are complete and traceable.

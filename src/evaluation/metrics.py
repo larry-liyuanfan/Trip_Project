@@ -221,6 +221,58 @@ def score_sample(
     return score
 
 
+def score_semantic_prediction(
+    result: dict[str, Any],
+    annotation: dict[str, Any],
+    prediction: dict[str, Any],
+    aliases: dict[str, dict[str, str]],
+    *,
+    coding_version: str,
+    codebook_sha256: str,
+) -> dict[str, Any]:
+    """Score a precomputed gold-independent prediction on a separate track."""
+    scenario = result.get("scenario")
+    if scenario not in SCENARIO_METRIC_NAMES:
+        raise ValueError(f"unsupported scoring scenario: {scenario}")
+    if result.get("prompt_version") != "baseline_minimal_v1":
+        raise ValueError(
+            "deterministic semantic coding is restricted to baseline_minimal_v1"
+        )
+    if not isinstance(annotation, dict) or not isinstance(prediction, dict):
+        raise ValueError("annotation and prediction must be objects")
+    score: dict[str, Any] = {
+        "run_id": result.get("run_id"),
+        "source_run_id": result.get("run_id"),
+        "sample_id": result.get("sample_id"),
+        "scenario": scenario,
+        "model_name": result.get("model_name"),
+        "prompt_version": result.get("prompt_version"),
+        "json_compliance": float(result.get("json_valid") is True),
+        "schema_pass": float(result.get("schema_valid") is True),
+        "structured_valid": (
+            result.get("json_valid") is True and result.get("schema_valid") is True
+        ),
+        "latency_ms": result.get("latency_ms"),
+        "multilabel_counts": {},
+        "scoring_track": "baseline_semantic_coding_v1",
+        "semantic_metrics_status": "scored",
+        "coding_version": coding_version,
+        "codebook_sha256": codebook_sha256,
+        "deterministic_prediction": prediction,
+    }
+    if scenario == "image_product_search":
+        _score_product(score, prediction, annotation, aliases)
+    elif scenario == "after_sales":
+        _score_after_sales(score, prediction, annotation, aliases)
+    else:
+        _score_itinerary(score, prediction, annotation, aliases)
+    score["semantic_metric_support"] = {
+        metric_name: _is_number(score.get(metric_name))
+        for metric_name in SCENARIO_METRIC_NAMES[scenario]
+    }
+    return score
+
+
 def _score_unstructured_result(
     score: dict[str, Any],
     result: dict[str, Any],
@@ -267,6 +319,10 @@ def aggregate_scenario_scores(sample_scores: list[dict[str, Any]]) -> dict[str, 
     if len(scenarios) != 1:
         raise ValueError("all sample scores must belong to one scenario")
     scenario = next(iter(scenarios))
+    semantic_coding_track = all(
+        score.get("scoring_track") == "baseline_semantic_coding_v1"
+        for score in sample_scores
+    )
     aggregate: dict[str, Any] = {
         "scenario": scenario,
         "sample_count": len(sample_scores),
@@ -275,7 +331,9 @@ def aggregate_scenario_scores(sample_scores: list[dict[str, Any]]) -> dict[str, 
     excluded = {
         "run_id", "sample_id", "scenario", "model_name", "prompt_version",
         "latency_ms", "multilabel_counts", "structured_valid", "scoring_track",
-        "format_structured_valid", "semantic_metrics_status",
+        "format_structured_valid", "semantic_metrics_status", "source_run_id",
+        "coding_version", "codebook_sha256", "deterministic_prediction",
+        "semantic_metric_support",
     }
     metric_names = sorted(
         {
@@ -301,7 +359,9 @@ def aggregate_scenario_scores(sample_scores: list[dict[str, Any]]) -> dict[str, 
             for score in sample_scores
             if _is_number(score.get(metric_name))
         ]
-        if any(score.get(metric_name) is None for score in sample_scores):
+        if semantic_coding_track or any(
+            score.get(metric_name) is None for score in sample_scores
+        ):
             aggregate[f"{output_name}_support_count"] = len(values)
         if not values:
             aggregate[output_name] = None
@@ -331,6 +391,10 @@ def aggregate_scenario_scores(sample_scores: list[dict[str, Any]]) -> dict[str, 
         aggregate[f"{prefix}_precision_micro"] = metrics["precision"]
         aggregate[f"{prefix}_recall_micro"] = metrics["recall"]
         aggregate[f"{prefix}_f1_micro"] = metrics["f1"]
+        if semantic_coding_track:
+            aggregate[f"{prefix}_precision_micro_support_count"] = len(sample_scores)
+            aggregate[f"{prefix}_recall_micro_support_count"] = len(sample_scores)
+            aggregate[f"{prefix}_f1_micro_support_count"] = len(sample_scores)
         aggregate[f"{prefix}_tp"] = totals["tp"]
         aggregate[f"{prefix}_fp"] = totals["fp"]
         aggregate[f"{prefix}_fn"] = totals["fn"]

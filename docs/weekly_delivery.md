@@ -111,8 +111,9 @@ Build an auditable three-scenario zero-shot evaluation framework with stable
 data contracts, multimodal prompts, strict structured output, a
 configuration-driven runner, metrics, and reporting. The v2 human-authored
 manifests, full baseline, full standardized run, scores, and comparison are
-validated. The delivery remains `PARTIAL` because the unconstrained baseline's
-natural-language semantic metrics have no approved reproducible parser.
+validated. The approved `baseline_semantic_coding_v1` track now supplies the
+previously missing baseline business metrics without changing the raw run.
+Week 3 is `READY / COMPLETED`.
 
 ### Completion Checklist
 
@@ -128,11 +129,12 @@ natural-language semantic metrics have no approved reproducible parser.
 - [x] Generate an evidence-backed status report with unsupported metrics marked `PENDING`.
 - [x] Record the historical Project Control frozen-v1 decision (superseded on 2026-07-22 by the mentor-authorized v2 recuration route).
 - [x] Receive Project Control approval of the final actual diff and evidence boundary.
+- [x] Generate and verify gold-independent deterministic baseline semantic metrics with explicit support counts.
 
 Current v2 verification contains 450 completed annotations and 450 exclusion
 rows. Both v2 completed runs pass artifact validation and bind tested counts to
-their 450 persisted records. The final repository suite passes 216 Python
-tests.
+their 450 persisted records. The final repository test result is recorded in
+the verification evidence below.
 
 ### Evaluation Data Counts
 
@@ -148,12 +150,10 @@ baseline run. Unknown and empty semantic fields remain frozen limitations and
 reduce metric support rather than release eligibility.
 
 Product `price_range=unknown` is an allowed evidence-based result, and product
-`visible_facilities` is non-empty for 128 samples and empty for 72. The 100
-empty itinerary `style_preferences` arrays are recorded as a probable
-historical UI field-exposure or serialization defect without blaming the
-annotator. Itinerary style, after-sales facility-damage, and baseline
-natural-language semantic metrics remain `PENDING`; the Week 3 status is
-`PARTIAL`.
+`visible_facilities` is non-empty for 128 samples and empty for 72. The v2
+itinerary style supplements and representative after-sales replacements are
+complete. Evidence-supported `unknown` gold values remain valid and reduce
+only the corresponding metric support. Week 3 is `READY / COMPLETED`.
 
 ### Verification Evidence and Boundaries
 
@@ -164,8 +164,12 @@ natural-language semantic metrics remain `PENDING`; the Week 3 status is
 - 2026-07-14 `/v1/models` 探测成功，返回 `Qwen/Qwen2-VL-2B-Instruct`；未发送 Week 3 图片请求，未产生模型输出或延迟指标。
 - Runs `week3_baseline_full_20260721_003` and `week3_standardized_full_20260721_001` each retain 450 records and pass restored-manifest provenance validation.
 - Historical comparison `week3_prompt_pair_strict_20260721_001` remains optional traceability evidence and is not a Week 3 completion gate.
-- Baseline semantic task metrics are `PENDING`; invalid natural-language JSON is not treated as semantic zero.
+- Baseline semantic task metrics are stored under `baseline_semantic_coding_v1`; invalid natural-language JSON remains a separate 0% format result.
 - The current status and data defects are documented in `reports/week3_zero_shot_baseline_report.md`.
+- Full unit suite: 226/226 passed on 2026-07-25.
+- Standalone v2 validation: `status=ok`, exclusion count 450, target/candidate/annotated/validated counts 200/150/100.
+- Baseline and standardized v2 run-bound validation: both `status=ok`, with tested counts 200/150/100.
+- Semantic score read-only verification: 450 rows, scenario counts 200/150/100, explicit support columns present, strict JSON serialization valid, and baseline JSON/Schema values unchanged at 0%.
 
 The standalone status report is
 `reports/week3_zero_shot_baseline_report.md`.
@@ -173,11 +177,10 @@ The standalone status report is
 ### Review boundary
 
 Project Control approved the historical frozen-v1 `PARTIAL` commit on `dev`.
-After the user directly confirmed the mentor's 2026-07-22 v2 authorization,
-Project Control reviewed the v2 actual diff, 216-test result, run provenance,
-scores, comparison evidence, and Git boundary on 2026-07-24. The v2 `PARTIAL`
-delivery is approved for one coherent commit and push to `dev`; it must not be
-promoted to `stg` or tagged without a separate mentor-confirmed promotion.
+After the mentor-authorized v2 work, the user approved the final
+`baseline_semantic_coding_v1` completion task and explicitly authorized safe
+promotion through `dev`, `stg`, and `main` after all gates pass. No tag is
+created.
 
 ### Active v2 recuration evidence (2026-07-22)
 
@@ -197,9 +200,10 @@ promoted to `stg` or tagged without a separate mentor-confirmed promotion.
 - [x] Run and sign full same-set v2 baseline and standardized evaluations.
 - [x] Score actual v2 outputs and replace interim counts with run-bound evidence.
 - [x] Generate the 450-row paired comparison and evidence-backed report.
+- [x] Preserve the strict format track and add the independent deterministic baseline semantic score.
 
-The remaining `PARTIAL` boundary is the unsupported natural-language baseline
-semantic track; no numeric semantic score is fabricated from JSON failures.
+All mentor-required Week 3 baseline metrics now have persisted values and
+support counts. No numeric semantic score is derived from JSON failure.
 
 ## Promotion Rule
 

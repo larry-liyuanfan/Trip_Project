@@ -21,7 +21,7 @@ For a Schema-valid output, a missing scalar is normalized to an empty value and 
 
 `ocr_ground_truth: null` means that the source provides no OCR reference. For a valid structured output, OCR recall and exact match are `null` and are excluded from their scenario means. An empty OCR reference list is a real reference: an empty prediction scores 1 for both recall and exact match.
 
-For the standardized structured track, if either `json_valid` or `schema_valid` is false, supported structured task metrics for that sample are 0. Scalar gold explicitly marked `unknown` and nullable OCR gold are excluded from their metric denominator, with `<metric>_support_count` recording the actual denominator. The sample remains in format and latency aggregates. The unchanged minimal baseline has no human-coded secondary track: when its natural-language output cannot be deterministically parsed, JSON/Schema compliance and latency remain measured while semantic task metrics are `PENDING` with support count 0.
+For the standardized structured track, if either `json_valid` or `schema_valid` is false, supported structured task metrics for that sample are 0. Scalar gold explicitly marked `unknown` and nullable OCR gold are excluded from their metric denominator, with `<metric>_support_count` recording the actual denominator. The sample remains in format and latency aggregates. The unchanged minimal baseline has no human-coded secondary track; its approved deterministic lexical track scores supported semantics independently while retaining the measured JSON/Schema compliance and latency.
 
 ## Shared Multi-label Rules
 
@@ -117,9 +117,9 @@ data/eval/scores/<run_id>/
 
 Both JSONL files use strict JSON serialization and reject `NaN`, `Infinity`, and `-Infinity`. The CSV contains one flat row per represented scenario. Empty or pre-existing score directories are not reused.
 
-The unchanged minimal baseline has no JSON-format instruction. Invalid natural-language output is a format failure, not proof of a semantic failure. Use a simple documented coding or extraction rule for the required semantic metrics; when that cannot be done reliably, store the semantic metric as `null`/`PENDING`. A standardized-vs-baseline paired comparison and bootstrap analysis are not Week 3 requirements.
+The unchanged minimal baseline has no JSON-format instruction. Invalid natural-language output is a format failure, not proof of a semantic failure. `baseline_semantic_coding_v1` therefore creates predictions in a separate deterministic lexical track. Its encoder receives only the scenario, raw output, the fixed codebook, and normalization rules. It cannot receive annotation, sampling stratum, source metadata, suggestions, or standardized output. Human gold is loaded only after all predictions have been created.
 
-The completed real baseline supplies format and latency metrics. Its unparsed semantic task metrics remain `PENDING`; standardized metrics report reduced support where frozen gold is `unknown` or not applicable.
+Scalar fields return a canonical enum only for one unambiguous lexical match; conflicts or misses return `unknown`. Multi-label fields return only explicit fixed-codebook matches in deterministic order. OCR uses a bounded generic visible-token rule and never copies annotation OCR. Every aggregate reports support counts; gold `unknown` and nullable OCR continue to follow the existing denominator rules. A standardized-vs-baseline semantic comparison and bootstrap analysis are not part of this track.
 
 After Stage 5 has produced an approved persisted run, strict structured scoring can be invoked with:
 
@@ -127,4 +127,11 @@ After Stage 5 has produced an approved persisted run, strict structured scoring 
 python scripts/score_week3_evaluation.py --config configs/evaluation_week3.yaml --run-id <existing_run_id>
 ```
 
-Stage 4 verification uses only synthetic fixtures. This command is documented for the later approved run phase and is not evidence that a real evaluation has occurred.
+The completed v2 minimal-baseline semantic score was generated once with:
+
+```powershell
+python scripts/score_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id week3_v2_baseline_full_20260724_001 --semantic-coding-config configs/evaluation/baseline_semantic_coding_v1.json --score-id week3_v2_baseline_full_20260724_001__baseline_semantic_coding_v1
+```
+
+Score directories are immutable. Re-running either command with an existing
+target directory is rejected.

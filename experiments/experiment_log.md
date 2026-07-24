@@ -268,3 +268,24 @@ frozen-label execution plan.
 - comparison: 450 paired rows, identical sample order, 2,000 bootstrap iterations; format/Schema/latency only because baseline semantic output is not deterministically parsed
 - artifacts: `data/eval/runs/week3_v2_baseline_full_20260724_001/`; `data/eval/runs/week3_v2_standardized_full_20260724_001/`; `data/eval/scores/week3_v2_baseline_full_20260724_001/`; `data/eval/scores/week3_v2_standardized_full_20260724_001/`; `data/eval/comparisons/week3_v2_prompt_pair_20260724_001/`
 - status: `PARTIAL`; data, live runs, scoring, and comparison complete; baseline native semantic metrics remain unsupported and are not reported as zero
+
+## EXP-20260725-012
+
+- date: 2026-07-25
+- git_baseline: `04fc0be` on `dev`
+- task_type: deterministic lexical coding of the existing minimal-baseline natural-language output
+- dataset_version: `week3_evaluation_v2`
+- source_run_id: `week3_v2_baseline_full_20260724_001`
+- score_id: `week3_v2_baseline_full_20260724_001__baseline_semantic_coding_v1`
+- coding_version: `baseline_semantic_coding_v1`
+- codebook_sha256: `563dc0747f92b6ccaa37466045cb0e74229787824013d59a5f6f26261bb033a6`
+- prediction_boundary: encoder inputs are scenario, raw output, fixed codebook, and normalization only; manifests and human gold load after all predictions are complete
+- counts: 450 sample scores; product/after-sales/itinerary 200/150/100
+- product_metrics: category accuracy 45.45% support 110; price accuracy 2.00% support 100; style macro/micro F1 28.28%/16.53% support 200; facility macro/micro F1 53.22%/46.41% support 200; label completeness 23.50% support 169
+- after_sales_metrics: issue accuracy 60.00% support 150; severity accuracy 0.00% support 150; key-information macro/micro F1 29.67%/21.02% support 150; OCR recall 14.22% support 75
+- itinerary_metrics: constraint recognition 0.00% support 100; hard/soft constraint macro F1 0.00%/0.00% support 100; itinerary-element completeness 77.20% support 100; element macro/micro F1 71.09%/71.81% support 100
+- format_invariant: baseline JSON/Schema compliance remains 0%/0% in every scenario; raw output, latency, Prompt version, manifests, Schemas, and run directory are unchanged
+- quarantine: prior gold-leaking score and incompatible semantic comparison retained unchanged under ignored `data/eval/quarantine/` with hashes and `REJECTED_OUT_OF_SCOPE`
+- verification: 226/226 unit tests; standalone and both run-bound v2 validators `status=ok`; 450-row score integrity check passed with 200/150/100 scenario counts and unchanged 0% JSON/Schema rates
+- limitation: deterministic lexical coding is not manual free-form semantic review or native structured model output and is not compared causally with the standardized strict track
+- status: `READY / COMPLETED`

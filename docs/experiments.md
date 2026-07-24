@@ -132,3 +132,16 @@ manifest.
 - Standardized v2 JSON/Schema rates are product 79%/75%, after-sales 96.67%/96%, and itinerary 90%/88%. Persisted strict semantic aggregates and support counts are reported in `reports/week3_zero_shot_baseline_report.md`.
 - Comparison `week3_v2_prompt_pair_20260724_001` contains 450 paired rows and 2,000 bootstrap iterations. Only comparable format, Schema, and latency metrics are used; no baseline semantic score is inferred.
 - Week 3 remains `PARTIAL` because the baseline natural-language semantic track remains unsupported, not because data collection or live inference is incomplete.
+
+## Week 3 deterministic baseline semantic score on 2026-07-25
+
+- Source run: `week3_v2_baseline_full_20260724_001`; no new inference was sent.
+- Score ID: `week3_v2_baseline_full_20260724_001__baseline_semantic_coding_v1`.
+- Coding version: `baseline_semantic_coding_v1`; codebook SHA-256 `563dc0747f92b6ccaa37466045cb0e74229787824013d59a5f6f26261bb033a6`.
+- Prediction inputs are limited to scenario, raw output, fixed codebook, and normalization. Annotation, sampling stratum, source metadata, suggestions, and standardized output are unavailable to the encoder.
+- Product: category accuracy 45.45% (support 110), price accuracy 2.00% (support 100), style macro/micro F1 28.28%/16.53% (support 200), facility macro/micro F1 53.22%/46.41% (support 200), label completeness 23.50% (support 169).
+- After-sales: issue accuracy 60.00% (support 150), severity accuracy 0.00% (support 150), key-information macro/micro F1 29.67%/21.02% (support 150), OCR recall 14.22% (support 75).
+- Itinerary: constraint recognition 0.00% (support 100), hard/soft constraint macro F1 0.00%/0.00% (support 100), itinerary-element completeness 77.20% (support 100), element macro/micro F1 71.09%/71.81% (support 100).
+- Baseline JSON/Schema compliance remains 0%/0% in all scenarios. The lexical and strict structured tracks are shown separately and are not used for a causal Prompt-effect claim.
+- Verification: 226/226 unit tests passed; standalone v2 validation and both run-bound validators returned `status=ok`; the 450-row semantic score passed strict JSON, support, run-ID, codebook-hash, and scenario-count checks.
+- Status: `READY / COMPLETED`.
