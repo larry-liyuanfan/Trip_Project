@@ -103,6 +103,108 @@ python -m unittest discover -s tests -v
 - CLIP used `openai/clip-vit-base-patch32` on CUDA. vLLM must be stopped first because both workloads cannot safely share the local 8GB GPU.
 - The mentor-facing output is `reports/yelp_multimodal_data_processing_report_part1.md`.
 
+## Week 3: Zero-Shot Evaluation Framework
+
+### Objective and Status
+
+Build an auditable three-scenario zero-shot evaluation framework with stable
+data contracts, multimodal prompts, strict structured output, a
+configuration-driven runner, metrics, and reporting. The v2 human-authored
+manifests, full baseline, full standardized run, scores, and comparison are
+validated. The approved `baseline_semantic_coding_v1` track now supplies the
+previously missing baseline business metrics without changing the raw run.
+Week 3 is `READY / COMPLETED`.
+
+### Completion Checklist
+
+- [x] Implement manifest inputs, image SHA-256 validation, exclusion tracking, duplicate rejection, and local initialization.
+- [x] Implement baseline and standardized multimodal requests without changing the three baseline prompt texts.
+- [x] Expose the complete Schema contract and enforce scenario-specific images, bounded evidence, and itinerary structure.
+- [x] Implement strict JSON handling, pre-run registry validation, scene ownership validation, runner metadata, and error separation.
+- [x] Implement completed-run metadata consistency checks and explicit failed-run rejection, metrics, summaries, and error export.
+- [x] Implement deterministic non-gold annotation suggestions and the human annotation application gate.
+- [x] Restore and validate the frozen human-authored manifests without relabeling.
+- [x] Validate completed full `baseline_minimal_v1` run `week3_baseline_full_20260721_003`.
+- [x] Validate the optional `standardized_v1` run on the identical frozen set.
+- [x] Generate an evidence-backed status report with unsupported metrics marked `PENDING`.
+- [x] Record the historical Project Control frozen-v1 decision (superseded on 2026-07-22 by the mentor-authorized v2 recuration route).
+- [x] Receive Project Control approval of the final actual diff and evidence boundary.
+- [x] Generate and verify gold-independent deterministic baseline semantic metrics with explicit support counts.
+
+Current v2 verification contains 450 completed annotations and 450 exclusion
+rows. Both v2 completed runs pass artifact validation and bind tested counts to
+their 450 persisted records. The final repository test result is recorded in
+the verification evidence below.
+
+### Evaluation Data Counts
+
+| Scenario | target_count | candidate_count | annotated_count | validated_count | tested_count |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Product understanding | 200 | 200 | 200 | 200 | 200 |
+| After-sales issue recognition | 150 | 150 | 150 | 150 | 150 |
+| Itinerary constraint understanding | 100 | 100 | 100 | 100 | 100 |
+
+The local Yelp source data and Week 2 processed artifacts exist. The exclusion
+registry contains 450 candidates. `tested_count` is bound to the completed
+baseline run. Unknown and empty semantic fields remain frozen limitations and
+reduce metric support rather than release eligibility.
+
+Product `price_range=unknown` is an allowed evidence-based result, and product
+`visible_facilities` is non-empty for 128 samples and empty for 72. The v2
+itinerary style supplements and representative after-sales replacements are
+complete. Evidence-supported `unknown` gold values remain valid and reduce
+only the corresponding metric support. Week 3 is `READY / COMPLETED`.
+
+### Verification Evidence and Boundaries
+
+- Synthetic/mock framework verification: PASS，不属于真实模型 baseline，不计入 tested_count。
+- `stage3_dry_run_20260713_001`: `baseline_minimal_v1`, `selected_count=0`, `record_count=0`.
+- `stage3_dry_run_20260713_002`: `baseline_minimal_v1`, `selected_count=0`, `record_count=0`.
+- Both dry-runs belong to Stage 3 and validate only the zero-selection framework path.
+- 2026-07-14 `/v1/models` 探测成功，返回 `Qwen/Qwen2-VL-2B-Instruct`；未发送 Week 3 图片请求，未产生模型输出或延迟指标。
+- Runs `week3_baseline_full_20260721_003` and `week3_standardized_full_20260721_001` each retain 450 records and pass restored-manifest provenance validation.
+- Historical comparison `week3_prompt_pair_strict_20260721_001` remains optional traceability evidence and is not a Week 3 completion gate.
+- Baseline semantic task metrics are stored under `baseline_semantic_coding_v1`; invalid natural-language JSON remains a separate 0% format result.
+- The current status and data defects are documented in `reports/week3_zero_shot_baseline_report.md`.
+- Full unit suite: 226/226 passed on 2026-07-25.
+- Standalone v2 validation: `status=ok`, exclusion count 450, target/candidate/annotated/validated counts 200/150/100.
+- Baseline and standardized v2 run-bound validation: both `status=ok`, with tested counts 200/150/100.
+- Semantic score read-only verification: 450 rows, scenario counts 200/150/100, explicit support columns present, strict JSON serialization valid, and baseline JSON/Schema values unchanged at 0%.
+
+The standalone status report is
+`reports/week3_zero_shot_baseline_report.md`.
+
+### Review boundary
+
+Project Control approved the historical frozen-v1 `PARTIAL` commit on `dev`.
+After the mentor-authorized v2 work, the user approved the final
+`baseline_semantic_coding_v1` completion task and explicitly authorized safe
+promotion through `dev`, `stg`, and `main` after all gates pass. No tag is
+created.
+
+### Active v2 recuration evidence (2026-07-22)
+
+| Scenario | target_count | candidate_count | annotated_count | validated_count | tested_count |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Product understanding | 200 | 200 | 200 | 200 | 200 |
+| After-sales issue recognition | 150 | 150 | 150 | 150 | 150 |
+| Itinerary constraint understanding | 100 | 100 | 100 | 100 | 100 |
+
+- [x] Preserve v1 manifests, runs, Prompts, and Schemas.
+- [x] Create isolated v2 candidates, registry, preparation log, and annotation packets.
+- [x] Remove 70 low-evidence after-sales rows and restore all four candidate strata with public and synthetic sources.
+- [x] Expose only the previously unavailable itinerary-style choices and inherit all v1 constraint fields unchanged.
+- [x] Add standardized v2 response contracts and verify representative product, after-sales, and itinerary JSON/Schema paths.
+- [x] Replace the 70 abstract after-sales candidates with representative evidence, then complete their submissions.
+- [x] Complete all 100 itinerary style-only supplements with audit/reconciliation hash coverage.
+- [x] Run and sign full same-set v2 baseline and standardized evaluations.
+- [x] Score actual v2 outputs and replace interim counts with run-bound evidence.
+- [x] Generate the 450-row paired comparison and evidence-backed report.
+- [x] Preserve the strict format track and add the independent deterministic baseline semantic score.
+
+All mentor-required Week 3 baseline metrics now have persisted values and
+support counts. No numeric semantic score is derived from JSON failure.
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`

@@ -50,6 +50,30 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **Reason**: Separate Week 1 and Week 2 files drifted across branches and obscured earlier completed work.
 - **Consequence**: Checklist state is finalized on `dev` before promotion, then inherited unchanged by `stg` and `main` through merge-based promotion.
 
+## ADR-007: Freeze the Week 3 v1 Evaluation Labels
+
+- **Date**: 2026-07-21
+- **Status**: Superseded
+- **Decision**: Keep the existing `week3_evaluation_v1` manifests and completed run artifacts immutable. Do not create `week3_gold_v2`, reopen the annotation UI, request supplemental labels, or perform v2 rescoring. Treat evidence-supported `unknown` values as completed labels rather than omissions. Keep itinerary image-style preference, after-sales facility-damage, and baseline natural-language semantic metrics `PENDING` where the frozen evidence does not support them.
+- **Reason**: Project Control approved the frozen-v1 route after reviewing the annotation audit, historical UI backups, corrected product-facility statistics, and run provenance. The 100 empty itinerary style arrays are recorded as a probable historical field-exposure or serialization defect and are not attributed to the annotator.
+- **Consequence**: Week 3 remains `PARTIAL`; reports must preserve support counts and limitations without modifying gold labels, rerunning equivalent inference, or converting sampling metadata into gold coverage.
+
+## ADR-008: Build an Isolated Curated Week 3 v2 Evaluation Set
+
+- **Date**: 2026-07-22
+- **Status**: Accepted
+- **Decision**: Preserve every v1 manifest, Prompt, Schema, and run as immutable history. Build `week3_evaluation_v2` in new ignored manifests and registry files, reuse all 200 product labels, retain 80 evidence-supported after-sales labels, replace 70 low-evidence after-sales candidates, and reopen the 100 itinerary pairs only to capture the previously unavailable image-style field. Use one human annotator; deterministic suggestions never become gold automatically.
+- **Reason**: The mentor explicitly prioritized removal of low-quality images so the zero-shot baseline can serve as a fair reference for later comparison. The frozen-v1 set has unsupported facility-damage and itinerary-style dimensions.
+- **Consequence**: V2 full baseline and standardized runs cannot begin until the 70 after-sales replacements and 100 itinerary style supplements are complete. Existing itinerary non-style labels are inherited, not re-entered. Standardized v2 may use a separately versioned bounded itinerary Schema and output-type skeleton to improve raw JSON/Schema compliance, while strict format compliance remains separate from semantic quality.
+
+## ADR-009: Score Minimal-Baseline Semantics with a Gold-Independent Lexical Track
+
+- **Date**: 2026-07-25
+- **Status**: Accepted
+- **Decision**: Use `baseline_semantic_coding_v1` to convert the immutable `baseline_minimal_v1` raw text into predictions before loading human gold. The encoder accepts only the scenario, raw output, a fixed versioned codebook derived from existing Schemas and annotation definitions, and general text normalization. Gold is joined only in the scoring stage.
+- **Reason**: The mentor requires baseline business metrics, while the minimal Prompt intentionally produces unconstrained natural language. A deterministic lexical track measures supported semantics without changing the Prompt, rerunning inference, adding manual output coding, or treating JSON failure as semantic failure.
+- **Consequence**: Store the lexical metrics as an independent scoring track with explicit support counts and codebook SHA-256. Preserve baseline JSON/Schema rates, raw output, latency, and run provenance. Do not compare this track to the standardized strict-structured track as if their difference were a pure Prompt effect.
+
 ## Decision Template
 
 ```markdown

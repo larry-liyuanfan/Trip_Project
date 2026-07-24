@@ -1,0 +1,6 @@
+scenario: after_sales
+schema_name: after_sales_v1.schema.json
+format_skeleton: >-
+  {"issue_type":"unknown","severity":"unknown","issue_location":null,"key_information":["<关键信息>"],"ocr_text":null,"observed_evidence":["<图片直接证据>"],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  只判断图片本身能证明的旅游售后问题。正常食品或正常物品且没有异常证据时，issue_type 和 severity 使用 unknown，不得根据低分评论猜测。必须输出且仅输出 issue_type、severity、issue_location、key_information、ocr_text、observed_evidence、unknown_fields、confidence 八个键；没有可见文字时 ocr_text 使用 null，所有数组去重。

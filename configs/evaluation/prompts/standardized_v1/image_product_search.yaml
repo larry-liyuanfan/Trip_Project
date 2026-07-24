@@ -1,0 +1,4 @@
+scenario: image_product_search
+schema_name: image_product_search_v1.schema.json
+task_instruction: >-
+  识别图片对应的旅游商品业态和价位，并提取可观察的风格与可见设施；将直接可见事实写入 observed_evidence，将推断属性单独记录，无法确认的信息标记为 unknown。

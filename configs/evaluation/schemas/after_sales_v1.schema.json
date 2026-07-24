@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "after_sales_v1.schema.json",
+  "title": "After Sales Output v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "issue_type",
+    "severity",
+    "issue_location",
+    "key_information",
+    "ocr_text",
+    "observed_evidence",
+    "unknown_fields",
+    "confidence"
+  ],
+  "properties": {
+    "issue_type": {
+      "type": "string",
+      "enum": [
+        "hygiene_stain",
+        "facility_damage",
+        "attraction_closure",
+        "transport_delay",
+        "other",
+        "unknown"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical", "unknown"]
+    },
+    "issue_location": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "key_information": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 120}
+    },
+    "ocr_text": {
+      "type": ["array", "null"],
+      "items": {"type": "string", "minLength": 1, "maxLength": 120}
+    },
+    "observed_evidence": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {"type": "string", "minLength": 1, "maxLength": 120}
+    },
+    "unknown_fields": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "confidence": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

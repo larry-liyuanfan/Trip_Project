@@ -1,0 +1,4 @@
+scenario: itinerary_planning
+schema_name: itinerary_planning_v1.schema.json
+task_instruction: >-
+  根据参考图片和原始文字约束解析旅行风格偏好、硬约束、软约束与必需行程要素，按天生成包含日期、摘要、活动时段、地点、活动、交通和证据来源的结构化行程，并逐项进行约束检查；将图片观察与需求推断分开，无法确认的信息使用 Schema 对应的 unknown 英文枚举或允许的 null。
