@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "image_product_search_v1.schema.json",
+  "title": "Image Product Search Output v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "business_category",
+    "style_tags",
+    "visible_facilities",
+    "price_range",
+    "observed_evidence",
+    "inferred_attributes",
+    "unknown_fields",
+    "confidence"
+  ],
+  "properties": {
+    "business_category": {
+      "type": "string",
+      "enum": ["hotel", "attraction", "restaurant", "other", "unknown"]
+    },
+    "style_tags": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "visible_facilities": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "price_range": {
+      "type": "string",
+      "enum": ["budget", "mid_range", "premium", "luxury", "unknown"]
+    },
+    "observed_evidence": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {"type": "string", "minLength": 1, "maxLength": 120}
+    },
+    "inferred_attributes": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 120}
+    },
+    "unknown_fields": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "confidence": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

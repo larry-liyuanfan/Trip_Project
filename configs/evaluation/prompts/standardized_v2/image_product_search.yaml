@@ -1,0 +1,6 @@
+scenario: image_product_search
+schema_name: image_product_search_v1.schema.json
+format_skeleton: >-
+  {"business_category":"unknown","style_tags":["<可见风格>"],"visible_facilities":["<可见设施>"],"price_range":"unknown","observed_evidence":["<图片直接证据>"],"inferred_attributes":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  识别图片中占主导的 OTA 业态、风格、可见设施和有直接证据支持的价位。单份餐食、装修档次或商家元数据不足以证明价位，无法判断时使用 unknown。必须输出且仅输出 business_category、style_tags、visible_facilities、price_range、observed_evidence、inferred_attributes、unknown_fields、confidence 八个键；四个数组均使用简短、去重的字符串项。

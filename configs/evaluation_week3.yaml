@@ -1,0 +1,64 @@
+dataset_version: week3_evaluation_v1
+
+paths:
+  images_dir: data/eval/images
+  exclusion_manifest: data/eval/registry/evaluation_exclusion_manifest.jsonl
+  sampling_logs_dir: data/eval/logs
+  runs_dir: data/eval/runs
+  scores_dir: data/eval/scores
+  codings_dir: data/eval/codings
+  comparisons_dir: data/eval/comparisons
+  generated_reports_dir: data/eval/generated_reports
+  readiness_dir: data/eval/readiness
+
+candidate_sources:
+  yelp_business_path: data/yelp/interim/business.parquet
+  yelp_photos_path: data/yelp/interim/photos.parquet
+  yelp_weak_pairs_path: data/yelp/processed/weak_pairs_denoised.parquet
+  yelp_source_license: Yelp Open Dataset Terms of Use
+  synthetic_recipe_version: week3_business_evidence_v1
+  after_sales_synthetic_recipe_version: week3_after_sales_evidence_v3
+
+metrics:
+  aliases_path: configs/evaluation/metric_aliases_v1.json
+
+runtime:
+  model_config_path: configs/model_qwen2_vl.yaml
+  inference_config_path: configs/inference_default.yaml
+  live_base_url: http://localhost:8001
+  timeout_seconds: 60
+
+scenarios:
+  image_product_search:
+    manifest_path: data/eval/manifests/image_product_search_v1.jsonl
+    target_count: 200
+    sampling:
+      seed: 20260713
+      stratum_field: coverage_group
+      quotas:
+        hotel: 67
+        attraction: 67
+        restaurant: 66
+  after_sales:
+    manifest_path: data/eval/manifests/after_sales_v1.jsonl
+    target_count: 150
+    sampling:
+      seed: 20260713
+      stratum_field: coverage_group
+      quotas:
+        hygiene_stain: 38
+        facility_damage: 38
+        attraction_closure: 37
+        transport_delay: 37
+    required_source_types:
+      - public_yelp
+      - business_synthetic
+
+  itinerary_planning:
+    manifest_path: data/eval/manifests/itinerary_planning_v1.jsonl
+    target_count: 100
+    sampling:
+      seed: 20260713
+      stratum_field: coverage_group
+      quotas:
+        paired_reference_and_text: 100

@@ -21,6 +21,31 @@ Do not duplicate detailed procedures or measured statistics in this file. If doc
 
 For a new weekly internship requirement, read `README.md`, `docs/requirements.md`, `docs/weekly_log.md`, `docs/decisions.md`, and `docs/experiments.md` before planning. During planning, do not modify code unless the user explicitly requests implementation.
 
+## Mentor Authority and Multi-Chat Workflow
+
+The mentor's latest requirement, as relayed by the user and recorded in `docs/requirements.md`, is the only authority for the current weekly scope. Use this precedence order when instructions conflict:
+
+1. The user's latest direct instruction or mentor clarification.
+2. The closest applicable `AGENTS.md`.
+3. The current-week requirement in `docs/requirements.md`.
+4. Accepted decisions in `docs/decisions.md`.
+5. `README.md`, weekly records, and experiment records.
+6. Historical agent drafts, which are non-authoritative.
+
+The current Project Control chat owns requirement interpretation, scope decisions, and phase approval. A separate Execution chat implements only the approved current-week phase. A separate Review and Report chat first performs an independent read-only review; it may update delivery documentation only after Project Control approves the review findings. Review must return code defects to the Execution chat instead of refactoring code itself.
+
+For Week 3, implement only the mentor scope recorded in `docs/requirements.md`: three manually annotated OTA evaluation sets, evaluation/training isolation, reproducible baseline metrics and batch testing, four-layer standardized prompts, three JSON Schemas, and a concise evidence-based report. Do not add a second annotator, adjudication workflow, UI, training pipeline, mandatory paired Prompt experiment, bootstrap analysis, or other unrequested infrastructure.
+
+One human annotator is sufficient. Model outputs or deterministic suggestions may assist inspection but must not replace the annotator's own labels. Unknown values remain valid when the image does not support a field and must be reported rather than guessed. Validate readable inputs, required JSON fields, required scenario coverage, and evaluation/training isolation without inventing exact gold-label or source-type quotas. The after-sales set must include both public-scene and business-synthetic samples. This data-labeling rule is separate from the Review and Report chat's independent review of code and delivery evidence.
+
+The Week 3 v1 annotations, manifests, Prompts, Schemas, and runs remain immutable. The user confirmed the mentor's 2026-07-22 authorization for a separately versioned `week3_evaluation_v2`: reuse product labels unchanged, let the existing annotator label the 70 replacement after-sales rows, and supplement only `style_preferences` for the 100 itinerary rows while inheriting their other labels unchanged. That scoped v2 work is complete. Do not create generated gold, require a second reviewer or adjudication, reopen unrelated labels, or start another dataset version without a new direct mentor or user instruction.
+
+Run eligibility and delivery acceptance are distinct. Sampling strata may establish intended candidate coverage but must not be presented as human-gold coverage. Evidence-supported unknown or empty values remain valid and reduce metric support rather than forcing relabeling. Existing traceability, immutable run records, Schema checks, evaluation exclusion checks, mock/dry/live modes, metric aggregation, and error export support the mentor deliverables but are not separate release gates. The approved `baseline_semantic_coding_v1` track supplies gold-independent deterministic lexical metrics for the minimal baseline while preserving its original JSON/Schema results; do not replace it with manual coding, an LLM judge, or gold-derived rules.
+
+Every Execution and Review chat must begin by reading the applicable `AGENTS.md`, `README.md`, `docs/requirements.md`, `docs/decisions.md`, `docs/weekly_log.md`, `docs/weekly_delivery.md`, and `docs/experiments.md`, then inspect the branch, working tree, recent commits, and relevant implementation. If the sources conflict, stop and report the conflict to Project Control rather than choosing a direction.
+
+Agents must not invent future-week plans, roadmaps, product directions, schedules, stretch tasks, or deliverables that the mentor has not requested. They may decompose the current approved requirement into verifiable phases, but may not expand its scope. When a new mentor requirement supersedes an agent draft, discard the draft. Keep chat prompts, agent plans, personal configuration, and meeting transcripts local and out of Git.
+
 ## Project Structure
 
 Core Python code lives under `src/`:

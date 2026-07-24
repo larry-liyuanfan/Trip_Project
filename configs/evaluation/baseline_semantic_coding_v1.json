@@ -1,0 +1,127 @@
+{
+  "version": "baseline_semantic_coding_v1",
+  "allowed_prompt_version": "baseline_minimal_v1",
+  "normalization": {
+    "unicode": "NFKC",
+    "casefold": true,
+    "collapse_whitespace": true
+  },
+  "scenarios": {
+    "image_product_search": {
+      "scalar_fields": {
+        "business_category": {
+          "hotel": ["hotel", "motel", "resort", "酒店", "旅馆", "民宿"],
+          "attraction": ["attraction", "museum", "park", "theater", "theatre", "景点", "博物馆", "公园", "剧院"],
+          "restaurant": ["restaurant", "cafe", "bistro", "餐厅", "餐馆", "咖啡馆"]
+        },
+        "price_range": {
+          "budget": ["budget", "cheap", "economy", "经济型", "低价"],
+          "mid_range": ["mid-range", "mid range", "moderate price", "中档", "中等价位"],
+          "premium": ["premium", "upscale", "高端"],
+          "luxury": ["luxury", "luxurious", "豪华", "奢华"]
+        }
+      },
+      "multilabel_fields": {
+        "style_tags": {
+          "modern": ["modern", "现代"],
+          "traditional": ["traditional", "传统"],
+          "historic": ["historic", "historical", "历史"],
+          "luxury": ["luxury", "luxurious", "豪华", "奢华"],
+          "minimalist": ["minimalist", "极简"],
+          "industrial": ["industrial", "工业风"],
+          "rustic": ["rustic", "乡村风"],
+          "casual": ["casual", "休闲"],
+          "romantic": ["romantic", "浪漫"],
+          "family_friendly": ["family-friendly", "family friendly", "亲子", "家庭友好"],
+          "nature_oriented": ["nature-oriented", "nature oriented", "自然"],
+          "business": ["business style", "商务"],
+          "resort": ["resort", "度假"],
+          "artistic": ["artistic", "艺术"],
+          "local_character": ["local character", "当地特色"],
+          "quiet": ["quiet", "peaceful", "安静", "宁静"]
+        },
+        "visible_facilities": {
+          "lobby": ["lobby", "大堂"],
+          "front_desk": ["front desk", "reception", "前台"],
+          "guest_room": ["guest room", "客房"],
+          "bed": ["bed", "床"],
+          "pool": ["pool", "swimming pool", "泳池", "游泳池"],
+          "spa": ["spa", "水疗"],
+          "gym": ["gym", "fitness center", "健身房"],
+          "restaurant": ["restaurant", "餐厅"],
+          "bar": ["bar", "酒吧"],
+          "outdoor_seating": ["outdoor seating", "户外座位"],
+          "parking": ["parking", "停车"],
+          "accessible_entrance": ["accessible entrance", "无障碍入口"],
+          "elevator": ["elevator", "lift", "电梯"],
+          "stage": ["stage", "舞台"],
+          "play_area": ["play area", "游乐区"],
+          "restroom": ["restroom", "toilet", "卫生间"],
+          "ticket_office": ["ticket office", "售票处"],
+          "viewpoint": ["viewpoint", "观景台"],
+          "garden": ["garden", "花园"],
+          "beach": ["beach", "沙滩", "海滩"],
+          "buffet": ["buffet", "自助餐"],
+          "private_dining": ["private dining", "包间"],
+          "charging_facility": ["charging station", "充电设施"]
+        }
+      }
+    },
+    "after_sales": {
+      "scalar_fields": {
+        "issue_type": {
+          "hygiene_stain": ["stain", "dirty", "mold", "mould", "pest", "污渍", "霉菌", "脏污", "虫害"],
+          "facility_damage": ["broken", "damaged", "cracked", "leak", "not working", "损坏", "破裂", "漏水", "无法使用"],
+          "attraction_closure": ["closed", "closure", "service unavailable", "关闭", "暂停开放", "不可用"],
+          "transport_delay": ["delayed", "delay", "cancelled", "canceled", "晚点", "延误", "取消"]
+        },
+        "severity": {
+          "low": ["severity low", "low severity", "轻微"],
+          "medium": ["severity medium", "medium severity", "中等严重"],
+          "high": ["severity high", "high severity", "严重"],
+          "critical": ["severity critical", "critical severity", "紧急", "危及安全"]
+        }
+      },
+      "multilabel_fields": {
+        "key_information": {
+          "visible contamination": ["stain", "mold", "mould", "pest", "污渍", "霉菌", "虫害"],
+          "damaged facility": ["broken", "damaged", "cracked", "leak", "损坏", "破裂", "漏水"],
+          "service unavailable": ["closed", "closure", "service unavailable", "关闭", "暂停开放"],
+          "transport disruption": ["delayed", "delay", "cancelled", "canceled", "晚点", "延误", "取消"]
+        }
+      },
+      "ocr": {
+        "negative_terms": ["no visible text", "no text", "unable to recognize text", "没有文字", "无可见文字", "无法识别文字"],
+        "ascii_token_pattern": "\\b[A-Z][A-Z0-9_-]{2,39}\\b",
+        "max_items": 12
+      }
+    },
+    "itinerary_planning": {
+      "multilabel_fields": {
+        "hard_constraints": {
+          "duration": ["day itinerary", "days itinerary", "天行程"],
+          "budget cap": ["budget", "预算", "不超过"],
+          "fixed end time": ["end by", "finish by", "结束时间", "前结束"],
+          "transport restriction": ["public transport", "avoid long walks", "公共交通", "避免长距离步行"]
+        },
+        "soft_constraints": {
+          "slow pace": ["slow pace", "slow-paced", "慢节奏"],
+          "moderate pace": ["moderate pace", "适中节奏"],
+          "compact pace": ["compact pace", "紧凑节奏"],
+          "preferred public transport": ["public transport preferred", "公共交通优先"]
+        },
+        "required_itinerary_elements": {
+          "daily_schedule": ["day 1", "day one", "第一天", "每日行程"],
+          "poi": ["attraction", "museum", "park", "景点", "博物馆", "公园"],
+          "accommodation": ["hotel", "accommodation", "酒店", "住宿"],
+          "meals": ["breakfast", "lunch", "dinner", "meal", "早餐", "午餐", "晚餐", "用餐"],
+          "transport": ["transport", "bus", "subway", "交通", "公交", "地铁"],
+          "duration": ["day itinerary", "days itinerary", "天行程"],
+          "budget_check": ["budget", "预算"],
+          "end_time_check": ["end by", "finish by", "结束时间", "前结束"],
+          "constraint_check": ["requirement", "constraint", "需求", "约束"]
+        }
+      }
+    }
+  }
+}

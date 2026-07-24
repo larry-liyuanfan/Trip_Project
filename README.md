@@ -245,32 +245,79 @@ Week 2 mentor-facing report:
 - `reports/yelp_multimodal_data_processing_report_part1.md`
 - `docs/weekly_delivery.md` contains the completed Week 1 and Week 2 checklists and measured results.
 
+### Week 3: Zero-Shot Evaluation Framework
+
+Week 3 is `READY / COMPLETED`. The immutable v1 manifests and runs remain historical
+evidence. After the mentor requested removal of low-quality images for a fair
+baseline/comparison set, the active work moved to a separately versioned v2
+dataset; v1 files and runs are never overwritten.
+
+| Scenario | target_count | candidate_count | annotated_count | validated_count | tested_count |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Product understanding | 200 | 200 | 200 | 200 | 200 |
+| After-sales issue recognition | 150 | 150 | 150 | 150 | 150 |
+| Itinerary constraint understanding | 100 | 100 | 100 | 100 | 100 |
+
+These counts are bound to the completed v2 baseline run
+`week3_v2_baseline_full_20260724_001`. The 70 low-evidence after-sales rows
+were replaced with visually reviewed evidence and annotated by the existing
+human annotator. The final v2 set retains both public Yelp and
+business-synthetic sources and the 38/38/37/37 candidate strata.
+
+One human annotator is sufficient. Model outputs and deterministic suggestions
+must not replace the human labels. Unknown values are allowed when evidence is
+insufficient and must be reported as a data limitation rather than guessed.
+
+Product labels are reused unchanged, including evidence-supported `unknown`.
+The approved v2 labeling scope covered 70 replacement after-sales rows and
+100 itinerary style supplements whose field was not exposed reliably in the
+historical tool; both are complete. All original v1 itinerary text, hard/soft
+constraints, and required elements were inherited server-side rather than
+re-entered.
+
+The core local commands are:
+
+```bash
+python scripts/prepare_week3_evaluation.py init
+python scripts/build_week3_candidate_manifests.py --config configs/evaluation_week3.yaml
+python scripts/validate_week3_evaluation.py
+python scripts/validate_week3_evaluation.py --config configs/evaluation_week3_v2.yaml
+python scripts/run_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id <run-id> --mode live --run-scope full --prompt-version baseline_minimal_v1
+python scripts/score_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id <run-id>
+python scripts/score_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id week3_v2_baseline_full_20260724_001 --semantic-coding-config configs/evaluation/baseline_semantic_coding_v1.json --score-id week3_v2_baseline_full_20260724_001__baseline_semantic_coding_v1
+```
+
+Prepare the separately versioned candidates with
+`python scripts/prepare_week3_v2_dataset.py --config configs/evaluation_week3_v2.yaml`.
+The command refuses to overwrite an existing v2 dataset. Standardized v2 uses
+JSON-object response mode plus the full versioned Schema contract and an
+explicit type skeleton; the bounded itinerary v2 Schema leaves v1 unchanged.
+
+See `reports/week3_zero_shot_baseline_report.md` for the status report and
+`docs/evaluation_data_contracts.md`, `docs/prompt_architecture.md`,
+`docs/evaluation_framework.md`, `docs/evaluation_metrics.md`, and
+`docs/week3_annotation_guidelines.md` for the
+technical contracts.
+
 ## Evaluation
 
-Initial metrics:
+The Week 3 evaluation framework defines scenario-specific structured metrics.
+The completed v2 baseline measured format compliance and latency over 450
+records. Its natural-language business metrics are now measured independently
+by the fixed, gold-independent `baseline_semantic_coding_v1` lexical track.
+The same-set standardized v2 run retains its strict structured-business
+metrics. The report keeps the two scoring tracks separate and preserves the
+baseline's measured 0% JSON and Schema compliance.
 
-- JSON parse success rate;
-- structured field accuracy;
-- Top-K hit rate for retrieval;
-- Recall@K;
-- planning relevance and route reasonability by human review.
+Framework metric groups include:
 
-## Roadmap
-
-- Week 1: Docker, vLLM serving, API smoke tests, repository and experiment standards.
-- Week 2: Yelp multimodal dataset parsing, validation, alignment, and report draft.
-- Week 3: visual search with keyword / embedding / hybrid retrieval and Top-K metrics.
-- Week 4: multimodal travel planning, demo, final report, and resume packaging.
+- product label accuracy, completeness, and format compliance;
+- after-sales issue/severity accuracy, key-information F1, and OCR recall;
+- itinerary constraint accuracy, element completeness, and format compliance;
+- inference latency and representative error cases.
 
 ## Weekly Progress
 
 - Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
-
-## Future Work
-
-- Add live VLM output parsing hardening.
-- Integrate Yelp Open Dataset subset.
-- Add embedding index for visual and semantic retrieval.
-- Add model comparison experiments for Qwen-VL and DeepSeek-VL2.
-- Add lightweight UI or notebook demo.
+- Week 3: `READY / COMPLETED`. Data, human gold, real baseline, deterministic baseline semantic scoring, standardized v2, and reporting are complete and traceable.
