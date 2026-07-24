@@ -183,6 +183,50 @@
 The recuration route above was superseded by Project Control's approved
 frozen-label execution plan.
 
+## DATA-20260722-005
+
+- date: 2026-07-22
+- git_commit: `2a76cd6` plus dirty v2 worktree
+- model_request: none
+- command: `python scripts/prepare_week3_v2_dataset.py --config configs/evaluation_week3_v2.yaml`
+- dataset_version: `week3_evaluation_v2`
+- result_summary: Preserved v1 and created separate v2 manifests, annotation packets, preparation log, and a 450-row exclusion registry. Product reuses 200 completed labels. After-sales retains 80 supported labels and exposes 70 pending replacements with candidate strata `38/38/37/37`. Itinerary uses style-only supplementation with all prior v1 constraint fields inherited.
+- counts: product `200/200/200/200/0`; after-sales `150/150/80/80/0`; itinerary `100/100/4/4/0`
+- status: `PARTIAL`; no full v2 run or score exists.
+
+## EXP-20260722-006
+
+- date: 2026-07-22
+- git_commit: `2a76cd6` plus dirty v2 worktree
+- model_name: Qwen/Qwen2-VL-2B-Instruct
+- inference_backend: vLLM OpenAI-compatible HTTP
+- prompt_version: standardized_v2
+- generation: temperature=0.1; top_p=0.9; repetition_penalty=1.05; max_tokens=1280
+- dataset_version: week3_evaluation_v2
+- run_scope: representative format probes only; not a baseline and not counted in `tested_count`
+- result_summary: Product and after-sales representative requests passed JSON and Schema validation. Early itinerary probes exposed nullable-type rejection, strict-guided timeout, repeated arrays, missing fields, and truncation. After adding a bounded itinerary v2 Schema and final type skeleton, probes `week3_v2_standardized_schema_probe_20260722_013` and `_014` both returned JSON- and Schema-valid outputs in approximately 5.3 and 5.6 seconds.
+- semantic_limit: The four-day probe returned one itinerary day. Schema pass therefore does not establish constraint satisfaction or itinerary completeness.
+- rejected_configuration: strict `json_schema` itinerary request `_011` timed out after 180 seconds and is not used for full runs.
+- artifacts: ignored local directories under `data/eval/runs/week3_v2_standardized_schema_probe_20260722_*`
+
+## DATA-20260722-007
+
+- date: 2026-07-22
+- model_request: none
+- trigger: Human inspection found the pending hygiene/facility replacement images were abstract synthetic diagrams, and the itinerary workflow unnecessarily requested re-entry of existing constraints.
+- correction: Paused after-sales annotation; invalidated three early diagram submissions while retaining their audit hashes. Verified all 100 v1 itinerary annotations remain intact; changed the v2 station to collect style only and merge v1 fields server-side. Reconciled four early itinerary submissions to exact v1 non-style fields while preserving their selected styles.
+- current_counts: product `200/200/200/200/0`; after-sales `150/150/80/80/0`; itinerary `100/100/100/100/0`
+- status: `PARTIAL`; after-sales replacement-image quality and 96 itinerary style supplements remain incomplete.
+
+## DATA-20260724-010
+
+- date: 2026-07-24
+- model_request: image generation only; no evaluation inference
+- result: Completed all 100 itinerary style supplements. Audit verification found 96 direct payload-hash matches and 4 recorded reconciliation-hash matches, with no unexplained mismatch; one empty style array is evidence-supported and valid.
+- after_sales_pilot: Generated eight photorealistic customer-evidence candidates (four hygiene stains and four facility-damage scenes) without text, labels, common card framing, or watermark. Saved under ignored `data/eval/images/after_sales_v2_pilot/` for visual approval only.
+- current_counts: product `200/200/200/200/0`; after-sales `150/150/80/80/0`; itinerary `100/100/100/100/0`
+- status: `PARTIAL`; pilot images have not entered the manifest or gold labels.
+
 ## DATA-20260721-005
 
 - date: 2026-07-21
@@ -202,3 +246,25 @@ frozen-label execution plan.
 - itinerary_style_ui_diagnostic: all 100 current payload hashes match their audits and every retained backup already has an empty style array; all submissions accepted the same five deterministic suggestion fields but not `style_preferences`; the final recoverable 15-option vocabulary was compiled after annotation, while the contemporaneous frontend assets were not retained, so absence from the page cannot be proven conclusively
 - project_control_final_route: freeze v1; do not create `week3_gold_v2`, repair/reopen the annotation UI, request supplemental annotation, or perform v2 rescoring; keep itinerary style, after-sales facility-damage, and baseline natural-language semantic metrics `PENDING`
 - status: `PARTIAL`; no relabeling, new human work, repeat live inference, commit, push, or promotion performed
+
+## EXP-20260724-011
+
+- date: 2026-07-24
+- git_commit: `2a76cd6` plus dirty Week 3 v2 worktree
+- dataset_version: `week3_evaluation_v2`
+- model_name: `Qwen/Qwen2-VL-2B-Instruct`
+- inference_backend: vLLM 0.8.5 OpenAI-compatible HTTP on `localhost:8001`
+- generation: temperature=0.1; top_p=0.9; repetition_penalty=1.05; max_tokens=1280
+- baseline_run_id: `week3_v2_baseline_full_20260724_001`
+- baseline_prompt: `baseline_minimal_v1`
+- standardized_run_id: `week3_v2_standardized_full_20260724_001`
+- standardized_prompt: `standardized_v2`
+- comparison_id: `week3_v2_prompt_pair_20260724_001`
+- counts: product `200/200/200/200/200`; after-sales `150/150/150/150/150`; itinerary `100/100/100/100/100`; exclusion count 450
+- run_identity: both runs are completed/live/full, selected_count=record_count=450, request errors=0, selected-sample SHA-256 `3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c`
+- baseline_metrics: JSON/Schema 0% in every scenario; mean latency product/after-sales/itinerary 4456.84/3616.71/7136.77 ms; natural-language semantic metrics `PENDING`
+- standardized_metrics: JSON product/after-sales/itinerary 79.00%/96.67%/90.00%; Schema 75.00%/96.00%/88.00%; product category accuracy 60.00% support 110 and price accuracy 17.00% support 100; after-sales issue accuracy 71.33%, severity accuracy 29.33%, OCR recall 1.33% support 75; itinerary constraint recognition 0.41% and element completeness 20.00%
+- error_summary: baseline has 450 expected JSON parse failures; standardized has 57 JSON parse failures and 11 Schema validation failures
+- comparison: 450 paired rows, identical sample order, 2,000 bootstrap iterations; format/Schema/latency only because baseline semantic output is not deterministically parsed
+- artifacts: `data/eval/runs/week3_v2_baseline_full_20260724_001/`; `data/eval/runs/week3_v2_standardized_full_20260724_001/`; `data/eval/scores/week3_v2_baseline_full_20260724_001/`; `data/eval/scores/week3_v2_standardized_full_20260724_001/`; `data/eval/comparisons/week3_v2_prompt_pair_20260724_001/`
+- status: `PARTIAL`; data, live runs, scoring, and comparison complete; baseline native semantic metrics remain unsupported and are not reported as zero

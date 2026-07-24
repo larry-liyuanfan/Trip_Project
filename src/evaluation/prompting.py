@@ -72,7 +72,8 @@ def render_standard_prompt(
     system_role = _require_text(common, "system_role")
     task_instruction = _require_text(scenario_spec, "task_instruction")
     schema_name = _require_text(scenario_spec, "schema_name")
-    output_schema = load_output_schema(root, scenario)
+    schema_version = _schema_version_from_name(scenario, schema_name)
+    output_schema = load_output_schema(root, scenario, schema_version)
     if output_schema.get("$id") != schema_name:
         raise PromptConfigurationError(
             f"schema_name {schema_name!r} does not match loaded Schema $id"
@@ -87,6 +88,7 @@ def render_standard_prompt(
     output_constraint = output_template.format(
         schema_name=schema_name,
         schema_contract=serialized_schema,
+        format_skeleton=scenario_spec.get("format_skeleton", ""),
     )
     serialized_context = json.dumps(
         input_context,
@@ -113,7 +115,72 @@ def render_standard_prompt(
             {"role": "system", "content": system_role},
             {"role": "user", "content": user_content},
         ],
+        **_structured_response_format(common, scenario_spec, schema_name, output_schema),
     }
+
+
+def _structured_response_format(
+    common: dict[str, Any],
+    scenario_spec: dict[str, Any],
+    schema_name: str,
+    output_schema: dict[str, Any],
+) -> dict[str, Any]:
+    """Attach an OpenAI-compatible JSON response mode when configured."""
+    mode = scenario_spec.get(
+        "response_format_mode",
+        common.get("response_format_mode"),
+    )
+    if mode is None:
+        legacy_enabled = common.get("use_json_schema_response_format", False)
+        if not isinstance(legacy_enabled, bool):
+            raise PromptConfigurationError(
+                "use_json_schema_response_format must be true or false"
+            )
+        mode = "json_schema" if legacy_enabled else None
+    if mode not in {None, "json_object", "json_schema"}:
+        raise PromptConfigurationError(
+            "response_format_mode must be json_object or json_schema"
+        )
+    if mode is None:
+        return {}
+    if mode == "json_object":
+        return {"response_format": {"type": "json_object"}}
+    response_name = schema_name.removesuffix(".schema.json").replace("-", "_")
+    return {
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": response_name,
+                "schema": _normalize_nullable_types(output_schema),
+                "strict": True,
+            },
+        }
+    }
+
+
+def _normalize_nullable_types(value: Any) -> Any:
+    """Convert nullable type arrays to equivalent anyOf for vLLM guided JSON."""
+    if isinstance(value, list):
+        return [_normalize_nullable_types(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    normalized = {
+        key: _normalize_nullable_types(item)
+        for key, item in value.items()
+        if key != "type"
+    }
+    declared_type = value.get("type")
+    if not isinstance(declared_type, list):
+        if declared_type is not None:
+            normalized["type"] = declared_type
+        return normalized
+    non_null = [item for item in declared_type if item != "null"]
+    if len(non_null) != 1 or len(non_null) == len(declared_type):
+        raise PromptConfigurationError(
+            "guided JSON supports only one concrete type plus null"
+        )
+    concrete = {**normalized, "type": non_null[0]}
+    return {"anyOf": [concrete, {"type": "null"}]}
 
 
 def _render_input_parts(
@@ -196,3 +263,17 @@ def _require_text(payload: dict[str, Any], field: str) -> str:
 def _require_scenario(scenario: str) -> None:
     if scenario not in SCENARIOS:
         raise PromptConfigurationError(f"unsupported evaluation scenario: {scenario}")
+
+
+def _schema_version_from_name(scenario: str, schema_name: str) -> str:
+    """Resolve a scenario-owned versioned Schema without allowing path input."""
+    prefix = f"{scenario}_"
+    suffix = ".schema.json"
+    if not schema_name.startswith(prefix) or not schema_name.endswith(suffix):
+        raise PromptConfigurationError(
+            f"schema_name {schema_name!r} must belong to scenario {scenario}"
+        )
+    version = schema_name[len(prefix) : -len(suffix)]
+    if not version or not version.replace("_", "").isalnum():
+        raise PromptConfigurationError(f"invalid schema version in {schema_name!r}")
+    return version

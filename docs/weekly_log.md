@@ -140,3 +140,27 @@ as the current validated dataset or accepted baseline.
 - Product annotation remains closed; valid `unknown` values are not omissions. No `week3_gold_v2`, annotation-UI repair/reopening, supplemental annotation, or v2 rescoring is authorized.
 - Itinerary image-style preference, after-sales facility-damage, and baseline natural-language semantic metrics remain `PENDING` according to actual support. Week 3 remains `PARTIAL`.
 - This entry records a final scope boundary, not a future plan. Frozen manifests, raw runs, baseline/standardized Prompt assets, and Schema v1 remain unchanged.
+
+## 2026-07-22: Mentor-authorized v2 recuration in progress
+
+- The mentor's low-quality-image clarification superseded the frozen-v1-only route. All v1 manifests, runs, Prompt assets, and Schemas remain immutable historical evidence.
+- Prepared isolated `week3_evaluation_v2` manifests and a 450-row v2 exclusion registry. Product reuses 200 completed labels. After-sales retains 80 supported labels and exposes 70 replacement rows for annotation with candidate strata `38/38/37/37`. Itinerary exposes 100 rows for style-preference capture.
+- Current v2 counts are product `200/200/200/200/0`, after-sales `150/150/80/80/0`, itinerary `100/100/100/100/0` for target/candidate/annotated/validated/tested.
+- The local single-annotator station is restricted to the approved v2 supplements. Suggestions are deterministic hints and are never submitted automatically as gold.
+- Standardized v2 preserves the three baseline sentences, uses explicit multimodal parts, full Schema exposure, JSON-object response mode, and scenario type skeletons. A bounded `itinerary_planning_v2` Schema was added without changing v1.
+- Live format probes on the local Qwen2-VL-2B endpoint produced JSON- and Schema-valid product, after-sales, two-day itinerary, and four-day itinerary responses after the type-skeleton change. The four-day response remained semantically incomplete (`itinerary` contained one day), confirming that Schema pass and task quality must be reported separately.
+- Strict guided JSON was rejected as an operational strategy: the itinerary request exceeded a 180-second timeout. Raw-output postprocessing was not used to inflate Schema pass.
+- A workflow correction confirmed that all 100 v1 itinerary constraint annotations remain intact. The v2 station now exposes only style choices and merges the untouched v1 fields server-side. Four early itinerary submissions were reconciled to exact v1 non-style fields while preserving their human style choices.
+- Three early after-sales submissions on abstract synthetic diagrams were invalidated with an audit log. The after-sales tab is paused; its 70 replacements require more representative evidence before annotation resumes.
+- All 100 itinerary style supplements are complete: 96 payload hashes match the current annotations directly and 4 match the recorded v1-field reconciliation hashes; one evidence-supported empty style array is valid.
+- Full v2 baseline, standardized run, scoring, and comparison remain blocked only by the 70 after-sales replacements. Week 3 remains `PARTIAL`.
+- Generated an eight-image photorealistic after-sales pilot (four hygiene, four facility-damage) for visual quality approval. The pilot is ignored local data and has not entered the manifest or gold labels.
+
+## 2026-07-24: Week 3 v2 full baseline and standardized comparison
+
+- Replaced the 70 low-evidence after-sales candidates with visually reviewed photorealistic evidence and completed their human annotations. Final v2 counts are product `200/200/200/200/200`, after-sales `150/150/150/150/150`, and itinerary `100/100/100/100/100`.
+- Completed live full baseline `week3_v2_baseline_full_20260724_001` and standardized run `week3_v2_standardized_full_20260724_001`; each persisted 450/450 records with no model request error and the same sample-set SHA-256 `3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c`.
+- The baseline kept all three `baseline_minimal_v1` sentences unchanged. All 450 responses were natural language: JSON and Schema compliance are 0%, while unparsed classification, OCR, and constraint metrics remain `PENDING` rather than numeric zero.
+- Standardized v2 JSON/Schema rates are product 79%/75%, after-sales 96.67%/96%, and itinerary 90%/88%. Strict semantic metrics and their support counts are recorded in the baseline report.
+- Generated paired comparison `week3_v2_prompt_pair_20260724_001` over 450 identical samples with 2,000 bootstrap iterations. Comparison is limited to format, Schema, and latency because baseline semantic output has not been deterministically parsed.
+- Week 3 remains `PARTIAL` solely because the mentor-required minimal baseline's natural-language semantic task metrics are unsupported by the current reproducible scoring track.

@@ -65,6 +65,17 @@ class EvaluationComparisonTest(unittest.TestCase):
         with self.assertRaisesRegex(ComparisonValidationError, "full-scope"):
             validate_comparable_runs(baseline, standardized)
 
+    def test_metadata_accepts_standardized_v2(self) -> None:
+        from src.evaluation.comparison import validate_comparable_runs
+
+        baseline = self._metadata("baseline_minimal_v1")
+        standardized = self._metadata("standardized_v2")
+        standardized["artifact_hashes"][
+            "configs/evaluation/schemas/itinerary_planning_v2.schema.json"
+        ] = "e" * 64
+
+        validate_comparable_runs(baseline, standardized)
+
     def test_paired_comparison_computes_delta_direction_and_win_tie_loss(self) -> None:
         from src.evaluation.comparison import compare_score_records
 
@@ -294,6 +305,83 @@ class EvaluationComparisonTest(unittest.TestCase):
             self.assertEqual(summary["paired_sample_count"], 2)
             self.assertTrue((root / "comparisons/comparison-1/metadata.json").is_file())
             self.assertTrue((root / "generated_reports/comparison-1/report.md").is_file())
+
+    def test_compare_command_accepts_run_bound_semantic_score_id(self) -> None:
+        from scripts.compare_week3_evaluation import compare_runs
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            baseline_metadata = self._metadata("baseline_minimal_v1")
+            standardized_metadata = self._metadata("standardized_v1")
+            for metadata in (baseline_metadata, standardized_metadata):
+                run_dir = root / "runs" / metadata["run_id"]
+                run_dir.mkdir(parents=True)
+                (run_dir / "metadata.json").write_text(
+                    json.dumps(metadata),
+                    encoding="utf-8",
+                )
+            semantic_score_id = "baseline-run__semantic-v1"
+            semantic_scores = root / "scores" / semantic_score_id
+            standard_scores = root / "scores/standard-run"
+            semantic_scores.mkdir(parents=True)
+            standard_scores.mkdir(parents=True)
+            rows = [
+                self._score("sample-a", 1.0, latency=100.0),
+                self._score("sample-b", 1.0, latency=100.0),
+            ]
+            (semantic_scores / "sample_scores.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+            (semantic_scores / "score_summary.json").write_text(
+                json.dumps(
+                    {
+                        "score_id": semantic_score_id,
+                        "run_id": "baseline-run",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (standard_scores / "sample_scores.jsonl").write_text(
+                "".join(
+                    json.dumps({**row, "run_id": "standard-run"}) + "\n"
+                    for row in rows
+                ),
+                encoding="utf-8",
+            )
+            config = {
+                "paths": {
+                    "runs_dir": "runs",
+                    "scores_dir": "scores",
+                    "comparisons_dir": "comparisons",
+                    "generated_reports_dir": "generated_reports",
+                }
+            }
+            with (
+                patch(
+                    "scripts.compare_week3_evaluation.load_evaluation_config",
+                    return_value=config,
+                ),
+                patch(
+                    "scripts.compare_week3_evaluation.verify_artifact_hashes",
+                    return_value=None,
+                ),
+            ):
+                summary = compare_runs(
+                    root=root,
+                    config_path=Path("config.yaml"),
+                    comparison_id="semantic-comparison",
+                    baseline_run_id="baseline-run",
+                    standardized_run_id="standard-run",
+                    baseline_score_id=semantic_score_id,
+                    bootstrap_iterations=100,
+                )
+
+            self.assertEqual(summary["baseline_score_id"], semantic_score_id)
+            self.assertEqual(
+                summary["scoring_track"],
+                "deterministic_baseline_semantic_vs_strict_business",
+            )
 
 
 if __name__ == "__main__":

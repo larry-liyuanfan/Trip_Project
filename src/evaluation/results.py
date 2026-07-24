@@ -59,6 +59,7 @@ def parse_and_validate_output(
     root: Path,
     scenario: str,
     raw_output: str,
+    schema_version: str = "v1",
 ) -> dict[str, Any]:
     """Parse raw model text and report JSON and Schema validity separately."""
     try:
@@ -75,7 +76,7 @@ def parse_and_validate_output(
         }
 
     try:
-        validate_output(root, scenario, parsed)
+        validate_output(root, scenario, parsed, schema_version)
     except SchemaValidationError as exc:
         return {
             "parsed_output": parsed,

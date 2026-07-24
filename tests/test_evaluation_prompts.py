@@ -210,6 +210,87 @@ class EvaluationPromptTest(unittest.TestCase):
                 self.assertNotIn("然后", combined)
                 self.assertIn(f"{scenario}_v1.schema.json", rendered["layers"]["output_constraint"])
 
+    def test_standardized_v2_exposes_json_object_mode_and_required_key_checks(self):
+        from src.evaluation.prompting import render_standard_prompt
+
+        rendered = render_standard_prompt(
+            self.PROJECT_ROOT,
+            "after_sales",
+            {
+                "images": [
+                    {"path": "data/eval/images/evidence.jpg", "sha256": "a" * 64}
+                ],
+                "text_constraints": None,
+            },
+            version="standardized_v2",
+        )
+
+        self.assertEqual(rendered["prompt_version"], "standardized_v2")
+        self.assertEqual(rendered["response_format"], {"type": "json_object"})
+        combined = "\n".join(rendered["layers"].values())
+        self.assertIn("所有 required 键各出现一次", combined)
+        self.assertIn("没有可见文字时 ocr_text 使用 null", combined)
+        self.assertIn("正常食品或正常物品", combined)
+
+    def test_nullable_schema_can_be_normalized_for_optional_guided_decoding(self):
+        from src.evaluation.prompting import _normalize_nullable_types
+
+        normalized = _normalize_nullable_types(
+            {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+        )
+        self.assertEqual(
+            normalized,
+            {
+                "anyOf": [
+                    {"minimum": 0, "maximum": 1, "type": "number"},
+                    {"type": "null"},
+                ]
+            },
+        )
+
+    def test_standardized_v2_keeps_itinerary_output_bounded_and_complete(self):
+        from src.evaluation.prompting import render_standard_prompt
+
+        rendered = render_standard_prompt(
+            self.PROJECT_ROOT,
+            "itinerary_planning",
+            self._multi_image_context(text_constraints="三天，预算不超过 2000 元"),
+            version="standardized_v2",
+        )
+        instruction = rendered["layers"]["task_instruction"]
+        self.assertEqual(
+            rendered["schema_name"],
+            "itinerary_planning_v2.schema.json",
+        )
+        self.assertEqual(rendered["response_format"], {"type": "json_object"})
+        self.assertIn('"style_preferences":["<图片可见风格>"]', rendered["layers"]["output_constraint"])
+        self.assertIn('"confidence":null', rendered["layers"]["output_constraint"])
+        self.assertEqual(
+            rendered["output_schema"]["properties"]["required_itinerary_elements"]["maxItems"],
+            9,
+        )
+        self.assertEqual(
+            rendered["output_schema"]["properties"]["itinerary"]["items"]["properties"]["activities"]["maxItems"],
+            6,
+        )
+        self.assertIn("恰好输出2个互不重复", instruction)
+        for field in (
+            "style_preferences",
+            "hard_constraints",
+            "soft_constraints",
+            "required_itinerary_elements",
+            "itinerary",
+            "constraint_check",
+            "observed_evidence",
+            "unknown_fields",
+            "confidence",
+        ):
+            self.assertIn(field, instruction)
+        self.assertIn("每日对象只含", instruction)
+        self.assertIn("数组长度必须等于请求天数", instruction)
+        self.assertIn("status 只能是 satisfied、violated 或 unknown", instruction)
+        self.assertIn("恰好输出2个互不重复", instruction)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Any, Iterable
 
+from src.data.yelp_paths import parse_simple_yaml
+
 
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -105,12 +107,25 @@ def build_run_artifact_hashes(
             prompt_root / prompt_version / f"{scenario}.txt"
             for scenario in scenarios
         )
-    elif prompt_version == "standardized_v1":
+    elif prompt_version.startswith("standardized_v"):
         paths.append(prompt_root / prompt_version / "common.yaml")
-        paths.extend(
-            prompt_root / prompt_version / f"{scenario}.yaml"
-            for scenario in scenarios
-        )
+        for scenario in scenarios:
+            prompt_path = prompt_root / prompt_version / f"{scenario}.yaml"
+            paths.append(prompt_path)
+            prompt_spec = parse_simple_yaml(prompt_path.read_text(encoding="utf-8"))
+            schema_name = prompt_spec.get("schema_name") if isinstance(prompt_spec, dict) else None
+            if (
+                not isinstance(schema_name, str)
+                or Path(schema_name).name != schema_name
+                or not schema_name.startswith(f"{scenario}_")
+                or not schema_name.endswith(".schema.json")
+            ):
+                raise ProvenanceValidationError(
+                    f"invalid schema_name in prompt asset: {prompt_path}"
+                )
+            paths.append(
+                project_root / "configs" / "evaluation" / "schemas" / schema_name
+            )
     else:
         raise ProvenanceValidationError(f"unsupported prompt version: {prompt_version}")
     return build_artifact_hashes(project_root, paths)

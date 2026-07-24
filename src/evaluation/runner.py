@@ -27,6 +27,11 @@ from src.inference.client import normalize_image_url
 
 
 ModelTransport = Callable[[str, dict[str, Any], int], str]
+SUPPORTED_PROMPT_VERSIONS = {
+    "baseline_minimal_v1",
+    "standardized_v1",
+    "standardized_v2",
+}
 
 
 class EvaluationRunError(ValueError):
@@ -73,6 +78,15 @@ def load_runtime_settings(
         or generation["max_tokens"] <= 0
     ):
         raise EvaluationRunError("inference max_tokens must be a positive integer")
+    repetition_penalty = inference.get("repetition_penalty")
+    if repetition_penalty is not None:
+        if (
+            isinstance(repetition_penalty, bool)
+            or not isinstance(repetition_penalty, (int, float))
+            or repetition_penalty <= 0
+        ):
+            raise EvaluationRunError("inference repetition_penalty must be positive")
+        generation["repetition_penalty"] = repetition_penalty
     return {
         "model_name": model["model_name"],
         "served_model_name": model["served_model_name"],
@@ -242,7 +256,7 @@ def run_records(
     """Render and persist one immutable run over eligible manifest records."""
     if mode not in {"mock", "dry-run", "live"}:
         raise EvaluationRunError("mode must be mock, dry-run, or live")
-    if prompt_version not in {"baseline_minimal_v1", "standardized_v1"}:
+    if prompt_version not in SUPPORTED_PROMPT_VERSIONS:
         raise EvaluationRunError("unsupported prompt_version")
     _validate_runtime(runtime)
 
@@ -321,6 +335,7 @@ def run_records(
                         project_root,
                         scenario,
                         raw_output,
+                        _rendered_schema_version(rendered),
                     )
                     parsed_output = parsed["parsed_output"]
                     json_valid = parsed["json_valid"]
@@ -368,7 +383,30 @@ def _render_request(
 ) -> dict[str, Any]:
     if prompt_version == "baseline_minimal_v1":
         return render_baseline_request(root, scenario, input_metadata)
-    return render_standard_prompt(root, scenario, input_metadata)
+    return render_standard_prompt(
+        root,
+        scenario,
+        input_metadata,
+        version=prompt_version,
+    )
+
+
+def _rendered_schema_version(rendered: dict[str, Any]) -> str:
+    """Validate structured output against the exact Schema exposed in its request."""
+    schema_name = rendered.get("schema_name")
+    scenario = rendered.get("scenario")
+    if schema_name is None:
+        return "v1"
+    if not isinstance(schema_name, str) or not isinstance(scenario, str):
+        raise EvaluationRunError("rendered Schema identity is invalid")
+    prefix = f"{scenario}_"
+    suffix = ".schema.json"
+    if not schema_name.startswith(prefix) or not schema_name.endswith(suffix):
+        raise EvaluationRunError("rendered Schema does not belong to scenario")
+    version = schema_name[len(prefix) : -len(suffix)]
+    if not version or not version.replace("_", "").isalnum():
+        raise EvaluationRunError("rendered Schema version is invalid")
+    return version
 
 
 def _infer_dataset_version(records: list[dict[str, Any]]) -> str:
@@ -402,11 +440,15 @@ def _build_chat_payload(
             part["image_url"]["url"] = normalize_image_url(
                 _resolve_local_image_url(root, url)
             )
-    return {
+    payload = {
         "model": runtime["served_model_name"],
         "messages": messages,
         **copy.deepcopy(runtime["generation"]),
     }
+    response_format = rendered.get("response_format")
+    if response_format is not None:
+        payload["response_format"] = copy.deepcopy(response_format)
+    return payload
 
 
 def _resolve_local_image_url(root: Path, url: str) -> str:

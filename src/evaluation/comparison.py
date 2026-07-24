@@ -27,23 +27,32 @@ class ComparisonValidationError(ValueError):
     """Raised when two runs cannot support an attributable paired comparison."""
 
 
+BASELINE_PROMPT_VERSION = "baseline_minimal_v1"
+STANDARDIZED_PROMPT_VERSIONS = frozenset({"standardized_v1", "standardized_v2"})
+
+
 def validate_comparable_runs(
     baseline: dict[str, Any],
     standardized: dict[str, Any],
 ) -> None:
     """Require identical data/model contracts and the expected prompt pair."""
-    for name, metadata, prompt_version in (
-        ("baseline", baseline, "baseline_minimal_v1"),
-        ("standardized", standardized, "standardized_v1"),
+    for name, metadata in (
+        ("baseline", baseline),
+        ("standardized", standardized),
     ):
         if metadata.get("status") != "completed" or metadata.get("mode") != "live":
             raise ComparisonValidationError(f"{name} run must be completed live inference")
         if metadata.get("run_scope") != "full":
             raise ComparisonValidationError(f"{name} run must be a full-scope evaluation")
-        if metadata.get("prompt_version") != prompt_version:
-            raise ComparisonValidationError(
-                f"{name} run must use {prompt_version}"
-            )
+    if baseline.get("prompt_version") != BASELINE_PROMPT_VERSION:
+        raise ComparisonValidationError(
+            f"baseline run must use {BASELINE_PROMPT_VERSION}"
+        )
+    if standardized.get("prompt_version") not in STANDARDIZED_PROMPT_VERSIONS:
+        supported = ", ".join(sorted(STANDARDIZED_PROMPT_VERSIONS))
+        raise ComparisonValidationError(
+            f"standardized run must use one of: {supported}"
+        )
     if baseline.get("dataset_version") != standardized.get("dataset_version"):
         raise ComparisonValidationError("runs use different dataset versions")
     if baseline.get("selected_sample_ids_sha256") != standardized.get(
@@ -257,6 +266,23 @@ def generate_comparison_report(
     representative_cases: list[dict[str, Any]],
 ) -> str:
     """Render a report only from persisted paired-comparison artifacts."""
+    semantic_baseline = (
+        metadata.get("scoring_track")
+        == "deterministic_baseline_semantic_vs_strict_business"
+    )
+    methodology_note = (
+        "The minimal baseline intentionally has no JSON-format instruction. "
+        "Its format metrics remain strict, while semantic task metrics use the "
+        "persisted versioned deterministic text-extraction track. Standardized "
+        "outputs use strict structured-business scoring."
+        if semantic_baseline
+        else
+        "The minimal baseline intentionally has no JSON-format instruction. "
+        "Its JSON/Schema compliance and latency are comparable, but semantic "
+        "task metrics remain PENDING when the natural-language output is not "
+        "deterministically parsed. Standardized outputs continue to use strict "
+        "structured-business scoring."
+    )
     lines = [
         "# Week 3 Baseline vs Standardized Prompt Comparison",
         "",
@@ -286,7 +312,7 @@ def generate_comparison_report(
         [
             "",
             "W/T/L is standardized wins / ties / baseline wins. For latency and constraint violation rate, lower is better.",
-            "The minimal baseline intentionally has no JSON-format instruction. Its JSON/Schema compliance and latency are comparable, but semantic task metrics remain PENDING when the natural-language output is not deterministically parsed. Standardized outputs continue to use strict structured-business scoring.",
+            methodology_note,
             "",
             "## Deterministically selected cases",
             "",
@@ -332,6 +358,7 @@ def _non_prompt_artifacts(value: Any) -> dict[str, str]:
         path: digest
         for path, digest in value.items()
         if "/prompts/" not in path.replace("\\", "/")
+        and "/schemas/" not in path.replace("\\", "/")
     }
 
 

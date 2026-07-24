@@ -247,11 +247,10 @@ Week 2 mentor-facing report:
 
 ### Week 3: Zero-Shot Evaluation Framework
 
-Week 3 is `PARTIAL`. The frozen human-authored manifests have been restored to
-the exact version used by the completed real baseline, and both real run
-artifacts pass provenance validation. Baseline semantic task metrics remain
-`PENDING` because its intentionally minimal Prompt produced unparsed natural
-language, and frozen gold coverage limitations are reported without relabeling.
+Week 3 is `PARTIAL`. The immutable v1 manifests and runs remain historical
+evidence. After the mentor requested removal of low-quality images for a fair
+baseline/comparison set, the active work moved to a separately versioned v2
+dataset; v1 files and runs are never overwritten.
 
 | Scenario | target_count | candidate_count | annotated_count | validated_count | tested_count |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -259,24 +258,22 @@ language, and frozen gold coverage limitations are reported without relabeling.
 | After-sales issue recognition | 150 | 150 | 150 | 150 | 150 |
 | Itinerary constraint understanding | 100 | 100 | 100 | 100 | 100 |
 
-`tested_count` above is bound to completed run
-`week3_baseline_full_20260721_003`. Run eligibility checks human completion,
-valid/readable inputs, required structure, non-rejection, sampling strata, and
-evaluation isolation. It does not reinterpret `unknown` or empty semantic
-fields as complete mentor coverage. The after-sales set contains 76 public
-Yelp and 74 business-synthetic samples.
+These counts are bound to the completed v2 baseline run
+`week3_v2_baseline_full_20260724_001`. The 70 low-evidence after-sales rows
+were replaced with visually reviewed evidence and annotated by the existing
+human annotator. The final v2 set retains both public Yelp and
+business-synthetic sources and the 38/38/37/37 candidate strata.
 
 One human annotator is sufficient. Model outputs and deterministic suggestions
 must not replace the human labels. Unknown values are allowed when evidence is
 insufficient and must be reported as a data limitation rather than guessed.
 
-Project Control selected the frozen-v1 route for final review. Product labels
-will not be reopened, no `week3_gold_v2` or v2 rescoring will be created, and
-the historical annotation UI will not be repaired or reopened for this
-delivery. The empty itinerary style field is recorded as a probable historical
-UI field-exposure or serialization defect, not annotator omission. Unsupported
-itinerary-style, after-sales facility-damage, and baseline semantic metrics
-remain `PENDING`; Week 3 remains `PARTIAL`.
+Product labels are reused unchanged, including evidence-supported `unknown`.
+The approved v2 labeling scope covered 70 replacement after-sales rows and
+100 itinerary style supplements whose field was not exposed reliably in the
+historical tool; both are complete. All original v1 itinerary text, hard/soft
+constraints, and required elements were inherited server-side rather than
+re-entered.
 
 The core local commands are:
 
@@ -284,14 +281,16 @@ The core local commands are:
 python scripts/prepare_week3_evaluation.py init
 python scripts/build_week3_candidate_manifests.py --config configs/evaluation_week3.yaml
 python scripts/validate_week3_evaluation.py
-python scripts/run_week3_evaluation.py --config configs/evaluation_week3.yaml --run-id <run-id> --mode live --run-scope full --prompt-version baseline_minimal_v1
-python scripts/score_week3_evaluation.py --config configs/evaluation_week3.yaml --run-id <run-id>
+python scripts/validate_week3_evaluation.py --config configs/evaluation_week3_v2.yaml
+python scripts/run_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id <run-id> --mode live --run-scope full --prompt-version baseline_minimal_v1
+python scripts/score_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id <run-id>
 ```
 
-The recorded baseline should be reused while its provenance remains valid; do
-not repeat equivalent live requests. The standardized Prompt and JSON Schema
-files are design deliverables. A paired comparison, bootstrap analysis,
-annotation UI, or training pipeline is not required for Week 3.
+Prepare the separately versioned candidates with
+`python scripts/prepare_week3_v2_dataset.py --config configs/evaluation_week3_v2.yaml`.
+The command refuses to overwrite an existing v2 dataset. Standardized v2 uses
+JSON-object response mode plus the full versioned Schema contract and an
+explicit type skeleton; the bounded itinerary v2 Schema leaves v1 unchanged.
 
 See `reports/week3_zero_shot_baseline_report.md` for the status report and
 `docs/evaluation_data_contracts.md`, `docs/prompt_architecture.md`,
@@ -302,9 +301,11 @@ technical contracts.
 ## Evaluation
 
 The Week 3 evaluation framework defines scenario-specific structured metrics.
-The real baseline measured format compliance and latency over 450 records.
-Its unparsed semantic task metrics remain `PENDING`; the report keeps these
-separate from the measured 0% JSON compliance result.
+The completed v2 baseline measured format compliance and latency over 450
+records. The same-set standardized v2 run measured strict structured-business
+metrics over another 450 persisted records. The baseline's unparsed semantic
+task metrics remain `PENDING`; the report keeps these separate from the
+measured 0% JSON compliance result.
 
 Framework metric groups include:
 
@@ -317,4 +318,4 @@ Framework metric groups include:
 
 - Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
-- Week 3: `PARTIAL`. Engineering and real baseline traceability are verified; semantic baseline metrics and several mentor-required gold dimensions remain unsupported by the frozen data.
+- Week 3: `PARTIAL`. Data, real baseline, standardized v2, scoring, and paired comparison are complete and traceable; only the unconstrained baseline's unparsed semantic task metrics remain `PENDING`.

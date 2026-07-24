@@ -32,7 +32,7 @@ data/eval/manifests/
 data/eval/readiness/
 data/eval/runs/
 data/eval/scores/
-data/eval/registry/evaluation_exclusion_manifest.jsonl
+data/eval/registry/
 data/*.zip
 data/*.tar
 data/*.tar.gz
@@ -43,3 +43,4 @@ outputs/
 docs/internship_weekly_summary.md
 docs/superpowers/
 work/week3_prompts/
+work/week3_v2_annotation/

@@ -109,10 +109,10 @@ python -m unittest discover -s tests -v
 
 Build an auditable three-scenario zero-shot evaluation framework with stable
 data contracts, multimodal prompts, strict structured output, a
-configuration-driven runner, metrics, and reporting. Local implementation and
-the frozen human-authored manifests and real run artifacts are validated. The
-delivery remains `PARTIAL` because baseline semantic metrics and several
-mentor-required gold dimensions are unsupported by the frozen data.
+configuration-driven runner, metrics, and reporting. The v2 human-authored
+manifests, full baseline, full standardized run, scores, and comparison are
+validated. The delivery remains `PARTIAL` because the unconstrained baseline's
+natural-language semantic metrics have no approved reproducible parser.
 
 ### Completion Checklist
 
@@ -126,12 +126,13 @@ mentor-required gold dimensions are unsupported by the frozen data.
 - [x] Validate completed full `baseline_minimal_v1` run `week3_baseline_full_20260721_003`.
 - [x] Validate the optional `standardized_v1` run on the identical frozen set.
 - [x] Generate an evidence-backed status report with unsupported metrics marked `PENDING`.
-- [x] Record Project Control's frozen-v1 decision: no v2 dataset, annotation reopening, supplemental labels, or v2 rescoring.
+- [x] Record the historical Project Control frozen-v1 decision (superseded on 2026-07-22 by the mentor-authorized v2 recuration route).
 - [x] Receive Project Control approval of the final actual diff and evidence boundary.
 
-Current verification restores all 450 completed annotations and 450 exclusion
-rows. Both named completed runs pass artifact validation; no equivalent live
-requests were repeated. The final repository suite passes 203 Python tests.
+Current v2 verification contains 450 completed annotations and 450 exclusion
+rows. Both v2 completed runs pass artifact validation and bind tested counts to
+their 450 persisted records. The final repository suite passes 216 Python
+tests.
 
 ### Evaluation Data Counts
 
@@ -171,9 +172,34 @@ The standalone status report is
 
 ### Review boundary
 
-Project Control approved one complete Week 3 commit and push to `dev` for the
-frozen-v1 `PARTIAL` delivery. The delivery must not be promoted to `stg`,
-merged to `stg`, tagged, or expanded into follow-up work.
+Project Control approved the historical frozen-v1 `PARTIAL` commit on `dev`.
+After the user directly confirmed the mentor's 2026-07-22 v2 authorization,
+Project Control reviewed the v2 actual diff, 216-test result, run provenance,
+scores, comparison evidence, and Git boundary on 2026-07-24. The v2 `PARTIAL`
+delivery is approved for one coherent commit and push to `dev`; it must not be
+promoted to `stg` or tagged without a separate mentor-confirmed promotion.
+
+### Active v2 recuration evidence (2026-07-22)
+
+| Scenario | target_count | candidate_count | annotated_count | validated_count | tested_count |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Product understanding | 200 | 200 | 200 | 200 | 200 |
+| After-sales issue recognition | 150 | 150 | 150 | 150 | 150 |
+| Itinerary constraint understanding | 100 | 100 | 100 | 100 | 100 |
+
+- [x] Preserve v1 manifests, runs, Prompts, and Schemas.
+- [x] Create isolated v2 candidates, registry, preparation log, and annotation packets.
+- [x] Remove 70 low-evidence after-sales rows and restore all four candidate strata with public and synthetic sources.
+- [x] Expose only the previously unavailable itinerary-style choices and inherit all v1 constraint fields unchanged.
+- [x] Add standardized v2 response contracts and verify representative product, after-sales, and itinerary JSON/Schema paths.
+- [x] Replace the 70 abstract after-sales candidates with representative evidence, then complete their submissions.
+- [x] Complete all 100 itinerary style-only supplements with audit/reconciliation hash coverage.
+- [x] Run and sign full same-set v2 baseline and standardized evaluations.
+- [x] Score actual v2 outputs and replace interim counts with run-bound evidence.
+- [x] Generate the 450-row paired comparison and evidence-backed report.
+
+The remaining `PARTIAL` boundary is the unsupported natural-language baseline
+semantic track; no numeric semantic score is fabricated from JSON failures.
 
 ## Promotion Rule
 

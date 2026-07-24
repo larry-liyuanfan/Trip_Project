@@ -9,6 +9,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.evaluation.runner import EvaluationRunError, run_configured_evaluation
+from src.evaluation.runner import SUPPORTED_PROMPT_VERSIONS
 
 
 def load_mock_outputs(path: Path) -> dict[str, str]:
@@ -63,7 +64,7 @@ def run_cli(
     parser.add_argument("--mode", choices=("mock", "dry-run", "live"), required=True)
     parser.add_argument(
         "--prompt-version",
-        choices=("baseline_minimal_v1", "standardized_v1"),
+        choices=tuple(sorted(SUPPORTED_PROMPT_VERSIONS)),
         required=True,
     )
     parser.add_argument(

@@ -279,6 +279,32 @@ class EvaluationResultTest(unittest.TestCase):
         self.assertIsNone(json_invalid["parsed_output"])
         self.assertIn("json_parse_error", json_invalid["error"])
 
+    def test_runner_uses_the_schema_version_exposed_by_standardized_request(self):
+        from src.evaluation.runner import EvaluationRunError, _rendered_schema_version
+
+        self.assertEqual(
+            _rendered_schema_version(
+                {
+                    "scenario": "itinerary_planning",
+                    "schema_name": "itinerary_planning_v2.schema.json",
+                }
+            ),
+            "v2",
+        )
+        self.assertEqual(
+            _rendered_schema_version(
+                {"scenario": "itinerary_planning"}
+            ),
+            "v1",
+        )
+        with self.assertRaisesRegex(EvaluationRunError, "does not belong"):
+            _rendered_schema_version(
+                {
+                    "scenario": "itinerary_planning",
+                    "schema_name": "after_sales_v2.schema.json",
+                }
+            )
+
     def test_parser_rejects_non_finite_json_constants(self):
         from src.evaluation.results import parse_and_validate_output
 
@@ -602,6 +628,50 @@ class EvaluationModelRunnerTest(unittest.TestCase):
         )
         self.assertIn('"additionalProperties":false', request_text)
         self.assertIn('"business_category"', request_text)
+
+    def test_standardized_v2_sends_json_object_response_format(self):
+        from src.evaluation.runner import run_records
+
+        captured = {}
+
+        def transport(url, payload, timeout):
+            captured.update(payload)
+            return json.dumps(self._product_output(), ensure_ascii=False)
+
+        image_path = self.PROJECT_ROOT / "temporary_stage3_image.jpg"
+        image_path.write_bytes(b"synthetic image bytes")
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                run_records(
+                    root=self.PROJECT_ROOT,
+                    records=[self._record()],
+                    runs_dir=Path(temp_dir),
+                    run_id="standardized_v2_payload",
+                    mode="live",
+                    prompt_version="standardized_v2",
+                    runtime=self._runtime(),
+                    transport=transport,
+                )
+        finally:
+            image_path.unlink(missing_ok=True)
+
+        self.assertEqual(captured["response_format"], {"type": "json_object"})
+
+    def test_runtime_loads_optional_positive_repetition_penalty(self):
+        from src.evaluation.runner import load_runtime_settings
+
+        runtime = load_runtime_settings(
+            self.PROJECT_ROOT,
+            {
+                "runtime": {
+                    "model_config_path": "configs/model_qwen2_vl.yaml",
+                    "inference_config_path": "configs/inference_week3_v2.yaml",
+                    "live_base_url": "http://localhost:8001",
+                    "timeout_seconds": 120,
+                }
+            },
+        )
+        self.assertEqual(runtime["generation"]["repetition_penalty"], 1.05)
 
     def test_live_transport_failure_is_persisted_without_fabricated_output(self):
         from src.evaluation.runner import run_records

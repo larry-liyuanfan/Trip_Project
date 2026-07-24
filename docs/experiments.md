@@ -111,3 +111,24 @@ manifest.
 - Standardized JSON rates are 68.5%/98.0%/28.0%; Schema rates are 29.5%/2.0%/0.0%. Scalar metrics use only known gold: product category 20.0% over 110, product price 13.0% over 100, after-sales issue and severity 0% over 82 each.
 - Frozen limitations: product category unknown 90 and price unknown 100 (valid no-direct-evidence labels, not automatically missing); product `visible_facilities` is non-empty for 128 and empty for 72; after-sales issue unknown 68 and facility-damage gold 0; itinerary style preferences empty 100, with retained evidence indicating a probable historical annotation-UI field exposure or serialization defect rather than confirmed annotator omission.
 - Final scope decision: Project Control selected frozen v1. No v2 manifest, annotation-UI reopening, supplemental annotation, or v2 rescoring is part of this delivery; unsupported itinerary-style, facility-damage, and baseline semantic metrics remain `PENDING`, and Week 3 remains `PARTIAL`.
+
+## Week 3 v2 recuration and response-format probes on 2026-07-22
+
+- The mentor-authorized low-quality-image route supersedes the frozen-v1-only scope while preserving all v1 artifacts unchanged.
+- Prepared `week3_evaluation_v2`: product 200 completed; after-sales 80 completed plus 70 pending replacements; itinerary 4 completed plus 96 pending style-only supplements; exclusion count 450.
+- After-sales candidates contain public Yelp and business-synthetic sources and exact intended candidate strata `38/38/37/37`. Candidate strata are not reported as human gold until submitted.
+- Local model: `Qwen/Qwen2-VL-2B-Instruct` through vLLM on `localhost:8001`; temperature 0.1, top_p 0.9, repetition_penalty 1.05, max_tokens 1280.
+- Strict `json_schema` response mode for the nested itinerary contract timed out at 180 seconds and was rejected for full evaluation.
+- `json_object` plus full Schema and a final type skeleton produced JSON- and Schema-valid representative product, after-sales, two-day itinerary, and four-day itinerary outputs. The four-day probe generated only one itinerary day, so semantic constraint metrics remain independent from Schema pass.
+- These probes validate request/format behavior only. They are not baseline results, do not increment `tested_count`, and do not support model capability conclusions.
+- Annotation inspection rejected the first hygiene/facility replacement batch because its abstract synthetic diagrams were not representative business evidence. Three early submissions were invalidated with retained hashes. The after-sales UI is paused until those images are replaced.
+- All original itinerary non-style annotations were found intact. The corrected UI inherits them server-side and collects only `style_preferences`; four submitted style supplements are preserved.
+
+## Week 3 v2 full evaluation on 2026-07-24
+
+- Dataset `week3_evaluation_v2` validates at product/after-sales/itinerary counts `200/200/200/200/200`, `150/150/150/150/150`, and `100/100/100/100/100`; exclusion count is 450.
+- Runs `week3_v2_baseline_full_20260724_001` and `week3_v2_standardized_full_20260724_001` are completed/live/full with 450/450 persisted records, no request errors, and identical selected-sample SHA-256 `3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c`.
+- Baseline JSON/Schema rates are 0% for all scenarios. All semantic task metrics are `PENDING` because the required minimal Prompt produced unparsed natural language.
+- Standardized v2 JSON/Schema rates are product 79%/75%, after-sales 96.67%/96%, and itinerary 90%/88%. Persisted strict semantic aggregates and support counts are reported in `reports/week3_zero_shot_baseline_report.md`.
+- Comparison `week3_v2_prompt_pair_20260724_001` contains 450 paired rows and 2,000 bootstrap iterations. Only comparable format, Schema, and latency metrics are used; no baseline semantic score is inferred.
+- Week 3 remains `PARTIAL` because the baseline natural-language semantic track remains unsupported, not because data collection or live inference is incomplete.
