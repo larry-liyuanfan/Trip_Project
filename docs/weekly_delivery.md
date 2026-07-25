@@ -213,7 +213,8 @@ support counts. No numeric semantic score is derived from JSON failure.
 
 - [x] 保持 Week 3 manifest、金标、baseline、输出、Prompt、Schema 和评分不变。
 - [x] 三个场景各固定选择 5 个正例和 2 个边界例。
-- [x] 构建并实测 `standardized_v2`、4-shot、7-shot pilot。
+- [x] 构建并实测 `standardized_v2`、4-shot v2、7-shot v2 pilot；
+  三组均无模型请求错误。
 - [x] 使用业务质量、格式、token 和延迟选择每场景胜出版本。
 - [x] 只对三个胜出版本执行 450 条 Week 3 v2 全量跑测。
 - [x] 保存原始输出、哈希、token、延迟、评分和 bad case。
@@ -223,7 +224,8 @@ support counts. No numeric semantic score is derived from JSON failure.
 - [x] 生成 20 条真实 CLIP 向量并完成 CRUD 与性能测量。
 - [x] 移除跟踪文件中的明文凭据，提交脱敏环境模板并完成本地凭据轮换。
 - [x] 修复 LF/CRLF 运行绑定问题，新增 Week 4 统一只读证据验证。
-- [x] 通过 241 个单元测试和全部交付验证。
+- [x] runner/验证器拒绝模型请求失败；删除跨评分轨道业务差值。
+- [x] 通过 244 个单元测试和全部交付验证。
 
 实测 Prompt 和 Milvus 结果记录在
 `reports/week4_prompt_optimization_report.md`,
@@ -233,11 +235,13 @@ support counts. No numeric semantic score is derived from JSON failure.
 
 ### 修复后验证证据
 
-- `python -m unittest discover -s tests -v`：241/241 通过。
+- `python -m unittest discover -s tests -v`：244/244 通过。
 - Week 3 v2 数据验证和 baseline/standardized 两个 run-bound 验证均为
   `status=ok`，tested_count 为 200/150/100。
-- `python scripts/validate_week4_delivery.py`：3 个 pilot 共 45 条、全量
-  450 条、score 450 条和 bad case 269 条全部通过一致性校验。
+- `python scripts/validate_week4_delivery.py`：3 个有效 pilot 共 45 条且
+  请求错误为 0；全量 450 条、score 450 条和 bad case 269 条全部通过。
+- baseline token 未记录，明确为 `PENDING`；baseline 与 Week 4 业务指标
+  使用不同预测编码轨道，不计算 `business_quality_delta`。
 - Compose 脱敏展开通过；凭据轮换后 etcd、MinIO、Milvus 均 healthy，
   19 条逻辑可见向量保持可查询。
 - 基准脚本会在既有输出或非空集合上写入前失败，并以 Milvus `count(*)`

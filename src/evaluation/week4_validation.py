@@ -33,6 +33,7 @@ def validate_week4_delivery(
         raise Week4ValidationError("config.validation must be an object")
     pilot_run_ids = validation.get("pilot_run_ids")
     full_run_id = validation.get("full_run_id")
+    artifact_version = validation.get("artifact_version")
     winners = validation.get("expected_winners")
     expected_full_hash = validation.get("expected_full_sample_sha256")
     if (
@@ -44,6 +45,12 @@ def validate_week4_delivery(
         raise Week4ValidationError("validation.pilot_run_ids must contain three IDs")
     if not isinstance(full_run_id, str) or not full_run_id:
         raise Week4ValidationError("validation.full_run_id is required")
+    if (
+        not isinstance(artifact_version, str)
+        or not artifact_version
+        or not artifact_version.replace("_", "").isalnum()
+    ):
+        raise Week4ValidationError("validation.artifact_version is invalid")
     if not isinstance(winners, dict) or set(winners) != {
         "image_product_search",
         "after_sales",
@@ -97,6 +104,7 @@ def validate_week4_delivery(
         output_root=output_root,
         pilot_run_ids=pilot_run_ids,
         full_run_id=full_run_id,
+        artifact_version=artifact_version,
         winners=winners,
         full_sample_ids=set(full_summary["sample_ids"]),
     )
@@ -105,10 +113,14 @@ def validate_week4_delivery(
         "message": "Week 4 运行、哈希、记录数、评分和比较产物验证通过",
         "pilot_run_ids": pilot_run_ids,
         "pilot_record_count": 45,
+        "model_request_error_count": 0,
         "full_run_id": full_run_id,
         "full_record_count": full_summary["record_count"],
         "full_sample_sha256": full_summary["selected_sample_ids_sha256"],
         "winners": winners,
+        "business_comparison_status": (
+            "not_comparable_different_prediction_encodings"
+        ),
         **comparison_summary,
     }
 
@@ -130,6 +142,7 @@ def _validate_run(output_root: Path, run_id: str) -> dict[str, Any]:
     sample_ids = []
     scenario_counts: dict[str, int] = {}
     prompt_versions_by_scenario: dict[str, str] = {}
+    model_request_error_count = 0
     for raw_record in results:
         record = validate_result_record(raw_record)
         if record["run_id"] != run_id:
@@ -143,6 +156,9 @@ def _validate_run(output_root: Path, run_id: str) -> dict[str, Any]:
         ):
             raise Week4ValidationError(f"input hash mismatch: {run_id}")
         _validate_token_usage(raw_record.get("token_usage"), run_id)
+        error = raw_record.get("error")
+        if isinstance(error, str) and error.startswith("model_request_error:"):
+            model_request_error_count += 1
         sample_id = record["sample_id"]
         if sample_id in sample_ids:
             raise Week4ValidationError(f"duplicate sample_id: {sample_id}")
@@ -162,6 +178,11 @@ def _validate_run(output_root: Path, run_id: str) -> dict[str, Any]:
     metadata_prompts = metadata.get("prompt_versions_by_scenario")
     if metadata_prompts != prompt_versions_by_scenario:
         raise Week4ValidationError(f"prompt mapping mismatch: {run_id}")
+    if model_request_error_count:
+        raise Week4ValidationError(
+            f"run contains model request errors: {run_id}, "
+            f"count={model_request_error_count}"
+        )
     return {
         "run_scope": metadata.get("run_scope"),
         "record_count": len(results),
@@ -169,6 +190,7 @@ def _validate_run(output_root: Path, run_id: str) -> dict[str, Any]:
         "scenario_counts": dict(sorted(scenario_counts.items())),
         "prompt_versions_by_scenario": prompt_versions_by_scenario,
         "sample_ids": sample_ids,
+        "model_request_error_count": model_request_error_count,
     }
 
 
@@ -177,13 +199,20 @@ def _validate_comparisons(
     output_root: Path,
     pilot_run_ids: list[str],
     full_run_id: str,
+    artifact_version: str,
     winners: dict[str, str],
     full_sample_ids: set[str],
 ) -> dict[str, Any]:
     comparison_dir = output_root / "comparisons"
-    pilot = _load_json(comparison_dir / "pilot_comparison_v1.json")
-    selected = _load_json(comparison_dir / "selected_prompts_v1.json")
-    full = _load_json(comparison_dir / "full_baseline_comparison_v1.json")
+    pilot = _load_json(
+        comparison_dir / f"pilot_comparison_{artifact_version}.json"
+    )
+    selected = _load_json(
+        comparison_dir / f"selected_prompts_{artifact_version}.json"
+    )
+    full = _load_json(
+        comparison_dir / f"full_baseline_comparison_{artifact_version}.json"
+    )
     if pilot.get("selection_scope") != "best_among_tested_candidates":
         raise Week4ValidationError("pilot selection scope is invalid")
     if pilot.get("pilot_run_ids") != pilot_run_ids:
@@ -193,6 +222,14 @@ def _validate_comparisons(
     candidate_summaries = pilot.get("candidate_summaries")
     if not isinstance(candidate_summaries, list) or len(candidate_summaries) != 9:
         raise Week4ValidationError("pilot comparison must contain nine summaries")
+    if any(
+        not isinstance(row, dict)
+        or row.get("model_request_error_count") != 0
+        for row in candidate_summaries
+    ):
+        raise Week4ValidationError(
+            "pilot comparison contains model request failures"
+        )
     if full.get("full_run_id") != full_run_id:
         raise Week4ValidationError("full comparison run ID is invalid")
     optimized = full.get("optimized_summaries")
@@ -206,6 +243,22 @@ def _validate_comparisons(
         ("itinerary_planning", 100),
     }:
         raise Week4ValidationError("full comparison scenario summaries are invalid")
+    comparisons = full.get("baseline_comparison")
+    if not isinstance(comparisons, list) or len(comparisons) != 3:
+        raise Week4ValidationError("baseline comparison rows are invalid")
+    for row in comparisons:
+        if (
+            not isinstance(row, dict)
+            or row.get("business_metrics_comparable") is not False
+            or row.get("business_comparison_status")
+            != "not_comparable_different_prediction_encodings"
+            or row.get("baseline_mean_total_tokens") is not None
+            or row.get("baseline_token_status") != "PENDING_not_recorded"
+            or "business_quality_delta" in row
+        ):
+            raise Week4ValidationError(
+                "baseline comparison mixes incompatible business tracks"
+            )
 
     score_rows = _load_jsonl(
         output_root / "scores" / full_run_id / "sample_scores.jsonl"
@@ -214,7 +267,9 @@ def _validate_comparisons(
     if len(score_rows) != 450 or score_ids != full_sample_ids:
         raise Week4ValidationError("full score rows do not match the full run")
     bad_cases = _load_jsonl(
-        output_root / "bad_cases" / "week4_bad_cases_v1.jsonl"
+        output_root
+        / "bad_cases"
+        / f"week4_bad_cases_{artifact_version}.jsonl"
     )
     bad_case_counts: dict[str, int] = {}
     for row in bad_cases:

@@ -329,8 +329,13 @@ pilot 上比较 `standardized_v2`、4-shot 和 7-shot，并且只对每个场景
 胜出版本执行 v2 全量跑测。格式兜底仅移除可选 Markdown 围栏、解析 JSON
 并执行现有场景 Schema 校验，不修复模型内容。
 
+当前有效 Few-Shot 版本为 `fewshot_4_v2` 和 `fewshot_7_v2`。旧 v1
+行程请求因超过 4096-token 上下文而返回 HTTP 400，仅保留为失败证据；
+runner 和统一验证器会拒绝包含模型请求错误的运行。有效重跑后，两个新增
+Few-Shot 候选均未超过控制组，三个场景继续使用 `standardized_v2`。
+
 ```bash
-python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <run-id> --stage pilot --product-variant <variant> --after-sales-variant <variant> --itinerary-variant <variant>
+python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <run-id> --stage pilot --variant <standardized_v2|fewshot_4_v2|fewshot_7_v2>
 python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --pilot-run-id <run-id> --pilot-run-id <run-id> --pilot-run-id <run-id>
 python scripts/validate_week4_output.py --scenario image_product_search --raw-output-file <raw-output-file>
 python scripts/validate_week4_delivery.py --config configs/evaluation_week4.yaml

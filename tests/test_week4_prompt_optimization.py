@@ -36,8 +36,8 @@ class Week4PromptOptimizationTest(unittest.TestCase):
             / "configs/evaluation/week4_prompt_selection_v1.json"
         )
         for scenario, settings in selection["scenarios"].items():
-            four = example_ids_for_variant(selection, scenario, "fewshot_4_v1")
-            seven = example_ids_for_variant(selection, scenario, "fewshot_7_v1")
+            four = example_ids_for_variant(selection, scenario, "fewshot_4_v2")
+            seven = example_ids_for_variant(selection, scenario, "fewshot_7_v2")
             self.assertEqual(
                 four,
                 settings["positive_example_ids"][:3]
@@ -117,7 +117,7 @@ class Week4PromptOptimizationTest(unittest.TestCase):
     def test_week4_prompt_wording_forbids_long_reasoning(self):
         directory = (
             self.PROJECT_ROOT
-            / "configs/evaluation/prompts/week4_optimized_v1"
+            / "configs/evaluation/prompts/week4_optimized_v2"
         )
         combined = "\n".join(
             path.read_text(encoding="utf-8")
@@ -127,6 +127,79 @@ class Week4PromptOptimizationTest(unittest.TestCase):
         self.assertIn("constraint_check", combined)
         self.assertIn("不输出长篇推理", combined)
         self.assertNotIn("chain-of-thought", combined.lower())
+
+    def test_itinerary_v2_demonstration_keeps_only_existing_gold_fields(self):
+        from src.evaluation.week4_prompting import _demonstration_output
+
+        output = _demonstration_output(
+            "itinerary_planning",
+            {
+                "style_preferences": ["自然"],
+                "hard_constraints": ["2天"],
+                "soft_constraints": ["慢节奏"],
+                "required_itinerary_elements": ["daily_schedule"],
+            },
+        )
+
+        self.assertEqual(
+            set(output),
+            {
+                "style_preferences",
+                "hard_constraints",
+                "soft_constraints",
+                "required_itinerary_elements",
+            },
+        )
+        self.assertNotIn("itinerary", output)
+        self.assertNotIn("constraint_check", output)
+
+    def test_model_request_errors_make_week4_run_ineligible(self):
+        from src.evaluation.week4_runner import (
+            Week4RunError,
+            _ensure_no_model_request_errors,
+        )
+
+        with self.assertRaisesRegex(Week4RunError, "run is ineligible"):
+            _ensure_no_model_request_errors(
+                [
+                    {
+                        "sample_id": "sample-1",
+                        "scenario": "itinerary_planning",
+                        "error": "model_request_error: HTTP 400",
+                    }
+                ]
+            )
+
+    def test_baseline_comparison_has_no_cross_track_business_delta(self):
+        from src.evaluation.week4_analysis import _build_runtime_comparisons
+
+        optimized = [
+            {
+                "scenario": "itinerary_planning",
+                "prompt_version": "standardized_v2",
+                "json_compliance": 0.9,
+                "schema_compliance": 0.87,
+                "mean_total_tokens": 1900.0,
+                "mean_latency_ms": 11000.0,
+                "p95_latency_ms": 52000.0,
+            }
+        ]
+        baseline = [
+            {
+                "scenario": "itinerary_planning",
+                "json_valid": False,
+                "schema_valid": False,
+                "latency_ms": 7000.0,
+            }
+        ]
+
+        row = _build_runtime_comparisons(optimized, baseline)[0]
+
+        self.assertFalse(row["business_metrics_comparable"])
+        self.assertNotIn("business_quality_delta", row)
+        self.assertIsNone(row["baseline_mean_total_tokens"])
+        self.assertEqual(row["baseline_token_status"], "PENDING_not_recorded")
+        self.assertEqual(row["baseline_mean_latency_ms"], 7000.0)
 
 
 if __name__ == "__main__":

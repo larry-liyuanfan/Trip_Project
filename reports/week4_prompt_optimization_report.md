@@ -1,4 +1,4 @@
-# Week 4 Prompt 优化报告
+# Week 4 Prompt 候选比较报告
 
 ## 测试范围
 
@@ -10,63 +10,78 @@
 模型和生成设置保持为 `Qwen/Qwen2-VL-2B-Instruct`、vLLM、
 temperature `0.1`、top-p `0.9`、repetition penalty `1.05` 和
 max tokens `1280`。固定 pilot 每场景包含 5 个与示例不重叠的样本。
-每次运行在忽略目录 `outputs/week4/` 中保存 Prompt、输入和数据哈希、
-示例 ID、拼图哈希、原始输出、解析/Schema 结果、延迟、token usage
-和模型设置。
 
-## Pilot 选择
+旧 `fewshot_4_v1` 和 `fewshot_7_v1` 的行程请求因上下文超过模型
+4096-token 上限而全部返回 HTTP 400，这两组历史运行保留但不再作为有效
+候选证据。版本化的 `fewshot_4_v2` 和 `fewshot_7_v2` 保留原有示例数量、
+图片拼图、金标字段、模型和生成参数，仅删除示例中重复展开的长行程及完整
+Schema 文本；最终输出仍按现有 Schema 校验。
 
-选择分数固定为：
+## 有效 Pilot 选择
+
+有效运行如下：
+
+- `week4_pilot_standardized_v2_20260725_001`
+- `week4_pilot_fewshot4_v2_20260725_001`
+- `week4_pilot_fewshot7_v2_20260725_001`
+
+三组运行均为 15/15，`model_request_error_count=0`。选择分数固定为：
 
 `0.55 * business quality + 0.10 * JSON + 0.20 * Schema + 0.075 * token efficiency + 0.075 * latency efficiency`。
 
-| 场景 | standardized_v2 | 4-shot | 7-shot | 胜出版本 |
+| 场景 | standardized_v2 | 4-shot v2 | 7-shot v2 | 胜出版本 |
 | --- | ---: | ---: | ---: | --- |
-| 商品理解 | 0.3450 | 0.0400 | 0.2665 | `standardized_v2` |
-| 售后理解 | 0.5967 | 0.0800 | 0.5208 | `standardized_v2` |
-| 行程规划 | 0.4025 | 0.0750 | 0.0745 | `standardized_v2` |
+| 商品理解 | 0.3280 | 0.1133 | 0.2419 | `standardized_v2` |
+| 售后理解 | 0.5967 | 0.4848 | 0.4492 | `standardized_v2` |
+| 行程规划 | 0.4775 | 0.0190 | 0.0015 | `standardized_v2` |
 
-“胜出”只表示本次候选中的最佳版本。商品场景的 `standardized_v2` 保留了
-更高的业务质量和 Schema 合规性。售后 7-shot 的业务质量略高，但 Schema
-和 token 效率较低。行程 4-shot、7-shot 均在生成前被后端拒绝，因此
-JSON/Schema 合规率为 0。
+行程 4-shot v2 和 7-shot v2 已进入真实模型生成，不再是 HTTP 400；
+两者实测 JSON/Schema 均为 0%，平均 token 分别为 2865.8 和 3217.8，
+平均延迟分别为 42395.66 和 41648.37 ms。新增 Few-Shot 候选未超过
+控制组，因此本次没有产生新的胜出 Prompt；三个场景均继续使用原有
+`standardized_v2`。“胜出”只表示本次候选中的最佳版本。
 
-## 全量胜出版本与 Baseline 对比
+## 与 Week 3 Baseline 的同口径比较
 
-全量运行 `week4_winners_full_20260725_001` 已完成 450/450，并与
-Week 3 v2 使用相同样本哈希。
+全量胜出运行 `week4_winners_full_20260725_001` 已完成 450/450，并与
+Week 3 v2 使用相同样本哈希。这里只比较两边口径相同的原始 JSON、
+Schema 和延迟。Week 3 baseline 运行未保存 token usage，因此明确记为
+`PENDING / 不可获得`。
 
-| 场景 | 指标口径 | Week 3 baseline | Week 4 胜出版本 |
-| --- | --- | ---: | ---: |
-| 商品理解 | business quality / JSON / Schema | 0.3570 / 0% / 0% | 0.1565 / 77.5% / 75.5% |
-| 售后理解 | business quality / JSON / Schema | 0.2500 / 0% / 0% | 0.2977 / 96.67% / 96.67% |
-| 行程规划 | business quality / JSON / Schema | 0.1930 / 0% / 0% | 0.0508 / 90.0% / 87.0% |
+| 场景 | Baseline JSON/Schema | Week 4 JSON/Schema | Baseline 平均/P95 延迟 | Week 4 平均/P95 延迟 | Baseline token | Week 4 平均 token |
+| --- | ---: | ---: | ---: | ---: | --- | ---: |
+| 商品理解 | 0% / 0% | 77.5% / 75.5% | 4456.84 / 7927.61 ms | 13658.11 / 49830.86 ms | `PENDING` | 1211.70 |
+| 售后理解 | 0% / 0% | 96.67% / 96.67% | 3616.71 / 6663.71 ms | 6036.31 / 5663.14 ms | `PENDING` | 1047.41 |
+| 行程规划 | 0% / 0% | 90.0% / 87.0% | 7136.77 / 14817.89 ms | 11062.42 / 52999.28 ms | `PENDING` | 1944.39 |
 
-业务综合指标差值依次为 -0.2005、+0.0477、-0.1423。商品、售后、行程的
-平均 token 为 1211.70、1047.41、1944.39；平均延迟为
-13658.11、6036.31、11062.42 ms，P95 为
-49830.86、5663.14、52999.28 ms。
+## 业务评分边界
 
-Week 3 baseline 业务值来自独立且不读取金标的
-`baseline_semantic_coding_v1` 词法轨道。两类评分采用同一已说明字段，
-但本报告不把差值解释为纯 Prompt 因果效果，也不覆盖 Week 3 评分文件。
+Week 3 baseline 使用 `baseline_semantic_coding_v1` 确定性词法编码，
+Week 4 使用结构化 JSON 严格评分。两者预测编码方式不同，不属于同一业务
+评分轨道，因此不计算、不展示 `business_quality_delta`，也不据此声称
+Prompt 带来业务提升。
 
-## 审查问题修复
+Week 4 结构化轨道自身的业务综合值为商品 0.1565、售后 0.2977、行程
+0.0508；Week 3 词法轨道的逐项指标继续以
+`reports/week3_zero_shot_baseline_report.md` 为准。两组数值只在各自
+轨道内解释。
 
-- 新增 `.gitattributes`，并在 provenance 中只归一化文本换行；既有
-  LF/CRLF 两类历史运行哈希均可验证，其他字节变化仍会失败。
-- Week 3 baseline 和 standardized 两个 run-bound 验证均已恢复为
-  `status=ok`，没有修改不可变 Week 3 产物。
-- 新增 `scripts/validate_week4_delivery.py`，统一只读检查 3 个 pilot、
-  450 条全量运行、artifact/input/sample 哈希、记录数、token usage、
-  score、比较和 bad case 产物；当前验证为 `status=ok`。
+## 审查修复
+
+- runner 现在只要出现模型请求失败，就将整次运行标为 `failed`；错误响应体
+  会保留在明确错误信息中。
+- 统一验证器拒绝任何包含 `model_request_error` 的 pilot/full run，并检查
+  九个候选摘要的请求错误计数必须为 0。
+- 新增有效 Few-Shot v2 运行和 v2 比较产物；旧 HTTP 400 运行保持不变。
+- baseline 比较产物只保留同口径格式、延迟和 token 可用性，不再计算跨轨道
+  业务差值。
+- `scripts/validate_week4_delivery.py` 当前验证为 `status=ok`。
 
 ## 复现命令
 
 ```bash
-python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <pilot-id> --stage pilot --product-variant <variant> --after-sales-variant <variant> --itinerary-variant <variant>
-python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --pilot-run-id <standardized-pilot> --pilot-run-id <4-shot-pilot> --pilot-run-id <7-shot-pilot>
-python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <full-id> --stage full --product-variant standardized_v2 --after-sales-variant standardized_v2 --itinerary-variant standardized_v2
-python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --full-run-id <full-id>
+python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <pilot-id> --stage pilot --variant <standardized_v2|fewshot_4_v2|fewshot_7_v2>
+python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --pilot-run-id week4_pilot_standardized_v2_20260725_001 --pilot-run-id week4_pilot_fewshot4_v2_20260725_001 --pilot-run-id week4_pilot_fewshot7_v2_20260725_001
+python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --full-run-id week4_winners_full_20260725_001
 python scripts/validate_week4_delivery.py --config configs/evaluation_week4.yaml
 ```

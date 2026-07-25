@@ -152,15 +152,18 @@ manifest.
   2 个边界例和 5 个不重叠 pilot 样本。
 - 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`、vLLM；temperature 0.1、
   top-p 0.9、repetition penalty 1.05、max tokens 1280。
-- 候选：`standardized_v2`、`fewshot_4_v1`、`fewshot_7_v1`。
-- 商品、售后、行程的 pilot 胜出版本均为 `standardized_v2`，选择分数为
-  0.3450、0.5967、0.4025。行程 4-shot 和 7-shot 在生成前返回 HTTP 400，
-  失败记录保留在运行产物中。
+- 旧候选 `fewshot_4_v1`、`fewshot_7_v1` 的行程请求因上下文超过
+  4096-token 上限而返回 HTTP 400，保留为无效运行证据。
+- 版本化候选 `fewshot_4_v2`、`fewshot_7_v2` 保持模型、生成参数和示例
+  数量不变，只压缩重复 Schema 与行程展开；两组均完成 15/15，
+  `model_request_error_count=0`。
+- 有效 pilot 中，商品、售后、行程均由 `standardized_v2` 胜出，选择分数
+  为 0.3280、0.5967、0.4775。新增 Few-Shot 未超过控制组。
 - 全量运行 `week4_winners_full_20260725_001` 完成 450/450；
   样本哈希为 `3e900e64...ad648c`。
-- 商品、售后、行程的 business/JSON/Schema 分别为
-  0.1565/77.5%/75.5%、0.2977/96.67%/96.67%、
-  0.0508/90.0%/87.0%。
+- 全量结构化轨道的商品、售后、行程 JSON/Schema 分别为
+  77.5%/75.5%、96.67%/96.67%、90.0%/87.0%。baseline 词法业务轨道
+  与结构化业务轨道不计算差值；baseline token 未记录，明确为 `PENDING`。
 - Milvus 2.6.20、PyMilvus 2.6.16、etcd 3.5.18 和固定 MinIO
   部署 healthy；十字段 Schema、HNSW/COSINE 和 8 个标量索引已验证。
 - 20 条真实 CUDA CLIP 向量完成 CRUD。HNSW 构建 5.6621 s，
@@ -175,5 +178,8 @@ manifest.
   `.env.example`；本地容器已使用新随机凭据重建，19 条可见向量保留。
 - Milvus 基准现在要求输出不存在且集合物理行数为 0；插入/删除后的数量
   来自 `count(*)`，不再由输入长度推断。
-- 新增 Week 4 统一只读验证器，核对运行、哈希、记录数、score、比较和
-  bad case 产物；全套 241 个测试通过，状态为 `READY / COMPLETED`。
+- runner 在任何模型请求失败时将运行标为 `failed`；统一验证器同时拒绝
+  运行记录或候选摘要中的请求错误。
+- v2 比较产物删除跨轨道 `business_quality_delta`，只比较同口径格式、
+  延迟和 token 可用性；全套 244 个测试通过，状态为
+  `READY / COMPLETED`。

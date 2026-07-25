@@ -178,12 +178,15 @@ as the current validated dataset or accepted baseline.
 
 - 保持全部 Week 3 产物不变；每场景从 v2 金标固定选择 5 个正例和
   2 个边界例，构建 4-shot（3+1）和 7-shot（5+2）。
-- 完成三个各 15 条的 pilot。`standardized_v2` 在三个场景中均为本次
-  候选胜出版本，并完成 `week4_winners_full_20260725_001` 全量
-  450/450 跑测。
-- 商品、售后、行程的 business/JSON/Schema 分别为
-  0.1565/77.5%/75.5%、0.2977/96.67%/96.67%、
-  0.0508/90.0%/87.0%。
+- 旧 Few-Shot v1 行程请求因上下文超限全部返回 HTTP 400，不能作为有效
+  候选。新增版本化 v2 删除重复长上下文后，4-shot 和 7-shot 均完成
+  15/15，模型请求错误为 0。
+- 有效 pilot 中 `standardized_v2` 在三个场景均胜出；选择分数为商品
+  0.3280、售后 0.5967、行程 0.4775。新增 Few-Shot 候选未超过控制组，
+  没有产生新的胜出 Prompt。
+- 全量胜出运行 `week4_winners_full_20260725_001` 保持 450/450。
+  baseline 词法业务轨道与 Week 4 结构化业务轨道不再计算差值；同口径
+  JSON/Schema 和延迟单独比较，baseline token 明确为 `PENDING`。
 - 导出真实 bad case：分类错误 86、字段/Schema 错误 7、格式错误 67、
   严重等级错误 105、约束遗漏 100；类别允许重叠。
 - 格式兜底只去除可选围栏、解析 JSON、执行现有 Schema 校验，不补字段、
@@ -195,6 +198,6 @@ as the current validated dataset or accepted baseline.
   Recall@5 为 1.0000。
 - 中央审查发现的两个阻断项已修复：Milvus/MinIO 凭据改为本机环境变量并
   完成实际轮换；评估文本哈希统一换行且兼容既有 LF/CRLF 运行记录。
-- 修复后 241 个单元测试通过；Week 3 v2 数据验证、两个 run-bound
+- 修复后 244 个单元测试通过；Week 3 v2 数据验证、两个 run-bound
   验证、Week 4 统一只读验证、Compose 展开和容器健康检查均通过。
 - Week 4 状态恢复为 `READY / COMPLETED`；不进入 `stg`，不打标签。

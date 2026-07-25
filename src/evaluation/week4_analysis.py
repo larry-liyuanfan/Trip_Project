@@ -39,6 +39,7 @@ BUSINESS_METRICS = {
         "itinerary_element_completeness",
     ),
 }
+BASELINE_RUN_ID = "week3_v2_baseline_full_20260724_001"
 
 
 def analyze_pilot_runs(
@@ -55,12 +56,13 @@ def analyze_pilot_runs(
     )
     aliases = load_metric_aliases(project_root / week3["metrics"]["aliases_path"])
     output_root = project_root / week4_config["paths"]["output_dir"]
+    artifact_version = _artifact_version(week4_config)
     summaries: list[dict[str, Any]] = []
     for run_id in pilot_run_ids:
-        results = _load_results(output_root / "runs" / run_id / "results.jsonl")
+        results = _load_completed_run(output_root / "runs", run_id)
         sample_scores, _, _ = score_records(results, annotations, aliases)
         summaries.extend(_summarize_run(results, sample_scores))
-        _write_jsonl(
+        _write_or_verify_jsonl(
             output_root / "scores" / run_id / "sample_scores.jsonl",
             sample_scores,
         )
@@ -101,9 +103,18 @@ def analyze_pilot_runs(
     }
     comparison_dir = output_root / "comparisons"
     comparison_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(comparison_dir / "pilot_comparison_v1.json", comparison)
-    _write_csv(comparison_dir / "pilot_comparison_v1.csv", summaries)
-    _write_json(comparison_dir / "selected_prompts_v1.json", winners)
+    _write_json(
+        comparison_dir / f"pilot_comparison_{artifact_version}.json",
+        comparison,
+    )
+    _write_csv(
+        comparison_dir / f"pilot_comparison_{artifact_version}.csv",
+        summaries,
+    )
+    _write_json(
+        comparison_dir / f"selected_prompts_{artifact_version}.json",
+        winners,
+    )
     return comparison
 
 
@@ -121,55 +132,38 @@ def analyze_full_run(
     )
     aliases = load_metric_aliases(project_root / week3["metrics"]["aliases_path"])
     output_root = project_root / week4_config["paths"]["output_dir"]
-    results = _load_results(output_root / "runs" / full_run_id / "results.jsonl")
+    artifact_version = _artifact_version(week4_config)
+    results = _load_completed_run(output_root / "runs", full_run_id)
     sample_scores, aggregates, _ = score_records(results, annotations, aliases)
     score_dir = output_root / "scores" / full_run_id
-    _write_jsonl(score_dir / "sample_scores.jsonl", sample_scores)
-    _write_json(score_dir / "aggregate_scores.json", aggregates)
+    _write_or_verify_jsonl(score_dir / "sample_scores.jsonl", sample_scores)
+    _write_or_verify_json(score_dir / "aggregate_scores.json", aggregates)
     summaries = _summarize_run(results, sample_scores)
-    baseline_path = (
-        project_root
-        / "data/eval/scores"
-        / "week3_v2_baseline_full_20260724_001__baseline_semantic_coding_v1"
-        / "sample_scores.jsonl"
+    baseline_results = _load_completed_run(
+        project_root / "data/eval/runs",
+        BASELINE_RUN_ID,
     )
-    baseline_scores = _load_results(baseline_path)
-    baseline_summary = _summarize_scores_only(baseline_scores)
-    baseline_by_scenario = {
-        row["scenario"]: row for row in baseline_summary
-    }
-    comparisons = []
-    for optimized in summaries:
-        baseline = baseline_by_scenario[optimized["scenario"]]
-        comparisons.append(
-            {
-                "scenario": optimized["scenario"],
-                "baseline_track": "baseline_semantic_coding_v1",
-                "optimized_prompt_version": optimized["prompt_version"],
-                "baseline_business_quality": baseline["business_quality"],
-                "optimized_business_quality": optimized["business_quality"],
-                "business_quality_delta": (
-                    optimized["business_quality"] - baseline["business_quality"]
-                ),
-                "baseline_json_compliance": baseline["json_compliance"],
-                "optimized_json_compliance": optimized["json_compliance"],
-                "baseline_schema_compliance": baseline["schema_compliance"],
-                "optimized_schema_compliance": optimized["schema_compliance"],
-                "optimized_mean_total_tokens": optimized["mean_total_tokens"],
-                "optimized_mean_latency_ms": optimized["mean_latency_ms"],
-                "optimized_p95_latency_ms": optimized["p95_latency_ms"],
-            }
-        )
+    comparisons = _build_runtime_comparisons(summaries, baseline_results)
     bad_cases = _build_bad_cases(results, sample_scores)
     payload = {
         "full_run_id": full_run_id,
         "optimized_summaries": summaries,
         "baseline_comparison": comparisons,
+        "business_metric_note": (
+            "baseline lexical coding and optimized structured JSON scoring "
+            "are reported separately and have no business-quality delta"
+        ),
         "bad_case_counts": _count_bad_cases(bad_cases),
     }
     comparison_dir = output_root / "comparisons"
-    _write_json(comparison_dir / "full_baseline_comparison_v1.json", payload)
-    _write_jsonl(output_root / "bad_cases" / "week4_bad_cases_v1.jsonl", bad_cases)
+    _write_json(
+        comparison_dir / f"full_baseline_comparison_{artifact_version}.json",
+        payload,
+    )
+    _write_jsonl(
+        output_root / "bad_cases" / f"week4_bad_cases_{artifact_version}.jsonl",
+        bad_cases,
+    )
     return payload
 
 
@@ -202,24 +196,84 @@ def _summarize_run(
                 "mean_total_tokens": statistics.fmean(token_values) if token_values else None,
                 "mean_latency_ms": statistics.fmean(latencies),
                 "p95_latency_ms": _percentile(latencies, 0.95),
+                "model_request_error_count": sum(
+                    isinstance(row.get("error"), str)
+                    and row["error"].startswith("model_request_error:")
+                    for row in scenario_results
+                ),
             }
         )
     return rows
 
 
-def _summarize_scores_only(scores: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _summarize_runtime(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
-    for score in scores:
-        grouped.setdefault(score["scenario"], []).append(score)
-    return [
-        {
-            "scenario": scenario,
-            "business_quality": _business_quality(scenario, rows),
-            "json_compliance": _mean(rows, "json_compliance"),
-            "schema_compliance": _mean(rows, "schema_pass"),
-        }
-        for scenario, rows in sorted(grouped.items())
-    ]
+    for result in results:
+        grouped.setdefault(result["scenario"], []).append(result)
+    summaries = []
+    for scenario, rows in sorted(grouped.items()):
+        tokens = [
+            row.get("token_usage", {}).get("total_tokens")
+            for row in rows
+            if isinstance(row.get("token_usage"), dict)
+            and isinstance(row["token_usage"].get("total_tokens"), int)
+        ]
+        latencies = [float(row["latency_ms"]) for row in rows]
+        summaries.append(
+            {
+                "scenario": scenario,
+                "json_compliance": statistics.fmean(
+                    float(row["json_valid"]) for row in rows
+                ),
+                "schema_compliance": statistics.fmean(
+                    float(row["schema_valid"]) for row in rows
+                ),
+                "mean_total_tokens": (
+                    statistics.fmean(tokens) if tokens else None
+                ),
+                "mean_latency_ms": statistics.fmean(latencies),
+                "p95_latency_ms": _percentile(latencies, 0.95),
+            }
+        )
+    return summaries
+
+
+def _build_runtime_comparisons(
+    optimized_summaries: list[dict[str, Any]],
+    baseline_results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """只比较同口径的格式与运行指标，业务评分轨道明确不可直接比较。"""
+    baseline_by_scenario = {
+        row["scenario"]: row for row in _summarize_runtime(baseline_results)
+    }
+    comparisons = []
+    for optimized in optimized_summaries:
+        baseline = baseline_by_scenario[optimized["scenario"]]
+        comparisons.append(
+            {
+                "scenario": optimized["scenario"],
+                "business_metrics_comparable": False,
+                "business_comparison_status": (
+                    "not_comparable_different_prediction_encodings"
+                ),
+                "baseline_business_track": "baseline_semantic_coding_v1",
+                "optimized_business_track": "structured_json_strict",
+                "baseline_run_id": BASELINE_RUN_ID,
+                "optimized_prompt_version": optimized["prompt_version"],
+                "baseline_json_compliance": baseline["json_compliance"],
+                "optimized_json_compliance": optimized["json_compliance"],
+                "baseline_schema_compliance": baseline["schema_compliance"],
+                "optimized_schema_compliance": optimized["schema_compliance"],
+                "baseline_mean_total_tokens": baseline["mean_total_tokens"],
+                "baseline_token_status": "PENDING_not_recorded",
+                "optimized_mean_total_tokens": optimized["mean_total_tokens"],
+                "baseline_mean_latency_ms": baseline["mean_latency_ms"],
+                "optimized_mean_latency_ms": optimized["mean_latency_ms"],
+                "baseline_p95_latency_ms": baseline["p95_latency_ms"],
+                "optimized_p95_latency_ms": optimized["p95_latency_ms"],
+            }
+        )
+    return comparisons
 
 
 def _business_quality(scenario: str, scores: list[dict[str, Any]]) -> float:
@@ -341,6 +395,58 @@ def _load_results(path: Path) -> list[dict[str, Any]]:
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+
+
+def _load_completed_run(runs_dir: Path, run_id: str) -> list[dict[str, Any]]:
+    run_dir = Path(runs_dir) / run_id
+    metadata = json.loads(
+        (run_dir / "metadata.json").read_text(encoding="utf-8")
+    )
+    if metadata.get("status") != "completed":
+        raise ValueError(f"run is not completed: {run_id}")
+    results = _load_results(run_dir / "results.jsonl")
+    request_errors = [
+        row
+        for row in results
+        if isinstance(row.get("error"), str)
+        and row["error"].startswith("model_request_error:")
+    ]
+    if request_errors:
+        raise ValueError(
+            f"run contains {len(request_errors)} model request errors: {run_id}"
+        )
+    if metadata.get("record_count") != len(results):
+        raise ValueError(f"run record count mismatch: {run_id}")
+    return results
+
+
+def _artifact_version(config: dict[str, Any]) -> str:
+    validation = config.get("validation")
+    version = validation.get("artifact_version") if isinstance(validation, dict) else None
+    if (
+        not isinstance(version, str)
+        or not version
+        or not version.replace("_", "").isalnum()
+    ):
+        raise ValueError("validation.artifact_version must be alphanumeric")
+    return version
+
+
+def _write_or_verify_json(path: Path, payload: Any) -> None:
+    if not path.exists():
+        _write_json(path, payload)
+        return
+    existing = json.loads(path.read_text(encoding="utf-8"))
+    if existing != payload:
+        raise ValueError(f"existing immutable JSON differs: {path}")
+
+
+def _write_or_verify_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    if not path.exists():
+        _write_jsonl(path, rows)
+        return
+    if _load_results(path) != rows:
+        raise ValueError(f"existing immutable JSONL differs: {path}")
 
 
 def _write_json(path: Path, payload: Any) -> None:

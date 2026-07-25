@@ -300,23 +300,46 @@ frozen-label execution plan.
   `localhost:8001`
 - 生成参数：temperature=0.1；top_p=0.9；repetition_penalty=1.05；
   max_tokens=1280
-- Pilot：`week4_pilot_standardized_v2_20260725_001`、
-  `week4_pilot_fewshot4_20260725_001`、
-  `week4_pilot_fewshot7_20260725_001`
+- 有效 Pilot：`week4_pilot_standardized_v2_20260725_001`、
+  `week4_pilot_fewshot4_v2_20260725_001`、
+  `week4_pilot_fewshot7_v2_20260725_001`
 - 示例：每场景固定 5 个正例和 2 个边界例；4-shot 使用 3+1，
   7-shot 使用 5+2；pilot 含 5 个不重叠样本
 - 选择权重：business 0.55；Schema 0.20；JSON 0.10；token 0.075；
   latency 0.075
-- 胜出版本：商品、售后、行程均为 `standardized_v2`，分数分别为
-  0.3450、0.5967、0.4025
-- Pilot 限制：行程 few-shot 候选在生成前返回 HTTP 400
+- 胜出版本：商品、售后、行程均为 `standardized_v2`，有效分数分别为
+  0.3280、0.5967、0.4775
+- Pilot 修复：旧 v1 行程候选因上下文超限返回 HTTP 400；v2 压缩重复
+  上下文后，4-shot/7-shot 各 15 条均完成且请求错误为 0
 - 全量运行：`week4_winners_full_20260725_001`
-- 全量指标：商品 0.1565/77.5%/75.5%；售后
-  0.2977/96.67%/96.67%；行程 0.0508/90.0%/87.0%
+- 全量结构化 JSON/Schema：商品 77.5%/75.5%；售后
+  96.67%/96.67%；行程 90.0%/87.0%
+- Baseline 比较：词法业务轨道与结构化业务轨道不可直接比较，不计算业务
+  差值；baseline token 未记录，状态为 `PENDING_not_recorded`
 - Bad case：分类 86；约束遗漏 100；字段/Schema 7；格式 67；
   严重等级 105
 - 状态：完成 450/450；样本哈希
   `3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c`
+
+## EXP-20260725-015
+
+- 日期：2026-07-25
+- 任务：修复 Week 4 行程 Few-Shot 有效性和 baseline 比较口径
+- Git 状态：`dev` 上未提交修复工作树
+- 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`、vLLM
+- 数据集：不可变 `week3_evaluation_v2`
+- 生成参数：temperature=0.1；top_p=0.9；repetition_penalty=1.05；
+  max_tokens=1280
+- 根因：v1 的 4-shot 请求为 3011+1280=4291 tokens，7-shot 为
+  4369+1280=5649 tokens，超过模型 4096-token 上限
+- 修复：保留 4/7 个真实示例及核心人工金标字段，删除示例中重复长行程与
+  完整 Schema 文本；最终输出仍按现有 Schema 校验
+- 实测：4-shot v2、7-shot v2 均完成 15/15，
+  `model_request_error_count=0`
+- 结果：新增候选未超过 `standardized_v2`；三个场景继续使用控制组，
+  不称为新 Prompt 优化胜出
+- 比较口径：删除跨轨道业务差值；同口径记录 JSON、Schema、平均/P95
+  延迟；baseline token 明确为 `PENDING_not_recorded`
 
 ## INFRA-20260725-014
 

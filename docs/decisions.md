@@ -83,7 +83,10 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   token 和延迟加权分数选择每场景胜出版本，再只对胜出版本执行 v2 全量跑测。
 - **原因**：在不修改金标、不猜标签、不扩展候选搜索的前提下满足导师要求。
 - **影响**：`standardized_v2` 只是本次三个候选中的场景胜出版本。
-  Week 3 产物保持不可变；跨评分轨道差异只作描述，不作纯 Prompt 因果解释。
+  旧 Few-Shot v1 行程请求因上下文超限而失效；版本化 v2 在不改变模型和
+  生成参数的前提下压缩重复上下文并完成有效重跑。新增 Few-Shot 候选仍未
+  超过控制组，因此不称为新的“优化后最优 Prompt”。Week 3 产物保持不可变；
+  baseline 词法编码与结构化严格评分不可直接比较，不计算业务差值。
 
 ## ADR-011：Milvus 和 CLIP 与业务推理解耦
 

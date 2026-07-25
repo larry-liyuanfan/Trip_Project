@@ -15,7 +15,7 @@ from src.evaluation.prompting import render_standard_prompt
 from src.evaluation.scenarios import SCENARIOS
 
 
-WEEK4_PROMPT_VERSIONS = {"fewshot_4_v1": 4, "fewshot_7_v1": 7}
+WEEK4_PROMPT_VERSIONS = {"fewshot_4_v2": 4, "fewshot_7_v2": 7}
 
 
 class Week4PromptError(ValueError):
@@ -82,9 +82,9 @@ def example_ids_for_variant(
     settings = selection["scenarios"][scenario]
     positives = settings["positive_example_ids"]
     boundaries = settings["boundary_example_ids"]
-    if prompt_version == "fewshot_4_v1":
+    if prompt_version == "fewshot_4_v2":
         return positives[:3] + boundaries[:1]
-    if prompt_version == "fewshot_7_v1":
+    if prompt_version == "fewshot_7_v2":
         return positives + boundaries
     raise Week4PromptError(f"unsupported few-shot prompt version: {prompt_version}")
 
@@ -105,7 +105,7 @@ def render_week4_request(
         root,
         scenario,
         input_context,
-        version="week4_optimized_v1",
+        version="week4_optimized_v2",
     )
     example_ids = example_ids_for_variant(selection, scenario, prompt_version)
     example_records = [records_by_id[sample_id] for sample_id in example_ids]
@@ -133,9 +133,8 @@ def render_week4_request(
                     "examples": [
                         {
                             "example_index": index,
-                            "output": annotation_to_output(
-                                scenario,
-                                record["annotation"],
+                            "output": _demonstration_output(
+                                scenario, record["annotation"]
                             ),
                         }
                         for index, record in enumerate(example_records, start=1)
@@ -157,6 +156,25 @@ def render_week4_request(
     )
     rendered["example_collage_sha256"] = collage_sha256
     return rendered
+
+
+def _demonstration_output(
+    scenario: str,
+    annotation: dict[str, Any],
+) -> dict[str, Any]:
+    """行程示例只保留人工金标字段，避免重复长行程挤占固定上下文。"""
+    output = annotation_to_output(scenario, annotation)
+    if scenario != "itinerary_planning":
+        return output
+    return {
+        field: output[field]
+        for field in (
+            "style_preferences",
+            "hard_constraints",
+            "soft_constraints",
+            "required_itinerary_elements",
+        )
+    }
 
 
 def annotation_to_output(scenario: str, annotation: dict[str, Any]) -> dict[str, Any]:

@@ -14,8 +14,8 @@ runtime:
 
 prompt_candidates:
   - standardized_v2
-  - fewshot_4_v1
-  - fewshot_7_v1
+  - fewshot_4_v2
+  - fewshot_7_v2
 
 selection_weights:
   business_quality: 0.55
@@ -25,10 +25,11 @@ selection_weights:
   latency_efficiency: 0.075
 
 validation:
+  artifact_version: v2
   pilot_run_ids:
     - week4_pilot_standardized_v2_20260725_001
-    - week4_pilot_fewshot4_20260725_001
-    - week4_pilot_fewshot7_20260725_001
+    - week4_pilot_fewshot4_v2_20260725_001
+    - week4_pilot_fewshot7_v2_20260725_001
   full_run_id: week4_winners_full_20260725_001
   expected_full_sample_sha256: 3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c
   expected_winners:

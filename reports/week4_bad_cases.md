@@ -18,5 +18,5 @@ Schema 错误、JSON 格式错误、严重等级错误和约束遗漏。原始�
 典型格式错误是字符串截断；典型 Schema 错误包括数组元素重复和
 `price_range` 超出枚举。上述为类别计数，同一个样本可以进入多个类别。
 机器可读明细位于忽略目录
-`outputs/week4/bad_cases/week4_bad_cases_v1.jsonl`，统一只读验证器已核对
+`outputs/week4/bad_cases/week4_bad_cases_v2.jsonl`，统一只读验证器已核对
 269 条 bad case 与全量比较产物中的分类计数一致。

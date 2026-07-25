@@ -146,15 +146,20 @@ def run_week4_prompt_evaluation(
             model_config=metadata["model_config"],
         )
 
+    request_errors: list[dict[str, Any]] = []
     with ImmutableRunWriter(output_root / "runs", run_id, metadata) as writer:
         if metadata["concurrency"] == 1:
             result_iterator = map(execute, selected)
             for result in result_iterator:
                 writer.write(result)
+                _collect_model_request_error(result, request_errors)
         else:
             with ThreadPoolExecutor(max_workers=metadata["concurrency"]) as executor:
                 for result in executor.map(execute, selected):
                     writer.write(result)
+                    _collect_model_request_error(result, request_errors)
+        writer.metadata["model_request_error_count"] = len(request_errors)
+        _ensure_no_model_request_errors(request_errors)
     return json.loads(
         (output_root / "runs" / run_id / "metadata.json").read_text(encoding="utf-8")
     )
@@ -190,7 +195,11 @@ def _execute_record(
             json=payload,
             timeout=runtime["timeout_seconds"],
         )
-        response.raise_for_status()
+        if not response.ok:
+            detail = response.text.strip()[:1000]
+            raise Week4RunError(
+                f"HTTP {response.status_code}: {detail or response.reason}"
+            )
         response_payload = response.json()
         raw_output = response_payload["choices"][0]["message"]["content"]
         if not isinstance(raw_output, str):
@@ -285,6 +294,35 @@ def _empty_usage() -> dict[str, None]:
     }
 
 
+def _collect_model_request_error(
+    result: dict[str, Any],
+    errors: list[dict[str, Any]],
+) -> None:
+    error = result.get("error")
+    if isinstance(error, str) and error.startswith("model_request_error:"):
+        errors.append(
+            {
+                "sample_id": result.get("sample_id"),
+                "scenario": result.get("scenario"),
+                "error": error,
+            }
+        )
+
+
+def _ensure_no_model_request_errors(errors: list[dict[str, Any]]) -> None:
+    """任何模型请求失败都会使 pilot/full run 失败，不能伪装成有效候选。"""
+    if not errors:
+        return
+    scenario_counts: dict[str, int] = {}
+    for row in errors:
+        scenario = str(row.get("scenario"))
+        scenario_counts[scenario] = scenario_counts.get(scenario, 0) + 1
+    raise Week4RunError(
+        "model requests failed; run is ineligible: "
+        f"count={len(errors)}, scenarios={dict(sorted(scenario_counts.items()))}"
+    )
+
+
 def _artifact_hashes(
     root: Path,
     week3: dict[str, Any],
@@ -307,7 +345,7 @@ def _artifact_hashes(
             / "configs"
             / "evaluation"
             / "prompts"
-            / ("standardized_v2" if version == "standardized_v2" else "week4_optimized_v1")
+            / ("standardized_v2" if version == "standardized_v2" else "week4_optimized_v2")
         )
         paths.extend(sorted(directory.glob("*.yaml")))
     return {

@@ -28,7 +28,7 @@ class Week4DeliveryValidationTest(unittest.TestCase):
             pilot_sample_ids = []
             for scenario, _ in scenarios:
                 pilot_sample_ids.extend(f"{scenario}-pilot-{index}" for index in range(5))
-            pilot_versions = ("standardized_v2", "fewshot_4_v1", "fewshot_7_v1")
+            pilot_versions = ("standardized_v2", "fewshot_4_v2", "fewshot_7_v2")
             for run_id, version in zip(pilot_ids, pilot_versions):
                 rows = [
                     self._record(run_id, sample_id, sample_id.rsplit("-pilot-", 1)[0], version)
@@ -71,20 +71,23 @@ class Week4DeliveryValidationTest(unittest.TestCase):
             comparisons = output / "comparisons"
             comparisons.mkdir(parents=True)
             self._write_json(
-                comparisons / "pilot_comparison_v1.json",
+                comparisons / "pilot_comparison_v2.json",
                 {
                     "selection_scope": "best_among_tested_candidates",
                     "pilot_run_ids": pilot_ids,
                     "winners": winners,
-                    "candidate_summaries": [{} for _ in range(9)],
+                    "candidate_summaries": [
+                        {"model_request_error_count": 0}
+                        for _ in range(9)
+                    ],
                 },
             )
             self._write_json(
-                comparisons / "selected_prompts_v1.json",
+                comparisons / "selected_prompts_v2.json",
                 winners,
             )
             self._write_json(
-                comparisons / "full_baseline_comparison_v1.json",
+                comparisons / "full_baseline_comparison_v2.json",
                 {
                     "full_run_id": full_id,
                     "optimized_summaries": [
@@ -92,6 +95,18 @@ class Week4DeliveryValidationTest(unittest.TestCase):
                         for scenario, count in scenarios
                     ],
                     "bad_case_counts": {"classification_error": 1},
+                    "baseline_comparison": [
+                        {
+                            "scenario": scenario,
+                            "business_metrics_comparable": False,
+                            "business_comparison_status": (
+                                "not_comparable_different_prediction_encodings"
+                            ),
+                            "baseline_mean_total_tokens": None,
+                            "baseline_token_status": "PENDING_not_recorded",
+                        }
+                        for scenario, _ in scenarios
+                    ],
                 },
             )
             self._write_jsonl(
@@ -99,7 +114,7 @@ class Week4DeliveryValidationTest(unittest.TestCase):
                 [{"sample_id": row["sample_id"]} for row in full_rows],
             )
             self._write_jsonl(
-                output / "bad_cases/week4_bad_cases_v1.jsonl",
+                output / "bad_cases/week4_bad_cases_v2.jsonl",
                 [
                     {
                         "sample_id": full_rows[0]["sample_id"],
@@ -110,6 +125,7 @@ class Week4DeliveryValidationTest(unittest.TestCase):
             config = {
                 "paths": {"output_dir": "outputs/week4"},
                 "validation": {
+                    "artifact_version": "v2",
                     "pilot_run_ids": pilot_ids,
                     "full_run_id": full_id,
                     "expected_full_sample_sha256": full_hash,
@@ -123,6 +139,37 @@ class Week4DeliveryValidationTest(unittest.TestCase):
             self.assertEqual(summary["full_record_count"], 450)
             self.assertEqual(summary["score_record_count"], 450)
             self.assertEqual(summary["bad_case_record_count"], 1)
+            self.assertEqual(summary["model_request_error_count"], 0)
+            self.assertEqual(
+                summary["business_comparison_status"],
+                "not_comparable_different_prediction_encodings",
+            )
+
+            from src.evaluation.week4_validation import Week4ValidationError
+
+            failed_rows = [
+                self._record(
+                    pilot_ids[1],
+                    sample_id,
+                    sample_id.rsplit("-pilot-", 1)[0],
+                    "fewshot_4_v2",
+                )
+                for sample_id in pilot_sample_ids
+            ]
+            failed_rows[0]["error"] = "model_request_error: HTTP 400"
+            failed_rows[0]["raw_output"] = None
+            failed_rows[0]["parsed_output"] = None
+            failed_rows[0]["json_valid"] = False
+            failed_rows[0]["schema_valid"] = False
+            self._write_jsonl(
+                output / "runs" / pilot_ids[1] / "results.jsonl",
+                failed_rows,
+            )
+            with self.assertRaisesRegex(
+                Week4ValidationError,
+                "model request errors",
+            ):
+                validate_week4_delivery(root, config)
 
     @staticmethod
     def _record(run_id, sample_id, scenario, prompt_version):

@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/evaluation_week4.yaml")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--stage", choices=("pilot", "full"), required=True)
-    parser.add_argument("--variant", choices=("standardized_v2", "fewshot_4_v1", "fewshot_7_v1"))
+    parser.add_argument("--variant", choices=("standardized_v2", "fewshot_4_v2", "fewshot_7_v2"))
     parser.add_argument("--product-variant")
     parser.add_argument("--after-sales-variant")
     parser.add_argument("--itinerary-variant")
