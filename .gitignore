@@ -34,6 +34,8 @@ data/eval/quarantine/
 data/eval/runs/
 data/eval/scores/
 data/eval/registry/
+data/eval/week4/
+docker/milvus/volumes/
 data/*.zip
 data/*.tar
 data/*.tar.gz

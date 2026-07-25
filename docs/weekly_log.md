@@ -173,3 +173,24 @@ as the current validated dataset or accepted baseline.
 - Moved the earlier gold-leaking semantic score and incompatible cross-track comparison unchanged into ignored quarantine with a hash disposition record.
 - Final verification passed 226 Python tests, standalone v2 validation, both run-bound validators, semantic score integrity checks, and Git diff/boundary checks.
 - Week 3 status is `READY / COMPLETED`; the deterministic lexical method and its limitations are documented without attributing cross-track differences solely to Prompt behavior.
+
+## 2026-07-25: Week 4 Prompt optimization and Milvus
+
+- Preserved all Week 3 artifacts and selected fixed 5-positive/2-boundary
+  examples per scenario from v2 gold; built 4-shot (3+1) and 7-shot (5+2).
+- Completed three 15-row pilots. `standardized_v2` won all scenarios among
+  tested candidates, then completed the winner-only full run
+  `week4_winners_full_20260725_001` over 450/450 samples.
+- Full business/JSON/Schema results: product 0.1565/77.5%/75.5%;
+  after-sales 0.2977/96.67%/96.67%; itinerary 0.0508/90.0%/87.0%.
+- Exported real bad cases: classification 86, field/Schema 7, format 67,
+  severity 105, and constraint omission 100; categories may overlap.
+- Added bounded fence removal, JSON parsing, and existing-Schema validation
+  without field repair, enum rewriting, label guessing, or model retry.
+- Deployed healthy Milvus 2.6.20 standalone with etcd and MinIO; created the
+  fixed ten-field collection, HNSW/COSINE index, and eight scalar indexes.
+- Encoded 20 real Yelp images with CLIP on CUDA after stopping vLLM. CRUD
+  passed; HNSW build was 5.6621 s, ten-query mean/P95 latency was
+  7.7982/10.7236 ms, and Recall@5 was 1.0000.
+- Verification: 235 Python tests passed, Week 3 v2 read-only validation passed,
+  Compose configuration and health checks passed, and no Week 3 file changed.

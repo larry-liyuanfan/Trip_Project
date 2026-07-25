@@ -145,3 +145,27 @@ manifest.
 - Baseline JSON/Schema compliance remains 0%/0% in all scenarios. The lexical and strict structured tracks are shown separately and are not used for a causal Prompt-effect claim.
 - Verification: 226/226 unit tests passed; standalone v2 validation and both run-bound validators returned `status=ok`; the 450-row semantic score passed strict JSON, support, run-ID, codebook-hash, and scenario-count checks.
 - Status: `READY / COMPLETED`.
+
+## Week 4 Prompt pilot and Milvus standalone on 2026-07-25
+
+- Dataset: immutable `week3_evaluation_v2`; five positive and two boundary
+  examples selected per scenario, with a disjoint fixed five-row pilot.
+- Model/backend: `Qwen/Qwen2-VL-2B-Instruct` through vLLM; temperature 0.1,
+  top-p 0.9, repetition penalty 1.05, and maximum output 1280 tokens.
+- Candidates: `standardized_v2`, `fewshot_4_v1`, and `fewshot_7_v1`.
+- Pilot winner: `standardized_v2` for product, after-sales, and itinerary;
+  selection scores were 0.3450, 0.5967, and 0.4025 respectively.
+- Candidate limitation: itinerary 4-shot and 7-shot requests were rejected by
+  vLLM with HTTP 400 before generation; the failures remain in the run records.
+- Full winner run: `week4_winners_full_20260725_001`, completed 450/450 with
+  Week 3 v2 sample hash `3e900e64...ad648c`.
+- Full winner business/JSON/Schema: product 0.1565/77.5%/75.5%;
+  after-sales 0.2977/96.67%/96.67%; itinerary 0.0508/90.0%/87.0%.
+- Milvus: official standalone Compose with Milvus 2.6.20, PyMilvus 2.6.16,
+  etcd 3.5.18, and fixed MinIO. All three containers reached healthy state.
+- Collection verification: fixed ten-field Schema created; HNSW/COSINE index
+  finished with `M=16`, `efConstruction=128`; eight scalar indexes created.
+- Real CLIP/CRUD performance: 20 CUDA-generated vectors; 19-row batch plus
+  one-row insert, filtered search, one-row delete, and zero post-delete hits
+  passed. HNSW build 5.6621 s; ten-query mean/P95 latency 7.7982/10.7236 ms;
+  Recall@5 1.0000.

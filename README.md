@@ -321,3 +321,38 @@ Framework metric groups include:
 - Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
 - Week 3: `READY / COMPLETED`. Data, human gold, real baseline, deterministic baseline semantic scoring, standardized v2, and reporting are complete and traceable.
+
+### Week 4: Prompt Optimization and Milvus
+
+Week 4 keeps every Week 3 artifact immutable. The Prompt comparison selects
+fixed examples from existing v2 gold, tests `standardized_v2`, 4-shot, and
+7-shot on a fixed pilot, and runs only each scenario winner on the full v2 set.
+The fallback validator only removes an optional Markdown fence, parses JSON,
+and applies the existing scenario Schema; it never repairs model content.
+
+```bash
+python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <run-id> --stage pilot --product-variant <variant> --after-sales-variant <variant> --itinerary-variant <variant>
+python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --pilot-run-id <run-id> --pilot-run-id <run-id> --pilot-run-id <run-id>
+python scripts/validate_week4_output.py --scenario image_product_search --raw-output-file <raw-output-file>
+```
+
+The Milvus client has its own dependency group and does not add dependencies to
+the API, data, or vLLM environments. The standalone Compose includes fixed
+Milvus, etcd, and MinIO versions, health checks, persistence, local ports, and
+resource limits.
+
+```bash
+python -m pip install -r requirements-milvus.txt
+docker compose -f docker/milvus/docker-compose.yml config
+docker compose -f docker/milvus/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml stop vllm
+python scripts/build_week4_clip_vectors.py --config configs/milvus_week4.yaml
+python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
+```
+
+Do not run vLLM and CLIP together on the local 8 GB GPU. Generated Week 4
+runs, vectors, performance outputs, and Milvus volumes remain ignored. See
+`reports/week4_prompt_optimization_report.md`,
+`reports/week4_bad_cases.md`,
+`docs/milvus_collection_design.md`, and
+`reports/week4_milvus_deployment_performance_report.md`.

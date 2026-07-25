@@ -1,0 +1,25 @@
+dataset_version: week3_evaluation_v2
+
+paths:
+  week3_config: configs/evaluation_week3_v2.yaml
+  selection_config: configs/evaluation/week4_prompt_selection_v1.json
+  output_dir: outputs/week4
+
+runtime:
+  model_config_path: configs/model_qwen2_vl.yaml
+  inference_config_path: configs/inference_week3_v2.yaml
+  live_base_url: http://localhost:8001
+  timeout_seconds: 180
+  full_concurrency: 4
+
+prompt_candidates:
+  - standardized_v2
+  - fewshot_4_v1
+  - fewshot_7_v1
+
+selection_weights:
+  business_quality: 0.55
+  schema_compliance: 0.20
+  json_compliance: 0.10
+  token_efficiency: 0.075
+  latency_efficiency: 0.075

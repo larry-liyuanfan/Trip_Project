@@ -74,6 +74,22 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **Reason**: The mentor requires baseline business metrics, while the minimal Prompt intentionally produces unconstrained natural language. A deterministic lexical track measures supported semantics without changing the Prompt, rerunning inference, adding manual output coding, or treating JSON failure as semantic failure.
 - **Consequence**: Store the lexical metrics as an independent scoring track with explicit support counts and codebook SHA-256. Preserve baseline JSON/Schema rates, raw output, latency, and run provenance. Do not compare this track to the standardized strict-structured track as if their difference were a pure Prompt effect.
 
+## ADR-010: Select Week 4 Prompts Only from Fixed Tested Candidates
+
+- **Date**: 2026-07-25
+- **Status**: Accepted
+- **Decision**: Use fixed v2-gold examples and a fixed disjoint pilot to compare `standardized_v2`, 4-shot, and 7-shot. Select by the checked-in weighted business, JSON, Schema, token, and latency score, then run only the per-scenario winner on the full v2 set.
+- **Reason**: This meets the mentor's bounded Prompt-optimization requirement without changing gold, inventing labels, or expanding the candidate search.
+- **Consequence**: `standardized_v2` is the winner for all three scenarios only among these tested candidates. Week 3 artifacts stay immutable, and cross-track baseline differences are descriptive rather than causal.
+
+## ADR-011: Keep Milvus and CLIP Isolated from Business Inference
+
+- **Date**: 2026-07-25
+- **Status**: Accepted
+- **Decision**: Run fixed-version Milvus standalone with a separate PyMilvus dependency group and store normalized 512-dimensional `openai/clip-vit-base-patch32` image vectors. Keep Qwen2-VL on its existing vLLM inference interface and never treat it as an embedding endpoint.
+- **Reason**: The mentor requires real vector CRUD without changing the existing API/data/vLLM dependency groups or exceeding the local 8 GB GPU boundary.
+- **Consequence**: vLLM is stopped before CLIP runs; generated vectors and volumes stay ignored. Retrieval supports only the fixed scalar-filter whitelist and HNSW/COSINE parameters from configuration.
+
 ## Decision Template
 
 ```markdown

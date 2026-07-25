@@ -205,6 +205,31 @@ created.
 All mentor-required Week 3 baseline metrics now have persisted values and
 support counts. No numeric semantic score is derived from JSON failure.
 
+## Week 4 Delivery: Prompt Optimization and Milvus
+
+Status: `READY / COMPLETED` on `dev`. No `stg` promotion or tag is part of
+this delivery.
+
+### Completion Checklist
+
+- [x] Preserve Week 3 manifests, gold, baseline, outputs, Prompts, Schemas, and scores.
+- [x] Select fixed 5-positive/2-boundary examples for all three scenarios.
+- [x] Build and test `standardized_v2`, 4-shot, and 7-shot fixed pilots.
+- [x] Select the best candidate per scenario using business, format, tokens, and latency.
+- [x] Run only the three winners on all 450 Week 3 v2 samples.
+- [x] Export raw-output traceability, hashes, token use, latency, scores, and bad cases.
+- [x] Add the non-repairing JSON/Schema fallback and focused tests.
+- [x] Deploy healthy fixed-version Milvus standalone with persistence and limits.
+- [x] Implement and test batch insert, single insert, filtered search, delete, and index build.
+- [x] Generate 20 real CLIP vectors and complete CRUD and performance measurement.
+- [x] Pass 235 unit tests, Week 3 v2 validation, Compose validation, and diff checks.
+
+Measured Prompt and Milvus results are recorded in
+`reports/week4_prompt_optimization_report.md`,
+`reports/week4_bad_cases.md`, and
+`reports/week4_milvus_deployment_performance_report.md`. Generated runs,
+vectors, and database volumes remain ignored.
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`
