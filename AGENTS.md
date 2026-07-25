@@ -102,6 +102,8 @@ Prefer configuration and structured parsers over hard-coded values or ad hoc str
 
 Add short comments for non-obvious logic, data assumptions, parsing and filtering rules, alignment quality, resource bounds, and error handling. Avoid comments that merely restate the code.
 
+Prefer concise Simplified Chinese for new business-logic comments and explanatory notes. Keep code identifiers, public API names, protocol fields, library terms, commands, and existing English conventions unchanged when translation would reduce clarity or compatibility.
+
 Keep changes scoped to the request. Preserve existing user changes in a dirty worktree and do not reformat, rewrite, delete, or revert unrelated files. Do not add abstractions or dependencies without a concrete need.
 
 ## Testing and Verification
@@ -139,6 +141,8 @@ Semantic denoising is optional. When run, record model, threshold, batch limits,
 ## Documentation and Experiments
 
 Update documentation when behavior, commands, schemas, configuration, or accepted decisions change. Keep `README.md` focused on what can be run now, and keep historical evidence in weekly and experiment records.
+
+Use Simplified Chinese as the primary language for mentor-facing reports, requirement and decision explanations, weekly logs, delivery records, experiment narratives, and human-readable run summaries. Tables, metric names, paths, commands, configuration keys, Schema fields, model names, and machine-readable log values may remain in English. Do not translate stable interfaces or rewrite unrelated historical records solely to change their language.
 
 Record model-serving, prompt, dataset, retrieval, or evaluation changes in the appropriate experiment files. Each experiment should identify the date, Git commit, model and backend, configuration, dataset version, command, metrics, failures, and next action. Use only observed results.
 
