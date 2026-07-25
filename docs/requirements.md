@@ -178,3 +178,54 @@ Scenario prompts cover structured product labels; after-sales anomaly localizati
 - `NOT READY`: a core flow fails, results are untraceable, evaluation leakage is possible, baseline and standardized prompts are mixed, or Git contains prohibited data.
 
 Local GPU capacity may limit full inference, and public after-sales evidence may require licensing review. Existing annotation gaps may limit semantic metric coverage, but they do not create a new Week 3 labeling task. Any cloud or third-party runtime must be approved and documented before use. Phase completion requires a Project Control checkpoint; code defects found by Review return to Execution rather than being silently repaired during reporting.
+
+## Week 4: Prompt Optimization and Milvus Vector Storage
+
+### Goals
+
+- Build scenario-specific few-shot examples from the completed Week 3 v2 gold data without adding a new annotation task or dataset version.
+- Compare the existing `standardized_v2` zero-shot prompt with 4-shot and 7-shot variants, then run the selected prompt for each scenario on the full Week 3 v2 evaluation set.
+- Measure business metrics, JSON and Schema compliance, token use, and inference latency against the immutable Week 3 baseline.
+- Export evidence-based bad cases and provide a bounded JSON parsing and Schema-validation fallback.
+- Deploy Milvus standalone with Docker Compose and design the `ota_business_image_vector` collection for filtered OTA image retrieval.
+- Provide tested insert, search, delete, and index-management operations plus a small, reproducible performance baseline.
+
+### Prompt Optimization Requirements
+
+- Keep all Week 3 manifests, annotations, prompts, Schemas, runs, and score artifacts immutable.
+- Continue inference with the repository's verified `Qwen/Qwen2-VL-2B-Instruct` vLLM configuration and existing generation settings. Do not switch to or download Qwen3-VL for this work.
+- Select five representative positive examples and two boundary or negative examples per scenario from existing Week 3 v2 gold. Use three positives plus one boundary example for 4-shot and all seven examples for 7-shot.
+- Compare `standardized_v2`, 4-shot, and 7-shot on a fixed pilot. Select each scenario's best tested variant using business quality, JSON and Schema compliance, token use, and latency, then run only that winner on the full v2 evaluation set.
+- Prompt instructions may use concise field checks, `observed_evidence`, and `constraint_check`, but must not request or persist long-form private reasoning.
+- Use a documented, reproducible metric interpretation for baseline and optimized outputs. Preserve the existing Week 3 scores and store Week 4 runs and comparisons separately.
+- The selected prompt is best only among the tested candidates. Reports must not claim global optimality.
+
+The format fallback may remove an optional Markdown code fence, parse JSON, and validate the existing scenario Schema. It must preserve the raw output and return explicit errors. It must not invent fields, change enum values, infer missing labels, or call the model again.
+
+### Milvus Requirements
+
+- Use a pinned stable Milvus standalone Docker Compose deployment with etcd, MinIO, health checks, port mappings, resource bounds, and persistent storage.
+- Keep PyMilvus in a separate dependency file so the API, data, and vLLM dependency groups remain unchanged.
+- Define `ota_business_image_vector` with an auto-generated `vector_id`, `business_id`, `image_id`, `multimodal_vector`, `business_category`, `city`, `star_rating`, `price_range`, `image_type`, and `embedding_model`.
+- The current Qwen2-VL vLLM endpoint remains the business inference model and is not treated as an embedding endpoint. Reuse the verified `openai/clip-vit-base-patch32` encoder and its actual 512-dimensional normalized vectors for the prototype.
+- Use `COSINE` distance with a configurable HNSW index. Keep `M`, `efConstruction`, and query `ef` in configuration, and add scalar indexes for filtered fields.
+- Provide five core operations: batch insert, single insert, vector search with allow-listed scalar filters, deletion, and index construction.
+- Validate the deployment with a bounded set of real OTA image vectors that can run on the current machine. Record actual vector count, index build time, mean and P95 search latency, Recall@K, parameters, and environment. No production threshold or capability may be claimed unless it was specified and measured.
+- Do not run local vLLM and CLIP GPU inference concurrently on the current 8 GB GPU.
+
+### Deliverables
+
+- Three selected scenario prompt templates and their versioned few-shot examples.
+- Prompt optimization comparison report and bad-case analysis.
+- JSON parsing and Schema-validation fallback script.
+- Milvus Docker Compose assets and a multimodal collection design document.
+- Vector operation SDK, unit tests, and real connectivity and CRUD evidence.
+- Milvus deployment and performance validation report.
+- Accurate README, weekly delivery, weekly log, and experiment updates.
+
+### Non-Goals and Delivery Rules
+
+- Do not add manual annotation, training, fine-tuning, a Web UI, new API routes, complex hybrid retrieval, cloud deployment, production monitoring, or future-week plans.
+- Do not commit raw data, model files, generated vectors, run outputs, Milvus volumes, secrets, personal configuration, or Chat prompts.
+- Execution proceeds end to end without phase approval gates unless a rule conflict, immutable-artifact overwrite, destructive operation, or new annotation requirement is discovered.
+- Review and Report performs one consolidated review. It may correct evidence documents after its read-only review, but code defects are reported rather than silently refactored.
