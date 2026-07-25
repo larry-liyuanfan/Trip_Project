@@ -205,30 +205,43 @@ created.
 All mentor-required Week 3 baseline metrics now have persisted values and
 support counts. No numeric semantic score is derived from JSON failure.
 
-## Week 4 Delivery: Prompt Optimization and Milvus
+## Week 4 交付：Prompt 优化与 Milvus
 
-Status: `READY / COMPLETED` on `dev`. No `stg` promotion or tag is part of
-this delivery.
+状态：`READY / COMPLETED`，交付位于 `dev`。不进入 `stg`，不打标签。
 
-### Completion Checklist
+### 完成清单
 
-- [x] Preserve Week 3 manifests, gold, baseline, outputs, Prompts, Schemas, and scores.
-- [x] Select fixed 5-positive/2-boundary examples for all three scenarios.
-- [x] Build and test `standardized_v2`, 4-shot, and 7-shot fixed pilots.
-- [x] Select the best candidate per scenario using business, format, tokens, and latency.
-- [x] Run only the three winners on all 450 Week 3 v2 samples.
-- [x] Export raw-output traceability, hashes, token use, latency, scores, and bad cases.
-- [x] Add the non-repairing JSON/Schema fallback and focused tests.
-- [x] Deploy healthy fixed-version Milvus standalone with persistence and limits.
-- [x] Implement and test batch insert, single insert, filtered search, delete, and index build.
-- [x] Generate 20 real CLIP vectors and complete CRUD and performance measurement.
-- [x] Pass 235 unit tests, Week 3 v2 validation, Compose validation, and diff checks.
+- [x] 保持 Week 3 manifest、金标、baseline、输出、Prompt、Schema 和评分不变。
+- [x] 三个场景各固定选择 5 个正例和 2 个边界例。
+- [x] 构建并实测 `standardized_v2`、4-shot、7-shot pilot。
+- [x] 使用业务质量、格式、token 和延迟选择每场景胜出版本。
+- [x] 只对三个胜出版本执行 450 条 Week 3 v2 全量跑测。
+- [x] 保存原始输出、哈希、token、延迟、评分和 bad case。
+- [x] 提供不修复内容的 JSON/Schema 格式兜底和定向测试。
+- [x] 部署带持久化、健康检查和资源限制的固定版本 Milvus standalone。
+- [x] 实现并验证批量入库、单条新增、过滤检索、删除和索引构建。
+- [x] 生成 20 条真实 CLIP 向量并完成 CRUD 与性能测量。
+- [x] 移除跟踪文件中的明文凭据，提交脱敏环境模板并完成本地凭据轮换。
+- [x] 修复 LF/CRLF 运行绑定问题，新增 Week 4 统一只读证据验证。
+- [x] 通过 241 个单元测试和全部交付验证。
 
-Measured Prompt and Milvus results are recorded in
+实测 Prompt 和 Milvus 结果记录在
 `reports/week4_prompt_optimization_report.md`,
-`reports/week4_bad_cases.md`, and
-`reports/week4_milvus_deployment_performance_report.md`. Generated runs,
-vectors, and database volumes remain ignored.
+`reports/week4_bad_cases.md` 和
+`reports/week4_milvus_deployment_performance_report.md`。生成的运行、
+向量和数据库 volumes 均保持忽略。
+
+### 修复后验证证据
+
+- `python -m unittest discover -s tests -v`：241/241 通过。
+- Week 3 v2 数据验证和 baseline/standardized 两个 run-bound 验证均为
+  `status=ok`，tested_count 为 200/150/100。
+- `python scripts/validate_week4_delivery.py`：3 个 pilot 共 45 条、全量
+  450 条、score 450 条和 bad case 269 条全部通过一致性校验。
+- Compose 脱敏展开通过；凭据轮换后 etcd、MinIO、Milvus 均 healthy，
+  19 条逻辑可见向量保持可查询。
+- 基准脚本会在既有输出或非空集合上写入前失败，并以 Milvus `count(*)`
+  记录插入和删除后的真实可见行数。
 
 ## Promotion Rule
 

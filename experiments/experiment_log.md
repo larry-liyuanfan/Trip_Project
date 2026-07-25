@@ -292,34 +292,51 @@ frozen-label execution plan.
 
 ## EXP-20260725-013
 
-- date: 2026-07-25
-- git_baseline: `77b97b8` on `dev`
-- task_type: Week 4 fixed Prompt pilot and winner selection
-- dataset_version: `week3_evaluation_v2`
-- model_name: `Qwen/Qwen2-VL-2B-Instruct`
-- inference_backend: vLLM OpenAI-compatible HTTP on `localhost:8001`
-- generation: temperature=0.1; top_p=0.9; repetition_penalty=1.05; max_tokens=1280
-- pilot_runs: `week4_pilot_standardized_v2_20260725_001`, `week4_pilot_fewshot4_20260725_001`, `week4_pilot_fewshot7_20260725_001`
-- example_design: per scenario, fixed five positive plus two boundary examples; 4-shot uses 3+1 and 7-shot uses 5+2; pilot has five disjoint rows
-- selection_weights: business 0.55; Schema 0.20; JSON 0.10; tokens 0.075; latency 0.075
-- winners: product `standardized_v2` score 0.3450; after-sales `standardized_v2` score 0.5967; itinerary `standardized_v2` score 0.4025
-- pilot_limitation: itinerary few-shot candidates returned HTTP 400 before generation
-- full_run: `week4_winners_full_20260725_001`
-- full_metrics: product business/JSON/Schema 0.1565/77.5%/75.5%; after-sales 0.2977/96.67%/96.67%; itinerary 0.0508/90.0%/87.0%
-- bad_cases: classification 86; constraint omission 100; field/Schema 7; format 67; severity 105
-- status: completed 450/450; sample hash `3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c`
+- 日期：2026-07-25
+- Git 基线：`dev` 上的 `77b97b8`
+- 任务：Week 4 固定 Prompt pilot 与胜出版本选择
+- 数据集：`week3_evaluation_v2`
+- 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`；vLLM OpenAI-compatible HTTP，
+  `localhost:8001`
+- 生成参数：temperature=0.1；top_p=0.9；repetition_penalty=1.05；
+  max_tokens=1280
+- Pilot：`week4_pilot_standardized_v2_20260725_001`、
+  `week4_pilot_fewshot4_20260725_001`、
+  `week4_pilot_fewshot7_20260725_001`
+- 示例：每场景固定 5 个正例和 2 个边界例；4-shot 使用 3+1，
+  7-shot 使用 5+2；pilot 含 5 个不重叠样本
+- 选择权重：business 0.55；Schema 0.20；JSON 0.10；token 0.075；
+  latency 0.075
+- 胜出版本：商品、售后、行程均为 `standardized_v2`，分数分别为
+  0.3450、0.5967、0.4025
+- Pilot 限制：行程 few-shot 候选在生成前返回 HTTP 400
+- 全量运行：`week4_winners_full_20260725_001`
+- 全量指标：商品 0.1565/77.5%/75.5%；售后
+  0.2977/96.67%/96.67%；行程 0.0508/90.0%/87.0%
+- Bad case：分类 86；约束遗漏 100；字段/Schema 7；格式 67；
+  严重等级 105
+- 状态：完成 450/450；样本哈希
+  `3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c`
 
 ## INFRA-20260725-014
 
-- date: 2026-07-25
-- task_type: bounded local Milvus standalone deployment
-- images: Milvus 2.6.20; etcd 3.5.18; MinIO RELEASE.2024-12-18T13-15-44Z
-- sdk: PyMilvus 2.6.16 in the independent `requirements-milvus.txt` group
-- health: standalone, etcd, and MinIO all healthy
-- collection: `ota_business_image_vector`, ten fixed fields, dynamic fields disabled
-- indexes: HNSW/COSINE `M=16`, `efConstruction=128`, query `ef=64`; eight INVERTED scalar indexes
-- vectors: 20 real Yelp images encoded on CUDA with normalized 512-dimensional `openai/clip-vit-base-patch32`
-- crud: batch insert 19; single insert 1; filtered-search hits 1; delete 1; post-delete hits 0; remaining rows 19
-- performance: HNSW build 5.6621 s; 10 queries at K=5; mean/P95 7.7982/10.7236 ms; Recall@5 1.0000
-- environment: Windows 11 10.0.26200; Python 3.13.13; Intel64 Family 6 Model 183
-- status: completed; no generated or random vector substituted
+- 日期：2026-07-25
+- 任务：有界本地 Milvus standalone 部署
+- 镜像：Milvus 2.6.20；etcd 3.5.18；
+  MinIO RELEASE.2024-12-18T13-15-44Z
+- SDK：独立 `requirements-milvus.txt` 中的 PyMilvus 2.6.16
+- 健康状态：standalone、etcd、MinIO 均 healthy
+- 集合：`ota_business_image_vector`，固定十字段，关闭动态字段
+- 索引：HNSW/COSINE `M=16`、`efConstruction=128`、查询 `ef=64`；
+  8 个 INVERTED 标量索引
+- 向量：20 张真实 Yelp 图片，CUDA 生成并归一化的 512 维
+  `openai/clip-vit-base-patch32`
+- CRUD：批量 19；单条 1；过滤命中 1；删除 1；删除后命中 0；
+  剩余可见行 19
+- 性能：HNSW 构建 5.6621 s；K=5 查询 10 次；平均/P95
+  7.7982/10.7236 ms；Recall@5 1.0000
+- 环境：Windows 11 10.0.26200；Python 3.13.13；
+  Intel64 Family 6 Model 183
+- 审查修复：凭据改为本机环境变量并完成轮换；基准要求空集合，
+  实际计数来自 Milvus `count(*)`
+- 状态：完成；未使用生成或随机向量替代

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -70,11 +71,17 @@ class OTAMilvusVectorStore:
         self.collection = config["collection"]["name"]
         self.dimension = config["collection"]["vector_dimension"]
         self.sdk = sdk or _import_sdk()
-        self.client = client or self.sdk.MilvusClient(
-            uri=config["connection"]["uri"],
-            token=config["connection"]["token"],
-            timeout=config["connection"]["timeout_seconds"],
-        )
+        connection = config["connection"]
+        client_options = {
+            "uri": connection["uri"],
+            "timeout": connection["timeout_seconds"],
+        }
+        token_env = connection.get("token_env")
+        if token_env:
+            token = os.environ.get(token_env)
+            if token:
+                client_options["token"] = token
+        self.client = client or self.sdk.MilvusClient(**client_options)
 
     def create_collection(self) -> None:
         """Create the fixed collection without silently replacing an existing one."""
@@ -189,6 +196,24 @@ class OTAMilvusVectorStore:
             collection_name=self.collection,
             filter=expression,
         )
+
+    def count_visible_entities(self) -> int:
+        """查询当前逻辑可见行数，不使用包含逻辑删除行的物理统计。"""
+        rows = self.client.query(
+            collection_name=self.collection,
+            filter="",
+            output_fields=["count(*)"],
+        )
+        if (
+            not isinstance(rows, list)
+            or len(rows) != 1
+            or not isinstance(rows[0], dict)
+            or isinstance(rows[0].get("count(*)"), bool)
+            or not isinstance(rows[0].get("count(*)"), int)
+            or rows[0]["count(*)"] < 0
+        ):
+            raise MilvusVectorError("Milvus count(*) returned an invalid result")
+        return rows[0]["count(*)"]
 
     def _validate_entity(self, entity: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(entity, dict):

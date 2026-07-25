@@ -1,6 +1,6 @@
 connection:
   uri: http://localhost:19530
-  token: root:Milvus
+  token_env: MILVUS_TOKEN
   timeout_seconds: 30
 
 collection:

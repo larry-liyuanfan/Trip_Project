@@ -74,21 +74,39 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **Reason**: The mentor requires baseline business metrics, while the minimal Prompt intentionally produces unconstrained natural language. A deterministic lexical track measures supported semantics without changing the Prompt, rerunning inference, adding manual output coding, or treating JSON failure as semantic failure.
 - **Consequence**: Store the lexical metrics as an independent scoring track with explicit support counts and codebook SHA-256. Preserve baseline JSON/Schema rates, raw output, latency, and run provenance. Do not compare this track to the standardized strict-structured track as if their difference were a pure Prompt effect.
 
-## ADR-010: Select Week 4 Prompts Only from Fixed Tested Candidates
+## ADR-010：只从固定实测候选中选择 Week 4 Prompt
 
-- **Date**: 2026-07-25
-- **Status**: Accepted
-- **Decision**: Use fixed v2-gold examples and a fixed disjoint pilot to compare `standardized_v2`, 4-shot, and 7-shot. Select by the checked-in weighted business, JSON, Schema, token, and latency score, then run only the per-scenario winner on the full v2 set.
-- **Reason**: This meets the mentor's bounded Prompt-optimization requirement without changing gold, inventing labels, or expanding the candidate search.
-- **Consequence**: `standardized_v2` is the winner for all three scenarios only among these tested candidates. Week 3 artifacts stay immutable, and cross-track baseline differences are descriptive rather than causal.
+- **日期**：2026-07-25
+- **状态**：Accepted
+- **决策**：使用固定 v2 金标示例和不重叠 pilot，对比
+  `standardized_v2`、4-shot、7-shot；按已提交的业务、JSON、Schema、
+  token 和延迟加权分数选择每场景胜出版本，再只对胜出版本执行 v2 全量跑测。
+- **原因**：在不修改金标、不猜标签、不扩展候选搜索的前提下满足导师要求。
+- **影响**：`standardized_v2` 只是本次三个候选中的场景胜出版本。
+  Week 3 产物保持不可变；跨评分轨道差异只作描述，不作纯 Prompt 因果解释。
 
-## ADR-011: Keep Milvus and CLIP Isolated from Business Inference
+## ADR-011：Milvus 和 CLIP 与业务推理解耦
 
-- **Date**: 2026-07-25
-- **Status**: Accepted
-- **Decision**: Run fixed-version Milvus standalone with a separate PyMilvus dependency group and store normalized 512-dimensional `openai/clip-vit-base-patch32` image vectors. Keep Qwen2-VL on its existing vLLM inference interface and never treat it as an embedding endpoint.
-- **Reason**: The mentor requires real vector CRUD without changing the existing API/data/vLLM dependency groups or exceeding the local 8 GB GPU boundary.
-- **Consequence**: vLLM is stopped before CLIP runs; generated vectors and volumes stay ignored. Retrieval supports only the fixed scalar-filter whitelist and HNSW/COSINE parameters from configuration.
+- **日期**：2026-07-25
+- **状态**：Accepted
+- **决策**：使用固定版本 Milvus standalone 和独立 PyMilvus 依赖组，
+  存储归一化的 512 维 `openai/clip-vit-base-patch32` 图片向量。
+  Qwen2-VL 保持现有 vLLM 推理接口，不作为 embedding 端点。
+- **原因**：完成真实向量 CRUD，同时不污染现有 API/data/vLLM 依赖，
+  并遵守本地 8 GB GPU 资源边界。
+- **影响**：运行 CLIP 前停止 vLLM；生成向量和 volumes 保持忽略。
+  检索只支持固定标量白名单以及配置中的 HNSW/COSINE 参数。
+
+## ADR-012：评估文本哈希跨平台稳定
+
+- **日期**：2026-07-25
+- **状态**：Accepted
+- **决策**：通过 `.gitattributes` 强制评估 Prompt、Schema 和配置使用 LF；
+  provenance 对文本换行归一化，并兼容既有运行曾按 LF 或 CRLF 原始字节
+  记录的哈希。非换行字节变化仍必须导致验证失败。
+- **原因**：Windows 自动换行转换不应使不可变运行证据失效。
+- **影响**：Week 3 历史运行无需修改即可跨平台验证；未来运行使用统一的
+  LF 文本哈希。
 
 ## Decision Template
 

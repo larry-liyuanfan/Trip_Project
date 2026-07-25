@@ -322,36 +322,37 @@ Framework metric groups include:
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
 - Week 3: `READY / COMPLETED`. Data, human gold, real baseline, deterministic baseline semantic scoring, standardized v2, and reporting are complete and traceable.
 
-### Week 4: Prompt Optimization and Milvus
+### Week 4：Prompt 优化与 Milvus
 
-Week 4 keeps every Week 3 artifact immutable. The Prompt comparison selects
-fixed examples from existing v2 gold, tests `standardized_v2`, 4-shot, and
-7-shot on a fixed pilot, and runs only each scenario winner on the full v2 set.
-The fallback validator only removes an optional Markdown fence, parses JSON,
-and applies the existing scenario Schema; it never repairs model content.
+Week 4 保持全部 Week 3 产物不变。从现有 v2 金标中固定选择示例，在固定
+pilot 上比较 `standardized_v2`、4-shot 和 7-shot，并且只对每个场景的
+胜出版本执行 v2 全量跑测。格式兜底仅移除可选 Markdown 围栏、解析 JSON
+并执行现有场景 Schema 校验，不修复模型内容。
 
 ```bash
 python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <run-id> --stage pilot --product-variant <variant> --after-sales-variant <variant> --itinerary-variant <variant>
 python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --pilot-run-id <run-id> --pilot-run-id <run-id> --pilot-run-id <run-id>
 python scripts/validate_week4_output.py --scenario image_product_search --raw-output-file <raw-output-file>
+python scripts/validate_week4_delivery.py --config configs/evaluation_week4.yaml
 ```
 
-The Milvus client has its own dependency group and does not add dependencies to
-the API, data, or vLLM environments. The standalone Compose includes fixed
-Milvus, etcd, and MinIO versions, health checks, persistence, local ports, and
-resource limits.
+Milvus 客户端使用独立依赖组，不向 API、data 或 vLLM 环境添加依赖。
+standalone Compose 固定 Milvus、etcd 和 MinIO 版本，并包含健康检查、
+持久化、本地端口和资源限制。凭据只从本机环境文件读取；仓库只提交脱敏示例。
 
 ```bash
 python -m pip install -r requirements-milvus.txt
-docker compose -f docker/milvus/docker-compose.yml config
-docker compose -f docker/milvus/docker-compose.yml up -d
+Copy-Item docker/milvus/.env.example docker/milvus/.env
+# 编辑 docker/milvus/.env，替换两个 MinIO 占位值
+docker compose --env-file docker/milvus/.env -f docker/milvus/docker-compose.yml config
+docker compose --env-file docker/milvus/.env -f docker/milvus/docker-compose.yml up -d
 docker compose -f docker/docker-compose.yml stop vllm
 python scripts/build_week4_clip_vectors.py --config configs/milvus_week4.yaml
 python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
 ```
 
-Do not run vLLM and CLIP together on the local 8 GB GPU. Generated Week 4
-runs, vectors, performance outputs, and Milvus volumes remain ignored. See
+本地 8 GB GPU 不得同时运行 vLLM 和 CLIP。生成的 Week 4 运行、向量、
+性能输出和 Milvus volumes 均保持忽略。详细说明见
 `reports/week4_prompt_optimization_report.md`,
 `reports/week4_bad_cases.md`,
 `docs/milvus_collection_design.md`, and

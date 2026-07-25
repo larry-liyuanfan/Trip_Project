@@ -174,23 +174,27 @@ as the current validated dataset or accepted baseline.
 - Final verification passed 226 Python tests, standalone v2 validation, both run-bound validators, semantic score integrity checks, and Git diff/boundary checks.
 - Week 3 status is `READY / COMPLETED`; the deterministic lexical method and its limitations are documented without attributing cross-track differences solely to Prompt behavior.
 
-## 2026-07-25: Week 4 Prompt optimization and Milvus
+## 2026-07-25：Week 4 Prompt 优化与 Milvus
 
-- Preserved all Week 3 artifacts and selected fixed 5-positive/2-boundary
-  examples per scenario from v2 gold; built 4-shot (3+1) and 7-shot (5+2).
-- Completed three 15-row pilots. `standardized_v2` won all scenarios among
-  tested candidates, then completed the winner-only full run
-  `week4_winners_full_20260725_001` over 450/450 samples.
-- Full business/JSON/Schema results: product 0.1565/77.5%/75.5%;
-  after-sales 0.2977/96.67%/96.67%; itinerary 0.0508/90.0%/87.0%.
-- Exported real bad cases: classification 86, field/Schema 7, format 67,
-  severity 105, and constraint omission 100; categories may overlap.
-- Added bounded fence removal, JSON parsing, and existing-Schema validation
-  without field repair, enum rewriting, label guessing, or model retry.
-- Deployed healthy Milvus 2.6.20 standalone with etcd and MinIO; created the
-  fixed ten-field collection, HNSW/COSINE index, and eight scalar indexes.
-- Encoded 20 real Yelp images with CLIP on CUDA after stopping vLLM. CRUD
-  passed; HNSW build was 5.6621 s, ten-query mean/P95 latency was
-  7.7982/10.7236 ms, and Recall@5 was 1.0000.
-- Verification: 235 Python tests passed, Week 3 v2 read-only validation passed,
-  Compose configuration and health checks passed, and no Week 3 file changed.
+- 保持全部 Week 3 产物不变；每场景从 v2 金标固定选择 5 个正例和
+  2 个边界例，构建 4-shot（3+1）和 7-shot（5+2）。
+- 完成三个各 15 条的 pilot。`standardized_v2` 在三个场景中均为本次
+  候选胜出版本，并完成 `week4_winners_full_20260725_001` 全量
+  450/450 跑测。
+- 商品、售后、行程的 business/JSON/Schema 分别为
+  0.1565/77.5%/75.5%、0.2977/96.67%/96.67%、
+  0.0508/90.0%/87.0%。
+- 导出真实 bad case：分类错误 86、字段/Schema 错误 7、格式错误 67、
+  严重等级错误 105、约束遗漏 100；类别允许重叠。
+- 格式兜底只去除可选围栏、解析 JSON、执行现有 Schema 校验，不补字段、
+  不修改枚举、不猜标签、不重试模型。
+- Milvus 2.6.20、etcd 和 MinIO 均 healthy；固定十字段集合、
+  HNSW/COSINE 和 8 个标量索引均已验证。
+- 停止 vLLM 后，用 CUDA CLIP 编码 20 张真实 Yelp 图片。HNSW 构建
+  5.6621 s，10 次查询平均/P95 为 7.7982/10.7236 ms，
+  Recall@5 为 1.0000。
+- 中央审查发现的两个阻断项已修复：Milvus/MinIO 凭据改为本机环境变量并
+  完成实际轮换；评估文本哈希统一换行且兼容既有 LF/CRLF 运行记录。
+- 修复后 241 个单元测试通过；Week 3 v2 数据验证、两个 run-bound
+  验证、Week 4 统一只读验证、Compose 展开和容器健康检查均通过。
+- Week 4 状态恢复为 `READY / COMPLETED`；不进入 `stg`，不打标签。

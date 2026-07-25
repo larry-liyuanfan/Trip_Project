@@ -146,26 +146,34 @@ manifest.
 - Verification: 226/226 unit tests passed; standalone v2 validation and both run-bound validators returned `status=ok`; the 450-row semantic score passed strict JSON, support, run-ID, codebook-hash, and scenario-count checks.
 - Status: `READY / COMPLETED`.
 
-## Week 4 Prompt pilot and Milvus standalone on 2026-07-25
+## 2026-07-25：Week 4 Prompt pilot 与 Milvus standalone
 
-- Dataset: immutable `week3_evaluation_v2`; five positive and two boundary
-  examples selected per scenario, with a disjoint fixed five-row pilot.
-- Model/backend: `Qwen/Qwen2-VL-2B-Instruct` through vLLM; temperature 0.1,
-  top-p 0.9, repetition penalty 1.05, and maximum output 1280 tokens.
-- Candidates: `standardized_v2`, `fewshot_4_v1`, and `fewshot_7_v1`.
-- Pilot winner: `standardized_v2` for product, after-sales, and itinerary;
-  selection scores were 0.3450, 0.5967, and 0.4025 respectively.
-- Candidate limitation: itinerary 4-shot and 7-shot requests were rejected by
-  vLLM with HTTP 400 before generation; the failures remain in the run records.
-- Full winner run: `week4_winners_full_20260725_001`, completed 450/450 with
-  Week 3 v2 sample hash `3e900e64...ad648c`.
-- Full winner business/JSON/Schema: product 0.1565/77.5%/75.5%;
-  after-sales 0.2977/96.67%/96.67%; itinerary 0.0508/90.0%/87.0%.
-- Milvus: official standalone Compose with Milvus 2.6.20, PyMilvus 2.6.16,
-  etcd 3.5.18, and fixed MinIO. All three containers reached healthy state.
-- Collection verification: fixed ten-field Schema created; HNSW/COSINE index
-  finished with `M=16`, `efConstruction=128`; eight scalar indexes created.
-- Real CLIP/CRUD performance: 20 CUDA-generated vectors; 19-row batch plus
-  one-row insert, filtered search, one-row delete, and zero post-delete hits
-  passed. HNSW build 5.6621 s; ten-query mean/P95 latency 7.7982/10.7236 ms;
-  Recall@5 1.0000.
+- 数据集：不可变的 `week3_evaluation_v2`；每场景固定 5 个正例、
+  2 个边界例和 5 个不重叠 pilot 样本。
+- 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`、vLLM；temperature 0.1、
+  top-p 0.9、repetition penalty 1.05、max tokens 1280。
+- 候选：`standardized_v2`、`fewshot_4_v1`、`fewshot_7_v1`。
+- 商品、售后、行程的 pilot 胜出版本均为 `standardized_v2`，选择分数为
+  0.3450、0.5967、0.4025。行程 4-shot 和 7-shot 在生成前返回 HTTP 400，
+  失败记录保留在运行产物中。
+- 全量运行 `week4_winners_full_20260725_001` 完成 450/450；
+  样本哈希为 `3e900e64...ad648c`。
+- 商品、售后、行程的 business/JSON/Schema 分别为
+  0.1565/77.5%/75.5%、0.2977/96.67%/96.67%、
+  0.0508/90.0%/87.0%。
+- Milvus 2.6.20、PyMilvus 2.6.16、etcd 3.5.18 和固定 MinIO
+  部署 healthy；十字段 Schema、HNSW/COSINE 和 8 个标量索引已验证。
+- 20 条真实 CUDA CLIP 向量完成 CRUD。HNSW 构建 5.6621 s，
+  10 次查询平均/P95 为 7.7982/10.7236 ms，Recall@5 为 1.0000。
+
+### 中央审查问题及修复
+
+- 审查发现 Windows CRLF 使两个 Week 3 run-bound 原始字节哈希失败。
+  新增 `.gitattributes`，provenance 对文本换行归一化并兼容既有
+  LF/CRLF 历史哈希；两个验证现均为 `status=ok`。
+- 移除跟踪配置中的 Milvus/MinIO 明文凭据，改为环境变量和脱敏
+  `.env.example`；本地容器已使用新随机凭据重建，19 条可见向量保留。
+- Milvus 基准现在要求输出不存在且集合物理行数为 0；插入/删除后的数量
+  来自 `count(*)`，不再由输入长度推断。
+- 新增 Week 4 统一只读验证器，核对运行、哈希、记录数、score、比较和
+  bad case 产物；全套 241 个测试通过，状态为 `READY / COMPLETED`。

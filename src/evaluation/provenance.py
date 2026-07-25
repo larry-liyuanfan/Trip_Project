@@ -10,6 +10,15 @@ from src.data.yelp_paths import parse_simple_yaml
 
 
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+TEXT_ARTIFACT_SUFFIXES = {
+    ".csv",
+    ".json",
+    ".jsonl",
+    ".md",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
 
 
 class ProvenanceValidationError(ValueError):
@@ -45,7 +54,9 @@ def build_artifact_hashes(root: Path, paths: Iterable[Path]) -> dict[str, str]:
             ) from exc
         if not resolved.is_file():
             raise ProvenanceValidationError(f"artifact file is missing: {relative}")
-        hashes[relative] = hashlib.sha256(resolved.read_bytes()).hexdigest()
+        hashes[relative] = hashlib.sha256(
+            _stable_artifact_bytes(resolved)
+        ).hexdigest()
     return dict(sorted(hashes.items()))
 
 
@@ -71,11 +82,34 @@ def verify_artifact_hashes(root: Path, hashes: dict[str, str]) -> None:
             ) from exc
         if not path.is_file():
             raise ProvenanceValidationError(f"artifact file is missing: {relative}")
-        actual = hashlib.sha256(path.read_bytes()).hexdigest()
-        if actual != expected:
+        candidates = _artifact_hash_candidates(path)
+        if expected not in candidates:
             raise ProvenanceValidationError(
-                f"artifact hash mismatch for {relative}: expected {expected}, got {actual}"
+                f"artifact hash mismatch for {relative}: expected {expected}, "
+                f"got {sorted(candidates)}"
             )
+
+
+def _stable_artifact_bytes(path: Path) -> bytes:
+    """文本契约统一换行后计算哈希，避免检出平台改变证据结果。"""
+    payload = path.read_bytes()
+    if path.suffix.lower() not in TEXT_ARTIFACT_SUFFIXES:
+        return payload
+    return payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
+def _artifact_hash_candidates(path: Path) -> set[str]:
+    """兼容既有运行曾按 LF 或 CRLF 原始字节记录的哈希。"""
+    payload = path.read_bytes()
+    if path.suffix.lower() not in TEXT_ARTIFACT_SUFFIXES:
+        return {hashlib.sha256(payload).hexdigest()}
+    lf_payload = payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    crlf_payload = lf_payload.replace(b"\n", b"\r\n")
+    return {
+        hashlib.sha256(payload).hexdigest(),
+        hashlib.sha256(lf_payload).hexdigest(),
+        hashlib.sha256(crlf_payload).hexdigest(),
+    }
 
 
 def build_run_artifact_hashes(

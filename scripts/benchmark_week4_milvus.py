@@ -23,6 +23,9 @@ def main() -> None:
     args = parser.parse_args()
     config = load_milvus_config(args.config)
     benchmark = config["benchmark"]
+    output = Path(benchmark["output_path"])
+    if output.exists():
+        raise RuntimeError(f"benchmark output already exists: {output}")
 
     import numpy as np
 
@@ -45,6 +48,7 @@ def main() -> None:
     ]
     store = OTAMilvusVectorStore(config)
     store.create_collection()
+    _require_empty_collection(store)
     batch_result = store.batch_insert(entities[:-1])
     single_result = store.insert_one(entities[-1])
     store.client.flush(collection_name=store.collection)
@@ -53,6 +57,11 @@ def main() -> None:
     store.build_indexes()
     index_build_seconds = time.perf_counter() - started
     store.client.load_collection(collection_name=store.collection)
+    visible_after_insert = store.count_visible_entities()
+    if visible_after_insert != len(entities):
+        raise RuntimeError(
+            "visible row count after insert does not match the input vector count"
+        )
 
     probe = entities[-1]
     filtered = store.search(
@@ -62,6 +71,11 @@ def main() -> None:
     )
     delete_result = store.delete({"image_id": probe["image_id"]})
     store.client.flush(collection_name=store.collection)
+    visible_after_delete = store.count_visible_entities()
+    if visible_after_delete != len(entities) - 1:
+        raise RuntimeError(
+            "visible row count after delete does not match the expected count"
+        )
     post_delete = store.search(
         probe["multimodal_vector"],
         top_k=benchmark["top_k"],
@@ -101,8 +115,8 @@ def main() -> None:
         "pymilvus_version": store.sdk.__version__,
         "embedding_model": config["collection"]["embedding_model"],
         "vector_dimension": config["collection"]["vector_dimension"],
-        "actual_vector_count_inserted": len(entities),
-        "actual_vector_count_after_delete": len(entities) - 1,
+        "actual_vector_count_inserted": visible_after_insert,
+        "actual_vector_count_after_delete": visible_after_delete,
         "index": {
             "type": config["index"]["index_type"],
             "metric": config["index"]["metric_type"],
@@ -131,7 +145,6 @@ def main() -> None:
             "processor": platform.processor(),
         },
     }
-    output = Path(benchmark["output_path"])
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("x", encoding="utf-8", newline="\n") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2, sort_keys=True)
@@ -153,6 +166,19 @@ def _delete_count(result) -> int:
             if isinstance(result.get(key), int):
                 return result[key]
     return 0
+
+
+def _require_empty_collection(store: OTAMilvusVectorStore) -> None:
+    stats = store.client.get_collection_stats(collection_name=store.collection)
+    try:
+        physical_count = int(stats["row_count"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("cannot read Milvus physical row count") from exc
+    if physical_count != 0:
+        raise RuntimeError(
+            "benchmark requires an empty collection; "
+            f"physical row count is {physical_count}"
+        )
 
 
 def _percentile(values, quantile):

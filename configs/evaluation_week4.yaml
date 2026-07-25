@@ -23,3 +23,15 @@ selection_weights:
   json_compliance: 0.10
   token_efficiency: 0.075
   latency_efficiency: 0.075
+
+validation:
+  pilot_run_ids:
+    - week4_pilot_standardized_v2_20260725_001
+    - week4_pilot_fewshot4_20260725_001
+    - week4_pilot_fewshot7_20260725_001
+  full_run_id: week4_winners_full_20260725_001
+  expected_full_sample_sha256: 3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c
+  expected_winners:
+    image_product_search: standardized_v2
+    after_sales: standardized_v2
+    itinerary_planning: standardized_v2

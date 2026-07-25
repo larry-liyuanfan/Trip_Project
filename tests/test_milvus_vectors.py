@@ -1,5 +1,7 @@
 import unittest
+from os import environ
 from pathlib import Path
+from unittest.mock import patch
 
 
 class _FakeDataType:
@@ -32,6 +34,7 @@ class _FakeClient:
         self.inserted = []
         self.search_kwargs = None
         self.delete_kwargs = None
+        self.query_result = [{"count(*)": 0}]
 
     def has_collection(self, **kwargs):
         return False
@@ -62,13 +65,45 @@ class _FakeClient:
         self.delete_kwargs = kwargs
         return {"delete_count": 1}
 
+    def query(self, **kwargs):
+        self.query_kwargs = kwargs
+        return self.query_result
+
 
 class _FakeSDK:
     DataType = _FakeDataType
 
 
+class _ClientFactorySDK:
+    DataType = _FakeDataType
+    client_kwargs = None
+
+    @classmethod
+    def MilvusClient(cls, **kwargs):
+        cls.client_kwargs = kwargs
+        return _FakeClient()
+
+
 class MilvusVectorStoreTest(unittest.TestCase):
     PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+    def test_tracked_milvus_configuration_contains_no_default_credentials(self):
+        compose_text = (
+            self.PROJECT_ROOT / "docker/milvus/docker-compose.yml"
+        ).read_text(encoding="utf-8")
+        config_text = (
+            self.PROJECT_ROOT / "configs/milvus_week4.yaml"
+        ).read_text(encoding="utf-8")
+        example_text = (
+            self.PROJECT_ROOT / "docker/milvus/.env.example"
+        ).read_text(encoding="utf-8")
+
+        tracked_text = "\n".join((compose_text, config_text, example_text))
+        self.assertNotIn("minio" + "admin", tracked_text.lower())
+        self.assertNotIn("root" + ":Milvus", tracked_text)
+        self.assertIn("${MINIO_ROOT_USER:?", compose_text)
+        self.assertIn("${MINIO_ROOT_PASSWORD:?", compose_text)
+        self.assertIn("token_env: MILVUS_TOKEN", config_text)
 
     def setUp(self):
         from src.retrieval.milvus_vectors import (
@@ -166,6 +201,42 @@ class MilvusVectorStoreTest(unittest.TestCase):
         wrong["multimodal_vector"] = [1.0] * 512
         with self.assertRaisesRegex(MilvusVectorError, "normalized"):
             self.store.insert_one(wrong)
+
+    def test_visible_count_uses_milvus_count_query(self):
+        self.client.query_result = [{"count(*)": 19}]
+
+        self.assertEqual(self.store.count_visible_entities(), 19)
+        self.assertEqual(self.client.query_kwargs["filter"], "")
+        self.assertEqual(self.client.query_kwargs["output_fields"], ["count(*)"])
+
+    def test_client_token_is_loaded_only_from_named_environment_variable(self):
+        from src.retrieval.milvus_vectors import OTAMilvusVectorStore
+
+        self.assertNotIn("token", self.config["connection"])
+        with patch.dict(environ, {"MILVUS_TOKEN": "local-test-token"}):
+            OTAMilvusVectorStore(self.config, sdk=_ClientFactorySDK)
+        self.assertEqual(
+            _ClientFactorySDK.client_kwargs["token"],
+            "local-test-token",
+        )
+
+    def test_benchmark_rejects_a_nonempty_collection(self):
+        from scripts.benchmark_week4_milvus import _require_empty_collection
+
+        class _Store:
+            collection = "ota_business_image_vector"
+            client = type(
+                "_Client",
+                (),
+                {
+                    "get_collection_stats": staticmethod(
+                        lambda **kwargs: {"row_count": "20"}
+                    )
+                },
+            )()
+
+        with self.assertRaisesRegex(RuntimeError, "requires an empty collection"):
+            _require_empty_collection(_Store())
 
 
 if __name__ == "__main__":
