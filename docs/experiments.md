@@ -183,3 +183,29 @@ manifest.
 - v2 比较产物删除跨轨道 `business_quality_delta`，只比较同口径格式、
   延迟和 token 可用性；全套 244 个测试通过，状态为
   `READY / COMPLETED`。
+
+## 2026-07-26：共同语义评分与 Few-Shot 设计复核
+
+- Git 基线：`d6e1b8c`；模型运行未重跑，使用冻结的
+  `week3_v2_baseline_full_20260724_001` 和
+  `week4_winners_full_20260725_001` 原始输出。
+- 数据/模型：`week3_evaluation_v2`，450 对相同 sample，SHA-256
+  `3e900e64...ad648c`；`Qwen/Qwen2-VL-2B-Instruct`、vLLM 和原生成
+  参数保持不变。
+- 命令：`python scripts/compare_week4_common_semantics.py`。
+- 评分：两边均使用 `BaselineSemanticCoder.encode`、
+  `baseline_semantic_coding_v1` codebook
+  `563dc074...033a6`、同一人工金标与指标函数；bootstrap 2,000 次，
+  seed `20260726`。
+- 主要结果：商品 category/price delta +32.73/+13.00 pp，style/facility
+  macro F1 +3.93/-19.88 pp；售后 issue/severity +18.00/0.00 pp，
+  key-information F1/OCR recall +0.67/-9.78 pp；行程 constraint
+  recognition 0.00 pp，element completeness -55.40 pp。
+- 局限：固定词法 codebook 原为 baseline 自然语言设计，对 JSON 标点分隔
+  的枚举值、改写和隐含约束识别有限；共同轨道只支持该编码器下的成对解释。
+- Few-Shot 示例来自最终 test gold。现有 v2 pilot 请求有效，但只作描述性
+  证据；不构造未授权的新 demo/dev 数据，不重跑模型。
+- 验证：245/245 单元测试通过；Week 3 v2 数据、baseline/standardized
+  run-bound 和 Week 4 统一验证均为 `status=ok`。Compose 配置展开通过；
+  当前容器状态复核因 Docker daemon 未运行而 `PENDING`，历史 Milvus
+  CRUD/性能证据未改写。

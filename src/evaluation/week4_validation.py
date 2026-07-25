@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import csv
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
+from src.evaluation.baseline_semantics import BaselineSemanticCoder
 from src.evaluation.provenance import (
     SHA256_PATTERN,
     canonical_sha256,
@@ -36,6 +39,8 @@ def validate_week4_delivery(
     artifact_version = validation.get("artifact_version")
     winners = validation.get("expected_winners")
     expected_full_hash = validation.get("expected_full_sample_sha256")
+    fewshot_evidence_status = validation.get("fewshot_evidence_status")
+    common_comparison_id = validation.get("common_semantic_comparison_id")
     if (
         not isinstance(pilot_run_ids, list)
         or len(pilot_run_ids) != 3
@@ -63,6 +68,17 @@ def validate_week4_delivery(
     ):
         raise Week4ValidationError(
             "validation.expected_full_sample_sha256 is invalid"
+        )
+    if (
+        fewshot_evidence_status
+        != "descriptive_only_test_gold_demo_contamination"
+    ):
+        raise Week4ValidationError(
+            "validation.fewshot_evidence_status is invalid"
+        )
+    if not isinstance(common_comparison_id, str) or not common_comparison_id:
+        raise Week4ValidationError(
+            "validation.common_semantic_comparison_id is required"
         )
 
     run_summaries = {}
@@ -107,6 +123,16 @@ def validate_week4_delivery(
         artifact_version=artifact_version,
         winners=winners,
         full_sample_ids=set(full_summary["sample_ids"]),
+        fewshot_evidence_status=fewshot_evidence_status,
+        common_comparison_id=common_comparison_id,
+    )
+    common_summary = _validate_common_semantic_comparison(
+        output_root=output_root,
+        comparison_id=common_comparison_id,
+        baseline_run_id="week3_v2_baseline_full_20260724_001",
+        winner_run_id=full_run_id,
+        full_sample_ids=set(full_summary["sample_ids"]),
+        expected_sample_sha256=expected_full_hash,
     )
     return {
         "status": "ok",
@@ -118,10 +144,10 @@ def validate_week4_delivery(
         "full_record_count": full_summary["record_count"],
         "full_sample_sha256": full_summary["selected_sample_ids_sha256"],
         "winners": winners,
-        "business_comparison_status": (
-            "not_comparable_different_prediction_encodings"
-        ),
+        "business_comparison_status": "comparable_on_common_semantic_track",
+        "fewshot_evidence_status": fewshot_evidence_status,
         **comparison_summary,
+        **common_summary,
     }
 
 
@@ -202,6 +228,8 @@ def _validate_comparisons(
     artifact_version: str,
     winners: dict[str, str],
     full_sample_ids: set[str],
+    fewshot_evidence_status: str,
+    common_comparison_id: str,
 ) -> dict[str, Any]:
     comparison_dir = output_root / "comparisons"
     pilot = _load_json(
@@ -215,6 +243,13 @@ def _validate_comparisons(
     )
     if pilot.get("selection_scope") != "best_among_tested_candidates":
         raise Week4ValidationError("pilot selection scope is invalid")
+    if (
+        pilot.get("evidence_status") != fewshot_evidence_status
+        or pilot.get("effect_claim_allowed") is not False
+    ):
+        raise Week4ValidationError(
+            "Few-Shot pilot must be marked descriptive-only"
+        )
     if pilot.get("pilot_run_ids") != pilot_run_ids:
         raise Week4ValidationError("pilot comparison run IDs are invalid")
     if pilot.get("winners") != winners or selected != winners:
@@ -232,6 +267,13 @@ def _validate_comparisons(
         )
     if full.get("full_run_id") != full_run_id:
         raise Week4ValidationError("full comparison run ID is invalid")
+    if (
+        full.get("common_semantic_comparison_id") != common_comparison_id
+        or full.get("fewshot_evidence_status") != fewshot_evidence_status
+    ):
+        raise Week4ValidationError(
+            "full comparison does not bind the review limitations"
+        )
     optimized = full.get("optimized_summaries")
     if not isinstance(optimized, list) or {
         (row.get("scenario"), row.get("sample_count"))
@@ -287,6 +329,150 @@ def _validate_comparisons(
         "score_record_count": len(score_rows),
         "bad_case_record_count": len(bad_cases),
         "bad_case_counts": expected_bad_counts,
+    }
+
+
+def _validate_common_semantic_comparison(
+    *,
+    output_root: Path,
+    comparison_id: str,
+    baseline_run_id: str,
+    winner_run_id: str,
+    full_sample_ids: set[str],
+    expected_sample_sha256: str,
+) -> dict[str, Any]:
+    root = output_root / "common_semantic" / comparison_id
+    summary = _load_json(root / "summary.json")
+    if (
+        summary.get("comparison_id") != comparison_id
+        or summary.get("scoring_track")
+        != "week4_common_semantic_coding_v1"
+        or summary.get("coding_version") != "baseline_semantic_coding_v1"
+        or summary.get("baseline_run_id") != baseline_run_id
+        or summary.get("winner_run_id") != winner_run_id
+        or summary.get("paired_sample_count") != 450
+        or summary.get("bootstrap_iterations") != 2000
+        or summary.get("gold_joined_after_prediction") is not True
+        or summary.get("prediction_input_fields") != [
+            "scenario",
+            "raw_output",
+        ]
+        or summary.get("selected_sample_ids_sha256")
+        != expected_sample_sha256
+    ):
+        raise Week4ValidationError(
+            "common semantic comparison summary is invalid"
+        )
+    expected_counts = {
+        "after_sales": 150,
+        "image_product_search": 200,
+        "itinerary_planning": 100,
+    }
+    if summary.get("scenario_counts") != expected_counts:
+        raise Week4ValidationError(
+            "common semantic scenario counts are invalid"
+        )
+    source_paths = {
+        "baseline_results_sha256": (
+            output_root.parents[1]
+            / "data/eval/runs"
+            / baseline_run_id
+            / "results.jsonl"
+        ),
+        "winner_results_sha256": (
+            output_root / "runs" / winner_run_id / "results.jsonl"
+        ),
+    }
+    coder = BaselineSemanticCoder.from_path(
+        output_root.parents[1]
+        / "configs/evaluation/baseline_semantic_coding_v1.json"
+    )
+    if summary.get("codebook_sha256") != coder.codebook_sha256:
+        raise Week4ValidationError(
+            "common semantic codebook hash is invalid"
+        )
+    for field, path in source_paths.items():
+        if summary.get(field) != hashlib.sha256(path.read_bytes()).hexdigest():
+            raise Week4ValidationError(
+                f"common semantic source hash mismatch: {field}"
+            )
+    for name, expected_run_id in (
+        ("baseline", baseline_run_id),
+        ("winner", winner_run_id),
+    ):
+        source_rows = _load_jsonl(source_paths[f"{name}_results_sha256"])
+        predictions = _load_jsonl(
+            root / f"{name}_canonical_predictions.jsonl"
+        )
+        scores = _load_jsonl(root / f"{name}_score/sample_scores.jsonl")
+        prediction_ids = {row.get("sample_id") for row in predictions}
+        score_ids = {row.get("sample_id") for row in scores}
+        if (
+            len(predictions) != 450
+            or len(scores) != 450
+            or prediction_ids != full_sample_ids
+            or score_ids != full_sample_ids
+            or any(row.get("run_id") != expected_run_id for row in predictions)
+            or any(
+                row.get("scoring_track")
+                != "week4_common_semantic_coding_v1"
+                for row in scores
+            )
+        ):
+            raise Week4ValidationError(
+                f"common semantic {name} artifacts are invalid"
+            )
+        for source, prediction_row, score_row in zip(
+            source_rows, predictions, scores
+        ):
+            expected_prediction = coder.encode(
+                scenario=source["scenario"],
+                raw_output=source["raw_output"],
+            )
+            if (
+                prediction_row.get("sample_id") != source.get("sample_id")
+                or prediction_row.get("prediction") != expected_prediction
+                or score_row.get("sample_id") != source.get("sample_id")
+                or score_row.get("deterministic_prediction")
+                != expected_prediction
+            ):
+                raise Week4ValidationError(
+                    f"common semantic {name} prediction binding is invalid"
+                )
+    comparison_metadata = _load_json(
+        root / "paired_comparison/metadata.json"
+    )
+    if comparison_metadata != {
+        key: summary[key]
+        for key in comparison_metadata
+    }:
+        raise Week4ValidationError(
+            "common semantic comparison metadata disagrees with summary"
+        )
+    with (root / "paired_comparison/aggregate_deltas.csv").open(
+        "r", encoding="utf-8", newline=""
+    ) as handle:
+        aggregate_rows = list(csv.DictReader(handle))
+    required_metrics = {
+        ("image_product_search", "business_category_accuracy"),
+        ("image_product_search", "price_range_accuracy"),
+        ("after_sales", "issue_type_accuracy"),
+        ("after_sales", "severity_accuracy"),
+        ("after_sales", "ocr_recall"),
+        ("itinerary_planning", "constraint_recognition_accuracy"),
+        ("itinerary_planning", "itinerary_element_completeness"),
+    }
+    actual_metrics = {
+        (row.get("scenario"), row.get("metric")) for row in aggregate_rows
+    }
+    if not required_metrics <= actual_metrics:
+        raise Week4ValidationError(
+            "common semantic comparison lacks required business metrics"
+        )
+    return {
+        "common_semantic_comparison_id": comparison_id,
+        "common_semantic_paired_count": 450,
+        "common_semantic_metric_count": len(aggregate_rows),
     }
 
 

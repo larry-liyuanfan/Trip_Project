@@ -111,6 +111,21 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **影响**：Week 3 历史运行无需修改即可跨平台验证；未来运行使用统一的
   LF 文本哈希。
 
+## ADR-013：共同语义轨道与 Few-Shot 证据边界
+
+- **日期**：2026-07-26
+- **状态**：Accepted
+- **决策**：保留 Week 3 原词法评分和 Week 4 原严格结构化评分；另建
+  `week4_common_semantic_coding_v1`，将两组冻结原始输出交给同一个
+  `BaselineSemanticCoder.encode` 和 codebook，全部预测完成后再连接同一
+  人工金标并执行同一指标与 paired bootstrap。现有 Few-Shot 示例来自最终
+  测试集金标，其 pilot 仅作描述性证据，不支持无偏效果声明。
+- **原因**：原业务指标使用不同预测转换，不能直接相减；同时示例与 pilot
+  不重叠仍不能消除利用最终测试集金标设计 Prompt 的污染风险。
+- **影响**：Week 3 原产物不覆盖。`standardized_v2` 的无示例全量运行仍可
+  报告；Few-Shot 泛化比较保持 `PARTIAL`，除非以后获得明确授权的独立
+  demo/dev pool，但本决策不创建该数据或未来任务。
+
 ## Decision Template
 
 ```markdown

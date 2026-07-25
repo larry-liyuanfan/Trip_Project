@@ -200,6 +200,14 @@ Local GPU capacity may limit full inference, and public after-sales evidence may
 - Use a documented, reproducible metric interpretation for baseline and optimized outputs. Preserve the existing Week 3 scores and store Week 4 runs and comparisons separately.
 - The selected prompt is best only among the tested candidates. Reports must not claim global optimality.
 
+2026-07-26 审查澄清：上述 Few-Shot 示例来自最终测试集金标，因此现有
+pilot 只能作为描述性运行证据，不能用于无偏泛化效果声明。当前范围仍禁止
+新增人工标注或数据集版本，所以不临时构造新的 demo/dev pool。最终胜出的
+`standardized_v2` 不使用示例，其 450 条全量结果不受该污染直接影响。
+baseline 与 winner 的业务差值必须另存为共同确定性语义轨道：两组原始输出
+使用同一编码器、同一 codebook、同一指标函数和相同 `sample_id` 成对评分；
+不得覆盖 Week 3 原评分。
+
 The format fallback may remove an optional Markdown code fence, parse JSON, and validate the existing scenario Schema. It must preserve the raw output and return explicit errors. It must not invent fields, change enum values, infer missing labels, or call the model again.
 
 ### Milvus Requirements

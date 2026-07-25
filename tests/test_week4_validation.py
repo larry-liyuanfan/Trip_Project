@@ -1,4 +1,5 @@
 import json
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -71,9 +72,13 @@ class Week4DeliveryValidationTest(unittest.TestCase):
             comparisons = output / "comparisons"
             comparisons.mkdir(parents=True)
             self._write_json(
-                comparisons / "pilot_comparison_v2.json",
+                comparisons / "pilot_comparison_v3.json",
                 {
                     "selection_scope": "best_among_tested_candidates",
+                    "evidence_status": (
+                        "descriptive_only_test_gold_demo_contamination"
+                    ),
+                    "effect_claim_allowed": False,
                     "pilot_run_ids": pilot_ids,
                     "winners": winners,
                     "candidate_summaries": [
@@ -83,13 +88,17 @@ class Week4DeliveryValidationTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                comparisons / "selected_prompts_v2.json",
+                comparisons / "selected_prompts_v3.json",
                 winners,
             )
             self._write_json(
-                comparisons / "full_baseline_comparison_v2.json",
+                comparisons / "full_baseline_comparison_v3.json",
                 {
                     "full_run_id": full_id,
+                    "common_semantic_comparison_id": "common-test",
+                    "fewshot_evidence_status": (
+                        "descriptive_only_test_gold_demo_contamination"
+                    ),
                     "optimized_summaries": [
                         {"scenario": scenario, "sample_count": count}
                         for scenario, count in scenarios
@@ -114,7 +123,7 @@ class Week4DeliveryValidationTest(unittest.TestCase):
                 [{"sample_id": row["sample_id"]} for row in full_rows],
             )
             self._write_jsonl(
-                output / "bad_cases/week4_bad_cases_v2.jsonl",
+                output / "bad_cases/week4_bad_cases_v3.jsonl",
                 [
                     {
                         "sample_id": full_rows[0]["sample_id"],
@@ -122,10 +131,21 @@ class Week4DeliveryValidationTest(unittest.TestCase):
                     }
                 ],
             )
+            self._write_common_comparison(
+                root,
+                output,
+                full_id,
+                full_rows,
+                scenarios,
+            )
             config = {
                 "paths": {"output_dir": "outputs/week4"},
                 "validation": {
-                    "artifact_version": "v2",
+                    "artifact_version": "v3",
+                    "fewshot_evidence_status": (
+                        "descriptive_only_test_gold_demo_contamination"
+                    ),
+                    "common_semantic_comparison_id": "common-test",
                     "pilot_run_ids": pilot_ids,
                     "full_run_id": full_id,
                     "expected_full_sample_sha256": full_hash,
@@ -142,8 +162,9 @@ class Week4DeliveryValidationTest(unittest.TestCase):
             self.assertEqual(summary["model_request_error_count"], 0)
             self.assertEqual(
                 summary["business_comparison_status"],
-                "not_comparable_different_prediction_encodings",
+                "comparable_on_common_semantic_track",
             )
+            self.assertEqual(summary["common_semantic_paired_count"], 450)
 
             from src.evaluation.week4_validation import Week4ValidationError
 
@@ -231,6 +252,127 @@ class Week4DeliveryValidationTest(unittest.TestCase):
                 "record_count": len(rows),
                 "error": None,
             },
+        )
+
+    @classmethod
+    def _write_common_comparison(
+        cls,
+        root,
+        output,
+        full_id,
+        full_rows,
+        scenarios,
+    ):
+        from src.evaluation.baseline_semantics import BaselineSemanticCoder
+        from src.evaluation.provenance import canonical_sha256
+
+        baseline_id = "week3_v2_baseline_full_20260724_001"
+        baseline_rows = [
+            {**row, "run_id": baseline_id, "prompt_version": "baseline_minimal_v1"}
+            for row in full_rows
+        ]
+        baseline_path = (
+            root
+            / "data/eval/runs"
+            / baseline_id
+            / "results.jsonl"
+        )
+        cls._write_jsonl(baseline_path, baseline_rows)
+        winner_path = output / "runs" / full_id / "results.jsonl"
+        codebook_target = (
+            root / "configs/evaluation/baseline_semantic_coding_v1.json"
+        )
+        codebook_target.parent.mkdir(parents=True, exist_ok=True)
+        codebook_target.write_bytes(
+            (
+                Path(__file__).resolve().parents[1]
+                / "configs/evaluation/baseline_semantic_coding_v1.json"
+            ).read_bytes()
+        )
+        coder = BaselineSemanticCoder.from_path(codebook_target)
+        common = output / "common_semantic/common-test"
+        for name, run_id, source_rows in (
+            ("baseline", baseline_id, baseline_rows),
+            ("winner", full_id, full_rows),
+        ):
+            predictions = [
+                coder.encode(
+                    scenario=row["scenario"],
+                    raw_output=row["raw_output"],
+                )
+                for row in source_rows
+            ]
+            cls._write_jsonl(
+                common / f"{name}_canonical_predictions.jsonl",
+                [
+                    {
+                        "run_id": run_id,
+                        "sample_id": row["sample_id"],
+                        "scenario": row["scenario"],
+                        "prediction": prediction,
+                    }
+                    for row, prediction in zip(source_rows, predictions)
+                ],
+            )
+            cls._write_jsonl(
+                common / f"{name}_score/sample_scores.jsonl",
+                [
+                    {
+                        "sample_id": row["sample_id"],
+                        "scoring_track": "week4_common_semantic_coding_v1",
+                        "deterministic_prediction": prediction,
+                    }
+                    for row, prediction in zip(source_rows, predictions)
+                ],
+            )
+        metadata = {
+            "comparison_id": "common-test",
+            "scoring_track": "week4_common_semantic_coding_v1",
+            "coding_version": "baseline_semantic_coding_v1",
+            "baseline_run_id": baseline_id,
+            "winner_run_id": full_id,
+            "paired_sample_count": 450,
+            "bootstrap_iterations": 2000,
+            "gold_joined_after_prediction": True,
+            "prediction_input_fields": ["scenario", "raw_output"],
+            "selected_sample_ids_sha256": canonical_sha256(
+                [row["sample_id"] for row in full_rows]
+            ),
+            "codebook_sha256": coder.codebook_sha256,
+        }
+        summary = {
+            **metadata,
+            "scenario_counts": {
+                scenario: count for scenario, count in scenarios
+            },
+            "baseline_results_sha256": hashlib.sha256(
+                baseline_path.read_bytes()
+            ).hexdigest(),
+            "winner_results_sha256": hashlib.sha256(
+                winner_path.read_bytes()
+            ).hexdigest(),
+        }
+        cls._write_json(common / "summary.json", summary)
+        cls._write_json(
+            common / "paired_comparison/metadata.json",
+            metadata,
+        )
+        aggregate = common / "paired_comparison/aggregate_deltas.csv"
+        aggregate.parent.mkdir(parents=True, exist_ok=True)
+        required = [
+            ("image_product_search", "business_category_accuracy"),
+            ("image_product_search", "price_range_accuracy"),
+            ("after_sales", "issue_type_accuracy"),
+            ("after_sales", "severity_accuracy"),
+            ("after_sales", "ocr_recall"),
+            ("itinerary_planning", "constraint_recognition_accuracy"),
+            ("itinerary_planning", "itinerary_element_completeness"),
+        ]
+        aggregate.write_text(
+            "scenario,metric\n"
+            + "".join(f"{scenario},{metric}\n" for scenario, metric in required),
+            encoding="utf-8",
+            newline="\n",
         )
 
     @staticmethod

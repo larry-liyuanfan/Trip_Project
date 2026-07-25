@@ -96,6 +96,14 @@ def analyze_pilot_runs(
         winners[scenario] = winner["prompt_version"]
     comparison = {
         "selection_scope": "best_among_tested_candidates",
+        "evidence_status": week4_config["validation"][
+            "fewshot_evidence_status"
+        ],
+        "effect_claim_allowed": False,
+        "design_note": (
+            "Few-Shot demonstrations were selected from final-test gold; "
+            "pilot results are descriptive only. The zero-shot winner uses no demos."
+        ),
         "pilot_run_ids": pilot_run_ids,
         "weights": weights,
         "candidate_summaries": summaries,
@@ -151,8 +159,15 @@ def analyze_full_run(
         "baseline_comparison": comparisons,
         "business_metric_note": (
             "baseline lexical coding and optimized structured JSON scoring "
-            "are reported separately and have no business-quality delta"
+            "remain separate original tracks; the versioned common semantic "
+            "comparison supplies the same-encoder business delta"
         ),
+        "common_semantic_comparison_id": week4_config["validation"][
+            "common_semantic_comparison_id"
+        ],
+        "fewshot_evidence_status": week4_config["validation"][
+            "fewshot_evidence_status"
+        ],
         "bad_case_counts": _count_bad_cases(bad_cases),
     }
     comparison_dir = output_root / "comparisons"

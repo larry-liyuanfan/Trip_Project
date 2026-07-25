@@ -201,3 +201,21 @@ as the current validated dataset or accepted baseline.
 - 修复后 244 个单元测试通过；Week 3 v2 数据验证、两个 run-bound
   验证、Week 4 统一只读验证、Compose 展开和容器健康检查均通过。
 - Week 4 状态恢复为 `READY / COMPLETED`；不进入 `stg`，不打标签。
+
+## 2026-07-26：Week 4 共同语义评分与证据边界修正
+
+- 保持 Week 3 baseline、原始输出和 `baseline_semantic_coding_v1` 原评分
+  不变，新增 `week4_common_semantic_coding_v1_20260726_001`。
+- baseline 与 Week 4 winner 的 450 对原始输出均使用同一个
+  `BaselineSemanticCoder.encode`、同一 codebook 和同一指标函数；预测
+  完成后才连接金标，并执行 2,000 次 paired bootstrap。
+- 共同轨道实测：商品业态 +32.73 pp、价位 +13.00 pp、设施 macro F1
+  -19.88 pp；售后分类 +18.00 pp、OCR recall -9.78 pp；行程要素完整度
+  -55.40 pp。该结果只解释固定词法编码轨道，不替代人工语义编码。
+- 明确现有 Few-Shot 示例取自最终 test gold，pilot 降级为描述性证据；
+  `standardized_v2` 仍是三场景描述性最高分且不含示例，全量运行不受该
+  污染直接影响。
+- Week 3 过程状态文件已标为历史快照并链接后续 `READY / COMPLETED`
+  正式报告；Week 4 bad case 增补真实金标、预测、错误原因和字段检查方向。
+- Prompt 部分因缺少独立 demo/dev pool 保持 `PARTIAL`；Milvus 保持
+  `READY`。不新增标注或数据集版本，不重跑模型。

@@ -231,13 +231,37 @@ def score_semantic_prediction(
     codebook_sha256: str,
 ) -> dict[str, Any]:
     """Score a precomputed gold-independent prediction on a separate track."""
-    scenario = result.get("scenario")
-    if scenario not in SCENARIO_METRIC_NAMES:
-        raise ValueError(f"unsupported scoring scenario: {scenario}")
     if result.get("prompt_version") != "baseline_minimal_v1":
         raise ValueError(
             "deterministic semantic coding is restricted to baseline_minimal_v1"
         )
+    return score_common_semantic_prediction(
+        result,
+        annotation,
+        prediction,
+        aliases,
+        coding_version=coding_version,
+        codebook_sha256=codebook_sha256,
+        scoring_track="baseline_semantic_coding_v1",
+    )
+
+
+def score_common_semantic_prediction(
+    result: dict[str, Any],
+    annotation: dict[str, Any],
+    prediction: dict[str, Any],
+    aliases: dict[str, dict[str, str]],
+    *,
+    coding_version: str,
+    codebook_sha256: str,
+    scoring_track: str,
+) -> dict[str, Any]:
+    """使用同一确定性预测编码结果评分，不依赖原始 Prompt 的输出格式。"""
+    scenario = result.get("scenario")
+    if scenario not in SCENARIO_METRIC_NAMES:
+        raise ValueError(f"unsupported scoring scenario: {scenario}")
+    if not isinstance(scoring_track, str) or not scoring_track:
+        raise ValueError("scoring_track must be non-empty text")
     if not isinstance(annotation, dict) or not isinstance(prediction, dict):
         raise ValueError("annotation and prediction must be objects")
     score: dict[str, Any] = {
@@ -254,7 +278,7 @@ def score_semantic_prediction(
         ),
         "latency_ms": result.get("latency_ms"),
         "multilabel_counts": {},
-        "scoring_track": "baseline_semantic_coding_v1",
+        "scoring_track": scoring_track,
         "semantic_metrics_status": "scored",
         "coding_version": coding_version,
         "codebook_sha256": codebook_sha256,
@@ -320,7 +344,8 @@ def aggregate_scenario_scores(sample_scores: list[dict[str, Any]]) -> dict[str, 
         raise ValueError("all sample scores must belong to one scenario")
     scenario = next(iter(scenarios))
     semantic_coding_track = all(
-        score.get("scoring_track") == "baseline_semantic_coding_v1"
+        isinstance(score.get("deterministic_prediction"), dict)
+        and score.get("semantic_metrics_status") == "scored"
         for score in sample_scores
     )
     aggregate: dict[str, Any] = {

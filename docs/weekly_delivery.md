@@ -207,7 +207,9 @@ support counts. No numeric semantic score is derived from JSON failure.
 
 ## Week 4 交付：Prompt 优化与 Milvus
 
-状态：`READY / COMPLETED`，交付位于 `dev`。不进入 `stg`，不打标签。
+状态：`PARTIAL`。Milvus 为 `READY`；Prompt 全量 winner 与共同语义评分
+已完成，但 Few-Shot 泛化证据因使用最终 test gold 示例而仅具描述性。
+交付位于 `dev`，不进入 `stg`，不打标签。
 
 ### 完成清单
 
@@ -225,7 +227,10 @@ support counts. No numeric semantic score is derived from JSON failure.
 - [x] 移除跟踪文件中的明文凭据，提交脱敏环境模板并完成本地凭据轮换。
 - [x] 修复 LF/CRLF 运行绑定问题，新增 Week 4 统一只读证据验证。
 - [x] runner/验证器拒绝模型请求失败；删除跨评分轨道业务差值。
-- [x] 通过 244 个单元测试和全部交付验证。
+- [x] 新增不覆盖旧评分的 450 对共同确定性语义评分与 paired bootstrap。
+- [x] Few-Shot pilot 明确标为 test-gold contamination 下的描述性证据。
+- [ ] 独立 demo/dev pool 下的无偏 Few-Shot 比较：当前禁止新增人工标注或
+  数据集版本，因此准确标记为 `PENDING`，未擅自构造或重跑。
 
 实测 Prompt 和 Milvus 结果记录在
 `reports/week4_prompt_optimization_report.md`,
@@ -235,17 +240,22 @@ support counts. No numeric semantic score is derived from JSON failure.
 
 ### 修复后验证证据
 
-- `python -m unittest discover -s tests -v`：244/244 通过。
+- `python -m unittest discover -s tests -v`：245/245 通过。
 - Week 3 v2 数据验证和 baseline/standardized 两个 run-bound 验证均为
   `status=ok`，tested_count 为 200/150/100。
 - `python scripts/validate_week4_delivery.py`：3 个有效 pilot 共 45 条且
   请求错误为 0；全量 450 条、score 450 条和 bad case 269 条全部通过。
-- baseline token 未记录，明确为 `PENDING`；baseline 与 Week 4 业务指标
-  使用不同预测编码轨道，不计算 `business_quality_delta`。
+- baseline token 未记录，明确为 `PENDING`；原词法轨道与原结构化轨道
+  仍不直接相减。新增共同语义轨道包含 450 对预测、38 个聚合指标和
+  2,000 次 paired bootstrap。
 - Compose 脱敏展开通过；凭据轮换后 etcd、MinIO、Milvus 均 healthy，
   19 条逻辑可见向量保持可查询。
 - 基准脚本会在既有输出或非空集合上写入前失败，并以 Milvus `count(*)`
   记录插入和删除后的真实可见行数。
+
+2026-07-26 本次复核中，使用临时脱敏环境变量执行 Compose 配置展开通过；
+随后 `docker compose ... ps` 因本机 Docker daemon 未运行而无法复核当前
+容器状态。历史真实 CRUD/性能产物未改变；本次未声称容器当前 healthy。
 
 ## Promotion Rule
 

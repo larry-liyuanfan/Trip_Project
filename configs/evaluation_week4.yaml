@@ -25,7 +25,9 @@ selection_weights:
   latency_efficiency: 0.075
 
 validation:
-  artifact_version: v2
+  artifact_version: v3
+  fewshot_evidence_status: descriptive_only_test_gold_demo_contamination
+  common_semantic_comparison_id: week4_common_semantic_coding_v1_20260726_001
   pilot_run_ids:
     - week4_pilot_standardized_v2_20260725_001
     - week4_pilot_fewshot4_v2_20260725_001
@@ -36,3 +38,8 @@ validation:
     image_product_search: standardized_v2
     after_sales: standardized_v2
     itinerary_planning: standardized_v2
+
+experiment_design:
+  fewshot_demo_source: week3_evaluation_v2_final_test_gold
+  fewshot_effect_claim: prohibited
+  winner_full_run_affected: false

@@ -333,10 +333,14 @@ pilot 上比较 `standardized_v2`、4-shot 和 7-shot，并且只对每个场景
 行程请求因超过 4096-token 上下文而返回 HTTP 400，仅保留为失败证据；
 runner 和统一验证器会拒绝包含模型请求错误的运行。有效重跑后，两个新增
 Few-Shot 候选均未超过控制组，三个场景继续使用 `standardized_v2`。
+由于 Few-Shot 示例来自最终测试集金标，该 pilot 只作描述性证据，不能用于
+无偏泛化效果声明；无示例的全量 winner 不受此污染直接影响。baseline 与
+winner 的业务指标通过独立共同语义轨道成对比较，不覆盖 Week 3 原评分。
 
 ```bash
 python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <run-id> --stage pilot --variant <standardized_v2|fewshot_4_v2|fewshot_7_v2>
 python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --pilot-run-id <run-id> --pilot-run-id <run-id> --pilot-run-id <run-id>
+python scripts/compare_week4_common_semantics.py
 python scripts/validate_week4_output.py --scenario image_product_search --raw-output-file <raw-output-file>
 python scripts/validate_week4_delivery.py --config configs/evaluation_week4.yaml
 ```
