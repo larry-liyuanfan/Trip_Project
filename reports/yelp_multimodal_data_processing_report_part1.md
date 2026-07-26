@@ -1,4 +1,4 @@
-# Yelp多模态数据处理说明报告（第一部分）
+# Yelp 多模态数据处理说明报告（第一部分）
 
 ## 1. Week 2 目标与验收范围
 本周目标是把 Yelp Open Dataset 转换为可复现、可校验、可用于后续 VLM 训练与检索实验的多粒度图文数据。
@@ -76,7 +76,20 @@ reports/             -> mentor-facing Markdown report
 - Businesses with parsed reviews: 150346
 - Businesses with valid images: 36673
 - 覆盖城市数量: 1416
-- Top categories: [['restaurants', 52268], ['food', 27781], ['shopping', 24395], ['home services', 14356], ['beauty & spas', 14292], ['nightlife', 12281], ['health & medical', 11890], ['local services', 11198], ['bars', 11065], ['automotive', 10773], ['event planning & services', 9895], ['sandwiches', 8366], ['american (traditional)', 8139], ['active life', 7687], ['pizza', 7093], ['coffee & tea', 6703], ['fast food', 6472], ['breakfast & brunch', 6239], ['american (new)', 6097], ['hotels & travel', 5857]]
+- Top categories：
+
+| 排名 | 品类 | 数量 | 排名 | 品类 | 数量 |
+| ---: | --- | ---: | ---: | --- | ---: |
+| 1 | restaurants | 52,268 | 11 | event planning & services | 9,895 |
+| 2 | food | 27,781 | 12 | sandwiches | 8,366 |
+| 3 | shopping | 24,395 | 13 | american (traditional) | 8,139 |
+| 4 | home services | 14,356 | 14 | active life | 7,687 |
+| 5 | beauty & spas | 14,292 | 15 | pizza | 7,093 |
+| 6 | nightlife | 12,281 | 16 | coffee & tea | 6,703 |
+| 7 | health & medical | 11,890 | 17 | fast food | 6,472 |
+| 8 | local services | 11,198 | 18 | breakfast & brunch | 6,239 |
+| 9 | bars | 11,065 | 19 | american (new) | 6,097 |
+| 10 | automotive | 10,773 | 20 | hotels & travel | 5,857 |
 缺失或损坏图片保留在验证摘要中，但从强、中、弱和 CLIP 对齐产出中排除。品类和城市统计来自实际输出人口，不使用人工估算。
 
 ## 6. 强对齐：图片 + 原生图片文本
@@ -95,7 +108,20 @@ reports/             -> mentor-facing Markdown report
 - Weak alignment: 36673 business-level groups containing bounded image lists and selected review texts.
 弱对齐的语义假设是同一商家的图片集合与评论集合相关，但不声称每张图片都精确对应每条评论。每商家图片和评论数量均由配置限制，避免全量笛卡尔积。
 输出字段包括 `business_id`, `photo_ids`, `image_paths`, `review_ids`, `review_texts`，用于弱监督检索和商家级多模态表示。
-- 弱对齐品类覆盖: [['restaurants', 7897], ['food', 3583], ['nightlife', 1393], ['bars', 1163], ['coffee & tea', 1004], ['american (traditional)', 990], ['sandwiches', 887], ['pizza', 862], ['american (new)', 769], ['breakfast & brunch', 749], ['fast food', 716], ['mexican', 714], ['italian', 614], ['burgers', 582], ['seafood', 477], ['bakeries', 395], ['chinese', 391], ['ice cream & frozen yogurt', 373], ['desserts', 372], ['salad', 370]]
+- 弱对齐品类覆盖：
+
+| 排名 | 品类 | 数量 | 排名 | 品类 | 数量 |
+| ---: | --- | ---: | ---: | --- | ---: |
+| 1 | restaurants | 7,897 | 11 | fast food | 716 |
+| 2 | food | 3,583 | 12 | mexican | 714 |
+| 3 | nightlife | 1,393 | 13 | italian | 614 |
+| 4 | bars | 1,163 | 14 | burgers | 582 |
+| 5 | coffee & tea | 1,004 | 15 | seafood | 477 |
+| 6 | american (traditional) | 990 | 16 | bakeries | 395 |
+| 7 | sandwiches | 887 | 17 | chinese | 391 |
+| 8 | pizza | 862 | 18 | ice cream & frozen yogurt | 373 |
+| 9 | american (new) | 769 | 19 | desserts | 372 |
+| 10 | breakfast & brunch | 749 | 20 | salad | 370 |
 
 ## 9. CLIP 语义降噪与效果分析
 - CLIP denoising: completed (CLIP scoring completed).

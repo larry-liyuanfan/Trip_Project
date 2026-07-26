@@ -56,7 +56,7 @@ Model 183。以上只是本机小规模实测，不宣称生产级性能。
 
 ## 复现命令
 
-```bash
+```powershell
 python -m pip install -r requirements-milvus.txt
 Copy-Item docker/milvus/.env.example docker/milvus/.env
 # 替换本机 .env 中的占位值
