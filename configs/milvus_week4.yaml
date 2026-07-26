@@ -1,0 +1,36 @@
+connection:
+  uri: http://localhost:19530
+  token_env: MILVUS_TOKEN
+  timeout_seconds: 30
+
+collection:
+  name: ota_business_image_vector
+  vector_dimension: 512
+  consistency_level: Strong
+  embedding_model: openai/clip-vit-base-patch32
+
+index:
+  metric_type: COSINE
+  index_type: HNSW
+  M: 16
+  efConstruction: 128
+  ef: 64
+  scalar_fields:
+    - business_id
+    - image_id
+    - business_category
+    - city
+    - star_rating
+    - price_range
+    - image_type
+    - embedding_model
+
+benchmark:
+  source_table: data/yelp/processed/image_business_attribute_pairs.parquet
+  vectors_path: outputs/week4/milvus/clip_vectors.npz
+  metadata_path: outputs/week4/milvus/clip_metadata.jsonl
+  output_path: outputs/week4/milvus/performance_report.json
+  vector_count: 20
+  query_count: 10
+  top_k: 5
+  seed: 20260725

@@ -17,6 +17,11 @@ def load_evaluation_config(path: Path | str) -> dict[str, Any]:
     dataset_version = payload.get("dataset_version")
     if not isinstance(dataset_version, str) or not dataset_version.strip():
         raise ManifestValidationError("dataset_version must be a non-empty string")
+    split = payload.get("split", "evaluation")
+    if split not in {"evaluation", "development"}:
+        raise ManifestValidationError(
+            "split must be 'evaluation' or 'development'"
+        )
 
     paths = payload.get("paths")
     if not isinstance(paths, dict):
@@ -28,6 +33,19 @@ def load_evaluation_config(path: Path | str) -> dict[str, Any]:
         "runs_dir",
     ):
         _require_relative_path(paths.get(name), f"paths.{name}")
+    external_exclusions = paths.get("external_exclusion_manifests", [])
+    if (
+        not isinstance(external_exclusions, list)
+        or any(not isinstance(item, str) for item in external_exclusions)
+    ):
+        raise ManifestValidationError(
+            "paths.external_exclusion_manifests must be a list"
+        )
+    for index, value in enumerate(external_exclusions):
+        _require_relative_path(
+            value,
+            f"paths.external_exclusion_manifests[{index}]",
+        )
     if "scores_dir" in paths:
         _require_relative_path(paths.get("scores_dir"), "paths.scores_dir")
     for name in ("codings_dir", "comparisons_dir", "generated_reports_dir", "readiness_dir"):

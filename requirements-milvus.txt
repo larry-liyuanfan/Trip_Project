@@ -1,0 +1,3 @@
+# Isolated Week 4 Milvus client dependency. Do not merge into API/data/vLLM sets.
+pymilvus==2.6.16
+python-dateutil==2.9.0.post0

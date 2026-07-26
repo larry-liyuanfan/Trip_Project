@@ -145,3 +145,87 @@ manifest.
 - Baseline JSON/Schema compliance remains 0%/0% in all scenarios. The lexical and strict structured tracks are shown separately and are not used for a causal Prompt-effect claim.
 - Verification: 226/226 unit tests passed; standalone v2 validation and both run-bound validators returned `status=ok`; the 450-row semantic score passed strict JSON, support, run-ID, codebook-hash, and scenario-count checks.
 - Status: `READY / COMPLETED`.
+
+## 2026-07-25：Week 4 Prompt pilot 与 Milvus standalone
+
+- 数据集：不可变的 `week3_evaluation_v2`；每场景固定 5 个正例、
+  2 个边界例和 5 个不重叠 pilot 样本。
+- 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`、vLLM；temperature 0.1、
+  top-p 0.9、repetition penalty 1.05、max tokens 1280。
+- 旧候选 `fewshot_4_v1`、`fewshot_7_v1` 的行程请求因上下文超过
+  4096-token 上限而返回 HTTP 400，保留为无效运行证据。
+- 版本化候选 `fewshot_4_v2`、`fewshot_7_v2` 保持模型、生成参数和示例
+  数量不变，只压缩重复 Schema 与行程展开；两组均完成 15/15，
+  `model_request_error_count=0`。
+- 有效 pilot 中，商品、售后、行程均由 `standardized_v2` 胜出，选择分数
+  为 0.3280、0.5967、0.4775。新增 Few-Shot 未超过控制组。
+- 全量运行 `week4_winners_full_20260725_001` 完成 450/450；
+  样本哈希为 `3e900e64...ad648c`。
+- 全量结构化轨道的商品、售后、行程 JSON/Schema 分别为
+  77.5%/75.5%、96.67%/96.67%、90.0%/87.0%。baseline 词法业务轨道
+  与结构化业务轨道不计算差值；baseline token 未记录，明确为 `PENDING`。
+- Milvus 2.6.20、PyMilvus 2.6.16、etcd 3.5.18 和固定 MinIO
+  部署 healthy；十字段 Schema、HNSW/COSINE 和 8 个标量索引已验证。
+- 20 条真实 CUDA CLIP 向量完成 CRUD。HNSW 构建 5.6621 s，
+  10 次查询平均/P95 为 7.7982/10.7236 ms，Recall@5 为 1.0000。
+
+### 中央审查问题及修复
+
+- 审查发现 Windows CRLF 使两个 Week 3 run-bound 原始字节哈希失败。
+  新增 `.gitattributes`，provenance 对文本换行归一化并兼容既有
+  LF/CRLF 历史哈希；两个验证现均为 `status=ok`。
+- 移除跟踪配置中的 Milvus/MinIO 明文凭据，改为环境变量和脱敏
+  `.env.example`；本地容器已使用新随机凭据重建，19 条可见向量保留。
+- Milvus 基准现在要求输出不存在且集合物理行数为 0；插入/删除后的数量
+  来自 `count(*)`，不再由输入长度推断。
+- runner 在任何模型请求失败时将运行标为 `failed`；统一验证器同时拒绝
+  运行记录或候选摘要中的请求错误。
+- v2 比较产物删除跨轨道 `business_quality_delta`，只比较同口径格式、
+  延迟和 token 可用性；全套 244 个测试通过，状态为
+  `READY / COMPLETED`。
+
+## 2026-07-26：共同语义评分与 Few-Shot 设计复核
+
+- Git 基线：`d6e1b8c`；模型运行未重跑，使用冻结的
+  `week3_v2_baseline_full_20260724_001` 和
+  `week4_winners_full_20260725_001` 原始输出。
+- 数据/模型：`week3_evaluation_v2`，450 对相同 sample，SHA-256
+  `3e900e64...ad648c`；`Qwen/Qwen2-VL-2B-Instruct`、vLLM 和原生成
+  参数保持不变。
+- 命令：`python scripts/compare_week4_common_semantics.py`。
+- 评分：两边均使用 `BaselineSemanticCoder.encode`、
+  `baseline_semantic_coding_v1` codebook
+  `563dc074...033a6`、同一人工金标与指标函数；bootstrap 2,000 次，
+  seed `20260726`。
+- 主要结果：商品 category/price delta +32.73/+13.00 pp，style/facility
+  macro F1 +3.93/-19.88 pp；售后 issue/severity +18.00/0.00 pp，
+  key-information F1/OCR recall +0.67/-9.78 pp；行程 constraint
+  recognition 0.00 pp，element completeness -55.40 pp。
+- 局限：固定词法 codebook 原为 baseline 自然语言设计，对 JSON 标点分隔
+  的枚举值、改写和隐含约束识别有限；共同轨道只支持该编码器下的成对解释。
+- Few-Shot 示例来自最终 test gold。现有 v2 pilot 请求有效，但只作描述性
+  证据；不构造未授权的新 demo/dev 数据，不重跑模型。
+- 验证：245/245 单元测试通过；Week 3 v2 数据、baseline/standardized
+  run-bound 和 Week 4 统一验证均为 `status=ok`。Compose 配置展开通过；
+  当前容器状态复核因 Docker daemon 未运行而 `PENDING`，历史 Milvus
+  CRUD/性能证据未改写。
+
+## 2026-07-26：独立 demo/dev Few-Shot 重跑
+
+- Git 基线：`abb689a` 加本次未提交工作区；数据版本
+  `week4_demo_dev_v1`（development 36 条人工金标）与
+  `week3_evaluation_v2`（evaluation 450 条）。
+- 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`、vLLM 0.8.5；
+  temperature 0.1、top-p 0.9、repetition penalty 1.05、
+  max tokens 1280；未运行 CLIP。
+- 隔离：完整 development 池与最终 evaluation 在 sample_id、source_id、
+  image SHA-256 和 group_id 上无交集；selection v2 选择 21 个示例。
+- Pilot：`standardized_v2`、4-shot、7-shot 各 15 条，全部完成且请求
+  错误为 0。综合分胜出为商品 4-shot、售后 zero-shot、行程 zero-shot。
+- 全量运行 `week4_winners_full_20260726_002` 完成 450/450，样本
+  SHA-256 `3e900e64...ad648c`。
+- 全量 JSON/Schema：商品 82.0%/20.5%，售后 96.67%/96.67%，行程
+  91.0%/88.0%。商品结果显示小 pilot 选择方差，负结果不触发反向选模。
+- 同轨比较：`week4_common_semantic_coding_v1_20260726_003`，450 对、
+  38 个指标、bootstrap 2,000 次；bad case v5 共 376 条。
+- 验证：`python scripts/validate_week4_delivery.py` 返回 `status=ok`。

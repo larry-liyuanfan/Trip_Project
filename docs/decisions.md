@@ -74,6 +74,74 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **Reason**: The mentor requires baseline business metrics, while the minimal Prompt intentionally produces unconstrained natural language. A deterministic lexical track measures supported semantics without changing the Prompt, rerunning inference, adding manual output coding, or treating JSON failure as semantic failure.
 - **Consequence**: Store the lexical metrics as an independent scoring track with explicit support counts and codebook SHA-256. Preserve baseline JSON/Schema rates, raw output, latency, and run provenance. Do not compare this track to the standardized strict-structured track as if their difference were a pure Prompt effect.
 
+## ADR-010：只从固定实测候选中选择 Week 4 Prompt
+
+- **日期**：2026-07-25
+- **状态**：Accepted
+- **决策**：使用固定 v2 金标示例和不重叠 pilot，对比
+  `standardized_v2`、4-shot、7-shot；按已提交的业务、JSON、Schema、
+  token 和延迟加权分数选择每场景胜出版本，再只对胜出版本执行 v2 全量跑测。
+- **原因**：在不修改金标、不猜标签、不扩展候选搜索的前提下满足导师要求。
+- **影响**：`standardized_v2` 只是本次三个候选中的场景胜出版本。
+  旧 Few-Shot v1 行程请求因上下文超限而失效；版本化 v2 在不改变模型和
+  生成参数的前提下压缩重复上下文并完成有效重跑。新增 Few-Shot 候选仍未
+  超过控制组，因此不称为新的“优化后最优 Prompt”。Week 3 产物保持不可变；
+  baseline 词法编码与结构化严格评分不可直接比较，不计算业务差值。
+
+## ADR-011：Milvus 和 CLIP 与业务推理解耦
+
+- **日期**：2026-07-25
+- **状态**：Accepted
+- **决策**：使用固定版本 Milvus standalone 和独立 PyMilvus 依赖组，
+  存储归一化的 512 维 `openai/clip-vit-base-patch32` 图片向量。
+  Qwen2-VL 保持现有 vLLM 推理接口，不作为 embedding 端点。
+- **原因**：完成真实向量 CRUD，同时不污染现有 API/data/vLLM 依赖，
+  并遵守本地 8 GB GPU 资源边界。
+- **影响**：运行 CLIP 前停止 vLLM；生成向量和 volumes 保持忽略。
+  检索只支持固定标量白名单以及配置中的 HNSW/COSINE 参数。
+
+## ADR-012：评估文本哈希跨平台稳定
+
+- **日期**：2026-07-25
+- **状态**：Accepted
+- **决策**：通过 `.gitattributes` 强制评估 Prompt、Schema 和配置使用 LF；
+  provenance 对文本换行归一化，并兼容既有运行曾按 LF 或 CRLF 原始字节
+  记录的哈希。非换行字节变化仍必须导致验证失败。
+- **原因**：Windows 自动换行转换不应使不可变运行证据失效。
+- **影响**：Week 3 历史运行无需修改即可跨平台验证；未来运行使用统一的
+  LF 文本哈希。
+
+## ADR-013：共同语义轨道与 Few-Shot 证据边界
+
+- **日期**：2026-07-26
+- **状态**：Accepted
+- **决策**：保留 Week 3 原词法评分和 Week 4 原严格结构化评分；另建
+  `week4_common_semantic_coding_v1`，将两组冻结原始输出交给同一个
+  `BaselineSemanticCoder.encode` 和 codebook，全部预测完成后再连接同一
+  人工金标并执行同一指标与 paired bootstrap。现有 Few-Shot 示例来自最终
+  测试集金标，其 pilot 仅作描述性证据，不支持无偏效果声明。
+- **原因**：原业务指标使用不同预测转换，不能直接相减；同时示例与 pilot
+  不重叠仍不能消除利用最终测试集金标设计 Prompt 的污染风险。
+- **影响**：Week 3 原产物不覆盖。`standardized_v2` 的无示例全量运行仍可
+  报告；Few-Shot 泛化比较保持 `PARTIAL`，除非以后获得明确授权的独立
+  demo/dev pool，但本决策不创建该数据或未来任务。
+
+> 2026-07-26 后续直接授权已满足上述条件；Few-Shot 数据边界由 ADR-014
+> 接替。共同语义轨道部分继续有效。
+
+## ADR-014：独立 demo/dev Few-Shot 证据
+
+- **日期**：2026-07-26
+- **状态**：Accepted
+- **决策**：使用单独版本 `week4_demo_dev_v1` 和 `development` split
+  保存 36 条人工金标；示例与最终 `week3_evaluation_v2` 在 sample、
+  source、图片 SHA-256 和来源组四层隔离。选择文件升级为
+  `week4_prompt_selection_v2`，旧 v1 不覆盖。
+- **原因**：消除使用最终 test gold 设计 Prompt 的污染，使固定 pilot
+  能支持本次候选内的无偏比较。
+- **影响**：三组新 pilot 均须真实重跑且请求错误为 0；胜出版本只表示
+  固定综合规则下的候选内最高分。全量结果不得反向用于重选 Prompt。
+
 ## Decision Template
 
 ```markdown

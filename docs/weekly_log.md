@@ -173,3 +173,68 @@ as the current validated dataset or accepted baseline.
 - Moved the earlier gold-leaking semantic score and incompatible cross-track comparison unchanged into ignored quarantine with a hash disposition record.
 - Final verification passed 226 Python tests, standalone v2 validation, both run-bound validators, semantic score integrity checks, and Git diff/boundary checks.
 - Week 3 status is `READY / COMPLETED`; the deterministic lexical method and its limitations are documented without attributing cross-track differences solely to Prompt behavior.
+
+## 2026-07-25：Week 4 Prompt 优化与 Milvus
+
+- 保持全部 Week 3 产物不变；每场景从 v2 金标固定选择 5 个正例和
+  2 个边界例，构建 4-shot（3+1）和 7-shot（5+2）。
+- 旧 Few-Shot v1 行程请求因上下文超限全部返回 HTTP 400，不能作为有效
+  候选。新增版本化 v2 删除重复长上下文后，4-shot 和 7-shot 均完成
+  15/15，模型请求错误为 0。
+- 有效 pilot 中 `standardized_v2` 在三个场景均胜出；选择分数为商品
+  0.3280、售后 0.5967、行程 0.4775。新增 Few-Shot 候选未超过控制组，
+  没有产生新的胜出 Prompt。
+- 全量胜出运行 `week4_winners_full_20260725_001` 保持 450/450。
+  baseline 词法业务轨道与 Week 4 结构化业务轨道不再计算差值；同口径
+  JSON/Schema 和延迟单独比较，baseline token 明确为 `PENDING`。
+- 导出真实 bad case：分类错误 86、字段/Schema 错误 7、格式错误 67、
+  严重等级错误 105、约束遗漏 100；类别允许重叠。
+- 格式兜底只去除可选围栏、解析 JSON、执行现有 Schema 校验，不补字段、
+  不修改枚举、不猜标签、不重试模型。
+- Milvus 2.6.20、etcd 和 MinIO 均 healthy；固定十字段集合、
+  HNSW/COSINE 和 8 个标量索引均已验证。
+- 停止 vLLM 后，用 CUDA CLIP 编码 20 张真实 Yelp 图片。HNSW 构建
+  5.6621 s，10 次查询平均/P95 为 7.7982/10.7236 ms，
+  Recall@5 为 1.0000。
+- 中央审查发现的两个阻断项已修复：Milvus/MinIO 凭据改为本机环境变量并
+  完成实际轮换；评估文本哈希统一换行且兼容既有 LF/CRLF 运行记录。
+- 修复后 244 个单元测试通过；Week 3 v2 数据验证、两个 run-bound
+  验证、Week 4 统一只读验证、Compose 展开和容器健康检查均通过。
+- Week 4 状态恢复为 `READY / COMPLETED`；不进入 `stg`，不打标签。
+
+## 2026-07-26：Week 4 共同语义评分与证据边界修正
+
+- 保持 Week 3 baseline、原始输出和 `baseline_semantic_coding_v1` 原评分
+  不变，新增 `week4_common_semantic_coding_v1_20260726_001`。
+- baseline 与 Week 4 winner 的 450 对原始输出均使用同一个
+  `BaselineSemanticCoder.encode`、同一 codebook 和同一指标函数；预测
+  完成后才连接金标，并执行 2,000 次 paired bootstrap。
+- 共同轨道实测：商品业态 +32.73 pp、价位 +13.00 pp、设施 macro F1
+  -19.88 pp；售后分类 +18.00 pp、OCR recall -9.78 pp；行程要素完整度
+  -55.40 pp。该结果只解释固定词法编码轨道，不替代人工语义编码。
+- 明确现有 Few-Shot 示例取自最终 test gold，pilot 降级为描述性证据；
+  `standardized_v2` 仍是三场景描述性最高分且不含示例，全量运行不受该
+  污染直接影响。
+- Week 3 过程状态文件已标为历史快照并链接后续 `READY / COMPLETED`
+  正式报告；Week 4 bad case 增补真实金标、预测、错误原因和字段检查方向。
+- Prompt 部分因缺少独立 demo/dev pool 保持 `PARTIAL`；Milvus 保持
+  `READY`。不新增标注或数据集版本，不重跑模型。
+
+## 2026-07-26：独立 demo/dev Few-Shot 完成
+
+- 用户后续直接授权完成独立 demo/dev pool，取代此前“禁止新增”的临时
+  限制；Week 3 v1/v2 数据、Prompt、Schema、运行和评分保持不变。
+- 建立 `week4_demo_dev_v1`：三场景各 12 条、共 36 条人工金标，
+  split=`development`；与 450 条最终 evaluation 在 sample/source/image/
+  group 四层无重叠。
+- selection v2 从每场景 development 金标固定选择 5 正例 + 2 边界例；
+  三组新 pilot 共 45/45 请求完成，模型请求错误 0。
+- 固定综合分胜出：商品 `fewshot_4_v2`，售后与行程
+  `standardized_v2`。新的混合 winner 全量
+  `week4_winners_full_20260726_002` 完成 450/450。
+- 全量 JSON/Schema：商品 82.0%/20.5%，售后 96.67%/96.67%，行程
+  91.0%/88.0%。商品 4-shot 的低 Schema 率作为 pilot 方差与负结果保留，
+  不用全量结果反向改选。
+- common comparison `_003` 完成 450 对同编码器评分、38 个聚合指标和
+  2,000 次 bootstrap；v5 bad case 共 376 条。
+- Week 4 状态更新为 `READY FOR MENTOR REVIEW`。

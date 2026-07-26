@@ -162,8 +162,25 @@ def export_comparison_artifacts(
     metadata: dict[str, Any],
     sample_rows: list[dict[str, Any]],
     aggregate_rows: list[dict[str, Any]],
+    *,
+    comparison_label: str = "standardized",
 ) -> dict[str, Path]:
     """Write immutable strict JSON/CSV comparison artifacts."""
+    if comparison_label not in {"standardized", "winner"}:
+        raise ComparisonValidationError("unsupported comparison label")
+    if comparison_label == "winner":
+        sample_rows = _rename_comparison_side(sample_rows)
+        aggregate_rows = [
+            {
+                (
+                    key.replace("standardized_", "winner_", 1)
+                    if key.startswith("standardized_")
+                    else key
+                ): value
+                for key, value in row.items()
+            }
+            for row in aggregate_rows
+        ]
     _strict_json(metadata)
     for row in sample_rows:
         _strict_json(row)
@@ -195,11 +212,11 @@ def export_comparison_artifacts(
         "metric",
         "paired_count",
         "baseline_mean",
-        "standardized_mean",
+        f"{comparison_label}_mean",
         "absolute_delta",
         "relative_delta",
         "baseline_wins",
-        "standardized_wins",
+        f"{comparison_label}_wins",
         "ties",
         "delta_ci95_low",
         "delta_ci95_high",
@@ -213,6 +230,20 @@ def export_comparison_artifacts(
         "sample_deltas": samples_path,
         "aggregate_deltas": aggregates_path,
     }
+
+
+def _rename_comparison_side(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    renamed = json.loads(json.dumps(rows, ensure_ascii=False))
+    for row in renamed:
+        metrics = row.get("metrics")
+        if not isinstance(metrics, dict):
+            continue
+        for values in metrics.values():
+            if isinstance(values, dict) and "standardized" in values:
+                values["winner"] = values.pop("standardized")
+    return renamed
 
 
 def select_representative_cases(

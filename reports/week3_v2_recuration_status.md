@@ -1,8 +1,12 @@
-# Week 3 v2 测试集重整与运行状态
+# Week 3 v2 测试集重整与运行状态（历史快照，已被后续结果取代）
 
 截至 2026-07-24，`week3_evaluation_v2` 的数据重整、人工标注和两组全量
 真实推理均已完成。该文件只记录 v2 过程状态；正式指标、错误案例和结论见
 `reports/week3_zero_shot_baseline_report.md`。
+
+> 状态说明：本文末尾的 `PARTIAL / PENDING` 是 2026-07-24 当时的历史
+> 状态。2026-07-25 完成获批的 `baseline_semantic_coding_v1` 后，Week 3
+> 正式状态已更新为 `READY / COMPLETED`；以正式报告为准。
 
 | 场景 | target | candidate | annotated | validated | tested |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -26,6 +30,10 @@
 - 比较产物 `week3_v2_prompt_pair_20260724_001` 包含 450 个成对样本和
   2,000 次 bootstrap。
 
-Week 3 仍标为 `PARTIAL`，唯一未量化部分是最简 baseline 自然语言输出的原生
-语义指标。450 条 baseline 输出和延迟已完整留存，但没有获批的确定性解析或
-人工编码结果；因此这些指标为 `PENDING`，不是数值 0。
+## 后续状态
+
+上述快照在 2026-07-24 仍为 `PARTIAL`：当时最简 baseline 自然语言输出
+尚无获批的确定性解析结果。2026-07-25 随后新增
+`baseline_semantic_coding_v1`，在不修改原始运行、Prompt、金标或严格
+JSON/Schema 结果的前提下完成 450 条语义编码与评分。因此该历史
+`PARTIAL / PENDING` 已被正式报告中的 `READY / COMPLETED` 取代。

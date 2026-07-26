@@ -321,3 +321,51 @@ Framework metric groups include:
 - Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
 - Week 3: `READY / COMPLETED`. Data, human gold, real baseline, deterministic baseline semantic scoring, standardized v2, and reporting are complete and traceable.
+
+### Week 4：Prompt 优化与 Milvus
+
+Week 4 保持全部 Week 3 产物不变。Few-Shot 示例来自独立的
+`week4_demo_dev_v1` development 人工金标池；固定 pilot 和全量测试仍使用
+`week3_evaluation_v2`。两个池按样本、来源、图片哈希和来源组隔离。格式
+兜底仅移除可选 Markdown 围栏、解析 JSON 并执行现有场景 Schema 校验，
+不修复模型内容。
+
+当前有效 Few-Shot 版本为 `fewshot_4_v2` 和 `fewshot_7_v2`。旧 v1
+行程请求因超过 4096-token 上下文而返回 HTTP 400，仅保留为失败证据；
+runner 和统一验证器会拒绝包含模型请求错误的运行。独立池重跑后，商品由
+`fewshot_4_v2` 胜出，售后和行程由 `standardized_v2` 胜出；450 条混合
+winner 全量结果单独版本化。baseline 与 winner 的业务指标通过共同语义
+轨道成对比较，不覆盖 Week 3 原评分。
+
+```bash
+python scripts/build_week3_candidate_manifests.py --config configs/evaluation_week4_demo_dev_v1.yaml
+python scripts/manage_week3_annotations.py --config configs/evaluation_week4_demo_dev_v1.yaml --scenario <scenario> export --include-suggestions --output <packet.jsonl>
+python scripts/manage_week3_annotations.py --config configs/evaluation_week4_demo_dev_v1.yaml --scenario <scenario> apply --input <completed-packet.jsonl>
+python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <run-id> --stage pilot --variant <standardized_v2|fewshot_4_v2|fewshot_7_v2>
+python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --pilot-run-id <run-id> --pilot-run-id <run-id> --pilot-run-id <run-id>
+python scripts/compare_week4_common_semantics.py --winner-run-id week4_winners_full_20260726_002 --output-dir outputs/week4/common_semantic/week4_common_semantic_coding_v1_20260726_003
+python scripts/validate_week4_output.py --scenario image_product_search --raw-output-file <raw-output-file>
+python scripts/validate_week4_delivery.py --config configs/evaluation_week4.yaml
+```
+
+Milvus 客户端使用独立依赖组，不向 API、data 或 vLLM 环境添加依赖。
+standalone Compose 固定 Milvus、etcd 和 MinIO 版本，并包含健康检查、
+持久化、本地端口和资源限制。凭据只从本机环境文件读取；仓库只提交脱敏示例。
+
+```bash
+python -m pip install -r requirements-milvus.txt
+Copy-Item docker/milvus/.env.example docker/milvus/.env
+# 编辑 docker/milvus/.env，替换两个 MinIO 占位值
+docker compose --env-file docker/milvus/.env -f docker/milvus/docker-compose.yml config
+docker compose --env-file docker/milvus/.env -f docker/milvus/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml stop vllm
+python scripts/build_week4_clip_vectors.py --config configs/milvus_week4.yaml
+python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
+```
+
+本地 8 GB GPU 不得同时运行 vLLM 和 CLIP。生成的 Week 4 运行、向量、
+性能输出和 Milvus volumes 均保持忽略。详细说明见
+`reports/week4_prompt_optimization_report.md`,
+`reports/week4_bad_cases.md`,
+`docs/milvus_collection_design.md`, and
+`reports/week4_milvus_deployment_performance_report.md`.

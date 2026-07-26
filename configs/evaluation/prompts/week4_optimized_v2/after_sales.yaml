@@ -1,0 +1,6 @@
+scenario: after_sales
+schema_name: after_sales_v1.schema.json
+format_skeleton: >-
+  {"issue_type":"unknown","severity":"unknown","issue_location":null,"key_information":[],"ocr_text":null,"observed_evidence":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  按 issue_type、severity、issue_location、key_information、ocr_text、observed_evidence、unknown_fields、confidence 的顺序检查并输出。先定位图片中的异常，再从 hygiene_stain、facility_damage、attraction_closure、transport_delay、other、unknown 中选择唯一 issue_type；随后只依据可见影响判断 severity。正常场景或证据不足时使用 unknown。逐项抄录清晰可见的编号、时间、延误时长或关闭信息；没有可见文字时 ocr_text 使用 null，不根据低分评论或背景知识猜测。

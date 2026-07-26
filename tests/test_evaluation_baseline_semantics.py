@@ -64,6 +64,10 @@ class BaselineSemanticCoderTest(unittest.TestCase):
         self.assertEqual(first["business_category"], "hotel")
         self.assertEqual(first["style_tags"], ["quiet"])
         self.assertEqual(first["visible_facilities"], ["lobby", "pool"])
+        self.assertEqual(
+            self.coder.codebook_sha256,
+            "563dc0747f92b6ccaa37466045cb0e74229787824013d59a5f6f26261bb033a6",
+        )
 
     def test_ambiguous_scalar_returns_unknown(self) -> None:
         prediction = self.coder.encode(
@@ -124,6 +128,43 @@ class BaselineSemanticCoderTest(unittest.TestCase):
                 coding_version=self.coder.version,
                 codebook_sha256=self.coder.codebook_sha256,
             )
+
+    def test_common_track_scores_standardized_output_with_same_prediction(self) -> None:
+        from src.evaluation.metrics import score_common_semantic_prediction
+
+        result = {
+            **_result_record(
+                raw_output=(
+                    '{"issue_type":"facility_damage",'
+                    '"observed_evidence":["damaged sink"]}'
+                )
+            ),
+            "prompt_version": "standardized_v2",
+            "json_valid": True,
+            "schema_valid": True,
+        }
+        prediction = self.coder.encode(
+            scenario="after_sales",
+            raw_output=result["raw_output"],
+        )
+        score = score_common_semantic_prediction(
+            result,
+            {
+                "issue_type": "facility_damage",
+                "severity": "unknown",
+                "key_information": ["damaged facility"],
+                "ocr_ground_truth": None,
+            },
+            prediction,
+            {},
+            coding_version=self.coder.version,
+            codebook_sha256=self.coder.codebook_sha256,
+            scoring_track="week4_common_semantic_coding_v1",
+        )
+        self.assertEqual(score["issue_type_accuracy"], 1.0)
+        self.assertEqual(
+            score["scoring_track"], "week4_common_semantic_coding_v1"
+        )
 
     def test_score_command_is_immutable(self) -> None:
         from scripts.score_week3_evaluation import score_run

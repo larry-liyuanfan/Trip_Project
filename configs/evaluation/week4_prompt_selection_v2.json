@@ -1,0 +1,68 @@
+{
+  "version": "week4_prompt_selection_v2",
+  "example_dataset_version": "week4_demo_dev_v1",
+  "pilot_dataset_version": "week3_evaluation_v2",
+  "selection_rule": "每场景从独立 development 人工金标池选择 5 个典型正样本和 2 个边界样本；固定 pilot 仅来自最终 evaluation 集，示例与 pilot 在 sample_id、source_id、图片 SHA256 和来源组上隔离。",
+  "scenarios": {
+    "image_product_search": {
+      "positive_example_ids": [
+        "image_product_search-9cd7d30ae25b5016",
+        "image_product_search-117afab1706b9acc",
+        "image_product_search-2e60c70df55c25fc",
+        "image_product_search-8b3527ce12e84fb7",
+        "image_product_search-238cb67e13d232cc"
+      ],
+      "boundary_example_ids": [
+        "image_product_search-8c0d4808dc480faa",
+        "image_product_search-73771a5d19c33cbe"
+      ],
+      "pilot_sample_ids": [
+        "image_product_search-2885a3c873d64e73",
+        "image_product_search-0ddcb7ef11f23afb",
+        "image_product_search-62e4e15be59a89c7",
+        "image_product_search-c0ed4d164daafeea",
+        "image_product_search-0d9f172ca82d7925"
+      ]
+    },
+    "after_sales": {
+      "positive_example_ids": [
+        "after_sales-213ec4027dd748c7",
+        "after_sales-22da39f723862d58",
+        "after_sales-43ca011fc038d6bd",
+        "after_sales-d13bb8718bd8feea",
+        "after_sales-4978c3494fc7da99"
+      ],
+      "boundary_example_ids": [
+        "after_sales-4b93b8aae7658f1c",
+        "after_sales-aac31a6e965facef"
+      ],
+      "pilot_sample_ids": [
+        "after_sales-06f781761d4bf6a3",
+        "after_sales-0d1b1ae14b0cd002",
+        "after_sales-0db2ad1fddaec021",
+        "after_sales-0f050b623136d8ae",
+        "after_sales-110c095e613d1cd5"
+      ]
+    },
+    "itinerary_planning": {
+      "positive_example_ids": [
+        "itinerary_planning-b21dddee672f3190",
+        "itinerary_planning-e9e6fb23e3e6680b",
+        "itinerary_planning-0400ca220ee06df3",
+        "itinerary_planning-c94e220d0f9e4ed8",
+        "itinerary_planning-b43518398099f74f"
+      ],
+      "boundary_example_ids": [
+        "itinerary_planning-59c54d09bce71a71",
+        "itinerary_planning-e3a0c5e5718b7384"
+      ],
+      "pilot_sample_ids": [
+        "itinerary_planning-b8faa8e3f61f0015",
+        "itinerary_planning-4b29c14a9e66ad62",
+        "itinerary_planning-e2502ab3b21d916e",
+        "itinerary_planning-8c9cb64dc487085e",
+        "itinerary_planning-abf649b679ee352f"
+      ]
+    }
+  }
+}

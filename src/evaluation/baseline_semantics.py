@@ -35,7 +35,12 @@ class BaselineSemanticCoder:
             raise SemanticCodingConfigurationError(
                 f"invalid semantic coding config: {exc}"
             ) from exc
-        return cls(config, codebook_sha256=hashlib.sha256(raw).hexdigest())
+        # Git 文本检出可能使用 CRLF；codebook 身份按仓库 LF 内容稳定计算。
+        canonical_raw = raw.replace(b"\r\n", b"\n")
+        return cls(
+            config,
+            codebook_sha256=hashlib.sha256(canonical_raw).hexdigest(),
+        )
 
     def encode(self, *, scenario: str, raw_output: str) -> dict[str, Any]:
         """Return a prediction without accepting sample metadata or human gold."""

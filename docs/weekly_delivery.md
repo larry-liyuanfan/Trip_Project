@@ -205,6 +205,62 @@ created.
 All mentor-required Week 3 baseline metrics now have persisted values and
 support counts. No numeric semantic score is derived from JSON failure.
 
+## Week 4 交付：Prompt 优化与 Milvus
+
+状态：`READY FOR MENTOR REVIEW`。Milvus 与 Prompt 交付均完成；新
+Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行保留为
+历史证据，不参与新选择。
+
+### 完成清单
+
+- [x] 保持 Week 3 manifest、金标、baseline、输出、Prompt、Schema 和评分不变。
+- [x] 三个场景各固定选择 5 个正例和 2 个边界例。
+- [x] 构建并实测 `standardized_v2`、4-shot v2、7-shot v2 pilot；
+  三组均无模型请求错误。
+- [x] 使用业务质量、格式、token 和延迟选择每场景胜出版本。
+- [x] 只对三个胜出版本执行 450 条 Week 3 v2 全量跑测。
+- [x] 保存原始输出、哈希、token、延迟、评分和 bad case。
+- [x] 提供不修复内容的 JSON/Schema 格式兜底和定向测试。
+- [x] 部署带持久化、健康检查和资源限制的固定版本 Milvus standalone。
+- [x] 实现并验证批量入库、单条新增、过滤检索、删除和索引构建。
+- [x] 生成 20 条真实 CLIP 向量并完成 CRUD 与性能测量。
+- [x] 移除跟踪文件中的明文凭据，提交脱敏环境模板并完成本地凭据轮换。
+- [x] 修复 LF/CRLF 运行绑定问题，新增 Week 4 统一只读证据验证。
+- [x] runner/验证器拒绝模型请求失败；删除跨评分轨道业务差值。
+- [x] 新增不覆盖旧评分的 450 对共同确定性语义评分与 paired bootstrap。
+- [x] 旧 Few-Shot pilot 明确标为 test-gold contamination 历史证据。
+- [x] 建立 36 条独立 `week4_demo_dev_v1` 人工金标并验证与 450 条最终
+  evaluation 在样本、来源、图片和来源组四层隔离。
+- [x] 使用 selection v2 重跑 45 条无偏 pilot；商品胜出 4-shot，售后和
+  行程胜出 `standardized_v2`。
+- [x] 只按 pilot 胜出映射执行新的 450 条全量，不用全量结果反向改选。
+
+实测 Prompt 和 Milvus 结果记录在
+`reports/week4_prompt_optimization_report.md`,
+`reports/week4_bad_cases.md` 和
+`reports/week4_milvus_deployment_performance_report.md`。生成的运行、
+向量和数据库 volumes 均保持忽略。
+
+### 修复后验证证据
+
+- `python -m unittest discover -s tests -v`：248/248 通过。
+- Week 3 v2 数据验证和 baseline/standardized 两个 run-bound 验证均为
+  `status=ok`，tested_count 为 200/150/100。
+- `python scripts/validate_week4_delivery.py`：3 个有效 pilot 共 45 条且
+  请求错误为 0；全量 450 条、score 450 条和 bad case 376 条全部通过。
+- baseline token 未记录，明确为 `PENDING`；原词法轨道与原结构化轨道
+  仍不直接相减。新增共同语义轨道包含 450 对预测、38 个聚合指标和
+  2,000 次 paired bootstrap。
+- Compose 脱敏展开通过；凭据轮换后 etcd、MinIO、Milvus 均 healthy，
+  19 条逻辑可见向量保持可查询。
+- 基准脚本会在既有输出或非空集合上写入前失败，并以 Milvus `count(*)`
+  记录插入和删除后的真实可见行数。
+
+2026-07-26 本次复核中，使用临时脱敏环境变量执行 Compose 配置展开通过；
+本次已启动 Docker daemon 和固定 Qwen2-VL vLLM，仅执行 Prompt 推理，
+未与 CLIP 并发。Milvus、MinIO、etcd 当前均 healthy；正式集合 19 条逻辑
+可见行，临时集合 CRUD 为插入 1、命中 1、删除后 0。历史性能产物未改写。
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`
