@@ -30,6 +30,7 @@ SCENARIOS = {"image_product_search", "after_sales", "itinerary_planning"}
 ANNOTATION_STATUSES = {"pending", "in_progress", "completed"}
 REVIEW_STATUSES = {"pending", "validated", "rejected"}
 FILE_STATUSES = {"pending", "valid", "missing", "unreadable"}
+SPLITS = {"evaluation", "development"}
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 PERCEPTUAL_HASH_PATTERN = re.compile(r"^[0-9a-f]{16}$")
 PII_REVIEW_STATUSES = {"not_applicable", "pending", "redacted", "verified"}
@@ -100,8 +101,10 @@ def validate_manifest_record(
     scenario = record["scenario"]
     if scenario not in SCENARIOS:
         raise ManifestValidationError(f"invalid scenario: {scenario!r}")
-    if record["split"] != "evaluation":
-        raise ManifestValidationError("split must be 'evaluation'")
+    if record["split"] not in SPLITS:
+        raise ManifestValidationError(
+            f"split must be one of {sorted(SPLITS)}"
+        )
     if record["annotation_status"] not in ANNOTATION_STATUSES:
         raise ManifestValidationError("invalid annotation_status")
     if record["review_status"] not in REVIEW_STATUSES:

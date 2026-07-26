@@ -209,3 +209,23 @@ manifest.
   run-bound 和 Week 4 统一验证均为 `status=ok`。Compose 配置展开通过；
   当前容器状态复核因 Docker daemon 未运行而 `PENDING`，历史 Milvus
   CRUD/性能证据未改写。
+
+## 2026-07-26：独立 demo/dev Few-Shot 重跑
+
+- Git 基线：`abb689a` 加本次未提交工作区；数据版本
+  `week4_demo_dev_v1`（development 36 条人工金标）与
+  `week3_evaluation_v2`（evaluation 450 条）。
+- 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`、vLLM 0.8.5；
+  temperature 0.1、top-p 0.9、repetition penalty 1.05、
+  max tokens 1280；未运行 CLIP。
+- 隔离：完整 development 池与最终 evaluation 在 sample_id、source_id、
+  image SHA-256 和 group_id 上无交集；selection v2 选择 21 个示例。
+- Pilot：`standardized_v2`、4-shot、7-shot 各 15 条，全部完成且请求
+  错误为 0。综合分胜出为商品 4-shot、售后 zero-shot、行程 zero-shot。
+- 全量运行 `week4_winners_full_20260726_002` 完成 450/450，样本
+  SHA-256 `3e900e64...ad648c`。
+- 全量 JSON/Schema：商品 82.0%/20.5%，售后 96.67%/96.67%，行程
+  91.0%/88.0%。商品结果显示小 pilot 选择方差，负结果不触发反向选模。
+- 同轨比较：`week4_common_semantic_coding_v1_20260726_003`，450 对、
+  38 个指标、bootstrap 2,000 次；bad case v5 共 376 条。
+- 验证：`python scripts/validate_week4_delivery.py` 返回 `status=ok`。

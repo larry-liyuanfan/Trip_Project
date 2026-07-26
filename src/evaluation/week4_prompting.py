@@ -25,8 +25,16 @@ class Week4PromptError(ValueError):
 def load_week4_selection(path: Path | str) -> dict[str, Any]:
     """Load and validate the checked-in example and pilot selection."""
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    if payload.get("version") != "week4_prompt_selection_v1":
+    if payload.get("version") not in {
+        "week4_prompt_selection_v1",
+        "week4_prompt_selection_v2",
+    }:
         raise Week4PromptError("unsupported Week 4 selection version")
+    if payload["version"] == "week4_prompt_selection_v2":
+        if payload.get("example_dataset_version") != "week4_demo_dev_v1":
+            raise Week4PromptError("v2 examples must use week4_demo_dev_v1")
+        if payload.get("pilot_dataset_version") != "week3_evaluation_v2":
+            raise Week4PromptError("v2 pilot must use week3_evaluation_v2")
     scenarios = payload.get("scenarios")
     if not isinstance(scenarios, dict) or set(scenarios) != set(SCENARIOS):
         raise Week4PromptError("selection must contain exactly the three scenarios")
@@ -50,27 +58,111 @@ def load_week4_selection(path: Path | str) -> dict[str, Any]:
 
 def validate_selection_records(
     selection: dict[str, Any],
-    records_by_id: dict[str, dict[str, Any]],
+    example_records_by_id: dict[str, dict[str, Any]],
+    pilot_records_by_id: dict[str, dict[str, Any]] | None = None,
 ) -> None:
-    """Bind every frozen ID to completed gold in the declared scenario."""
+    """将示例绑定到 development 金标，并验证其与 evaluation pilot 隔离。"""
+    pilot_records = pilot_records_by_id or example_records_by_id
+    example_version = selection.get(
+        "example_dataset_version",
+        selection.get("dataset_version", "week3_evaluation_v2"),
+    )
+    pilot_version = selection.get(
+        "pilot_dataset_version",
+        selection.get("dataset_version", "week3_evaluation_v2"),
+    )
+    selected_examples: list[dict[str, Any]] = []
+    selected_pilots: list[dict[str, Any]] = []
     for scenario, settings in selection["scenarios"].items():
-        ids = (
-            settings["positive_example_ids"]
-            + settings["boundary_example_ids"]
-            + settings["pilot_sample_ids"]
+        example_ids = (
+            settings["positive_example_ids"] + settings["boundary_example_ids"]
         )
-        for sample_id in ids:
-            record = records_by_id.get(sample_id)
+        for sample_id in example_ids:
+            record = example_records_by_id.get(sample_id)
             if record is None:
-                raise Week4PromptError(f"selection sample is missing: {sample_id}")
+                raise Week4PromptError(f"selection example is missing: {sample_id}")
             if record.get("scenario") != scenario:
                 raise Week4PromptError(f"selection scenario mismatch: {sample_id}")
-            if record.get("dataset_version") != "week3_evaluation_v2":
-                raise Week4PromptError(f"selection must use Week 3 v2: {sample_id}")
+            if record.get("dataset_version") != example_version:
+                raise Week4PromptError(
+                    f"selection example dataset mismatch: {sample_id}"
+                )
+            if selection["version"] == "week4_prompt_selection_v2":
+                if record.get("split") != "development":
+                    raise Week4PromptError(
+                        f"selection example must be development: {sample_id}"
+                    )
             if record.get("annotation_status") != "completed":
                 raise Week4PromptError(f"selection gold is incomplete: {sample_id}")
             if not isinstance(record.get("annotation"), dict):
                 raise Week4PromptError(f"selection annotation is invalid: {sample_id}")
+            selected_examples.append(record)
+        for sample_id in settings["pilot_sample_ids"]:
+            record = pilot_records.get(sample_id)
+            if record is None:
+                raise Week4PromptError(f"selection pilot is missing: {sample_id}")
+            if record.get("scenario") != scenario:
+                raise Week4PromptError(f"selection scenario mismatch: {sample_id}")
+            if record.get("dataset_version") != pilot_version:
+                raise Week4PromptError(
+                    f"selection pilot dataset mismatch: {sample_id}"
+                )
+            if selection["version"] == "week4_prompt_selection_v2":
+                if record.get("split") != "evaluation":
+                    raise Week4PromptError(
+                        f"selection pilot must be evaluation: {sample_id}"
+                    )
+            if record.get("annotation_status") != "completed":
+                raise Week4PromptError(f"selection gold is incomplete: {sample_id}")
+            selected_pilots.append(record)
+    _reject_example_pilot_collisions(selected_examples, selected_pilots)
+
+
+def _reject_example_pilot_collisions(
+    examples: list[dict[str, Any]],
+    pilots: list[dict[str, Any]],
+) -> None:
+    """拒绝 sample、来源、图片或来源组任一层面的 demo/test 重叠。"""
+    for identity_name, extractor in (
+        ("sample_id", lambda row: {row["sample_id"]}),
+        ("source_id", lambda row: {row["source_id"]}),
+        (
+            "image_sha256",
+            lambda row: {image["sha256"] for image in row["input"]["images"]},
+        ),
+        (
+            "group_id",
+            lambda row: (
+                {row["provenance"]["group_id"]}
+                if isinstance(row.get("provenance"), dict)
+                and row["provenance"].get("group_id")
+                else set()
+            ),
+        ),
+    ):
+        example_values = set().union(*(extractor(row) for row in examples))
+        pilot_values = set().union(*(extractor(row) for row in pilots))
+        overlap = example_values & pilot_values
+        if overlap:
+            raise Week4PromptError(
+                f"example/pilot {identity_name} collision: {sorted(overlap)}"
+            )
+
+
+def validate_demo_dev_isolation(
+    demo_dev_records: list[dict[str, Any]],
+    evaluation_records: list[dict[str, Any]],
+) -> None:
+    """验证整个 development 池与最终 evaluation 集完全隔离。"""
+    if not demo_dev_records:
+        raise Week4PromptError("demo/dev pool is empty")
+    if any(
+        record.get("dataset_version") != "week4_demo_dev_v1"
+        or record.get("split") != "development"
+        for record in demo_dev_records
+    ):
+        raise Week4PromptError("demo/dev pool version or split is invalid")
+    _reject_example_pilot_collisions(demo_dev_records, evaluation_records)
 
 
 def example_ids_for_variant(
@@ -113,6 +205,7 @@ def render_week4_request(
         root,
         scenario,
         prompt_version,
+        selection["version"],
         example_records,
     )
     messages = [copy.deepcopy(rendered["messages"][0])]
@@ -278,6 +371,7 @@ def _build_example_collage(
     root: Path,
     scenario: str,
     prompt_version: str,
+    selection_version: str,
     records: list[dict[str, Any]],
 ) -> tuple[Path, str]:
     """Build one deterministic collage so the fixed two-image runtime limit holds."""
@@ -303,7 +397,7 @@ def _build_example_collage(
     output = (
         Path(root)
         / "outputs/week4/example_collages"
-        / f"{scenario}_{prompt_version}.png"
+        / f"{scenario}_{prompt_version}_{selection_version}.png"
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists():

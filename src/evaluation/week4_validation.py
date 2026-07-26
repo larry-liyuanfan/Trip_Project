@@ -69,10 +69,10 @@ def validate_week4_delivery(
         raise Week4ValidationError(
             "validation.expected_full_sample_sha256 is invalid"
         )
-    if (
-        fewshot_evidence_status
-        != "descriptive_only_test_gold_demo_contamination"
-    ):
+    if fewshot_evidence_status not in {
+        "descriptive_only_test_gold_demo_contamination",
+        "unbiased_independent_demo_dev_pool",
+    }:
         raise Week4ValidationError(
             "validation.fewshot_evidence_status is invalid"
         )
@@ -243,12 +243,15 @@ def _validate_comparisons(
     )
     if pilot.get("selection_scope") != "best_among_tested_candidates":
         raise Week4ValidationError("pilot selection scope is invalid")
+    expected_effect_claim = (
+        fewshot_evidence_status == "unbiased_independent_demo_dev_pool"
+    )
     if (
         pilot.get("evidence_status") != fewshot_evidence_status
-        or pilot.get("effect_claim_allowed") is not False
+        or pilot.get("effect_claim_allowed") is not expected_effect_claim
     ):
         raise Week4ValidationError(
-            "Few-Shot pilot must be marked descriptive-only"
+            "Few-Shot pilot evidence status is inconsistent"
         )
     if pilot.get("pilot_run_ids") != pilot_run_ids:
         raise Week4ValidationError("pilot comparison run IDs are invalid")

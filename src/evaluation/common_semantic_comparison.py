@@ -29,7 +29,9 @@ from src.evaluation.results import load_run_metadata
 
 SCORING_TRACK = "week4_common_semantic_coding_v1"
 BASELINE_PROMPT = "baseline_minimal_v1"
-WINNER_PROMPTS = frozenset({"standardized_v2"})
+WINNER_PROMPTS = frozenset(
+    {"standardized_v2", "fewshot_4_v2", "fewshot_7_v2"}
+)
 
 
 def compare_common_semantics(
@@ -162,6 +164,7 @@ def compare_common_semantics(
         metadata,
         sample_deltas,
         aggregate_deltas,
+        comparison_label="winner",
     )
     summary = {
         **metadata,

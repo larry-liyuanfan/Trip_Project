@@ -99,10 +99,13 @@ def analyze_pilot_runs(
         "evidence_status": week4_config["validation"][
             "fewshot_evidence_status"
         ],
-        "effect_claim_allowed": False,
+        "effect_claim_allowed": (
+            week4_config["validation"]["fewshot_evidence_status"]
+            == "unbiased_independent_demo_dev_pool"
+        ),
         "design_note": (
-            "Few-Shot demonstrations were selected from final-test gold; "
-            "pilot results are descriptive only. The zero-shot winner uses no demos."
+            "Few-Shot 示例来自独立 development 人工金标池；固定 pilot "
+            "来自 Week 3 v2 evaluation，二者按样本、来源、图片和来源组隔离。"
         ),
         "pilot_run_ids": pilot_run_ids,
         "weights": weights,

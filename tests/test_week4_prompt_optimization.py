@@ -12,7 +12,15 @@ class Week4PromptOptimizationTest(unittest.TestCase):
 
         selection = load_week4_selection(
             self.PROJECT_ROOT
-            / "configs/evaluation/week4_prompt_selection_v1.json"
+            / "configs/evaluation/week4_prompt_selection_v2.json"
+        )
+        self.assertEqual(
+            selection["example_dataset_version"],
+            "week4_demo_dev_v1",
+        )
+        self.assertEqual(
+            selection["pilot_dataset_version"],
+            "week3_evaluation_v2",
         )
         for scenario, settings in selection["scenarios"].items():
             with self.subTest(scenario=scenario):
@@ -33,7 +41,7 @@ class Week4PromptOptimizationTest(unittest.TestCase):
 
         selection = load_week4_selection(
             self.PROJECT_ROOT
-            / "configs/evaluation/week4_prompt_selection_v1.json"
+            / "configs/evaluation/week4_prompt_selection_v2.json"
         )
         for scenario, settings in selection["scenarios"].items():
             four = example_ids_for_variant(selection, scenario, "fewshot_4_v2")
@@ -48,6 +56,73 @@ class Week4PromptOptimizationTest(unittest.TestCase):
                 settings["positive_example_ids"]
                 + settings["boundary_example_ids"],
             )
+
+    def test_v2_selection_rejects_demo_test_identity_collision(self):
+        from src.evaluation.week4_prompting import (
+            Week4PromptError,
+            validate_selection_records,
+        )
+
+        scenario = "image_product_search"
+        selection = {
+            "version": "week4_prompt_selection_v2",
+            "example_dataset_version": "week4_demo_dev_v1",
+            "pilot_dataset_version": "week3_evaluation_v2",
+            "scenarios": {
+                scenario: {
+                    "positive_example_ids": [f"demo-{index}" for index in range(5)],
+                    "boundary_example_ids": ["demo-5", "demo-6"],
+                    "pilot_sample_ids": ["pilot-1"],
+                }
+            },
+        }
+        examples = {
+            sample_id: self._selection_record(
+                sample_id,
+                scenario,
+                "week4_demo_dev_v1",
+                "development",
+                f"source-demo-{index}",
+                "a" * 64 if index == 0 else f"{index:064x}",
+            )
+            for index, sample_id in enumerate(
+                selection["scenarios"][scenario]["positive_example_ids"]
+                + selection["scenarios"][scenario]["boundary_example_ids"]
+            )
+        }
+        pilots = {
+            "pilot-1": self._selection_record(
+                "pilot-1",
+                scenario,
+                "week3_evaluation_v2",
+                "evaluation",
+                "source-pilot",
+                "a" * 64,
+            )
+        }
+
+        with self.assertRaisesRegex(Week4PromptError, "image_sha256 collision"):
+            validate_selection_records(selection, examples, pilots)
+
+    @staticmethod
+    def _selection_record(
+        sample_id,
+        scenario,
+        dataset_version,
+        split,
+        source_id,
+        image_sha256,
+    ):
+        return {
+            "sample_id": sample_id,
+            "scenario": scenario,
+            "dataset_version": dataset_version,
+            "split": split,
+            "source_id": source_id,
+            "input": {"images": [{"sha256": image_sha256}]},
+            "annotation_status": "completed",
+            "annotation": {},
+        }
 
     def test_gold_mapping_does_not_invent_product_or_after_sales_fields(self):
         from src.evaluation.week4_prompting import annotation_to_output

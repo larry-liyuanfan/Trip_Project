@@ -28,6 +28,7 @@ from src.evaluation.week4_prompting import (
     WEEK4_PROMPT_VERSIONS,
     load_week4_selection,
     render_week4_request,
+    validate_demo_dev_isolation,
     validate_selection_records,
 )
 
@@ -75,9 +76,28 @@ def run_week4_prompt_evaluation(
         for record in configured[scenario]
     ]
     records_by_id = {record["sample_id"]: record for record in records}
+    demo_dev_path = project_root / week4["paths"]["demo_dev_config"]
+    demo_dev = load_evaluation_config(demo_dev_path)
+    demo_dev_configured = load_configured_manifests(
+        demo_dev,
+        root=project_root,
+    )
+    example_records = [
+        record
+        for scenario in demo_dev["scenarios"]
+        for record in demo_dev_configured[scenario]
+    ]
+    example_records_by_id = {
+        record["sample_id"]: record for record in example_records
+    }
+    validate_demo_dev_isolation(example_records, records)
     selection_path = project_root / week4["paths"]["selection_config"]
     selection = load_week4_selection(selection_path)
-    validate_selection_records(selection, records_by_id)
+    validate_selection_records(
+        selection,
+        example_records_by_id,
+        records_by_id,
+    )
     if set(variants_by_scenario) != set(week3["scenarios"]):
         raise Week4RunError("one prompt variant is required for every scenario")
     for scenario, variant in variants_by_scenario.items():
@@ -99,6 +119,7 @@ def run_week4_prompt_evaluation(
     artifact_hashes = _artifact_hashes(
         project_root,
         week3,
+        demo_dev,
         selection_path,
         set(variants_by_scenario.values()),
     )
@@ -141,7 +162,7 @@ def run_week4_prompt_evaluation(
             run_id=run_id,
             prompt_version=variants_by_scenario[record["scenario"]],
             selection=selection,
-            records_by_id=records_by_id,
+            records_by_id=example_records_by_id,
             runtime=runtime,
             model_config=metadata["model_config"],
         )
@@ -326,11 +347,14 @@ def _ensure_no_model_request_errors(errors: list[dict[str, Any]]) -> None:
 def _artifact_hashes(
     root: Path,
     week3: dict[str, Any],
+    demo_dev: dict[str, Any],
     selection_path: Path,
     prompt_versions: set[str],
 ) -> dict[str, str]:
     paths = [selection_path]
     for settings in week3["scenarios"].values():
+        paths.append(root / settings["manifest_path"])
+    for settings in demo_dev["scenarios"].values():
         paths.append(root / settings["manifest_path"])
     paths.extend(
         [

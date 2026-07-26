@@ -208,6 +208,14 @@ baseline 与 winner 的业务差值必须另存为共同确定性语义轨道：
 使用同一编码器、同一 codebook、同一指标函数和相同 `sample_id` 成对评分；
 不得覆盖 Week 3 原评分。
 
+2026-07-26 用户后续直接授权完成全部未完成项，包括新建独立 demo/dev pool
+及其人工标注，因此该授权只在此项上取代上一段“禁止新增”的临时限制。
+独立池固定命名为 `week4_demo_dev_v1`、split 为 `development`，不得复用
+最终 evaluation 金标；必须与 `week3_evaluation_v2` 在样本、来源、图片
+哈希和来源组上隔离。每场景人工完成 12 条，从中选 5 个正例和 2 个边界例，
+固定 evaluation pilot 不变。旧 test-gold Few-Shot 运行保留为历史证据，
+新比较、全量 winner 和报告必须另行版本化。
+
 The format fallback may remove an optional Markdown code fence, parse JSON, and validate the existing scenario Schema. It must preserve the raw output and return explicit errors. It must not invent fields, change enum values, infer missing labels, or call the model again.
 
 ### Milvus Requirements

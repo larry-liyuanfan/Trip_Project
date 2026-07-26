@@ -126,6 +126,22 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   报告；Few-Shot 泛化比较保持 `PARTIAL`，除非以后获得明确授权的独立
   demo/dev pool，但本决策不创建该数据或未来任务。
 
+> 2026-07-26 后续直接授权已满足上述条件；Few-Shot 数据边界由 ADR-014
+> 接替。共同语义轨道部分继续有效。
+
+## ADR-014：独立 demo/dev Few-Shot 证据
+
+- **日期**：2026-07-26
+- **状态**：Accepted
+- **决策**：使用单独版本 `week4_demo_dev_v1` 和 `development` split
+  保存 36 条人工金标；示例与最终 `week3_evaluation_v2` 在 sample、
+  source、图片 SHA-256 和来源组四层隔离。选择文件升级为
+  `week4_prompt_selection_v2`，旧 v1 不覆盖。
+- **原因**：消除使用最终 test gold 设计 Prompt 的污染，使固定 pilot
+  能支持本次候选内的无偏比较。
+- **影响**：三组新 pilot 均须真实重跑且请求错误为 0；胜出版本只表示
+  固定综合规则下的候选内最高分。全量结果不得反向用于重选 Prompt。
+
 ## Decision Template
 
 ```markdown

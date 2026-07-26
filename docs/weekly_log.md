@@ -219,3 +219,22 @@ as the current validated dataset or accepted baseline.
   正式报告；Week 4 bad case 增补真实金标、预测、错误原因和字段检查方向。
 - Prompt 部分因缺少独立 demo/dev pool 保持 `PARTIAL`；Milvus 保持
   `READY`。不新增标注或数据集版本，不重跑模型。
+
+## 2026-07-26：独立 demo/dev Few-Shot 完成
+
+- 用户后续直接授权完成独立 demo/dev pool，取代此前“禁止新增”的临时
+  限制；Week 3 v1/v2 数据、Prompt、Schema、运行和评分保持不变。
+- 建立 `week4_demo_dev_v1`：三场景各 12 条、共 36 条人工金标，
+  split=`development`；与 450 条最终 evaluation 在 sample/source/image/
+  group 四层无重叠。
+- selection v2 从每场景 development 金标固定选择 5 正例 + 2 边界例；
+  三组新 pilot 共 45/45 请求完成，模型请求错误 0。
+- 固定综合分胜出：商品 `fewshot_4_v2`，售后与行程
+  `standardized_v2`。新的混合 winner 全量
+  `week4_winners_full_20260726_002` 完成 450/450。
+- 全量 JSON/Schema：商品 82.0%/20.5%，售后 96.67%/96.67%，行程
+  91.0%/88.0%。商品 4-shot 的低 Schema 率作为 pilot 方差与负结果保留，
+  不用全量结果反向改选。
+- common comparison `_003` 完成 450 对同编码器评分、38 个聚合指标和
+  2,000 次 bootstrap；v5 bad case 共 376 条。
+- Week 4 状态更新为 `READY FOR MENTOR REVIEW`。

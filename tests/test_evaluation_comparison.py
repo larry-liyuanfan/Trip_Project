@@ -174,6 +174,60 @@ class EvaluationComparisonTest(unittest.TestCase):
                     aggregate_rows,
                 )
 
+    def test_common_track_can_label_the_second_side_as_winner(self) -> None:
+        from src.evaluation.comparison import export_comparison_artifacts
+
+        samples = [
+            {
+                "sample_id": "sample-a",
+                "scenario": "after_sales",
+                "metrics": {
+                    "issue_type_accuracy": {
+                        "baseline": 0.0,
+                        "standardized": 1.0,
+                        "delta": 1.0,
+                    }
+                },
+            }
+        ]
+        aggregates = [
+            {
+                "scenario": "after_sales",
+                "metric": "issue_type_accuracy",
+                "paired_count": 1,
+                "baseline_mean": 0.0,
+                "standardized_mean": 1.0,
+                "absolute_delta": 1.0,
+                "relative_delta": None,
+                "baseline_wins": 0,
+                "standardized_wins": 1,
+                "ties": 0,
+                "delta_ci95_low": 1.0,
+                "delta_ci95_high": 1.0,
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            paths = export_comparison_artifacts(
+                Path(directory) / "winner-comparison",
+                {"comparison_id": "winner-comparison"},
+                samples,
+                aggregates,
+                comparison_label="winner",
+            )
+            header = paths["aggregate_deltas"].read_text(
+                encoding="utf-8"
+            ).splitlines()[0]
+            saved_sample = json.loads(
+                paths["sample_deltas"].read_text(encoding="utf-8").strip()
+            )
+
+        self.assertIn("winner_mean", header)
+        self.assertIn("winner_wins", header)
+        self.assertNotIn("standardized_mean", header)
+        values = saved_sample["metrics"]["issue_type_accuracy"]
+        self.assertEqual(values["winner"], 1.0)
+        self.assertNotIn("standardized", values)
+
     def test_report_and_representative_cases_are_generated_from_comparison_rows(self) -> None:
         from src.evaluation.comparison import (
             generate_comparison_report,

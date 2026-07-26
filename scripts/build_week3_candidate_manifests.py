@@ -23,7 +23,11 @@ from src.evaluation.candidates import (
     retain_best_group_row,
 )
 from src.evaluation.config import load_evaluation_config
-from src.evaluation.manifests import ManifestValidationError, write_jsonl
+from src.evaluation.manifests import (
+    ManifestValidationError,
+    read_jsonl_objects,
+    write_jsonl,
+)
 from src.evaluation.sampling import stratified_sample
 
 
@@ -395,6 +399,19 @@ def build_candidate_manifests(config: dict[str, Any], *, root: Path) -> dict[str
         _candidate_recipe_versions(sources)
     )
     deduplicator = CandidateDeduplicator(max_perceptual_distance=4)
+    external_exclusion_paths = config["paths"].get(
+        "external_exclusion_manifests", []
+    )
+    external_exclusion_count = 0
+    for relative_path in external_exclusion_paths:
+        for row in read_jsonl_objects(root / relative_path):
+            deduplicator.reserve(
+                source_id=row["source_id"],
+                group_id=row.get("group_id"),
+                image_sha256=row["image_sha256"],
+                perceptual_hash=row["image_perceptual_hash"],
+            )
+            external_exclusion_count += 1
 
     product_settings = config["scenarios"]["image_product_search"]
     photo_rows = _collect_yelp_photo_rows(
@@ -510,6 +527,7 @@ def build_candidate_manifests(config: dict[str, Any], *, root: Path) -> dict[str
             seed=settings["sampling"]["seed"],
             stratum_field=settings["sampling"]["stratum_field"],
             quotas=settings["sampling"]["quotas"],
+            split=config.get("split", "evaluation"),
             root=root,
         )
         manifest_path = root / settings["manifest_path"]
@@ -533,6 +551,7 @@ def build_candidate_manifests(config: dict[str, Any], *, root: Path) -> dict[str
         "source_version": source_version,
         "candidate_counts": output_counts,
         "exclusion_count": exclusion["exclusion_count"],
+        "external_exclusion_count": external_exclusion_count,
     }
 
 

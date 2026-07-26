@@ -1,28 +1,28 @@
 # Week 4 Bad Case 报告
 
-Bad case 只从 `week4_winners_full_20260725_001` 的真实输出、现有人工金标和
-既有评分导出，不修改输出或标签。
+Bad case 仅从 `week4_winners_full_20260726_002` 的真实输出、既有 Week 3 v2
+人工金标和同一评分产物导出，不修改输出或标签。
 
 | 类别 | 数量 | 代表样本 |
 | --- | ---: | --- |
-| 分类错误 | 86 | `image_product_search-0ddcb7ef11f23afb` |
-| 必填字段或 Schema 错误 | 7 | `image_product_search-5d6823c5422a7bee` |
-| JSON 格式错误 | 67 | `image_product_search-c0ed4d164daafeea` |
-| 严重等级错误 | 105 | `after_sales-00b16886b9fe85f7` |
+| 分类错误 | 144 | `image_product_search-0ddcb7ef11f23afb` |
+| 必填字段或 Schema 错误 | 126 | `image_product_search-2885a3c873d64e73` |
+| 格式错误 | 176 | `image_product_search-2885a3c873d64e73` |
+| 严重等级错误 | 106 | `after_sales-00b16886b9fe85f7` |
 | 约束遗漏 | 100 | `itinerary_planning-b3ebfed1c8435fec` |
 
-同一样本可以进入多个类别；机器可读 v3 明细共 269 条，位于忽略目录
-`outputs/week4/bad_cases/week4_bad_cases_v3.jsonl`。
+同一样本可以进入多个类别；机器可读 v5 明细共 376 条，位于忽略目录
+`outputs/week4/bad_cases/week4_bad_cases_v5.jsonl`。
 
 ## 典型真实案例
 
-| 类别 / sample_id | 金标 | 模型预测 | 错误原因 | 当前可核对的修复方向 |
-| --- | --- | --- | --- | --- |
-| 分类错误 `image_product_search-0ddcb7ef11f23afb` | `business_category=attraction`；`price_range=budget`；风格 `casual,resort`；设施 `outdoor_seating` | `business_category=restaurant`；`price_range=budget`；风格 `casual`；设施 `table,seating` | 把户外用餐画面直接归为餐饮，遗漏 resort 与受控设施枚举 | 先检查“画面内容”与“承载业态”证据，再映射受控枚举；无充分证据时返回 `unknown` |
-| Schema 错误 `image_product_search-5d6823c5422a7bee` | `business_category=attraction`；风格 `casual,artistic`；设施 `play_area` | `style_tags` 和 `visible_facilities` 各重复输出 3 个占位符；Schema 报数组元素不唯一 | 模型照抄类型骨架占位符，且未执行数组去重检查 | 最终字段检查先拒绝占位符，再检查数组唯一性与枚举 |
-| JSON 格式错误 `image_product_search-c0ed4d164daafeea` | `business_category=restaurant`；`price_range=mid_range`；风格 `modern,romantic`；设施 `stage` | 输出从 `style_tags` 开始重复扩张，最终字符串截断，无法解析 JSON | 重复标签消耗输出预算，导致 JSON 未闭合 | 输出前限制字段为短列表并去重，最后检查 JSON 闭合；兜底脚本不得修复截断内容 |
-| 严重等级错误 `after_sales-00b16886b9fe85f7` | `issue_type=facility_damage`；`severity=medium` | `issue_type=facility_damage`；`severity=high` | 问题类型正确，但把水槽损坏的严重度上调，缺少支持 high 的安全/不可用证据 | 严重度在问题类型之后单独核对，只按现有严重度定义和可见影响选择 |
-| 约束遗漏 `itinerary_planning-b3ebfed1c8435fec` | 2 天、预算不超过 2000 元、末日 17:00 前结束、每日用餐与交通；慢节奏、公共交通优先；5 个必要要素 | 硬/软约束均为占位符，只保留 `daily_schedule`；`constraint_check` 也是占位符 | 没有逐条复述输入约束，也未覆盖 meals、transport、budget/end-time check | 按输入顺序逐条提取硬/软约束，再逐项检查必要要素和 `constraint_check`，不生成占位文本 |
+| 类别 / sample_id | 金标 | 模型预测 | 错误原因 |
+| --- | --- | --- | --- |
+| 分类错误 `image_product_search-0ddcb7ef11f23afb` | 业态 `attraction`；价位 `budget`；风格 `casual,resort`；设施 `outdoor_seating` | 业态 `restaurant`；价位 `mid_range`；风格 `casual,artistic`；设施 `bar,restaurant` | 4-shot 模板化复制了 development 示例属性，未依据当前图片区分景点与餐厅 |
+| Schema 错误 `image_product_search-2885a3c873d64e73` | 业态 `unknown`；价位 `mid_range`；风格 `modern,business`；设施 `bar` | JSON 可解析，但遗漏必填 `confidence`，并预测为 `restaurant` | Few-Shot 助手示例只展示业务字段，模型在最终完整 Schema 中遗漏尾部必填字段 |
+| 格式错误 `image_product_search-2885a3c873d64e73` | 同上 | `schema_validation_error: missing confidence` | 本报告的 format 分类同时包括可解析 JSON 的 Schema 失败；兜底脚本不得补字段 |
+| 严重等级错误 `after_sales-00b16886b9fe85f7` | `facility_damage / medium` | `facility_damage / high` | 问题类型正确，但没有支持 high 的安全或完全不可用证据 |
+| 约束遗漏 `itinerary_planning-b3ebfed1c8435fec` | 2 天、预算不超过 2000 元、末日 17:00 前结束、每日用餐和交通；慢节奏、公共交通优先；5 个必要要素 | 硬/软约束及 `constraint_check` 仍为占位内容，仅保留 `daily_schedule` | 未逐条复述原始文字约束，遗漏 meals、transport、budget/end-time check |
 
-“修复方向”是对现有 Prompt 字段检查顺序的错误归纳，不代表新增标注、数据
-流程或未来任务。
+这些案例说明商品 4-shot 的 pilot 胜出没有在全量上转化为稳定 Schema 或
+业务收益；这是实测负结果，不据此追加 Prompt、重选 winner 或改动金标。
