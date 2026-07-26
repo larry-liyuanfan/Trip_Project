@@ -44,7 +44,10 @@ Week 3 状态为 `READY / COMPLETED`。`week3_evaluation_v2` 的 450 条人工�
 1. 预测阶段只接收 `scenario`、模型 `raw_output`、固定版本 codebook 和通用文本归一化规则。
 2. 所有预测完成后，评分阶段才按 `sample_id` 加载并连接现有人工金标。
 
-编码接口不能接收 annotation、annotator、sampling stratum、source metadata、标注建议、图片业务分类或 standardized 输出。标量字段仅在唯一明确命中时输出枚举；冲突或未命中返回 `unknown`。多标签字段只返回固定词表中的明确命中。OCR 只提取模型文本中明确出现的有界可见 token。
+编码接口不能接收 annotation、annotator、sampling stratum、source
+metadata、标注建议、图片业务分类或 standardized 输出。标量字段仅在唯一
+明确命中时输出枚举；冲突或未命中返回 `unknown`。多标签字段只返回固定
+词表中的明确命中。OCR 只提取模型文本中明确出现的有界可见 token。
 
 ## 最简 baseline：格式与延迟
 
@@ -90,11 +93,20 @@ Week 3 状态为 `READY / COMPLETED`。`week3_evaluation_v2` 的 450 条人工�
 
 ## standardized v2 严格结构化结果
 
-| 场景 | JSON | Schema | 主要严格业务指标 |
-| --- | ---: | ---: | --- |
-| 以图搜商品 | 79.00% | 75.00% | 业态准确率 60.00%（support 110）；价位准确率 17.00%（support 100）；风格 macro F1 6.77%；设施 macro F1 3.67% |
-| 智能售后 | 96.67% | 96.00% | 问题分类 71.33%；严重度 29.33%；关键信息 macro F1 24.05%；OCR recall 1.33%（support 75） |
-| 多模态行程规划 | 90.00% | 88.00% | 约束识别 0.41%；行程要素完整度 20.00%；硬约束 macro F1 1.09%；软约束 macro F1 0% |
+| 场景 | JSON | Schema |
+| --- | ---: | ---: |
+| 以图搜商品 | 79.00% | 75.00% |
+| 智能售后 | 96.67% | 96.00% |
+| 多模态行程规划 | 90.00% | 88.00% |
+
+主要严格业务指标：
+
+- **以图搜商品：** 业态准确率 60.00%（support 110）；价位准确率
+  17.00%（support 100）；风格 macro F1 6.77%；设施 macro F1 3.67%。
+- **智能售后：** 问题分类 71.33%；严重度 29.33%；关键信息 macro F1
+  24.05%；OCR recall 1.33%（support 75）。
+- **多模态行程规划：** 约束识别 0.41%；行程要素完整度 20.00%；
+  硬约束 macro F1 1.09%；软约束 macro F1 0%。
 
 baseline 语义指标来自词法编码，standardized v2 指标来自严格 JSON/Schema 结构化评分。两条轨道可以并列展示，但不能把它们的差值归因为纯 Prompt 效果，也没有生成新的 semantic paired comparison 或 bootstrap。
 
