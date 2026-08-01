@@ -1,5 +1,19 @@
 # Experiment Notes
 
+## 2026-08-02：Qwen3.7-Plus 前期任务重跑
+
+- 模型/后端：`qwen3.7-plus`，阿里云百炼新加坡 OpenAI-compatible API，
+  thinking disabled。
+- 数据：不可变 `week3_evaluation_v2`，商品/售后/行程 200/150/100。
+- Week 3：baseline `_002` 与 standardized `_001` 均完成 450/450，
+  请求错误 0；baseline `_001` 的单条 ReadTimeout 仅作为失败证据保留。
+- Week 4 pilot：商品和售后选择 `fewshot_4_v2`，行程选择
+  `standardized_v2`；winner full 完成 450/450，请求错误 0。
+- 共同语义比较：450 对、38 个聚合指标、2,000 次 bootstrap。
+- 主要结果：winner 商品/售后/行程 JSON 合规率 100%/100%/33%，
+  Schema 98.5%/100%/33%；行程格式和约束仍是主要短板。
+- 完整报告：`reports/qwen37_previous_weeks_rerun_report.md`。
+
 ## Week 1 Serving and API Baseline
 
 - Runtime: `vllm/vllm-openai:v0.8.5` with `Qwen/Qwen2-VL-2B-Instruct` on the local 8GB NVIDIA GPU.

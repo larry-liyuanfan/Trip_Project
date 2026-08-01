@@ -1,7 +1,7 @@
 model_name: qwen3.7-plus
+served_model_name: qwen3.7-plus
 backend: aliyun_model_studio_openai_compatible
 region: ap-southeast-1
+task: image_understanding
 input_type: image_plus_text
-temperature: 0.1
-top_p: 0.9
-max_tokens: 512
+notes: Hosted multimodal inference through Alibaba Cloud Model Studio.

@@ -1,5 +1,18 @@
 # Experiment Log
 
+## EXP-20260802-001
+
+- date: 2026-08-02
+- model: `qwen3.7-plus`
+- backend: Alibaba Cloud Model Studio OpenAI-compatible API, Singapore
+- dataset: `week3_evaluation_v2`, 450 human-gold samples
+- baseline_run: `week3_qwen37_baseline_full_20260802_002`, 450/450, request errors 0
+- standardized_run: `week3_qwen37_standardized_full_20260802_001`, 450/450, request errors 0
+- week4_winner_run: `week4_qwen37_winners_full_20260802_001`, 450/450, request errors 0
+- winners: product `fewshot_4_v2`; after-sales `fewshot_4_v2`; itinerary `standardized_v2`
+- common_semantic: `qwen37_common_semantic_v1_20260802_001`, 450 pairs, 2,000 bootstrap iterations
+- status: completed; itinerary JSON/Schema remains 33%/33%
+
 ## EXP-20260706-001
 
 - date: 2026-07-06

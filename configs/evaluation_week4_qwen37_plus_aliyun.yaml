@@ -1,0 +1,48 @@
+dataset_version: week3_evaluation_v2
+
+paths:
+  week3_config: configs/evaluation_week3_qwen37_plus_aliyun.yaml
+  demo_dev_config: configs/evaluation_week4_demo_dev_v1.yaml
+  selection_config: configs/evaluation/week4_prompt_selection_v2.json
+  output_dir: outputs/week4_qwen37_plus
+
+runtime:
+  model_config_path: configs/model_qwen37_plus_aliyun.yaml
+  inference_config_path: configs/inference_qwen37_plus_aliyun.yaml
+  live_base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+  timeout_seconds: 180
+  full_concurrency: 4
+
+prompt_candidates:
+  - standardized_v2
+  - fewshot_4_v2
+  - fewshot_7_v2
+
+selection_weights:
+  business_quality: 0.55
+  schema_compliance: 0.20
+  json_compliance: 0.10
+  token_efficiency: 0.075
+  latency_efficiency: 0.075
+
+experiment_design:
+  fewshot_demo_source: week4_demo_dev_v1_human_gold
+  fewshot_pilot_source: week3_evaluation_v2_fixed_pilot
+  fewshot_effect_claim: limited_to_fixed_pilot
+  example_test_isolation: required
+
+validation:
+  artifact_version: qwen37_v3
+  fewshot_evidence_status: unbiased_independent_demo_dev_pool
+  baseline_run_id: week3_qwen37_baseline_full_20260802_002
+  common_semantic_comparison_id: qwen37_common_semantic_v1_20260802_001
+  pilot_run_ids:
+    - week4_qwen37_pilot_standardized_20260802_001
+    - week4_qwen37_pilot_fewshot4_20260802_001
+    - week4_qwen37_pilot_fewshot7_20260802_001
+  full_run_id: week4_qwen37_winners_full_20260802_001
+  expected_full_sample_sha256: 3e900e64bb345df35343c8f14bfb1f8310ae597a57e4a4d9585bc01173ad648c
+  expected_winners:
+    image_product_search: fewshot_4_v2
+    after_sales: fewshot_4_v2
+    itinerary_planning: standardized_v2

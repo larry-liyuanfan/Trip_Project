@@ -2,7 +2,9 @@
 
 import copy
 import json
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -87,13 +89,23 @@ def load_runtime_settings(
         ):
             raise EvaluationRunError("inference repetition_penalty must be positive")
         generation["repetition_penalty"] = repetition_penalty
+    enable_thinking = inference.get("enable_thinking")
+    if enable_thinking is not None:
+        if not isinstance(enable_thinking, bool):
+            raise EvaluationRunError("inference enable_thinking must be boolean")
+        generation["enable_thinking"] = enable_thinking
     return {
         "model_name": model["model_name"],
         "served_model_name": model["served_model_name"],
         "model_config": model,
         "generation": generation,
-        "live_base_url": live_base_url or runtime_config["live_base_url"],
+        "live_base_url": (
+            live_base_url
+            or os.getenv("MODEL_API_BASE_URL")
+            or runtime_config["live_base_url"]
+        ),
         "timeout_seconds": runtime_config["timeout_seconds"],
+        "full_concurrency": runtime_config.get("full_concurrency", 1),
     }
 
 
@@ -283,92 +295,96 @@ def run_records(
             [record["sample_id"] for record in selected]
         ),
         "selected_count": len(selected),
+        "concurrency": (
+            runtime.get("full_concurrency", 1)
+            if mode == "live" and run_scope == "full"
+            else 1
+        ),
     }
     active_transport = transport or _request_chat_completion
 
-    with ImmutableRunWriter(Path(runs_dir), run_id, metadata) as writer:
-        for record in selected:
-            scenario = record["scenario"]
-            input_metadata = copy.deepcopy(record["input"])
-            rendered = _render_request(
-                project_root,
-                scenario,
-                input_metadata,
-                prompt_version,
-            )
-            request_sha256 = canonical_sha256(rendered)
-            started = time.perf_counter()
-            raw_output: str | None = None
-            parsed_output: Any = None
-            json_valid = False
-            schema_valid = False
-            error: str | None = None
+    def execute(record: dict[str, Any]) -> dict[str, Any]:
+        scenario = record["scenario"]
+        input_metadata = copy.deepcopy(record["input"])
+        rendered = _render_request(
+            project_root,
+            scenario,
+            input_metadata,
+            prompt_version,
+        )
+        request_sha256 = canonical_sha256(rendered)
+        started = time.perf_counter()
+        raw_output: str | None = None
+        parsed_output: Any = None
+        json_valid = False
+        schema_valid = False
+        error: str | None = None
 
-            if mode == "dry-run":
-                error = "dry_run"
-            elif mode == "mock" and (
-                mock_outputs is None or record["sample_id"] not in mock_outputs
-            ):
-                error = (
-                    "mock_fixture_missing: no raw output for sample_id "
-                    f"{record['sample_id']}"
-                )
-            else:
-                try:
-                    if mode == "mock":
-                        assert mock_outputs is not None
-                        raw_output = mock_outputs[record["sample_id"]]
-                    else:
-                        payload = _build_chat_payload(project_root, rendered, runtime)
-                        endpoint = (
-                            runtime["live_base_url"].rstrip("/")
-                            + "/v1/chat/completions"
-                        )
-                        raw_output = active_transport(
-                            endpoint,
-                            payload,
-                            runtime["timeout_seconds"],
-                        )
-                    if not isinstance(raw_output, str):
-                        raise EvaluationRunError("model transport must return text")
-                    parsed = parse_and_validate_output(
-                        project_root,
-                        scenario,
-                        raw_output,
-                        _rendered_schema_version(rendered),
+        if mode == "dry-run":
+            error = "dry_run"
+        elif mode == "mock" and (
+            mock_outputs is None or record["sample_id"] not in mock_outputs
+        ):
+            error = (
+                "mock_fixture_missing: no raw output for sample_id "
+                f"{record['sample_id']}"
+            )
+        else:
+            try:
+                if mode == "mock":
+                    assert mock_outputs is not None
+                    raw_output = mock_outputs[record["sample_id"]]
+                else:
+                    payload = _build_chat_payload(project_root, rendered, runtime)
+                    endpoint = chat_completions_url(runtime["live_base_url"])
+                    raw_output = active_transport(
+                        endpoint,
+                        payload,
+                        runtime["timeout_seconds"],
                     )
-                    parsed_output = parsed["parsed_output"]
-                    json_valid = parsed["json_valid"]
-                    schema_valid = parsed["schema_valid"]
-                    error = parsed["error"]
-                except Exception as exc:
-                    raw_output = None
-                    parsed_output = None
-                    json_valid = False
-                    schema_valid = False
-                    error = f"model_request_error: {type(exc).__name__}: {exc}"
+                if not isinstance(raw_output, str):
+                    raise EvaluationRunError("model transport must return text")
+                parsed = parse_and_validate_output(
+                    project_root,
+                    scenario,
+                    raw_output,
+                    _rendered_schema_version(rendered),
+                )
+                parsed_output = parsed["parsed_output"]
+                json_valid = parsed["json_valid"]
+                schema_valid = parsed["schema_valid"]
+                error = parsed["error"]
+            except Exception as exc:
+                error = f"model_request_error: {type(exc).__name__}: {exc}"
 
-            latency_ms = (time.perf_counter() - started) * 1000
-            writer.write(
-                {
-                    "run_id": run_id,
-                    "sample_id": record["sample_id"],
-                    "scenario": scenario,
-                    "mode": mode,
-                    "model_name": runtime["model_name"],
-                    "model_config": record_model_config,
-                    "prompt_version": prompt_version,
-                    "request_sha256": request_sha256,
-                    "input_metadata": input_metadata,
-                    "raw_output": raw_output,
-                    "parsed_output": parsed_output,
-                    "json_valid": json_valid,
-                    "schema_valid": schema_valid,
-                    "latency_ms": latency_ms,
-                    "error": error,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+        return {
+            "run_id": run_id,
+            "sample_id": record["sample_id"],
+            "scenario": scenario,
+            "mode": mode,
+            "model_name": runtime["model_name"],
+            "model_config": record_model_config,
+            "prompt_version": prompt_version,
+            "request_sha256": request_sha256,
+            "input_metadata": input_metadata,
+            "raw_output": raw_output,
+            "parsed_output": parsed_output,
+            "json_valid": json_valid,
+            "schema_valid": schema_valid,
+            "latency_ms": (time.perf_counter() - started) * 1000,
+            "error": error,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    with ImmutableRunWriter(Path(runs_dir), run_id, metadata) as writer:
+        if metadata["concurrency"] == 1:
+            results = map(execute, selected)
+            for result in results:
+                writer.write(result)
+        else:
+            with ThreadPoolExecutor(max_workers=metadata["concurrency"]) as executor:
+                for result in executor.map(execute, selected):
+                    writer.write(result)
 
     return json.loads(
         (Path(runs_dir) / run_id / "metadata.json").read_text(encoding="utf-8")
@@ -466,12 +482,68 @@ def _request_chat_completion(
     payload: dict[str, Any],
     timeout_seconds: int,
 ) -> str:
-    response = requests.post(url, json=payload, timeout=timeout_seconds)
-    response.raise_for_status()
-    content = response.json()["choices"][0]["message"]["content"]
+    response_payload = post_chat_completion(url, payload, timeout_seconds)
+    content = response_payload["choices"][0]["message"]["content"]
     if not isinstance(content, str):
         raise EvaluationRunError("chat completion content must be text")
     return content
+
+
+def post_chat_completion(
+    url: str,
+    payload: dict[str, Any],
+    timeout_seconds: int,
+    *,
+    max_attempts: int = 3,
+) -> dict[str, Any]:
+    """POST a hosted completion with bounded retries for transient failures."""
+    for attempt in range(1, max_attempts + 1):
+        response = None
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=model_request_headers(),
+                timeout=timeout_seconds,
+            )
+            if response.status_code == 429 or response.status_code >= 500:
+                response.raise_for_status()
+            if not response.ok:
+                response.raise_for_status()
+            result = response.json()
+            if not isinstance(result, dict):
+                raise EvaluationRunError("chat completion response must be an object")
+            return result
+        except (requests.Timeout, requests.ConnectionError, requests.HTTPError):
+            retryable_status = response.status_code if response is not None else None
+            retryable = retryable_status is None or retryable_status == 429 or retryable_status >= 500
+            if not retryable or attempt == max_attempts:
+                raise
+            time.sleep(2 ** attempt)
+    raise EvaluationRunError("chat completion retry loop exhausted")
+
+
+def chat_completions_url(base_url: str) -> str:
+    """Build a chat-completions URL for local and versioned hosted endpoints."""
+    normalized = base_url.rstrip("/")
+    if normalized.endswith("/v1"):
+        return normalized + "/chat/completions"
+    return normalized + "/v1/chat/completions"
+
+
+def model_request_headers() -> dict[str, str]:
+    """Load an optional hosted-model key without persisting it in run metadata."""
+    headers = {"Content-Type": "application/json"}
+    api_key = os.getenv("MODEL_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
+    if not api_key:
+        key_file = os.getenv("MODEL_API_KEY_FILE") or os.getenv(
+            "DASHSCOPE_API_KEY_FILE"
+        )
+        if key_file:
+            api_key = Path(key_file).read_text(encoding="utf-8")
+    if api_key and api_key.strip():
+        headers["Authorization"] = f"Bearer {api_key.strip()}"
+    return headers
 
 
 def _validate_runtime(runtime: dict[str, Any]) -> None:
@@ -488,6 +560,13 @@ def _validate_runtime(runtime: dict[str, Any]) -> None:
     timeout = runtime.get("timeout_seconds")
     if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
         raise EvaluationRunError("runtime.timeout_seconds must be positive")
+    concurrency = runtime.get("full_concurrency", 1)
+    if (
+        isinstance(concurrency, bool)
+        or not isinstance(concurrency, int)
+        or concurrency <= 0
+    ):
+        raise EvaluationRunError("runtime.full_concurrency must be positive")
 
 
 def _load_yaml_mapping(path: Path, label: str) -> dict[str, Any]:

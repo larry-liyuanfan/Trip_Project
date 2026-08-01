@@ -9,6 +9,13 @@ import requests
 from src.api.routes import health
 from src.inference.client import OpenAICompatibleClient
 from src.inference.schemas import ImageUnderstandingRequest
+from src.evaluation.runner import (
+    chat_completions_url,
+    load_runtime_settings,
+    model_request_headers,
+    post_chat_completion,
+)
+from src.evaluation.config import load_evaluation_config
 
 
 class AliyunDeploymentTest(unittest.TestCase):
@@ -111,6 +118,57 @@ class AliyunDeploymentTest(unittest.TestCase):
 
         self.assertIn("secrets/", dockerignore)
         self.assertIn("docker/**/.env", dockerignore)
+
+    def test_evaluation_runner_supports_versioned_hosted_endpoint(self):
+        self.assertEqual(
+            chat_completions_url(
+                "https://workspace.example.com/compatible-mode/v1"
+            ),
+            "https://workspace.example.com/compatible-mode/v1/chat/completions",
+        )
+        self.assertEqual(
+            chat_completions_url("http://localhost:8001"),
+            "http://localhost:8001/v1/chat/completions",
+        )
+
+    def test_evaluation_runner_reads_bearer_key_without_metadata(self):
+        with TemporaryDirectory() as tmpdir:
+            key_path = Path(tmpdir) / "api_key"
+            key_path.write_text("hosted-key\n", encoding="utf-8")
+            with patch.dict(
+                os.environ,
+                {"MODEL_API_KEY_FILE": str(key_path)},
+                clear=True,
+            ):
+                headers = model_request_headers()
+
+        self.assertEqual(headers["Authorization"], "Bearer hosted-key")
+
+    def test_qwen37_evaluation_config_disables_thinking(self):
+        config = load_evaluation_config(
+            "configs/evaluation_week3_qwen37_plus_aliyun.yaml"
+        )
+        runtime = load_runtime_settings(Path.cwd(), config)
+
+        self.assertEqual(runtime["model_name"], "qwen3.7-plus")
+        self.assertEqual(runtime["served_model_name"], "qwen3.7-plus")
+        self.assertFalse(runtime["generation"]["enable_thinking"])
+
+    def test_hosted_evaluation_retries_transient_timeout(self):
+        response = Mock(status_code=200, ok=True)
+        response.json.return_value = {"choices": []}
+        with patch(
+            "src.evaluation.runner.requests.post",
+            side_effect=[requests.Timeout("temporary"), response],
+        ) as post, patch("src.evaluation.runner.time.sleep"):
+            payload = post_chat_completion(
+                "https://workspace.example.com/compatible-mode/v1/chat/completions",
+                {"model": "qwen3.7-plus"},
+                10,
+            )
+
+        self.assertEqual(payload, {"choices": []})
+        self.assertEqual(post.call_count, 2)
 
 
 if __name__ == "__main__":

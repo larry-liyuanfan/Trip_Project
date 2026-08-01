@@ -377,3 +377,9 @@ Singapore workspace-specific OpenAI-compatible endpoint. The ECS deployment
 does not run local vLLM. FastAPI and Milvus bind to loopback by default; use an
 SSH tunnel for operator access. See `docs/aliyun_deployment.md` for the exact
 deployment and secret-handling workflow.
+
+The versioned Qwen3.7 evaluation configs are
+`configs/evaluation_week3_qwen37_plus_aliyun.yaml` and
+`configs/evaluation_week4_qwen37_plus_aliyun.yaml`. The measured rerun is
+summarized in `reports/qwen37_previous_weeks_rerun_report.md`; generated runs
+and scores remain local and ignored.

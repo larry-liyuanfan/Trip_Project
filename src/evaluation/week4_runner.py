@@ -11,8 +11,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import requests
-
 from src.data.yelp_paths import parse_simple_yaml
 from src.evaluation.config import load_evaluation_config
 from src.evaluation.manifests import load_configured_manifests
@@ -21,7 +19,9 @@ from src.evaluation.provenance import canonical_sha256
 from src.evaluation.results import ImmutableRunWriter, parse_and_validate_output
 from src.evaluation.runner import (
     _build_chat_payload,
+    chat_completions_url,
     load_runtime_settings,
+    post_chat_completion,
     select_inference_records,
 )
 from src.evaluation.week4_prompting import (
@@ -206,22 +206,16 @@ def _execute_record(
         records_by_id,
     )
     payload = _build_chat_payload(project_root, rendered, runtime)
-    endpoint = runtime["live_base_url"].rstrip("/") + "/v1/chat/completions"
+    endpoint = chat_completions_url(runtime["live_base_url"])
     started = time.perf_counter()
     raw_output: str | None = None
     usage = _empty_usage()
     try:
-        response = requests.post(
+        response_payload = post_chat_completion(
             endpoint,
-            json=payload,
-            timeout=runtime["timeout_seconds"],
+            payload,
+            runtime["timeout_seconds"],
         )
-        if not response.ok:
-            detail = response.text.strip()[:1000]
-            raise Week4RunError(
-                f"HTTP {response.status_code}: {detail or response.reason}"
-            )
-        response_payload = response.json()
         raw_output = response_payload["choices"][0]["message"]["content"]
         if not isinstance(raw_output, str):
             raise Week4RunError("chat completion content must be text")

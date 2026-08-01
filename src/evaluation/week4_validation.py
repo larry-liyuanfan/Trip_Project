@@ -41,6 +41,9 @@ def validate_week4_delivery(
     expected_full_hash = validation.get("expected_full_sample_sha256")
     fewshot_evidence_status = validation.get("fewshot_evidence_status")
     common_comparison_id = validation.get("common_semantic_comparison_id")
+    baseline_run_id = validation.get(
+        "baseline_run_id", "week3_v2_baseline_full_20260724_001"
+    )
     if (
         not isinstance(pilot_run_ids, list)
         or len(pilot_run_ids) != 3
@@ -80,6 +83,8 @@ def validate_week4_delivery(
         raise Week4ValidationError(
             "validation.common_semantic_comparison_id is required"
         )
+    if not isinstance(baseline_run_id, str) or not baseline_run_id:
+        raise Week4ValidationError("validation.baseline_run_id is invalid")
 
     run_summaries = {}
     for run_id in [*pilot_run_ids, full_run_id]:
@@ -129,7 +134,7 @@ def validate_week4_delivery(
     common_summary = _validate_common_semantic_comparison(
         output_root=output_root,
         comparison_id=common_comparison_id,
-        baseline_run_id="week3_v2_baseline_full_20260724_001",
+        baseline_run_id=baseline_run_id,
         winner_run_id=full_run_id,
         full_sample_ids=set(full_summary["sample_ids"]),
         expected_sample_sha256=expected_full_hash,
