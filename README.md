@@ -369,3 +369,11 @@ python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
 `reports/week4_bad_cases.md`,
 `docs/milvus_collection_design.md`, and
 `reports/week4_milvus_deployment_performance_report.md`.
+
+## Aliyun Runtime
+
+The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the
+Singapore workspace-specific OpenAI-compatible endpoint. The ECS deployment
+does not run local vLLM. FastAPI and Milvus bind to loopback by default; use an
+SSH tunnel for operator access. See `docs/aliyun_deployment.md` for the exact
+deployment and secret-handling workflow.

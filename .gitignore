@@ -11,6 +11,7 @@ venv/
 env/
 .env
 .env.local
+secrets/
 *.tmp
 *.temp
 tmp/
