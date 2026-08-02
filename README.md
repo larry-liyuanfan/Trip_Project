@@ -370,6 +370,29 @@ python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
 `docs/milvus_collection_design.md`, and
 `reports/week4_milvus_deployment_performance_report.md`.
 
+### Week 5：数据集标注与质检
+
+Week 5 使用 `configs/week5_dataset.json` 从本地 Yelp OTA 数据构建三场景候选池，
+并同时调用 Week 3 v1/v2 exclusion manifest。候选、合成凭证、预标注、人工包、
+质检记录和对话输出均位于忽略目录 `outputs/week5/`。模型预标注永远不计为人工完成。
+
+```bash
+python scripts/manage_week5_dataset.py build-pools
+python scripts/manage_week5_dataset.py validate-pools
+python scripts/manage_week5_dataset.py preannotate --scenario <image_product_search|after_sales|itinerary_planning>
+python scripts/manage_week5_dataset.py export-annotations --scenario <scenario> --output <packet.jsonl>
+python scripts/manage_week5_dataset.py apply-human --scenario <scenario> --input <completed.jsonl>
+python scripts/manage_week5_dataset.py apply-quality --scenario <scenario> --input <quality.jsonl>
+python scripts/manage_week5_dataset.py generate-dialogues
+python scripts/manage_week5_dataset.py apply-dialogue-quality --input <dialogue-quality.jsonl>
+python scripts/manage_week5_dataset.py report
+```
+
+真实候选池为商品 50,000、售后 20,000、行程 10,000，隔离验证通过；当前人工
+修正、三级质检和合格对话均为 0。字段口径见
+`docs/week5_annotation_guidelines.md`，实测数量见
+`reports/week5_dataset_quality_report.md`。
+
 ## Aliyun Runtime
 
 The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the

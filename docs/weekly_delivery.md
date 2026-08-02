@@ -261,6 +261,44 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 未与 CLIP 并发。Milvus、MinIO、etcd 当前均 healthy；正式集合 19 条逻辑
 可见行，临时集合 CRUD 为插入 1、命中 1、删除后 0。历史性能产物未改写。
 
+## Week 5 交付：数据集标注与质检
+
+状态：`PARTIAL / WAITING FOR REQUIRED HUMAN INPUT`。候选池、隔离、Schema、
+标注配置、预标注/人工修正/三级质检/对话脚本已交付；真实模型预标注和人工工作
+尚未发生。
+
+### 实际交付与数量
+
+- [x] 三场景标注规范与当前 accepted 推理 Schema 对齐。
+- [x] 多模态 JSONL 标注配置和字段自动校验规则。
+- [x] 样本池构建、两版 exclusion manifest 隔离和重复图片拒绝。
+- [x] 商品 50,000、售后 20,000、行程 10,000 候选池实际生成并验证。
+- [x] Qwen3.7 最优 Prompt 映射、批量预标注、断点续跑和失败记录。
+- [x] 人工 revision、自审、同场景交叉互审、10%/5% 确定性抽检及统计。
+- [x] 三类多轮对话 Schema、生成、结构校验和人工五项质检。
+- [x] 实际导出商品/售后/行程 50,000/20,000/10,000 条本地人工包；包内明确标记
+  预标注缺失，生成文件保持 Git 忽略。
+- [ ] 模型预标注：0；本机未配置模型 API 密钥。
+- [ ] 人工修正与三级质检：0；未收到必要人工输入。
+- [ ] 最终合格单轮：商品/售后/行程均 0。
+- [ ] 对话候选与最终合格：均 0；不能使用评估集绕过合格单轮前置条件。
+
+### 隔离与分布证据
+
+- 80,000 个唯一 `sample_id` 和 80,000 个唯一图片 SHA-256。
+- exclusion 共加载唯一 source/image 520、group 520、constraint template 12；
+  最终冲突 0。
+- 商品：酒店/景点/餐饮 200/800/49,000。
+- 售后：公开/合成 5,552/14,448，四类问题路由各 5,000。
+- 行程：四类人群各 2,500；预算 3,336/3,332/3,332；天数
+  3,336/3,336/3,328。
+
+详细规范和实测报告分别为 `docs/week5_annotation_guidelines.md` 与
+`reports/week5_dataset_quality_report.md`。大型生成产物保持 Git 忽略。
+
+验证：Week 5 定向测试 8/8、完整 `unittest` 270/270、样本池/隔离校验、三个
+新增 JSON 配置解析和 `git diff --check` 均通过。
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`

@@ -1,5 +1,21 @@
 # Experiment Notes
 
+## 2026-08-02：Week 5 候选池与隔离验证
+
+- Git 基线：`72be7ce` 加本次未提交工作区；数据版本
+  `week5_instruction_candidates_v1`。
+- 输入：本地 Yelp business/photo/weak-pair Parquet；排除接口为 Week 3 v1/v2
+  exclusion manifest。
+- 命令：`python scripts/manage_week5_dataset.py build-pools` 与
+  `python scripts/manage_week5_dataset.py validate-pools`。
+- 实际候选：商品 50,000、售后 20,000、行程 10,000；跨场景唯一图片 SHA-256
+  为 80,000，评估 source/hash/group/template 冲突为 0。
+- 售后公开图片关键词路由在严格来源组排除后得到 5,552 条；用 14,448 条独立
+  Week 5 项目自有业务合成凭证补足四类各 5,000。路由和严重度提示不是金标。
+- Qwen3.7 映射为商品/售后 `fewshot_4_v2`、行程 `standardized_v4`；本机本次
+  没有 API 密钥，未发送模型请求，预标注数量为 0。
+- 人工修正、三级质检、最终合格和多轮对话均为 0；原因是未收到必要人工输入。
+
 ## 2026-08-02：Qwen3.7-Plus 前期任务重跑
 
 - 模型/后端：`qwen3.7-plus`，阿里云百炼新加坡 OpenAI-compatible API，

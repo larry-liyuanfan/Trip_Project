@@ -1,0 +1,62 @@
+{
+  "format": "jsonl",
+  "encoding": "utf-8",
+  "workflow": [
+    "model_preannotation",
+    "human_correction",
+    "self_review",
+    "cross_review_same_scenario",
+    "core_sample_audit"
+  ],
+  "read_only_context_fields": [
+    "sample_id",
+    "scenario",
+    "input",
+    "sampling_metadata",
+    "isolation",
+    "model_preannotation"
+  ],
+  "human_required_fields": ["annotator", "human_annotation", "corrected_at"],
+  "scenario_templates": {
+    "image_product_search": {
+      "schema": "configs/evaluation/schemas/image_product_search_v1.schema.json",
+      "image_count": 1,
+      "text_constraints": false,
+      "focus_fields": ["business_category", "style_tags", "visible_facilities", "price_range"]
+    },
+    "after_sales": {
+      "schema": "configs/evaluation/schemas/after_sales_v1.schema.json",
+      "image_count": 1,
+      "text_constraints": false,
+      "focus_fields": ["issue_type", "severity", "key_information", "ocr_text"]
+    },
+    "itinerary_planning": {
+      "schema": "configs/evaluation/schemas/itinerary_planning_v2.schema.json",
+      "image_count": 1,
+      "text_constraints": true,
+      "focus_fields": ["hard_constraints", "soft_constraints", "itinerary", "required_itinerary_elements"]
+    }
+  },
+  "qc_decisions": ["pass", "rework", "reject"],
+  "qc_issue_codes": [
+    "classification_error",
+    "severity_error",
+    "ocr_error",
+    "constraint_omission",
+    "itinerary_structure_error",
+    "required_element_omission",
+    "missing_field",
+    "invalid_format",
+    "image_text_mismatch",
+    "ambiguous_evidence",
+    "business_compliance"
+  ],
+  "automatic_rules": {
+    "output_schema_required": true,
+    "additional_properties_allowed": false,
+    "model_output_is_human_completion": false,
+    "cross_reviewer_must_differ_from_annotator": true,
+    "evaluation_collision_is_fatal": true,
+    "duplicate_sample_write_is_fatal": true
+  }
+}
