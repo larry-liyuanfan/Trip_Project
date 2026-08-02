@@ -104,3 +104,9 @@ paired bootstrap。主要变化如下：
 - Common semantic：`outputs/week4_qwen37_plus/common_semantic/qwen37_common_semantic_v1_20260802_001/`
 
 运行产物保持 Git 忽略；仓库仅提交配置、运行器兼容代码、测试和本报告。
+
+## 行程修复补充
+
+原行程结果已由版本化 `standardized_v4` 修复，历史 v2 结果保持不变。最终
+100 条行程达到 JSON/Schema 100%/100%、约束识别 89.95%、行程要素完整度
+100%。完整证据见 `reports/qwen37_itinerary_repair_report.md`。

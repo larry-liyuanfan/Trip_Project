@@ -383,3 +383,14 @@ The versioned Qwen3.7 evaluation configs are
 `configs/evaluation_week4_qwen37_plus_aliyun.yaml`. The measured rerun is
 summarized in `reports/qwen37_previous_weeks_rerun_report.md`; generated runs
 and scores remain local and ignored.
+
+The Qwen3.7 itinerary repair uses the versioned `standardized_v4` prompt and a
+scenario-only evaluation config. With `MODEL_API_BASE_URL` and
+`MODEL_API_KEY_FILE` set locally, reproduce the live run and score it with:
+
+```bash
+python scripts/run_week3_evaluation.py --config configs/evaluation_itinerary_qwen37_repair.yaml --run-id <new-run-id> --mode live --run-scope full --prompt-version standardized_v4 --scenario itinerary_planning
+python scripts/score_week3_evaluation.py --config configs/evaluation_itinerary_qwen37_repair.yaml --run-id <new-run-id>
+```
+
+Measured repair results are in `reports/qwen37_itinerary_repair_report.md`.

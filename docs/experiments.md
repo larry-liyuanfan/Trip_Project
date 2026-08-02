@@ -14,6 +14,17 @@
   Schema 98.5%/100%/33%；行程格式和约束仍是主要短板。
 - 完整报告：`reports/qwen37_previous_weeks_rerun_report.md`。
 
+## 2026-08-02：Qwen3.7-Plus 行程规划修复
+
+- 根因：旧行程输出中 67/100 条精确达到 1280 completion tokens 并截断。
+- 修复：版本化 `standardized_v4`、紧凑字段、约束原文保留、英文枚举约束，
+  行程专用 `max_tokens=2560`。
+- 最终 run：`itinerary_qwen37_repair_v4_full_20260802_001`，100/100 JSON，
+  100/100 Schema，请求错误和 token 上限命中均为 0。
+- 业务指标：约束识别 89.95%，硬/软约束 F1 96.33%/85.67%，约束检查
+  覆盖率 94%，行程要素完整度 100%。
+- 报告：`reports/qwen37_itinerary_repair_report.md`。
+
 ## Week 1 Serving and API Baseline
 
 - Runtime: `vllm/vllm-openai:v0.8.5` with `Qwen/Qwen2-VL-2B-Instruct` on the local 8GB NVIDIA GPU.

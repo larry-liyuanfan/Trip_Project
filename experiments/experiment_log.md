@@ -1,5 +1,19 @@
 # Experiment Log
 
+## EXP-20260802-002
+
+- date: 2026-08-02
+- model: `qwen3.7-plus`
+- dataset: `week3_evaluation_v2`, itinerary 100 samples
+- prompt: `standardized_v4`
+- run: `itinerary_qwen37_repair_v4_full_20260802_001`
+- generation: thinking disabled, temperature 0.1, top_p 0.9, max_tokens 2560
+- result: JSON/Schema 100%/100%; constraint recognition 89.95%; hard/soft
+  constraint F1 96.33%/85.67%; constraint-check coverage 94%; itinerary-element
+  completeness 100%; mean/P95 latency 20.22/25.40 seconds
+- truncation: 0 cap hits; all 100 finish reasons were `stop`
+- status: completed
+
 ## EXP-20260802-001
 
 - date: 2026-08-02
