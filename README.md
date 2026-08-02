@@ -380,6 +380,7 @@ Week 5 使用 `configs/week5_dataset.json` 从本地 Yelp OTA 数据构建三场
 python scripts/manage_week5_dataset.py build-pools
 python scripts/manage_week5_dataset.py validate-pools
 python scripts/manage_week5_dataset.py preannotate --scenario <image_product_search|after_sales|itinerary_planning>
+python scripts/manage_week5_dataset.py preannotate-all
 python scripts/manage_week5_dataset.py export-annotations --scenario <scenario> --output <packet.jsonl>
 python scripts/manage_week5_dataset.py apply-human --scenario <scenario> --input <completed.jsonl>
 python scripts/manage_week5_dataset.py apply-quality --scenario <scenario> --input <quality.jsonl>

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,9 @@ from src.evaluation.prompting import render_standard_prompt
 from src.evaluation.results import parse_and_validate_output
 from src.evaluation.runner import _build_chat_payload, chat_completions_url, post_chat_completion
 from src.evaluation.week4_prompting import load_week4_selection, render_week4_request
+
+
+_FEWSHOT_PREFIX_CACHE: dict[str, dict[str, Any]] = {}
 
 
 def _now() -> str:
@@ -80,10 +84,33 @@ def _render_preannotation(
     version = config["prompt_versions"][scenario]
     if version == "standardized_v4":
         return render_standard_prompt(root, scenario, candidate["input"], version="standardized_v4")
-    return render_week4_request(
-        root, scenario, candidate["input"], prompt_version=version,
-        selection=selection, records_by_id=examples,
+    cached = _FEWSHOT_PREFIX_CACHE.get(scenario)
+    if cached is None:
+        first = render_week4_request(
+            root, scenario, candidate["input"], prompt_version=version,
+            selection=selection, records_by_id=examples,
+        )
+        cached = {
+            "messages": copy.deepcopy(first["messages"][:-1]),
+            "example_ids": copy.deepcopy(first.get("example_ids", [])),
+            "example_count": first.get("example_count"),
+            "example_collage_path": first.get("example_collage_path"),
+            "example_collage_sha256": first.get("example_collage_sha256"),
+        }
+        _FEWSHOT_PREFIX_CACHE[scenario] = cached
+    rendered = render_standard_prompt(
+        root, scenario, candidate["input"], version="week4_optimized_v2"
     )
+    rendered["messages"] = copy.deepcopy(cached["messages"]) + [
+        copy.deepcopy(rendered["messages"][-1])
+    ]
+    rendered["prompt_version"] = version
+    for name in (
+        "example_ids", "example_count", "example_collage_path",
+        "example_collage_sha256",
+    ):
+        rendered[name] = copy.deepcopy(cached[name])
+    return rendered
 
 
 def run_preannotation(
@@ -102,6 +129,7 @@ def run_preannotation(
     selection, examples = _fewshot_context(root)
     runtime = _runtime(root, config, scenario)
     attempted = succeeded = failed_count = skipped = 0
+    pending: list[dict[str, Any]] = []
     for candidate in load_pools(root, config)[scenario]:
         sample_id = candidate["sample_id"]
         if sample_id in completed or (sample_id in failed and not retry_failures):
@@ -109,7 +137,14 @@ def run_preannotation(
             continue
         if limit is not None and attempted >= limit:
             break
+        pending.append(candidate)
         attempted += 1
+    if pending:
+        # 主线程先构建固定 Few-Shot 拼图和前缀，避免并发首次写入竞态。
+        _render_preannotation(root, config, pending[0], selection, examples)
+
+    def execute(candidate: dict[str, Any]) -> dict[str, Any]:
+        sample_id = candidate["sample_id"]
         started = time.perf_counter()
         rendered: dict[str, Any] | None = None
         raw_output: str | None = None
@@ -127,7 +162,7 @@ def run_preannotation(
             parsed = {"parsed_output": None, "json_valid": False, "schema_valid": False}
             status = "failed"
             error = f"model_request_error: {type(exc).__name__}: {exc}"
-        append_jsonl(output, {
+        return {
             "sample_id": sample_id, "scenario": scenario, "status": status,
             "attempt": 1 + sum(row.get("sample_id") == sample_id for row in existing),
             "model_name": runtime["model_name"], "prompt_version": config["prompt_versions"][scenario],
@@ -136,9 +171,18 @@ def run_preannotation(
             "json_valid": parsed["json_valid"], "schema_valid": parsed["schema_valid"],
             "latency_ms": (time.perf_counter() - started) * 1000,
             "error": error, "timestamp": _now(), "human_completed": False,
-        })
-        if status == "completed": succeeded += 1
-        else: failed_count += 1
+        }
+
+    concurrency = int(config["runtime"].get("concurrency", 1))
+    if concurrency < 1:
+        raise Week5DataError("preannotation concurrency must be positive")
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        for result in executor.map(execute, pending):
+            append_jsonl(output, result)
+            if result["status"] == "completed":
+                succeeded += 1
+            else:
+                failed_count += 1
     return {"attempted": attempted, "completed": succeeded, "failed": failed_count, "skipped": skipped}
 
 

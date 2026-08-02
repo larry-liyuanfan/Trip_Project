@@ -37,6 +37,8 @@ def parser() -> argparse.ArgumentParser:
     pre.add_argument("--scenario", choices=SCENARIOS, required=True)
     pre.add_argument("--limit", type=int)
     pre.add_argument("--retry-failures", action="store_true")
+    pre_all = subparsers.add_parser("preannotate-all")
+    pre_all.add_argument("--retry-failures", action="store_true")
     export = subparsers.add_parser("export-annotations")
     export.add_argument("--scenario", choices=SCENARIOS, required=True)
     export.add_argument("--output", type=Path, required=True)
@@ -65,6 +67,13 @@ def main() -> None:
             payload = validate_pools(root, config)
         elif args.command == "preannotate":
             payload = run_preannotation(root, config, args.scenario, limit=args.limit, retry_failures=args.retry_failures)
+        elif args.command == "preannotate-all":
+            payload = {
+                scenario: run_preannotation(
+                    root, config, scenario, retry_failures=args.retry_failures
+                )
+                for scenario in SCENARIOS
+            }
         elif args.command == "export-annotations":
             payload = {"exported": export_annotation_packet(root, config, args.scenario, args.output)}
         elif args.command == "apply-human":

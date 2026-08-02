@@ -253,5 +253,6 @@ as the current validated dataset or accepted baseline.
 - 行程四类人群各 2,500，预算和 2/3/4 天近似均衡。
 - 新增 Qwen3.7 批量预标注、断点续跑、失败记录和重复执行保护；商品/售后复用
   `fewshot_4_v2`，行程复用 `standardized_v4`。
-- 当前环境无模型 API 密钥，也没有 Week 5 人工输入：预标注、人工修正、三级质检、
+- 通过全局 SSH 别名从 ECS 进程内临时读取百炼密钥，商品真实 smoke 预标注 3/3
+  Schema 合规、失败 0；密钥未落盘。没有 Week 5 人工输入，人工修正、三级质检、
   最终合格和对话候选/合格数量均为 0。

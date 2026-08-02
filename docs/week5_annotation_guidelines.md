@@ -121,6 +121,7 @@ python scripts/manage_week5_dataset.py validate-pools
 python scripts/manage_week5_dataset.py preannotate --scenario image_product_search
 python scripts/manage_week5_dataset.py preannotate --scenario after_sales
 python scripts/manage_week5_dataset.py preannotate --scenario itinerary_planning
+python scripts/manage_week5_dataset.py preannotate-all
 python scripts/manage_week5_dataset.py export-annotations --scenario image_product_search --output outputs/week5/packets/product.jsonl
 python scripts/manage_week5_dataset.py apply-human --scenario image_product_search --input <completed.jsonl>
 python scripts/manage_week5_dataset.py apply-quality --scenario image_product_search --input <quality.jsonl>
@@ -131,4 +132,3 @@ python scripts/manage_week5_dataset.py report
 
 预标注和对话生成支持按已完成 ID 断点续跑；失败单独记录，`--retry-failures`
 显式重试；已有候选池和导出包禁止覆盖。
-
