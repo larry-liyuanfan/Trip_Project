@@ -246,133 +246,79 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - Execution proceeds end to end without phase approval gates unless a rule conflict, immutable-artifact overwrite, destructive operation, or new annotation requirement is discovered.
 - Review and Report performs one consolidated review. It may correct evidence documents after its read-only review, but code defects are reported rather than silently refactored.
 
-## Week 5: Dataset Annotation, Quality Control, and Multi-Turn Dialogues
+## Week 5：数据集标注与质检
 
-### Objective and Scope
+### A. 三大业务场景指令数据集的标注与质检
 
-Build training-oriented multimodal instruction data for image-to-product search,
-intelligent after-sales, and multimodal itinerary planning. The required workflow
-is model pre-annotation, human correction, and tiered quality control. In parallel,
-expand qualified single-turn samples into balanced OTA multi-turn conversations.
+#### 1. 标注规范与标注方案
 
-All target and retained counts below are mentor targets, not current completion
-claims. Every summary must separately report at least `target_count`,
-`candidate_count`, `preannotated_count`, `human_corrected_count`,
-`qc_checked_count`, and `accepted_count`. A model output cannot increment a human
-or QC count. Missing work remains `PENDING` or `PARTIAL` rather than being inferred.
+- 分别制定以图搜商品、智能售后、多模态行程规划的标注规范，明确输入构成、
+  输出字段、取值范围、格式标准和质量验收规则，统一全量标注口径。
+- 设计各场景标准 JSON Schema，与前期 Prompt 工程输出格式保持一致，保证训练
+  与推理结构统一。
+- 标注流水线采用“模型预标注 + 人工修正 + 分层质检”，明确各环节责任与验收
+  标准。
+- 配置多模态标注模板，导入原始样本池并设置字段自动校验规则。
 
-### Annotation Specification and Tooling
+#### 2. 分场景样本池与预标注
 
-- Define one annotation specification per scenario. Each specification identifies
-  the multimodal input, output fields, value ranges, JSON rules, ambiguity and
-  unknown handling, and acceptance/rejection criteria.
-- Keep training outputs aligned with the accepted inference contracts from the
-  preceding Prompt work. Provide versioned JSON Schemas and document any necessary
-  training-only envelope without silently changing business fields.
-- Configure a multimodal annotation template that loads images and text, exposes
-  the scenario fields, and performs field, enum, required-key, and JSON validation
-  before submission. Prefer the existing annotation pipeline and a lightweight
-  configuration over an unrelated custom application.
-- Record provenance, dataset version, split, source identity, image hashes,
-  pre-annotation model/Prompt/configuration, human annotation state, QC state,
-  rejection reason, and immutable audit timestamps.
+- 从第 1 周 OTA 数据中分层抽样，与独立测试集严格隔离，避免数据泄漏。
+- 以图搜商品：构建 5 万张高质量商家实景图样本池，覆盖酒店、餐饮、景点，
+  兼顾风格、价位和城市分布。
+- 智能售后：构建 2 万条公开场景凭证与业务合成样本，覆盖卫生污渍、设施损坏、
+  景点关闭、交通延误，均衡不同严重等级。
+- 多模态行程规划：构建 1 万组“风格参考图 + 出行约束”，覆盖不同出行人群、
+  预算档位和行程天数。
+- 复用前期沉淀的最优 Prompt，对全量样本批量预标注并生成初始结果。
 
-### Single-Turn Sample Pools and Pre-Annotation
+#### 3. 全量人工标注修正
 
-- Build candidate pools from the Week 1 OTA data using deterministic stratified
-  sampling. The training pools must be isolated from every prior independent
-  evaluation set using source IDs, image hashes, source groups, and the existing
-  exclusion manifests. The mentor's phrase "Week 2 independent test set" must be
-  mapped to the actual repository registry before sampling; do not assume a week
-  label when the persisted dataset has a different name.
-- Image-to-product target: 50,000 high-quality merchant images spanning hotel,
-  restaurant, and attraction businesses, with useful coverage of style, price,
-  and city.
-- Intelligent after-sales target: 20,000 public-scene and business-synthetic
-  evidence samples spanning hygiene stains, facility damage, attraction closure,
-  and transport delay, with severity distribution reported.
-- Multimodal itinerary target: 10,000 reference-image and travel-constraint pairs
-  spanning traveler groups, budget bands, and trip duration.
-- Use the currently accepted scenario Prompt and the repository's verified model
-  configuration for batch pre-annotation. Do not infer the model name from an old
-  weekly document, download another model, or overwrite prior Prompt/run assets.
-- Persist raw model output, parsed output, Schema status, model/Prompt identity,
-  latency, token usage, error state, and retry status. Failed requests are not
-  pre-annotations and must remain traceable.
+- 人工校验预标注准确性，补充遗漏字段、修正错误分类并统一标签颗粒度。
+- 以图搜商品重点校准风格、设施、价位区间和业态类目。
+- 智能售后重点校准严重等级、关键信息完整性和 OCR 标注。
+- 多模态行程规划重点校验约束命中完整性、行程结构合理性和要素完整性。
+- 将第 2-3 周梳理的 bad case 作为重点难例纳入标注范围。
 
-### Human Correction and Tiered Quality Control
+#### 4. 多级质检与数据清洗
 
-- Human correction must inspect the actual image and text, correct classifications,
-  fill supported missing fields, preserve valid unknowns, and normalize label
-  granularity. Model output is only a draft and never becomes accepted gold without
-  a recorded human action.
-- Product correction emphasizes style, facilities, price bands, and business type.
-  After-sales correction emphasizes severity, key information, and OCR. Itinerary
-  correction emphasizes complete constraint capture, coherent structure, and
-  itinerary-element coverage.
-- Include the prior Week 2-3 bad-case categories as explicitly tagged difficult
-  candidates without copying evaluation samples into training.
-- Apply three QC levels: annotator self-review, same-scenario cross-review, and
-  sampled inspection of core samples. Core-scenario inspection is at least 10%;
-  general-scenario inspection is at least 5%. Record reviewer identity, decision,
-  issue codes, and rework linkage.
-- A single developer or Agent cannot claim independent cross-review. If another
-  human reviewer is unavailable, implement and validate the workflow, complete only
-  work actually performed, and report cross-review/acceptance as pending.
-- Remove or rework incorrect, incomplete, invalid, mismatched, ambiguous, duplicate,
-  unsafe, or provenance-ineligible samples. Report pass rates, issue distributions,
-  rejection counts, and rework results by scenario and batch.
-- Final accepted targets: at least 45,000 product samples, 18,000 after-sales
-  samples, and 9,000 itinerary samples.
+- 执行三级质检：标注人员自审、同场景交叉互审、核心样本抽检。
+- 核心场景抽检比例不低于 10%，一般场景不低于 5%。
+- 剔除或修正标注错误、字段缺失、格式非法、图文不匹配和歧义样本，统一同类
+  表述口径。
+- 统计各场景标注合格率和问题分布，输出质检报告；不达标批次执行返工。
+- 最终达标样本：以图搜商品不少于 4.5 万条，智能售后不少于 1.8 万条，
+  行程规划不少于 0.9 万条。
 
-### Multi-Turn Multimodal Dialogue Dataset
+### B. 多轮多模态对话数据集构建
 
-- Define three balanced dialogue classes: image-search consultation, itinerary
-  iteration, and after-sales negotiation. Dialogues contain 3-8 turns and average
-  at least 4 turns.
-- The versioned dialogue contract includes `dialogue_id`, scenario, image-resource
-  list, ordered messages, role, text content, image references, source single-turn
-  sample IDs, generation provenance, human validation state, QC state, and notes.
-- Cover initial image upload, additional images or constraints, follow-up questions,
-  constraint modification and regeneration, and references to prior images.
-- Generate at least 10,000 dialogue candidates from eligible single-turn samples
-  using the verified model, then perform human validation. Final accepted target is
-  at least 9,000 balanced dialogues.
-- QC checks logical continuity, context consistency, image-reference correctness,
-  OTA safety and business compliance, realistic user language, professional
-  assistant tone, and useful length. Reject contradictions, broken references,
-  fabricated facts, unsafe advice, and unauthorized commitments.
+#### 1. 对话场景与交互范式
 
-### Deliverables and Acceptance
+- 三类场景为以图搜咨询、行程规划迭代、售后协商，典型对话为 3-8 轮。
+- 对话结构包含对话 ID、场景类型、图片资源列表、多轮消息及其角色、内容和
+  图片引用，并规范图片引用和指代规则。
+- 对话应逻辑连贯、符合真实用户表达、上下文指代清晰、回复符合业务规范，
+  禁止编造信息和违规承诺。
 
-- Three scenario annotation specifications, aligned versioned Schemas, label
-  dictionaries, and acceptance rules.
-- Annotation-tool templates/configuration, validation rules, workflow documentation,
-  and audit contracts.
-- Versioned single-turn candidate/pre-annotation/correction/QC manifests and batch
-  scripts with enforced evaluation exclusion.
-- Versioned multi-turn dialogue Schema, generation pipeline, validation scripts,
-  and QC records.
-- Dataset statistics and QC report containing lifecycle counts, distribution,
-  pass/rework/rejection rates, issue categories, leakage checks, and limitations.
-- README, weekly log, weekly delivery, decisions, experiments, and concise mentor
-  report updated to match observed evidence.
+#### 2. 多轮对话样本生成
 
-Acceptance requires reproducible scripts, Schema-valid outputs, enforced exclusion,
-traceable pre-annotations and human/QC actions, observed counts, and no prohibited
-data in Git. Reaching a candidate or pre-annotation target alone does not satisfy an
-accepted-data target. Do not fabricate human work, QC independence, pass rates,
-metrics, or completion status.
+- 基于单轮指令样本，通过大模型辅助生成和人工校验扩展多轮对话。
+- 覆盖首轮上传图片、轮中补充图片或条件、追问历史结果、修改约束重新生成、
+  指代历史图片等交互模式。
+- 构建不少于 1 万条多轮对话样本，三类场景分布均衡，平均轮次不少于 4 轮。
 
-### Non-Goals and Operational Boundaries
+#### 3. 对话质检与归一化
 
-- Do not train or fine-tune a model during Week 5.
-- Do not replace human correction or cross-review with an LLM judge.
-- Do not commit raw/licensed images, generated datasets, run outputs, credentials,
-  annotation exports containing private data, or Chat prompts.
-- Do not create a new Web product, production labeling platform, cloud architecture,
-  or future-week plan beyond what is needed for these deliverables.
-- Before launching tens of thousands of paid cloud requests, verify eligible source
-  counts, storage, estimated requests/tokens/cost/time, resumability, rate limits,
-  and the user's authorization for the measured expense. Pilot evidence must not be
-  reported as full-batch completion.
+- 校验逻辑连贯性、上下文一致性、图片指代正确性和业务合规性，剔除逻辑断裂、
+  前后矛盾和不符合业务规则的样本。
+- 助手回复统一为专业、规范、友好的 OTA 客服语气；用户表达保持真实口语化。
+- 清洗过长、过短及无效对话，最终达标多轮对话样本不少于 0.9 万条。
+
+### 交付要求
+
+- 三场景标注规范、对应 JSON Schema 和标注工具配置。
+- 三场景样本池、预标注结果、人工修正结果和三级质检结果。
+- 多轮对话结构规范、生成结果和质检结果。
+- 各场景数据统计与质检报告。
+
+所有完成数量、人工标注、交叉互审、抽检和合格率必须来自实际结果，不得把目标
+数量或模型预标注数量写成已完成人工标注或质检数量。数据集不得与独立测试集重叠。
