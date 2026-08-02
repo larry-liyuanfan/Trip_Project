@@ -245,3 +245,134 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - Do not commit raw data, model files, generated vectors, run outputs, Milvus volumes, secrets, personal configuration, or Chat prompts.
 - Execution proceeds end to end without phase approval gates unless a rule conflict, immutable-artifact overwrite, destructive operation, or new annotation requirement is discovered.
 - Review and Report performs one consolidated review. It may correct evidence documents after its read-only review, but code defects are reported rather than silently refactored.
+
+## Week 5: Dataset Annotation, Quality Control, and Multi-Turn Dialogues
+
+### Objective and Scope
+
+Build training-oriented multimodal instruction data for image-to-product search,
+intelligent after-sales, and multimodal itinerary planning. The required workflow
+is model pre-annotation, human correction, and tiered quality control. In parallel,
+expand qualified single-turn samples into balanced OTA multi-turn conversations.
+
+All target and retained counts below are mentor targets, not current completion
+claims. Every summary must separately report at least `target_count`,
+`candidate_count`, `preannotated_count`, `human_corrected_count`,
+`qc_checked_count`, and `accepted_count`. A model output cannot increment a human
+or QC count. Missing work remains `PENDING` or `PARTIAL` rather than being inferred.
+
+### Annotation Specification and Tooling
+
+- Define one annotation specification per scenario. Each specification identifies
+  the multimodal input, output fields, value ranges, JSON rules, ambiguity and
+  unknown handling, and acceptance/rejection criteria.
+- Keep training outputs aligned with the accepted inference contracts from the
+  preceding Prompt work. Provide versioned JSON Schemas and document any necessary
+  training-only envelope without silently changing business fields.
+- Configure a multimodal annotation template that loads images and text, exposes
+  the scenario fields, and performs field, enum, required-key, and JSON validation
+  before submission. Prefer the existing annotation pipeline and a lightweight
+  configuration over an unrelated custom application.
+- Record provenance, dataset version, split, source identity, image hashes,
+  pre-annotation model/Prompt/configuration, human annotation state, QC state,
+  rejection reason, and immutable audit timestamps.
+
+### Single-Turn Sample Pools and Pre-Annotation
+
+- Build candidate pools from the Week 1 OTA data using deterministic stratified
+  sampling. The training pools must be isolated from every prior independent
+  evaluation set using source IDs, image hashes, source groups, and the existing
+  exclusion manifests. The mentor's phrase "Week 2 independent test set" must be
+  mapped to the actual repository registry before sampling; do not assume a week
+  label when the persisted dataset has a different name.
+- Image-to-product target: 50,000 high-quality merchant images spanning hotel,
+  restaurant, and attraction businesses, with useful coverage of style, price,
+  and city.
+- Intelligent after-sales target: 20,000 public-scene and business-synthetic
+  evidence samples spanning hygiene stains, facility damage, attraction closure,
+  and transport delay, with severity distribution reported.
+- Multimodal itinerary target: 10,000 reference-image and travel-constraint pairs
+  spanning traveler groups, budget bands, and trip duration.
+- Use the currently accepted scenario Prompt and the repository's verified model
+  configuration for batch pre-annotation. Do not infer the model name from an old
+  weekly document, download another model, or overwrite prior Prompt/run assets.
+- Persist raw model output, parsed output, Schema status, model/Prompt identity,
+  latency, token usage, error state, and retry status. Failed requests are not
+  pre-annotations and must remain traceable.
+
+### Human Correction and Tiered Quality Control
+
+- Human correction must inspect the actual image and text, correct classifications,
+  fill supported missing fields, preserve valid unknowns, and normalize label
+  granularity. Model output is only a draft and never becomes accepted gold without
+  a recorded human action.
+- Product correction emphasizes style, facilities, price bands, and business type.
+  After-sales correction emphasizes severity, key information, and OCR. Itinerary
+  correction emphasizes complete constraint capture, coherent structure, and
+  itinerary-element coverage.
+- Include the prior Week 2-3 bad-case categories as explicitly tagged difficult
+  candidates without copying evaluation samples into training.
+- Apply three QC levels: annotator self-review, same-scenario cross-review, and
+  sampled inspection of core samples. Core-scenario inspection is at least 10%;
+  general-scenario inspection is at least 5%. Record reviewer identity, decision,
+  issue codes, and rework linkage.
+- A single developer or Agent cannot claim independent cross-review. If another
+  human reviewer is unavailable, implement and validate the workflow, complete only
+  work actually performed, and report cross-review/acceptance as pending.
+- Remove or rework incorrect, incomplete, invalid, mismatched, ambiguous, duplicate,
+  unsafe, or provenance-ineligible samples. Report pass rates, issue distributions,
+  rejection counts, and rework results by scenario and batch.
+- Final accepted targets: at least 45,000 product samples, 18,000 after-sales
+  samples, and 9,000 itinerary samples.
+
+### Multi-Turn Multimodal Dialogue Dataset
+
+- Define three balanced dialogue classes: image-search consultation, itinerary
+  iteration, and after-sales negotiation. Dialogues contain 3-8 turns and average
+  at least 4 turns.
+- The versioned dialogue contract includes `dialogue_id`, scenario, image-resource
+  list, ordered messages, role, text content, image references, source single-turn
+  sample IDs, generation provenance, human validation state, QC state, and notes.
+- Cover initial image upload, additional images or constraints, follow-up questions,
+  constraint modification and regeneration, and references to prior images.
+- Generate at least 10,000 dialogue candidates from eligible single-turn samples
+  using the verified model, then perform human validation. Final accepted target is
+  at least 9,000 balanced dialogues.
+- QC checks logical continuity, context consistency, image-reference correctness,
+  OTA safety and business compliance, realistic user language, professional
+  assistant tone, and useful length. Reject contradictions, broken references,
+  fabricated facts, unsafe advice, and unauthorized commitments.
+
+### Deliverables and Acceptance
+
+- Three scenario annotation specifications, aligned versioned Schemas, label
+  dictionaries, and acceptance rules.
+- Annotation-tool templates/configuration, validation rules, workflow documentation,
+  and audit contracts.
+- Versioned single-turn candidate/pre-annotation/correction/QC manifests and batch
+  scripts with enforced evaluation exclusion.
+- Versioned multi-turn dialogue Schema, generation pipeline, validation scripts,
+  and QC records.
+- Dataset statistics and QC report containing lifecycle counts, distribution,
+  pass/rework/rejection rates, issue categories, leakage checks, and limitations.
+- README, weekly log, weekly delivery, decisions, experiments, and concise mentor
+  report updated to match observed evidence.
+
+Acceptance requires reproducible scripts, Schema-valid outputs, enforced exclusion,
+traceable pre-annotations and human/QC actions, observed counts, and no prohibited
+data in Git. Reaching a candidate or pre-annotation target alone does not satisfy an
+accepted-data target. Do not fabricate human work, QC independence, pass rates,
+metrics, or completion status.
+
+### Non-Goals and Operational Boundaries
+
+- Do not train or fine-tune a model during Week 5.
+- Do not replace human correction or cross-review with an LLM judge.
+- Do not commit raw/licensed images, generated datasets, run outputs, credentials,
+  annotation exports containing private data, or Chat prompts.
+- Do not create a new Web product, production labeling platform, cloud architecture,
+  or future-week plan beyond what is needed for these deliverables.
+- Before launching tens of thousands of paid cloud requests, verify eligible source
+  counts, storage, estimated requests/tokens/cost/time, resumability, rate limits,
+  and the user's authorization for the measured expense. Pilot evidence must not be
+  reported as full-batch completion.
