@@ -261,6 +261,32 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 未与 CLIP 并发。Milvus、MinIO、etcd 当前均 healthy；正式集合 19 条逻辑
 可见行，临时集合 CRUD 为插入 1、命中 1、删除后 0。历史性能产物未改写。
 
+## Week 1-4 Qwen3.7 整体交付整理
+
+- [x] 云端模型配置固定为阿里云百炼 `qwen3.7-plus`，关闭 thinking。
+- [x] Week 1 真实图片 API smoke 通过，且禁止请求失败时静默 fallback。
+- [x] Week 2 数据与 CLIP 结果确认为模型无关项，不重复制造运行数据。
+- [x] Week 3 baseline、standardized 和 Week 4 winner 均完成 Qwen3.7
+  450/450 全量运行，请求错误为 0。
+- [x] 行程 `standardized_v4` 完成 100/100，JSON/Schema 均为 100%。
+- [x] 保留 Milvus 真实 CRUD、HNSW 和小规模性能证据。
+- [x] 新增总报告与报告索引，明确纯模型变化、Prompt 联合修复和已知限制。
+- [x] stg 推广范围固定到 Week 1-4，不包含后续 Week 5 实现。
+
+总报告：`reports/week1_to_week4_qwen37_overall_report.md`。
+报告索引：`reports/README.md`。
+
+### 整理后验证证据
+
+- `python -m unittest discover -s tests -v`：262/262 通过。
+- `python scripts/validate_week2_pipeline.py --config configs/data_processing.yaml`：
+  `status=ok`，无 errors 或 warnings。
+- Qwen3.7 baseline、standardized 和行程 v4 三个 run-bound 验证均为
+  `status=ok`；exclusion count 为 450。
+- `python scripts/validate_week4_delivery.py --config
+  configs/evaluation_week4_qwen37_plus_aliyun.yaml`：`status=ok`，pilot 45、
+  full/score/common-semantic paired 均为 450，请求错误为 0。
+
 ## Week 5 交付：数据集标注与质检
 
 状态：`PARTIAL / WAITING FOR REQUIRED HUMAN INPUT`。候选池、隔离、Schema、
