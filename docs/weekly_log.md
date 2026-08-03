@@ -238,3 +238,13 @@ as the current validated dataset or accepted baseline.
 - common comparison `_003` 完成 450 对同编码器评分、38 个聚合指标和
   2,000 次 bootstrap；v5 bad case 共 376 条。
 - Week 4 状态更新为 `READY FOR MENTOR REVIEW`。
+
+## 2026-08-03：Week 1-4 Qwen3.7 整体报告与 stg 整理
+
+- 以 Week 1-4 最后验证提交 `83c67f0` 为边界，排除后续 Week 5 实现。
+- 新增 `reports/week1_to_week4_qwen37_overall_report.md`，统一整理云端模型
+  迁移、Week 2 不变项、Week 3 重跑、Week 4 Prompt 重选、行程 v4 修复和
+  Milvus 原型结果。
+- 新增 `reports/README.md` 作为报告索引；历史报告和过程状态保持原路径，
+  不移动、不覆盖冻结运行产物。
+- 总报告明确区分同 Prompt 模型对比与 Prompt/预算联合修复，避免错误归因。

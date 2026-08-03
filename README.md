@@ -394,3 +394,10 @@ python scripts/score_week3_evaluation.py --config configs/evaluation_itinerary_q
 ```
 
 Measured repair results are in `reports/qwen37_itinerary_repair_report.md`.
+
+## Reports
+
+The consolidated Week 1-4 report after migration to Alibaba Cloud
+`qwen3.7-plus` is `reports/week1_to_week4_qwen37_overall_report.md`.
+Use `reports/README.md` as the report index; historical process snapshots are
+kept separate from current conclusions.
