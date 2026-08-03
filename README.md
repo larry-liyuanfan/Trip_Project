@@ -369,3 +369,35 @@ python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
 `reports/week4_bad_cases.md`,
 `docs/milvus_collection_design.md`, and
 `reports/week4_milvus_deployment_performance_report.md`.
+
+## Aliyun Runtime
+
+The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the
+Singapore workspace-specific OpenAI-compatible endpoint. The ECS deployment
+does not run local vLLM. FastAPI and Milvus bind to loopback by default; use an
+SSH tunnel for operator access. See `docs/aliyun_deployment.md` for the exact
+deployment and secret-handling workflow.
+
+The versioned Qwen3.7 evaluation configs are
+`configs/evaluation_week3_qwen37_plus_aliyun.yaml` and
+`configs/evaluation_week4_qwen37_plus_aliyun.yaml`. The measured rerun is
+summarized in `reports/qwen37_previous_weeks_rerun_report.md`; generated runs
+and scores remain local and ignored.
+
+The Qwen3.7 itinerary repair uses the versioned `standardized_v4` prompt and a
+scenario-only evaluation config. With `MODEL_API_BASE_URL` and
+`MODEL_API_KEY_FILE` set locally, reproduce the live run and score it with:
+
+```bash
+python scripts/run_week3_evaluation.py --config configs/evaluation_itinerary_qwen37_repair.yaml --run-id <new-run-id> --mode live --run-scope full --prompt-version standardized_v4 --scenario itinerary_planning
+python scripts/score_week3_evaluation.py --config configs/evaluation_itinerary_qwen37_repair.yaml --run-id <new-run-id>
+```
+
+Measured repair results are in `reports/qwen37_itinerary_repair_report.md`.
+
+## Reports
+
+The consolidated Week 1-4 report after migration to Alibaba Cloud
+`qwen3.7-plus` is `reports/week1_to_week4_qwen37_overall_report.md`.
+Use `reports/README.md` as the report index; historical process snapshots are
+kept separate from current conclusions.

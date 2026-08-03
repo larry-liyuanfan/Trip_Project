@@ -150,14 +150,23 @@ def analyze_full_run(
     _write_or_verify_jsonl(score_dir / "sample_scores.jsonl", sample_scores)
     _write_or_verify_json(score_dir / "aggregate_scores.json", aggregates)
     summaries = _summarize_run(results, sample_scores)
-    baseline_results = _load_completed_run(
-        project_root / "data/eval/runs",
+    baseline_run_id = week4_config.get("validation", {}).get(
+        "baseline_run_id",
         BASELINE_RUN_ID,
     )
-    comparisons = _build_runtime_comparisons(summaries, baseline_results)
+    baseline_results = _load_completed_run(
+        project_root / "data/eval/runs",
+        baseline_run_id,
+    )
+    comparisons = _build_runtime_comparisons(
+        summaries,
+        baseline_results,
+        baseline_run_id=baseline_run_id,
+    )
     bad_cases = _build_bad_cases(results, sample_scores)
     payload = {
         "full_run_id": full_run_id,
+        "baseline_run_id": baseline_run_id,
         "optimized_summaries": summaries,
         "baseline_comparison": comparisons,
         "business_metric_note": (
@@ -259,6 +268,8 @@ def _summarize_runtime(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _build_runtime_comparisons(
     optimized_summaries: list[dict[str, Any]],
     baseline_results: list[dict[str, Any]],
+    *,
+    baseline_run_id: str = BASELINE_RUN_ID,
 ) -> list[dict[str, Any]]:
     """只比较同口径的格式与运行指标，业务评分轨道明确不可直接比较。"""
     baseline_by_scenario = {
@@ -276,7 +287,7 @@ def _build_runtime_comparisons(
                 ),
                 "baseline_business_track": "baseline_semantic_coding_v1",
                 "optimized_business_track": "structured_json_strict",
-                "baseline_run_id": BASELINE_RUN_ID,
+                "baseline_run_id": baseline_run_id,
                 "optimized_prompt_version": optimized["prompt_version"],
                 "baseline_json_compliance": baseline["json_compliance"],
                 "optimized_json_compliance": optimized["json_compliance"],

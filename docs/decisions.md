@@ -142,6 +142,18 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **影响**：三组新 pilot 均须真实重跑且请求错误为 0；胜出版本只表示
   固定综合规则下的候选内最高分。全量结果不得反向用于重选 Prompt。
 
+## ADR-015：Qwen3.7 行程输出使用紧凑 v4 Prompt
+
+- **日期**：2026-08-02
+- **状态**：Accepted
+- **决策**：保留历史 v2/v3 产物，新增 `standardized_v4`。行程场景使用
+  2560 token 独立输出预算，约束保持原文，活动证据不重复，Schema 枚举固定
+  使用英文协议值；评估 CLI 允许在完整数据门禁后仅运行指定场景。
+- **原因**：67/100 个旧输出因达到 1280 token 上限截断；v3 消除截断后，
+  剩余失败全部来自 `required_itinerary_elements` 被翻译成中文。
+- **影响**：最终 100 条行程 JSON/Schema 均通过，旧 Week 3/4 run、Prompt、
+  Schema 和评分保持不可变。商品和售后配置不受影响。
+
 ## Decision Template
 
 ```markdown

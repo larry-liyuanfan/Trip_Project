@@ -74,6 +74,11 @@ def run_cli(
     )
     parser.add_argument("--mock-responses")
     parser.add_argument("--base-url")
+    parser.add_argument(
+        "--scenario",
+        choices=("image_product_search", "after_sales", "itinerary_planning"),
+        help="Run one scenario while retaining full-dataset readiness checks.",
+    )
     args = parser.parse_args(argv)
 
     project_root = Path(root) if root is not None else Path.cwd()
@@ -97,6 +102,7 @@ def run_cli(
         run_scope=args.run_scope,
         mock_outputs=mock_outputs,
         live_base_url=args.base_url,
+        scenario=args.scenario,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     return summary

@@ -1,0 +1,6 @@
+scenario: itinerary_planning
+schema_name: itinerary_planning_v2.schema.json
+format_skeleton: >-
+  {"style_preferences":[],"hard_constraints":[],"soft_constraints":[],"required_itinerary_elements":[],"itinerary":[{"day_index":1,"date":null,"summary":"简短摘要","activities":[{"start_time":null,"end_time":null,"place_name":null,"activity":"简短活动","transport":null,"source_evidence":[]}]}],"constraint_check":[{"constraint":"原始约束原文","constraint_type":"hard","status":"unknown","evidence":null}],"observed_evidence":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  从图片提取最多3项 style_preferences；图片信息不得进入 hard_constraints 或 soft_constraints。只从“原始文字约束”逐项抽取约束，必须保留原文中的最短完整短语，不得改写、扩展、拆分或合并。天数、预算、截止时间以及“必须、包含、不得”等要求归入 hard_constraints；“偏好、优先、慢节奏、尽量”等要求归入 soft_constraints。required_itinerary_elements 只选择实际需要的枚举。itinerary 天数必须等于原始要求；每天输出1至2个简短活动，source_evidence 固定为空数组，图片无法证明地点时 place_name 使用 null。constraint_check 必须逐项覆盖 hard_constraints 和 soft_constraints，constraint 必须逐字复制对应数组项，evidence 固定为 null。observed_evidence 最多3项且只写图片直接可见事实。所有文本保持简短，完成最后一天后立即输出其余顶层字段并闭合 JSON。

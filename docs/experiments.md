@@ -1,5 +1,30 @@
 # Experiment Notes
 
+## 2026-08-02：Qwen3.7-Plus 前期任务重跑
+
+- 模型/后端：`qwen3.7-plus`，阿里云百炼新加坡 OpenAI-compatible API，
+  thinking disabled。
+- 数据：不可变 `week3_evaluation_v2`，商品/售后/行程 200/150/100。
+- Week 3：baseline `_002` 与 standardized `_001` 均完成 450/450，
+  请求错误 0；baseline `_001` 的单条 ReadTimeout 仅作为失败证据保留。
+- Week 4 pilot：商品和售后选择 `fewshot_4_v2`，行程选择
+  `standardized_v2`；winner full 完成 450/450，请求错误 0。
+- 共同语义比较：450 对、38 个聚合指标、2,000 次 bootstrap。
+- 主要结果：winner 商品/售后/行程 JSON 合规率 100%/100%/33%，
+  Schema 98.5%/100%/33%；行程格式和约束仍是主要短板。
+- 完整报告：`reports/qwen37_previous_weeks_rerun_report.md`。
+
+## 2026-08-02：Qwen3.7-Plus 行程规划修复
+
+- 根因：旧行程输出中 67/100 条精确达到 1280 completion tokens 并截断。
+- 修复：版本化 `standardized_v4`、紧凑字段、约束原文保留、英文枚举约束，
+  行程专用 `max_tokens=2560`。
+- 最终 run：`itinerary_qwen37_repair_v4_full_20260802_001`，100/100 JSON，
+  100/100 Schema，请求错误和 token 上限命中均为 0。
+- 业务指标：约束识别 89.95%，硬/软约束 F1 96.33%/85.67%，约束检查
+  覆盖率 94%，行程要素完整度 100%。
+- 报告：`reports/qwen37_itinerary_repair_report.md`。
+
 ## Week 1 Serving and API Baseline
 
 - Runtime: `vllm/vllm-openai:v0.8.5` with `Qwen/Qwen2-VL-2B-Instruct` on the local 8GB NVIDIA GPU.

@@ -116,6 +116,7 @@ def build_run_artifact_hashes(
     root: Path,
     config: dict[str, Any],
     prompt_version: str,
+    scenario_names: list[str] | None = None,
 ) -> dict[str, str]:
     """Hash manifests, exclusion registry, active prompts, and all Schemas."""
     project_root = Path(root)
@@ -124,8 +125,13 @@ def build_run_artifact_hashes(
     if not isinstance(scenarios, dict) or not isinstance(paths_config, dict):
         raise ProvenanceValidationError("evaluation config is missing paths or scenarios")
 
+    active_scenarios = list(scenarios) if scenario_names is None else scenario_names
+    if not active_scenarios or any(name not in scenarios for name in active_scenarios):
+        raise ProvenanceValidationError("artifact scenario selection is invalid")
+
     paths: list[Path] = [project_root / paths_config["exclusion_manifest"]]
-    for scenario, scenario_config in scenarios.items():
+    for scenario in active_scenarios:
+        scenario_config = scenarios[scenario]
         paths.append(project_root / scenario_config["manifest_path"])
         paths.append(
             project_root
@@ -139,11 +145,11 @@ def build_run_artifact_hashes(
     if prompt_version == "baseline_minimal_v1":
         paths.extend(
             prompt_root / prompt_version / f"{scenario}.txt"
-            for scenario in scenarios
+            for scenario in active_scenarios
         )
     elif prompt_version.startswith("standardized_v"):
         paths.append(prompt_root / prompt_version / "common.yaml")
-        for scenario in scenarios:
+        for scenario in active_scenarios:
             prompt_path = prompt_root / prompt_version / f"{scenario}.yaml"
             paths.append(prompt_path)
             prompt_spec = parse_simple_yaml(prompt_path.read_text(encoding="utf-8"))

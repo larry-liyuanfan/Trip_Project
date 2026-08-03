@@ -1,5 +1,32 @@
 # Experiment Log
 
+## EXP-20260802-002
+
+- date: 2026-08-02
+- model: `qwen3.7-plus`
+- dataset: `week3_evaluation_v2`, itinerary 100 samples
+- prompt: `standardized_v4`
+- run: `itinerary_qwen37_repair_v4_full_20260802_001`
+- generation: thinking disabled, temperature 0.1, top_p 0.9, max_tokens 2560
+- result: JSON/Schema 100%/100%; constraint recognition 89.95%; hard/soft
+  constraint F1 96.33%/85.67%; constraint-check coverage 94%; itinerary-element
+  completeness 100%; mean/P95 latency 20.22/25.40 seconds
+- truncation: 0 cap hits; all 100 finish reasons were `stop`
+- status: completed
+
+## EXP-20260802-001
+
+- date: 2026-08-02
+- model: `qwen3.7-plus`
+- backend: Alibaba Cloud Model Studio OpenAI-compatible API, Singapore
+- dataset: `week3_evaluation_v2`, 450 human-gold samples
+- baseline_run: `week3_qwen37_baseline_full_20260802_002`, 450/450, request errors 0
+- standardized_run: `week3_qwen37_standardized_full_20260802_001`, 450/450, request errors 0
+- week4_winner_run: `week4_qwen37_winners_full_20260802_001`, 450/450, request errors 0
+- winners: product `fewshot_4_v2`; after-sales `fewshot_4_v2`; itinerary `standardized_v2`
+- common_semantic: `qwen37_common_semantic_v1_20260802_001`, 450 pairs, 2,000 bootstrap iterations
+- status: completed; itinerary JSON/Schema remains 33%/33%
+
 ## EXP-20260706-001
 
 - date: 2026-07-06

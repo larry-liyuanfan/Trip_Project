@@ -1,4 +1,4 @@
-"""OpenAI-compatible vLLM client, response normalization, and local fallback."""
+"""OpenAI-compatible multimodal client, response normalization, and fallback."""
 
 import base64
 import json
@@ -18,41 +18,68 @@ from src.inference.schemas import (
 )
 
 
-class VLLMClient:
-    """Thin OpenAI-compatible vLLM client with a deterministic local fallback."""
+class OpenAICompatibleClient:
+    """Call a local vLLM or hosted OpenAI-compatible multimodal endpoint."""
 
     def __init__(
         self,
         base_url: str | None = None,
         model_name: str | None = None,
+        api_key: str | None = None,
         timeout_seconds: int = 60,
     ) -> None:
         """Configure the endpoint, served model name, and request timeout."""
-        self.base_url = (base_url or os.getenv("VLLM_BASE_URL") or "").rstrip("/")
-        self.model_name = model_name or os.getenv("VLLM_MODEL_NAME", "Qwen3-VL-2B-Instruct")
+        self.base_url = (
+            base_url
+            or os.getenv("MODEL_API_BASE_URL")
+            or os.getenv("DASHSCOPE_BASE_URL")
+            or os.getenv("VLLM_BASE_URL")
+            or ""
+        ).rstrip("/")
+        self.model_name = (
+            model_name
+            or os.getenv("MODEL_NAME")
+            or os.getenv("VLLM_MODEL_NAME")
+            or "Qwen/Qwen2-VL-2B-Instruct"
+        )
+        self.api_key = api_key or _read_api_key()
         self.timeout_seconds = timeout_seconds
+        self.fallback_enabled = _env_flag("MODEL_FALLBACK_ENABLED", default=True)
 
     def understand_images(
         self, request: ImageUnderstandingRequest
     ) -> ImageUnderstandingResponse:
-        """Call live vLLM when configured, otherwise return deterministic output."""
+        """Call the configured endpoint, otherwise return deterministic output."""
         if not self.base_url:
             return fallback_image_understanding(request)
 
         payload = self._build_chat_payload(request)
         try:
+            headers = {"Content-Type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
             response = requests.post(
-                f"{self.base_url}/v1/chat/completions",
+                self.chat_completions_url,
                 json=payload,
+                headers=headers,
                 timeout=self.timeout_seconds,
             )
             response.raise_for_status()
             content = response.json()["choices"][0]["message"]["content"]
             return parse_model_response(content)
         except Exception as exc:
+            if not self.fallback_enabled:
+                raise RuntimeError("model request failed") from exc
             fallback = fallback_image_understanding(request)
-            fallback.raw_model_output = f"vLLM request failed; fallback used: {exc}"
+            fallback.raw_model_output = f"model request failed; fallback used: {exc}"
             return fallback
+
+    @property
+    def chat_completions_url(self) -> str:
+        """Build the chat-completions URL for both root and versioned base URLs."""
+        if self.base_url.endswith("/v1"):
+            return f"{self.base_url}/chat/completions"
+        return f"{self.base_url}/v1/chat/completions"
 
     def _build_chat_payload(self, request: ImageUnderstandingRequest) -> dict[str, Any]:
         """Encode text and image parts in the OpenAI multimodal message format."""
@@ -75,7 +102,32 @@ class VLLMClient:
             "temperature": 0.1,
             "top_p": 0.9,
             "max_tokens": 512,
+            "enable_thinking": False,
         }
+
+
+# Preserve the existing public name used by routes and historical tests.
+VLLMClient = OpenAICompatibleClient
+
+
+def _read_api_key() -> str:
+    """Read a model API key from the environment or a mounted secret file."""
+    direct_key = os.getenv("MODEL_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
+    if direct_key:
+        return direct_key.strip()
+
+    key_file = os.getenv("MODEL_API_KEY_FILE") or os.getenv("DASHSCOPE_API_KEY_FILE")
+    if not key_file:
+        return ""
+    return Path(key_file).read_text(encoding="utf-8").strip()
+
+
+def _env_flag(name: str, *, default: bool) -> bool:
+    """Parse a conventional boolean environment variable."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def normalize_image_url(image_url: str) -> str:

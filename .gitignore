@@ -11,6 +11,7 @@ venv/
 env/
 .env
 .env.local
+secrets/
 *.tmp
 *.temp
 tmp/
@@ -48,3 +49,4 @@ docs/superpowers/
 work/week3_prompts/
 work/week3_v2_annotation/
 work/week4_prompts/
+work/week5_prompts/
