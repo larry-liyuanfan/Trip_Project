@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from src.data.week5_dataset import (
+    SCENARIOS,
     Week5DataError,
     _check_candidate_isolation,
     candidate_payload_sha256,
@@ -25,6 +26,7 @@ from src.data.week5_workflow import (
     apply_human_corrections,
     apply_quality_records,
     export_audited_pilot_annotation_packet,
+    run_full_preannotation,
     run_itinerary_paired_prompt_pilot,
 )
 
@@ -281,6 +283,79 @@ class Week5DatasetTests(unittest.TestCase):
                 config["pilot"]["max_cost_cny"] = 19.0
                 with self.assertRaises(Week5DataError):
                     run_itinerary_paired_prompt_pilot(root, config, "pilot-1", limit=2, resume=True)
+
+    def test_full_preannotation_is_audited_resumable_and_non_overwriting(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pool_dir = root / "outputs/week5/pools"
+            pool_dir.mkdir(parents=True)
+            for scenario in ("image_product_search", "after_sales", "itinerary_planning"):
+                candidate = {
+                    "sample_id": f"sample-{scenario}",
+                    "scenario": scenario,
+                    "input": {"images": [], "text_constraints": "2天"},
+                }
+                (pool_dir / f"{scenario}.jsonl").write_text(
+                    json.dumps(candidate, ensure_ascii=False) + "\n", encoding="utf-8"
+                )
+            config = {
+                "dataset_version": "week5_instruction_candidates_v1",
+                "paths": {"output_dir": "outputs/week5"},
+                "targets": {scenario: 1 for scenario in SCENARIOS},
+                "prompt_versions": {
+                    "image_product_search": "standardized_v2",
+                    "after_sales": "fewshot_4_v2",
+                    "itinerary_planning": "standardized_v4",
+                },
+                "runtime": {
+                    "base_url": "http://127.0.0.1:18001/v1", "concurrency": 2
+                },
+                "full_preannotation": {"shard_size": 2, "max_retries": 1},
+            }
+            runtime = {
+                "model_name": "Qwen3-VL-4B-Instruct",
+                "served_model_name": "Qwen3-VL-4B-Instruct",
+                "live_base_url": "http://127.0.0.1:18001/v1",
+                "timeout_seconds": 30, "generation": {}, "model_config": {},
+            }
+            parsed = {
+                "parsed_output": {"ok": True}, "json_valid": True,
+                "schema_valid": True, "error": None,
+            }
+            with patch("src.data.week5_workflow._runtime", return_value=runtime), patch(
+                "src.data.week5_workflow._fewshot_context", return_value=({}, {})
+            ), patch(
+                "src.data.week5_workflow._render_preannotation",
+                side_effect=lambda root, config, candidate, *args, **kwargs: {
+                    "sample_id": candidate["sample_id"]
+                },
+            ), patch(
+                "src.data.week5_workflow._build_chat_payload",
+                side_effect=lambda root, rendered, runtime: rendered,
+            ), patch(
+                "src.data.week5_workflow.post_chat_completion",
+                return_value={
+                    "choices": [{"message": {"content": "{}"}}],
+                    "usage": {"total_tokens": 10},
+                },
+            ), patch(
+                "src.data.week5_workflow.parse_and_validate_output", return_value=parsed
+            ):
+                summary = run_full_preannotation(root, config, "full-1")
+                self.assertEqual(summary["status"], "completed")
+                self.assertEqual(summary["completed_this_process"], 3)
+                run_dir = root / "outputs/week5/runs/full-1"
+                self.assertEqual(len(list((run_dir / "raw").rglob("*.txt"))), 3)
+                self.assertEqual(len((run_dir / "attempts.jsonl").read_text(encoding="utf-8").splitlines()), 3)
+                manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+                self.assertEqual(manifest["identity"]["run_kind"], "full_preannotation")
+                with self.assertRaises(Week5DataError):
+                    run_full_preannotation(root, config, "full-1")
+                resumed = run_full_preannotation(root, config, "full-1", resume=True)
+                self.assertEqual(resumed["skipped_this_process"], 3)
+                config["runtime"]["concurrency"] = 1
+                with self.assertRaises(Week5DataError):
+                    run_full_preannotation(root, config, "full-1", resume=True)
 
     def test_audit_selection_is_deterministic_and_rate_bounded(self) -> None:
         config = load_week5_config(ROOT, "configs/week5_dataset.json")

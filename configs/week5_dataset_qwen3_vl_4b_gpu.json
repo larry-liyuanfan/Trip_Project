@@ -49,6 +49,10 @@
     "timeout_seconds": 240,
     "concurrency": 4
   },
+  "full_preannotation": {
+    "shard_size": 500,
+    "max_retries": 2
+  },
   "pilot": {
     "itinerary_prompt_versions": ["fewshot_4_v2", "standardized_v4"],
     "max_unique_samples": 30,

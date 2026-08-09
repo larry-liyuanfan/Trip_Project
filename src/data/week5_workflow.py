@@ -319,6 +319,252 @@ def _attempt_error_type(status: str, error: str | None) -> str | None:
     return "schema_error"
 
 
+def _full_run_identity(
+    root: Path, config: dict[str, Any], run_id: str,
+) -> dict[str, Any]:
+    runtimes = {scenario: _runtime(root, config, scenario) for scenario in SCENARIOS}
+    return {
+        "schema_version": "week5_preannotation_run_v2",
+        "run_id": run_id,
+        "run_kind": "full_preannotation",
+        "dataset_version": config["dataset_version"],
+        "model_names": {
+            scenario: runtimes[scenario]["model_name"] for scenario in SCENARIOS
+        },
+        "prompt_versions": {
+            scenario: config["prompt_versions"][scenario] for scenario in SCENARIOS
+        },
+        "config_sha256": _canonical_sha256(config),
+        "candidate_manifests": {
+            scenario: {
+                "path": (
+                    Path(config["paths"]["output_dir"])
+                    / "pools"
+                    / f"{scenario}.jsonl"
+                ).as_posix(),
+                "sha256": candidate_manifest_sha256(root, config, scenario),
+            }
+            for scenario in SCENARIOS
+        },
+        "sharding": {"strategy": "ordered_fixed_size_v1"},
+    }
+
+
+def run_full_preannotation(
+    root: Path,
+    config: dict[str, Any],
+    run_id: str,
+    *,
+    resume: bool = False,
+    retry_failures: bool = False,
+) -> dict[str, Any]:
+    """执行可审计、不可覆盖并可安全恢复的三场景全量预标注。"""
+    _require_model_access(config)
+    full = config.get("full_preannotation", {})
+    shard_size = int(full.get("shard_size", 500))
+    max_retries = int(full.get("max_retries", 2))
+    if shard_size < 1 or max_retries < 0:
+        raise Week5DataError("full preannotation shard_size/max_retries is invalid")
+    identity = _full_run_identity(root, config, run_id)
+    limits = {
+        "shard_size": shard_size,
+        "max_retries": max_retries,
+        "concurrency": int(config["runtime"].get("concurrency", 1)),
+    }
+    if limits["concurrency"] < 1:
+        raise Week5DataError("preannotation concurrency must be positive")
+    run_dir = _safe_run_directory(root, config, run_id)
+    _prepare_audited_run(run_dir, identity, limits, resume=resume)
+    attempts_path = run_dir / "attempts.jsonl"
+    results_path = run_dir / "results.jsonl"
+    failures_path = run_dir / "failures.jsonl"
+    prior_attempts = read_jsonl(attempts_path)
+    successful = {row["sample_id"] for row in read_jsonl(results_path)}
+    failed_terminal = {row["sample_id"] for row in read_jsonl(failures_path)}
+    prior_counts: dict[str, int] = {}
+    for row in prior_attempts:
+        prior_counts[row["sample_id"]] = max(
+            prior_counts.get(row["sample_id"], 0), int(row.get("attempt", 0))
+        )
+    selection, examples = _fewshot_context(root)
+    process_started = time.monotonic()
+    process_attempts = process_completed = process_failed = process_skipped = 0
+
+    for scenario in SCENARIOS:
+        runtime = _runtime(root, config, scenario)
+        pool_path = root / config["paths"]["output_dir"] / "pools" / f"{scenario}.jsonl"
+        pending: list[tuple[int, dict[str, Any]]] = []
+        scenario_seen = scenario_completed = scenario_failed = scenario_skipped = 0
+
+        def execute(item: tuple[int, dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+            index, candidate = item
+            sample_id = candidate["sample_id"]
+            records: list[dict[str, Any]] = []
+            final: dict[str, Any] | None = None
+            start_attempt = prior_counts.get(sample_id, 0) + 1
+            for retry_index in range(max_retries + 1):
+                attempt_number = start_attempt + retry_index
+                started = time.perf_counter()
+                rendered: dict[str, Any] | None = None
+                raw_output: str | None = None
+                usage: dict[str, Any] | None = None
+                try:
+                    rendered = _render_preannotation(
+                        root, config, candidate, selection, examples
+                    )
+                    payload = _build_chat_payload(root, rendered, runtime)
+                    response = post_chat_completion(
+                        chat_completions_url(runtime["live_base_url"]),
+                        payload,
+                        runtime["timeout_seconds"],
+                    )
+                    raw_output = response["choices"][0]["message"]["content"]
+                    usage = response.get("usage") if isinstance(response.get("usage"), dict) else None
+                    if not isinstance(raw_output, str):
+                        raise Week5DataError("model response content must be text")
+                    parsed = parse_and_validate_output(
+                        root, scenario, raw_output,
+                        "v2" if scenario == "itinerary_planning" else "v1",
+                    )
+                    status = "completed" if parsed["schema_valid"] else "failed"
+                    error = parsed["error"]
+                except Exception as exc:
+                    parsed = {
+                        "parsed_output": None,
+                        "json_valid": False,
+                        "schema_valid": False,
+                    }
+                    status = "failed"
+                    error = f"model_request_error: {type(exc).__name__}: {exc}"
+                raw_relative: str | None = None
+                if raw_output is not None:
+                    raw_path = (
+                        run_dir / "raw" / scenario / sample_id
+                        / f"attempt_{attempt_number:03d}.txt"
+                    )
+                    raw_path.parent.mkdir(parents=True, exist_ok=True)
+                    with raw_path.open("x", encoding="utf-8", newline="\n") as handle:
+                        handle.write(raw_output)
+                    raw_relative = raw_path.relative_to(run_dir).as_posix()
+                record = {
+                    "run_id": run_id,
+                    "sample_id": sample_id,
+                    "scenario": scenario,
+                    "pool_index": index,
+                    "shard_index": index // shard_size,
+                    "prompt_version": config["prompt_versions"][scenario],
+                    "attempt": attempt_number,
+                    "retry_count": attempt_number - 1,
+                    "status": status,
+                    "error_type": _attempt_error_type(status, error),
+                    "error": error,
+                    "input_sha256": _canonical_sha256(candidate["input"]),
+                    "candidate_sha256": candidate_payload_sha256(candidate),
+                    "request_sha256": _canonical_sha256(rendered or {}),
+                    "raw_output_path": raw_relative,
+                    "parsed_output": parsed["parsed_output"],
+                    "json_valid": parsed["json_valid"],
+                    "schema_valid": parsed["schema_valid"],
+                    "usage": usage,
+                    "latency_ms": (time.perf_counter() - started) * 1000,
+                    "timestamp": _now(),
+                    "human_completed": False,
+                }
+                records.append(record)
+                final = record
+                if status == "completed":
+                    break
+            assert final is not None
+            return records, final
+
+        def flush(batch: list[tuple[int, dict[str, Any]]]) -> None:
+            nonlocal process_attempts, process_completed, process_failed
+            nonlocal scenario_completed, scenario_failed
+            if not batch:
+                return
+            with ThreadPoolExecutor(max_workers=limits["concurrency"]) as executor:
+                for records, final in executor.map(execute, batch):
+                    for record in records:
+                        append_jsonl(attempts_path, record)
+                        process_attempts += 1
+                    if final["status"] == "completed":
+                        append_jsonl(results_path, final)
+                        successful.add(final["sample_id"])
+                        process_completed += 1
+                        scenario_completed += 1
+                    else:
+                        append_jsonl(failures_path, final)
+                        failed_terminal.add(final["sample_id"])
+                        process_failed += 1
+                        scenario_failed += 1
+                    _atomic_write_json(
+                        run_dir / "checkpoint.json",
+                        {
+                            "run_id": run_id,
+                            "scenario": scenario,
+                            "last_sample_id": final["sample_id"],
+                            "last_pool_index": final["pool_index"],
+                            "last_shard_index": final["shard_index"],
+                            "process_attempts": process_attempts,
+                            "process_completed": process_completed,
+                            "process_failed": process_failed,
+                            "updated_at": _now(),
+                        },
+                    )
+
+        for index, candidate in enumerate(iter_jsonl(pool_path)):
+            scenario_seen += 1
+            sample_id = candidate["sample_id"]
+            if sample_id in successful or (
+                sample_id in failed_terminal and not retry_failures
+            ):
+                process_skipped += 1
+                scenario_skipped += 1
+                continue
+            pending.append((index, candidate))
+            if len(pending) >= shard_size:
+                flush(pending)
+                pending = []
+        flush(pending)
+        _atomic_write_json(
+            run_dir / f"summary_{scenario}.json",
+            {
+                "scenario": scenario,
+                "pool_records": scenario_seen,
+                "completed_this_process": scenario_completed,
+                "failed_this_process": scenario_failed,
+                "skipped_this_process": scenario_skipped,
+                "updated_at": _now(),
+            },
+        )
+
+    all_results = read_jsonl(results_path)
+    latest_failures = {
+        row["sample_id"]: row for row in read_jsonl(failures_path)
+        if row["sample_id"] not in {item["sample_id"] for item in all_results}
+    }
+    by_scenario = {
+        scenario: {
+            "completed": sum(row["scenario"] == scenario for row in all_results),
+            "failed": sum(row["scenario"] == scenario for row in latest_failures.values()),
+        }
+        for scenario in SCENARIOS
+    }
+    summary = {
+        "run_id": run_id,
+        "status": "completed" if sum(v["completed"] for v in by_scenario.values()) == sum(config["targets"][s] for s in SCENARIOS) else "partial",
+        "by_scenario": by_scenario,
+        "attempts_this_process": process_attempts,
+        "completed_this_process": process_completed,
+        "failed_this_process": process_failed,
+        "skipped_this_process": process_skipped,
+        "elapsed_seconds_this_process": time.monotonic() - process_started,
+        "updated_at": _now(),
+    }
+    _atomic_write_json(run_dir / "summary.json", summary)
+    return summary
+
+
 def _pilot_summary(
     attempts: list[dict[str, Any]],
     prompt_versions: list[str],

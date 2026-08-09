@@ -179,6 +179,20 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **影响**：工具链和测试通过后才可启动 ECS。pilot 后必须停止 vLLM、执行
   `sync`，并确认 ECS 为“已停止 + 节省停机模式”。Week 6 训练不在范围内。
 
+## ADR-017：Week 5 全量模型预标注授权
+
+- **日期**：2026-08-09
+- **状态**：Accepted
+- **决策**：用户直接批准执行现有 80,000 条候选的 Qwen3-VL-4B 全量模型预标注，
+  因而仅替代 ADR-016 中“未授权全量预标注”的成本门结论；Prompt 映射、候选哈希、
+  不可覆盖运行目录、逐请求审计、确定性分片、checkpoint、failure 导出和显式 resume
+  要求继续有效。沿用 pilot 实测线性估算约 50.6 GPU 小时、CNY 927；实际费用与耗时
+  以运行记录为准。用户同时要求暂不停止 ECS。
+- **边界**：本授权只覆盖模型预标注，不把模型结果计为人工金标；真实人工修订、自审、
+  交叉互审、核心抽检和多轮对话人工验收仍须等待真实人员输入，也不授权 Week 6 训练。
+- **影响**：补齐全量运行审计入口并通过测试后，可启动新的唯一 run；历史 pilot、候选池、
+  Week 3/4 冻结产物和用户现有工作区改动保持不变。
+
 ## Decision Template
 
 ```markdown

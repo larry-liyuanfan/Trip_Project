@@ -27,6 +27,7 @@ from src.data.week5_workflow import (
     export_audited_pilot_annotation_packet,
     generate_dialogue_candidates,
     run_itinerary_paired_prompt_pilot,
+    run_full_preannotation,
     run_preannotation,
 )
 
@@ -42,6 +43,8 @@ def parser() -> argparse.ArgumentParser:
     pre.add_argument("--limit", type=int)
     pre.add_argument("--retry-failures", action="store_true")
     pre_all = subparsers.add_parser("preannotate-all")
+    pre_all.add_argument("--run-id", required=True)
+    pre_all.add_argument("--resume", action="store_true")
     pre_all.add_argument("--retry-failures", action="store_true")
     workflow = subparsers.add_parser("init-workflow-v2")
     workflow.add_argument("--scenario", choices=SCENARIOS, required=True)
@@ -85,12 +88,10 @@ def main() -> None:
         elif args.command == "preannotate":
             payload = run_preannotation(root, config, args.scenario, limit=args.limit, retry_failures=args.retry_failures)
         elif args.command == "preannotate-all":
-            payload = {
-                scenario: run_preannotation(
-                    root, config, scenario, retry_failures=args.retry_failures
-                )
-                for scenario in SCENARIOS
-            }
+            payload = run_full_preannotation(
+                root, config, args.run_id, resume=args.resume,
+                retry_failures=args.retry_failures,
+            )
         elif args.command == "init-workflow-v2":
             payload = initialize_workflow_v2_sidecar(root, config, args.scenario)
         elif args.command == "validate-workflow-v2":
