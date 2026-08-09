@@ -169,3 +169,7 @@ Never commit secrets, API keys, credentials, private endpoints, model weights, l
 Before changing or running GPU services, verify the documented CUDA, container runtime, model compatibility, and memory assumptions. Do not run competing GPU workloads concurrently when the documented workflow requires exclusive access.
 
 Avoid destructive Git, filesystem, Docker, and data operations unless the user explicitly requests them and the target has been verified. Prefer reversible, scoped operations and preserve reproducibility evidence.
+
+## Single-Operator Human Review
+
+When the user explicitly declares that only one human operator is available, never invent a second annotator or independent reviewer. Use the accepted single-operator workflow: the operator explicitly confirms self-review while saving each correction, then performs deterministic blind second-pass cross-review and core audit only for selected samples in distinct review sessions. Unsampled records may be accepted after real human correction plus inline self-review. Model output, automatic validation, or an agent action must never supply the human confirmation, reviewer identity, review session, or acceptance decision.

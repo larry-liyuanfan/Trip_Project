@@ -24,6 +24,7 @@ from src.data.week5_dataset import (
     iter_jsonl,
     load_pools,
     qc_audit_selected,
+    qc_cross_review_selected,
     read_jsonl,
     validate_dialogue,
     validate_dialogue_v2,
@@ -900,7 +901,8 @@ def export_audited_pilot_annotation_packet(
                 "human_annotation": None,
                 "corrected_at": None,
                 "revision_history": [],
-                "self_review": {"decision": "pending", "reviewer": None, "issues": []},
+                "self_review_confirmed": False,
+                "review_session_id": None,
             }
 
     count = write_jsonl_new(output, tasks())
@@ -916,7 +918,7 @@ def export_audited_pilot_annotation_packet(
 def apply_human_corrections(
     root: Path, config: dict[str, Any], scenario: str, input_path: Path,
 ) -> dict[str, int]:
-    """Append human corrections; a correction never implies any QC stage passed."""
+    """Append a real human correction and its explicit inline self-review."""
     if scenario not in SCENARIOS:
         raise Week5DataError(f"unsupported scenario: {scenario}")
     candidates = {row["sample_id"]: row for row in load_pools(root, config)[scenario]}
@@ -932,7 +934,7 @@ def apply_human_corrections(
     for row in existing:
         revisions[row["sample_id"]] = max(revisions.get(row["sample_id"], 0), int(row.get("revision", 1)))
     seen: set[str] = set()
-    validated: list[dict[str, Any]] = []
+    validated: list[tuple[dict[str, Any], dict[str, Any]]] = []
     audited_runs: dict[str, set[str]] = {}
     for row in submitted:
         sample_id = row.get("sample_id")
@@ -951,19 +953,107 @@ def apply_human_corrections(
         seen.add(sample_id)
         annotator = row.get("annotator")
         corrected_at = row.get("corrected_at")
+        review_session_id = row.get("review_session_id")
         if not isinstance(annotator, str) or not annotator.strip() or not isinstance(corrected_at, str) or not corrected_at.strip():
             raise Week5DataError("human correction requires annotator and corrected_at")
+        if row.get("self_review_confirmed") is not True:
+            raise Week5DataError("human correction requires explicit inline self-review confirmation")
+        if not isinstance(review_session_id, str) or not review_session_id.strip():
+            raise Week5DataError("human correction requires review_session_id")
         validate_human_annotation(root, scenario, row.get("human_annotation"))
-        validated.append({
+        revision = revisions.get(sample_id, 0) + 1
+        annotation_record = {
             "sample_id": sample_id, "scenario": scenario, "annotator": annotator.strip(),
             "human_annotation": copy.deepcopy(row["human_annotation"]),
-            "corrected_at": corrected_at, "revision": revisions.get(sample_id, 0) + 1,
+            "corrected_at": corrected_at, "revision": revision,
             "source": "human_correction", "model_run_id": model_run_id,
-            "qc_reset": True,
-        })
-    for row in validated:
-        append_jsonl(output, row)
+            "qc_reset": True, "review_session_id": review_session_id.strip(),
+        }
+        self_review_record = {
+            "sample_id": sample_id, "scenario": scenario,
+            "annotation_revision": revision, "stage": "self_review",
+            "decision": "pass", "reviewer": annotator.strip(), "issues": [],
+            "notes": row.get("self_review_notes"), "reviewed_at": corrected_at,
+            "review_session_id": review_session_id.strip(),
+            "review_mode": "inline_human_confirmation",
+        }
+        validated.append((annotation_record, self_review_record))
+    quality_output = root / config["paths"]["output_dir"] / "quality" / f"{scenario}.jsonl"
+    for annotation_record, self_review_record in validated:
+        append_jsonl(output, annotation_record)
+        append_jsonl(quality_output, self_review_record)
     return {"applied": len(validated)}
+
+
+def export_quality_packet(
+    root: Path,
+    config: dict[str, Any],
+    scenario: str,
+    stage: str,
+    output: Path,
+) -> dict[str, int | str]:
+    """Export only deterministically selected, ready, unfinished QC work."""
+    if scenario not in SCENARIOS:
+        raise Week5DataError(f"unsupported scenario: {scenario}")
+    if stage not in {"cross_review", "core_audit"}:
+        raise Week5DataError("single-operator QC export supports cross_review or core_audit")
+    candidates = {row["sample_id"]: row for row in load_pools(root, config)[scenario]}
+    annotations = {
+        row["sample_id"]: row
+        for row in read_jsonl(
+            root / config["paths"]["output_dir"] / "annotations" / f"{scenario}.jsonl"
+        )
+    }
+    quality = read_jsonl(
+        root / config["paths"]["output_dir"] / "quality" / f"{scenario}.jsonl"
+    )
+    passed: set[tuple[str, int, str]] = {
+        (str(row.get("sample_id")), int(row.get("annotation_revision", 0)), str(row.get("stage")))
+        for row in quality
+        if row.get("decision") == "pass"
+    }
+    recorded: set[tuple[str, int, str]] = {
+        (str(row.get("sample_id")), int(row.get("annotation_revision", 0)), str(row.get("stage")))
+        for row in quality
+    }
+
+    def tasks() -> Any:
+        for sample_id in sorted(annotations):
+            annotation = annotations[sample_id]
+            revision = int(annotation["revision"])
+            key = (sample_id, revision, stage)
+            if key in recorded:
+                continue
+            self_key = (sample_id, revision, "self_review")
+            cross_key = (sample_id, revision, "cross_review")
+            if self_key not in passed:
+                continue
+            if stage == "cross_review":
+                if not qc_cross_review_selected(sample_id, scenario, config):
+                    continue
+            elif not qc_audit_selected(sample_id, scenario, config) or cross_key not in passed:
+                continue
+            candidate = candidates.get(sample_id)
+            if candidate is None:
+                raise Week5DataError(f"QC sample is missing from candidate pool: {sample_id}")
+            yield {
+                "sample_id": sample_id,
+                "scenario": scenario,
+                "annotation_revision": revision,
+                "image": copy.deepcopy(candidate.get("image")),
+                "input": copy.deepcopy(candidate.get("input")),
+                "human_annotation": copy.deepcopy(annotation["human_annotation"]),
+                "stage": stage,
+                "decision": None,
+                "reviewer": None,
+                "issues": [],
+                "notes": None,
+                "reviewed_at": None,
+                "review_session_id": None,
+            }
+
+    exported = write_jsonl_new(output, tasks())
+    return {"scenario": scenario, "stage": stage, "exported": exported}
 
 
 def apply_quality_records(
@@ -985,17 +1075,32 @@ def apply_quality_records(
         stage = row.get("stage")
         decision = row.get("decision")
         reviewer = row.get("reviewer")
+        review_session_id = row.get("review_session_id")
         issues = row.get("issues", [])
         if stage not in {"self_review", "cross_review", "core_audit"} or decision not in {"pass", "rework", "reject"}:
             raise Week5DataError("invalid QC stage or decision")
         if not isinstance(reviewer, str) or not reviewer.strip() or not isinstance(issues, list) or not set(issues) <= allowed_issues:
             raise Week5DataError("invalid QC reviewer or issue code")
+        if not isinstance(review_session_id, str) or not review_session_id.strip():
+            raise Week5DataError("QC record requires review_session_id")
         if stage == "self_review" and reviewer != annotation["annotator"]:
             raise Week5DataError("self-review must be recorded by the annotator")
-        if stage == "cross_review" and reviewer == annotation["annotator"]:
+        single_operator = config.get("quality", {}).get("mode") == "single_operator_minimal_review_v1"
+        if stage == "cross_review" and not qc_cross_review_selected(sample_id, scenario, config):
+            raise Week5DataError("sample was not deterministically selected for cross-review")
+        if stage == "cross_review" and not single_operator and reviewer == annotation["annotator"]:
             raise Week5DataError("cross reviewer must differ from the annotator")
+        if stage in {"cross_review", "core_audit"} and single_operator and reviewer != annotation["annotator"]:
+            raise Week5DataError("single-operator QC must use the real annotator identity")
         if stage == "core_audit" and not qc_audit_selected(sample_id, scenario, config):
             raise Week5DataError("sample was not deterministically selected for core audit")
+        if any(
+            item.get("sample_id") == sample_id
+            and item.get("annotation_revision") == annotation["revision"]
+            and item.get("stage") == stage
+            for item in existing + checked
+        ):
+            raise Week5DataError("QC stage already recorded for current revision")
         passed_for_revision = {
             item.get("stage") for item in existing + checked
             if item.get("sample_id") == sample_id
@@ -1006,10 +1111,20 @@ def apply_quality_records(
             raise Week5DataError("cross-review requires passed self-review for current revision")
         if stage == "core_audit" and "cross_review" not in passed_for_revision:
             raise Week5DataError("core audit requires passed cross-review for current revision")
+        used_sessions = {
+            str(item.get("review_session_id")) for item in existing + checked
+            if item.get("sample_id") == sample_id
+            and item.get("annotation_revision") == annotation["revision"]
+        }
+        used_sessions.add(str(annotation.get("review_session_id")))
+        if stage in {"cross_review", "core_audit"} and review_session_id.strip() in used_sessions:
+            raise Week5DataError("later QC stages require a distinct review_session_id")
         checked.append({
             "sample_id": sample_id, "scenario": scenario, "annotation_revision": annotation["revision"],
             "stage": stage, "decision": decision, "reviewer": reviewer.strip(),
             "issues": list(issues), "notes": row.get("notes"), "reviewed_at": row.get("reviewed_at") or _now(),
+            "review_session_id": review_session_id.strip(),
+            "review_mode": "same_operator_blind_second_pass" if single_operator else "multi_operator",
         })
     for row in checked:
         append_jsonl(output, row)
@@ -1027,7 +1142,8 @@ def _qualified_sample_ids(root: Path, config: dict[str, Any]) -> dict[str, list[
                 passed[row["stage"]].add(row["sample_id"])
         qualified[scenario] = sorted(
             sample_id for sample_id in annotations
-            if sample_id in passed["self_review"] and sample_id in passed["cross_review"]
+            if sample_id in passed["self_review"]
+            and (not qc_cross_review_selected(sample_id, scenario, config) or sample_id in passed["cross_review"])
             and (not qc_audit_selected(sample_id, scenario, config) or sample_id in passed["core_audit"])
         )
     return qualified

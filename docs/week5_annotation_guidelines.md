@@ -7,10 +7,11 @@
 原图和原始文字约束，证据不足时使用 Schema 允许的 `unknown`、`null` 或空数组，
 不得根据 Yelp 类别、评论路由或模型置信度猜测。
 
-固定流程为：模型预标注 → 人工修正 → 标注人员自审 → 同场景交叉互审 → 核心样本
-抽检。售后和行程为核心场景，确定性抽检比例 10%；商品为一般场景，抽检比例 5%。
-抽检选择由 `sample_id` 哈希固定，不允许人为换样。未抽中的样本仍须完成自审和
-交叉互审。
+固定流程为：模型预标注 → 人工修正并内联自审 → 确定性盲二次复核 → 核心样本抽检。
+本项目只有一名真实操作者，不得虚构第二位审核人。商品的盲二次复核/核心抽检比例为
+1%/0.5%，售后和行程为 2%/1%。两级选择由同一个 `sample_id` SHA-256 值固定，
+因此核心抽检天然是盲二次复核的子集，不允许人为换样。未抽中的样本在真实人工确认
+或修正并勾选自审后即可进入 accepted。
 
 ## 公共输入与状态
 
@@ -26,7 +27,8 @@
 - `workflow`，分别记录预标注、人工修正、三级质检和最终状态。
 
 自动校验拒绝路径缺失、图片字节哈希变化、评估集冲突、重复样本/图片、Schema
-失败、交叉互审人与标注人相同、未入抽检集合却提交核心抽检、重复覆盖清单等情况。
+失败、复核阶段沿用同一 `review_session_id`、未入确定性集合却提交复核或核心抽检、
+重复覆盖清单等情况。同一操作者可以执行后续阶段，但不得声称独立审核。
 
 ## 以图搜商品
 
@@ -89,15 +91,22 @@
 
 ## 人工包与三级质检记录
 
-导出包保留只读的模型预标注，同时要求人工另填 `annotator`、
-`human_annotation` 和 `corrected_at`。应用人工结果只产生“已修正”记录，并把旧
-质检结论视为失效；不会自动通过自审。
+导出包保留只读的模型预标注，同时要求人工填写 `annotator`、`human_annotation`、
+`corrected_at`、`review_session_id`，并显式勾选 `self_review_confirmed=true`。应用人工
+结果时将这次真实确认同时记录为当前 revision 的自审通过；模型或 Agent 不得代填该值。
+新 revision 会使旧质检结论失效。
 
 质检记录字段为 `sample_id/scenario/annotation_revision/stage/decision/reviewer/
-issues/notes/reviewed_at`。`stage` 取 `self_review/cross_review/core_audit`；
+issues/notes/reviewed_at/review_session_id`。`stage` 取
+`self_review/cross_review/core_audit`；
 `decision` 取 `pass/rework/reject`。返工必须提交新的人工 revision，再重新完成
-对应质检。最终合格要求当前 revision 自审、交叉互审均通过，且入抽检集合的样本
-核心抽检通过。
+对应质检。最终合格要求当前 revision 自审通过；只有进入盲二次复核集合的样本才要求
+`cross_review`，只有进入其核心子集的样本才要求 `core_audit`。后续阶段必须使用不同
+于人工修正及前序阶段的 `review_session_id`。
+
+使用 `export-quality` 按阶段导出任务。命令只导出确定性选中、前序阶段已通过且当前
+revision 尚未处理的样本；重复运行到同一输出路径会拒绝覆盖。任务包不预填 reviewer、
+decision、审核时间或会话 ID，必须由唯一操作者在该次真实审核时填写。
 
 ## 多轮多模态对话
 

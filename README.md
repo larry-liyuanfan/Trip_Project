@@ -375,14 +375,24 @@ python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
 Week 5 使用 `configs/week5_dataset.json` 从本地 Yelp OTA 数据构建三场景候选池，
 并同时调用 Week 3 v1/v2 exclusion manifest。候选、合成凭证、预标注、人工包、
 质检记录和对话输出均位于忽略目录 `outputs/week5/`。模型预标注永远不计为人工完成。
+当前采用单人最小人工模式：人工修正提交必须包含真实 `annotator`、`corrected_at`、
+`review_session_id` 和 `self_review_confirmed=true`，保存动作同时记录自审。商品仅有
+确定性选中的 1%/0.5% 样本需要盲二次复核/核心抽检，售后和行程为 2%/1%；同一人
+可以执行后续阶段，但必须换用新的 `review_session_id`，不得声称独立审核。
+人工修订、质检和报告命令使用
+`--config configs/week5_dataset_qwen3_vl_4b_single_operator.json`。正在运行的全量
+预标注继续使用其 manifest 已绑定的 `configs/week5_dataset_qwen3_vl_4b_gpu.json`，
+不得为修改质检规则而改变该活动 run 的配置哈希。
 
 ```bash
 python scripts/manage_week5_dataset.py build-pools
 python scripts/manage_week5_dataset.py validate-pools
 python scripts/manage_week5_dataset.py preannotate --scenario <image_product_search|after_sales|itinerary_planning>
-python scripts/manage_week5_dataset.py preannotate-all
+python scripts/manage_week5_dataset.py preannotate-all --run-id <unique-run-id>
 python scripts/manage_week5_dataset.py export-annotations --scenario <scenario> --output <packet.jsonl>
 python scripts/manage_week5_dataset.py apply-human --scenario <scenario> --input <completed.jsonl>
+python scripts/manage_week5_dataset.py export-quality --scenario <scenario> --stage cross_review --output <packet.jsonl>
+python scripts/manage_week5_dataset.py export-quality --scenario <scenario> --stage core_audit --output <packet.jsonl>
 python scripts/manage_week5_dataset.py apply-quality --scenario <scenario> --input <quality.jsonl>
 python scripts/manage_week5_dataset.py generate-dialogues
 python scripts/manage_week5_dataset.py apply-dialogue-quality --input <dialogue-quality.jsonl>

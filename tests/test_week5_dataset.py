@@ -13,6 +13,7 @@ from src.data.week5_dataset import (
     candidate_payload_sha256,
     initialize_workflow_v2_sidecar,
     load_week5_config,
+    qc_cross_review_selected,
     qc_audit_selected,
     validate_dialogue,
     validate_dialogue_v2,
@@ -26,6 +27,7 @@ from src.data.week5_workflow import (
     apply_human_corrections,
     apply_quality_records,
     export_audited_pilot_annotation_packet,
+    export_quality_packet,
     run_full_preannotation,
     run_itinerary_paired_prompt_pilot,
 )
@@ -70,7 +72,14 @@ class Week5DatasetTests(unittest.TestCase):
             (pool.parent / f"{scenario}.jsonl").write_text("", encoding="utf-8")
         config = {
             "paths": {"output_dir": "outputs/week5"},
-            "quality": {"core_scenarios": ["after_sales", "itinerary_planning"], "core_audit_rate": 0.10, "general_audit_rate": 0.05},
+            "quality": {
+                "mode": "single_operator_minimal_review_v1",
+                "core_scenarios": ["after_sales", "itinerary_planning"],
+                "core_cross_review_rate": 1.0,
+                "general_cross_review_rate": 1.0,
+                "core_audit_rate": 1.0,
+                "general_audit_rate": 1.0,
+            },
         }
         return root, config, sample_id
 
@@ -94,6 +103,17 @@ class Week5DatasetTests(unittest.TestCase):
         self.assertLessEqual(config["pilot"]["max_gpu_hours"], 1.0)
         self.assertLessEqual(config["pilot"]["max_cost_cny"], 20.0)
         self.assertTrue(config["schemas"]["dialogue"].endswith("multimodal_dialogue_v2.schema.json"))
+
+    def test_single_operator_config_reduces_and_nests_qc_samples(self) -> None:
+        config = load_week5_config(
+            ROOT, "configs/week5_dataset_qwen3_vl_4b_single_operator.json"
+        )
+        quality = config["quality"]
+        self.assertEqual(quality["operator_count"], 1)
+        self.assertEqual(quality["general_cross_review_rate"], 0.01)
+        self.assertEqual(quality["general_audit_rate"], 0.005)
+        self.assertEqual(quality["core_cross_review_rate"], 0.02)
+        self.assertEqual(quality["core_audit_rate"], 0.01)
 
     def test_isolation_rejects_source_hash_group_and_template(self) -> None:
         candidate = {
@@ -405,15 +425,25 @@ class Week5DatasetTests(unittest.TestCase):
             ).read_text(encoding="utf-8").splitlines()
             self.assertEqual(len(failures), 2)
 
-    def test_audit_selection_is_deterministic_and_rate_bounded(self) -> None:
+    def test_single_operator_qc_selection_is_nested_and_rate_bounded(self) -> None:
         config = load_week5_config(ROOT, "configs/week5_dataset.json")
         first = qc_audit_selected("sample-1", "after_sales", config)
         self.assertEqual(first, qc_audit_selected("sample-1", "after_sales", config))
-        core = sum(qc_audit_selected(f"sample-{index}", "after_sales", config) for index in range(10000))
-        general = sum(qc_audit_selected(f"sample-{index}", "image_product_search", config) for index in range(10000))
-        self.assertGreaterEqual(core, 900)
-        self.assertGreaterEqual(general, 400)
-        self.assertGreater(core, general)
+        ids = [f"sample-{index}" for index in range(10000)]
+        core_cross = {value for value in ids if qc_cross_review_selected(value, "after_sales", config)}
+        core_audit = {value for value in ids if qc_audit_selected(value, "after_sales", config)}
+        general_cross = {value for value in ids if qc_cross_review_selected(value, "image_product_search", config)}
+        general_audit = {value for value in ids if qc_audit_selected(value, "image_product_search", config)}
+        self.assertTrue(core_audit <= core_cross)
+        self.assertTrue(general_audit <= general_cross)
+        self.assertGreaterEqual(len(core_cross), 150)
+        self.assertLessEqual(len(core_cross), 250)
+        self.assertGreaterEqual(len(core_audit), 70)
+        self.assertLessEqual(len(core_audit), 130)
+        self.assertGreaterEqual(len(general_cross), 70)
+        self.assertLessEqual(len(general_cross), 130)
+        self.assertGreaterEqual(len(general_audit), 30)
+        self.assertLessEqual(len(general_audit), 70)
 
     def test_human_correction_requires_real_preannotation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -421,6 +451,7 @@ class Week5DatasetTests(unittest.TestCase):
             submission = root / "human.jsonl"
             submission.write_text(json.dumps({
                 "sample_id": sample_id, "annotator": "annotator-a", "corrected_at": "2026-08-02T00:00:00Z",
+                "review_session_id": "session-correction", "self_review_confirmed": True,
                 "human_annotation": {
                     "business_category": "unknown", "style_tags": [], "visible_facilities": [],
                     "price_range": "unknown", "observed_evidence": [], "inferred_attributes": [],
@@ -433,22 +464,74 @@ class Week5DatasetTests(unittest.TestCase):
             pre.parent.mkdir(parents=True)
             pre.write_text(json.dumps({"sample_id": sample_id, "status": "completed", "schema_valid": True}) + "\n", encoding="utf-8")
             self.assertEqual(apply_human_corrections(root, config, "image_product_search", submission)["applied"], 1)
+            self_review = json.loads((root / "outputs/week5/quality/image_product_search.jsonl").read_text(encoding="utf-8"))
+            self.assertEqual(self_review["stage"], "self_review")
+            self.assertEqual(self_review["review_session_id"], "session-correction")
 
-    def test_cross_review_requires_self_review_and_distinct_reviewer(self) -> None:
+    def test_single_operator_cross_review_requires_selection_and_distinct_session(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, config, sample_id = self._workflow_fixture(directory)
             annotations = root / "outputs/week5/annotations/image_product_search.jsonl"
             annotations.parent.mkdir(parents=True)
-            annotations.write_text(json.dumps({"sample_id": sample_id, "scenario": "image_product_search", "annotator": "a", "revision": 1}) + "\n", encoding="utf-8")
+            annotations.write_text(json.dumps({"sample_id": sample_id, "scenario": "image_product_search", "annotator": "a", "revision": 1, "review_session_id": "session-1"}) + "\n", encoding="utf-8")
             quality_input = root / "quality.jsonl"
-            quality_input.write_text(json.dumps({"sample_id": sample_id, "stage": "cross_review", "decision": "pass", "reviewer": "b", "issues": []}) + "\n", encoding="utf-8")
+            quality_input.write_text(json.dumps({"sample_id": sample_id, "stage": "cross_review", "decision": "pass", "reviewer": "a", "issues": [], "review_session_id": "session-1"}) + "\n", encoding="utf-8")
             with self.assertRaises(Week5DataError):
                 apply_quality_records(root, config, "image_product_search", quality_input)
+            quality = root / "outputs/week5/quality/image_product_search.jsonl"
+            quality.parent.mkdir(parents=True, exist_ok=True)
+            quality.write_text(json.dumps({"sample_id": sample_id, "scenario": "image_product_search", "annotation_revision": 1, "stage": "self_review", "decision": "pass", "reviewer": "a", "issues": [], "review_session_id": "session-1"}) + "\n", encoding="utf-8")
             quality_input.write_text("\n".join([
-                json.dumps({"sample_id": sample_id, "stage": "self_review", "decision": "pass", "reviewer": "a", "issues": []}),
-                json.dumps({"sample_id": sample_id, "stage": "cross_review", "decision": "pass", "reviewer": "b", "issues": []}),
+                json.dumps({"sample_id": sample_id, "stage": "cross_review", "decision": "pass", "reviewer": "a", "issues": [], "review_session_id": "session-2"}),
+                json.dumps({"sample_id": sample_id, "stage": "core_audit", "decision": "pass", "reviewer": "a", "issues": [], "review_session_id": "session-3"}),
             ]) + "\n", encoding="utf-8")
             self.assertEqual(apply_quality_records(root, config, "image_product_search", quality_input)["applied"], 2)
+            with self.assertRaises(Week5DataError):
+                apply_quality_records(root, config, "image_product_search", quality_input)
+
+    def test_quality_export_only_emits_ready_unfinished_selected_work(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, config, sample_id = self._workflow_fixture(directory)
+            pool = root / "outputs/week5/pools/image_product_search.jsonl"
+            pool.write_text(json.dumps({
+                "sample_id": sample_id,
+                "image": {"path": "image.jpg", "sha256": "a" * 64},
+                "input": {"query": "visible attributes"},
+            }) + "\n", encoding="utf-8")
+            annotations = root / "outputs/week5/annotations/image_product_search.jsonl"
+            annotations.parent.mkdir(parents=True)
+            annotations.write_text(json.dumps({
+                "sample_id": sample_id,
+                "scenario": "image_product_search",
+                "annotator": "operator-a",
+                "revision": 1,
+                "review_session_id": "correction-session",
+                "human_annotation": {"business_category": "unknown"},
+            }) + "\n", encoding="utf-8")
+            quality = root / "outputs/week5/quality/image_product_search.jsonl"
+            quality.parent.mkdir(parents=True)
+            quality.write_text(json.dumps({
+                "sample_id": sample_id,
+                "annotation_revision": 1,
+                "stage": "self_review",
+                "decision": "pass",
+                "reviewer": "operator-a",
+                "review_session_id": "correction-session",
+            }) + "\n", encoding="utf-8")
+            cross_packet = root / "cross.jsonl"
+            result = export_quality_packet(
+                root, config, "image_product_search", "cross_review", cross_packet
+            )
+            self.assertEqual(result["exported"], 1)
+            task = json.loads(cross_packet.read_text(encoding="utf-8"))
+            self.assertIsNone(task["reviewer"])
+            self.assertIsNone(task["decision"])
+            self.assertEqual(task["annotation_revision"], 1)
+
+            core_packet = root / "core-before-cross.jsonl"
+            self.assertEqual(export_quality_packet(
+                root, config, "image_product_search", "core_audit", core_packet
+            )["exported"], 0)
 
 
 if __name__ == "__main__":

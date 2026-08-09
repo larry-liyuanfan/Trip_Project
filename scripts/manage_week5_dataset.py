@@ -25,6 +25,7 @@ from src.data.week5_workflow import (
     apply_human_corrections,
     apply_quality_records,
     export_audited_pilot_annotation_packet,
+    export_quality_packet,
     generate_dialogue_candidates,
     run_itinerary_paired_prompt_pilot,
     run_full_preannotation,
@@ -63,6 +64,12 @@ def parser() -> argparse.ArgumentParser:
     human = subparsers.add_parser("apply-human")
     human.add_argument("--scenario", choices=SCENARIOS, required=True)
     human.add_argument("--input", type=Path, required=True)
+    quality_export = subparsers.add_parser("export-quality")
+    quality_export.add_argument("--scenario", choices=SCENARIOS, required=True)
+    quality_export.add_argument(
+        "--stage", choices=("cross_review", "core_audit"), required=True
+    )
+    quality_export.add_argument("--output", type=Path, required=True)
     quality = subparsers.add_parser("apply-quality")
     quality.add_argument("--scenario", choices=SCENARIOS, required=True)
     quality.add_argument("--input", type=Path, required=True)
@@ -108,6 +115,10 @@ def main() -> None:
             payload = {"exported": export_annotation_packet(root, config, args.scenario, args.output)}
         elif args.command == "apply-human":
             payload = apply_human_corrections(root, config, args.scenario, args.input)
+        elif args.command == "export-quality":
+            payload = export_quality_packet(
+                root, config, args.scenario, args.stage, args.output
+            )
         elif args.command == "apply-quality":
             payload = apply_quality_records(root, config, args.scenario, args.input)
         elif args.command == "generate-dialogues":

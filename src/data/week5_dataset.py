@@ -53,6 +53,15 @@ def load_week5_config(root: Path, path: Path | str) -> dict[str, Any]:
         raise Week5DataError("unsupported Week 5 dataset version")
     if set(payload.get("targets", {})) != {*SCENARIOS, "dialogues"}:
         raise Week5DataError("Week 5 targets must cover three scenarios and dialogues")
+    quality = payload.get("quality", {})
+    if quality.get("mode") == "single_operator_minimal_review_v1":
+        for scope in ("core", "general"):
+            cross = float(quality.get(f"{scope}_cross_review_rate", -1))
+            audit = float(quality.get(f"{scope}_audit_rate", -1))
+            if not 0 <= audit <= cross <= 1:
+                raise Week5DataError(
+                    "single-operator audit rate must be nested within cross-review rate"
+                )
     return payload
 
 
@@ -665,7 +674,7 @@ def export_annotation_packet(root: Path, config: dict[str, Any], scenario: str, 
             "model_preannotation": pre.get("parsed_output") if pre else None,
             "model_preannotation_status": "completed" if pre else "missing",
             "annotator": None, "human_annotation": None, "corrected_at": None,
-            "self_review": {"decision": "pending", "reviewer": None, "issues": []},
+            "self_review_confirmed": False, "review_session_id": None,
         })
     return write_jsonl_new(output, rows)
 
@@ -674,9 +683,27 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def qc_audit_selected(sample_id: str, scenario: str, config: dict[str, Any]) -> bool:
-    rate = config["quality"]["core_audit_rate"] if scenario in config["quality"]["core_scenarios"] else config["quality"]["general_audit_rate"]
+def _qc_selection_value(sample_id: str) -> float:
     value = int(hashlib.sha256(sample_id.encode()).hexdigest()[:12], 16) / float(16**12)
+    return value
+
+
+def qc_cross_review_selected(
+    sample_id: str, scenario: str, config: dict[str, Any],
+) -> bool:
+    quality = config["quality"]
+    rate = (
+        quality.get("core_cross_review_rate", 1.0)
+        if scenario in quality["core_scenarios"]
+        else quality.get("general_cross_review_rate", 1.0)
+    )
+    return _qc_selection_value(sample_id) < float(rate)
+
+
+def qc_audit_selected(sample_id: str, scenario: str, config: dict[str, Any]) -> bool:
+    quality = config["quality"]
+    rate = quality["core_audit_rate"] if scenario in quality["core_scenarios"] else quality["general_audit_rate"]
+    value = _qc_selection_value(sample_id)
     return value < float(rate)
 
 
@@ -810,8 +837,13 @@ def workflow_summary(root: Path, config: dict[str, Any]) -> dict[str, Any]:
                 stages[row["stage"]].add(row.get("sample_id"))
         final = 0
         for sample_id in latest_human:
+            cross_needed = qc_cross_review_selected(sample_id, scenario, config)
             audit_needed = qc_audit_selected(sample_id, scenario, config)
-            if sample_id in stages["self_review"] and sample_id in stages["cross_review"] and (not audit_needed or sample_id in stages["core_audit"]):
+            if (
+                sample_id in stages["self_review"]
+                and (not cross_needed or sample_id in stages["cross_review"])
+                and (not audit_needed or sample_id in stages["core_audit"])
+            ):
                 final += 1
         result["scenarios"][scenario] = {
             "pool": pool_count,
