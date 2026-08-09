@@ -322,3 +322,27 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 
 所有完成数量、人工标注、交叉互审、抽检和合格率必须来自实际结果，不得把目标
 数量或模型预标注数量写成已完成人工标注或质检数量。数据集不得与独立测试集重叠。
+
+### 2026-08-09 Project Control 执行澄清
+
+- Qwen3-VL-4B 商品/售后 Prompt 固定为 `standardized_v2`/`fewshot_4_v2`；
+  行程只允许在同一组最多 30 条候选上配对比较 `fewshot_4_v2` 与
+  `standardized_v4`，不得扩展候选或用全量结果反向选 Prompt。没有有效结论时
+  使用 `fewshot_4_v2`。
+- 现有商品/售后/行程 50,000/20,000/10,000 候选保持不可覆盖。候选池与冻结
+  评测集必须在 `sample_id/source_id/image_sha256/group_id/constraint_template_id`
+  五维隔离；训练候选场景之间允许共享来源业务组，但不得共享 sample、source 或
+  图片哈希。
+- 不原地迁移候选中的旧 `pending`。workflow v2 使用 sidecar 绑定候选哈希，
+  `model_preannotation.status` 与人工 `workflow_status` 分离。无人工修正时固定为
+  `awaiting_human_annotation`；其余允许值为 `partial`、
+  `awaiting_cross_review`、`awaiting_core_audit`、`accepted`、`rejected`。
+- 多轮对话采用版本化 v2 Schema，必须包含 `schema_version/dialogue_id/scenario/
+  image_resources/turns/source_sample_ids/generation/human_review/qc`。候选的
+  `human_review` 为 `awaiting_human_annotation`，`qc` 为 `partial`；v1 保留不变。
+- 全量预标注的前置条件为不可覆盖 run ID、独立目录、配置/候选哈希、输入和请求
+  哈希、独立 raw 输出、逐次尝试和 retry、分片/checkpoint、独立 failures，以及
+  元数据完全一致的显式 resume。
+- 当前只授权受限行程 pilot：最多 30 个唯一样本、两个 Prompt、60 次总请求、
+  1.0 GPU 小时、CNY 20；首 5 组后请求或基础设施失败率超过 20% 即停止。
+  未授权 `preannotate-all`、80,000 条全量预标注、批量对话生成或任何训练。

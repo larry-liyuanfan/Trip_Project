@@ -9,8 +9,9 @@ import re
 import sqlite3
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from PIL import Image, ImageDraw
 
@@ -55,10 +56,9 @@ def load_week5_config(root: Path, path: Path | str) -> dict[str, Any]:
     return payload
 
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
+def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
     if not path.exists():
-        return []
-    rows: list[dict[str, Any]] = []
+        return
     with path.open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
             if not line.strip():
@@ -69,8 +69,11 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
                 raise Week5DataError(f"invalid JSONL {path}:{line_number}: {exc.msg}") from exc
             if not isinstance(row, dict):
                 raise Week5DataError(f"JSONL row must be an object: {path}:{line_number}")
-            rows.append(row)
-    return rows
+            yield row
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return list(iter_jsonl(path))
 
 
 def write_jsonl_new(path: Path, rows: Iterable[dict[str, Any]]) -> int:
@@ -508,6 +511,100 @@ def load_pools(root: Path, config: dict[str, Any]) -> dict[str, list[dict[str, A
     return {scenario: read_jsonl(pool_dir / f"{scenario}.jsonl") for scenario in SCENARIOS}
 
 
+def candidate_payload_sha256(row: dict[str, Any]) -> str:
+    """绑定候选完整 JSON 语义，sidecar 不复制或改写候选内容。"""
+    payload = json.dumps(
+        row, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def candidate_manifest_sha256(root: Path, config: dict[str, Any], scenario: str) -> str:
+    if scenario not in SCENARIOS:
+        raise Week5DataError(f"unsupported scenario: {scenario}")
+    path = root / config["paths"]["output_dir"] / "pools" / f"{scenario}.jsonl"
+    if not path.is_file():
+        raise Week5DataError(f"candidate manifest is missing: {path}")
+    return _sha256_file(path)
+
+
+def initialize_workflow_v2_sidecar(
+    root: Path, config: dict[str, Any], scenario: str,
+) -> dict[str, Any]:
+    """一次性生成 workflow v2；候选文件保持字节级不变。"""
+    if scenario not in SCENARIOS:
+        raise Week5DataError(f"unsupported scenario: {scenario}")
+    pool_path = root / config["paths"]["output_dir"] / "pools" / f"{scenario}.jsonl"
+    manifest_sha = candidate_manifest_sha256(root, config, scenario)
+    output = (
+        root / config["paths"]["output_dir"] / "workflow_v2" / f"{scenario}.jsonl"
+    )
+
+    def rows() -> Iterable[dict[str, Any]]:
+        for row in iter_jsonl(pool_path):
+            yield {
+                "schema_version": "week5_workflow_v2",
+                "sample_id": row["sample_id"],
+                "scenario": scenario,
+                "candidate_sha256": candidate_payload_sha256(row),
+                "candidate_manifest_sha256": manifest_sha,
+                "model_preannotation": {
+                    "status": "not_started",
+                    "run_id": None,
+                    "latest_attempt": None,
+                },
+                "workflow_status": "awaiting_human_annotation",
+                "annotation_revision": 0,
+            }
+
+    count = write_jsonl_new(output, rows())
+    return {
+        "scenario": scenario,
+        "records": count,
+        "candidate_manifest_sha256": manifest_sha,
+        "output": output.relative_to(root).as_posix(),
+    }
+
+
+def validate_workflow_v2_sidecar(
+    root: Path, config: dict[str, Any], scenario: str,
+) -> dict[str, Any]:
+    if scenario not in SCENARIOS:
+        raise Week5DataError(f"unsupported scenario: {scenario}")
+    pool_path = root / config["paths"]["output_dir"] / "pools" / f"{scenario}.jsonl"
+    path = root / config["paths"]["output_dir"] / "workflow_v2" / f"{scenario}.jsonl"
+    manifest_sha = candidate_manifest_sha256(root, config, scenario)
+    allowed_model = {"not_started", "running", "completed", "failed"}
+    allowed_human = {
+        "awaiting_human_annotation", "partial", "awaiting_cross_review",
+        "awaiting_core_audit", "accepted", "rejected",
+    }
+    count = 0
+    sentinel = object()
+    for candidate, row in zip_longest(
+        iter_jsonl(pool_path), iter_jsonl(path), fillvalue=sentinel
+    ):
+        if candidate is sentinel or row is sentinel:
+            raise Week5DataError(f"workflow v2 count mismatch: {scenario}")
+        assert isinstance(candidate, dict) and isinstance(row, dict)
+        sample_id = row.get("sample_id")
+        if sample_id != candidate.get("sample_id"):
+            raise Week5DataError(f"workflow v2 candidate order or identity mismatch: {sample_id}")
+        if row.get("schema_version") != "week5_workflow_v2":
+            raise Week5DataError("invalid workflow v2 schema version")
+        if row.get("candidate_manifest_sha256") != manifest_sha:
+            raise Week5DataError("workflow v2 candidate manifest hash mismatch")
+        if row.get("candidate_sha256") != candidate_payload_sha256(candidate):
+            raise Week5DataError(f"workflow v2 candidate hash mismatch: {sample_id}")
+        model = row.get("model_preannotation", {})
+        if model.get("status") not in allowed_model or row.get("workflow_status") not in allowed_human:
+            raise Week5DataError(f"invalid workflow v2 status: {sample_id}")
+        if row.get("workflow_status") == "awaiting_human_annotation" and int(row.get("annotation_revision", -1)) != 0:
+            raise Week5DataError("awaiting human annotation must have revision zero")
+        count += 1
+    return {"status": "ok", "scenario": scenario, "records": count, "candidate_manifest_sha256": manifest_sha}
+
+
 def validate_pools(root: Path, config: dict[str, Any]) -> dict[str, Any]:
     pools = load_pools(root, config)
     exclusions = load_exclusions(root, config)
@@ -537,6 +634,20 @@ def validate_human_annotation(root: Path, scenario: str, annotation: Any) -> Non
         validate_output(root, scenario, annotation, version)
     except SchemaValidationError as exc:
         raise Week5DataError(f"human annotation Schema failure: {exc}") from exc
+    tool = json.loads(
+        (root / "configs/week5/annotation_tool.json").read_text(encoding="utf-8")
+    )
+    vocabularies = tool.get("label_vocabularies", {})
+    fields = {
+        "image_product_search": ("style_tags", "visible_facilities"),
+        "after_sales": (),
+        "itinerary_planning": ("style_preferences",),
+    }[scenario]
+    for field in fields:
+        values = annotation.get(field, [])
+        allowed = set(vocabularies.get(field, []))
+        if not isinstance(values, list) or any(value not in allowed for value in values):
+            raise Week5DataError(f"human annotation uses an uncontrolled {field} label")
 
 
 def export_annotation_packet(root: Path, config: dict[str, Any], scenario: str, output: Path) -> int:
@@ -570,6 +681,7 @@ def qc_audit_selected(sample_id: str, scenario: str, config: dict[str, Any]) -> 
 
 
 def validate_dialogue(dialogue: dict[str, Any]) -> None:
+    """验证保留不变的历史 multimodal_dialogue_v1。"""
     required = {"dialogue_id", "scenario", "images", "messages"}
     if set(dialogue) != required:
         raise Week5DataError("dialogue fields do not match the v1 contract")
@@ -606,6 +718,70 @@ def validate_dialogue(dialogue: dict[str, Any]) -> None:
         referenced.update(refs)
     if not referenced:
         raise Week5DataError("dialogue never references its images")
+
+
+def validate_dialogue_v2(root: Path, dialogue: dict[str, Any]) -> None:
+    required = {
+        "schema_version", "dialogue_id", "scenario", "image_resources", "turns",
+        "source_sample_ids", "generation", "human_review", "qc",
+    }
+    if set(dialogue) != required or dialogue.get("schema_version") != "multimodal_dialogue_v2":
+        raise Week5DataError("dialogue does not match the explicit v2 field contract")
+    if dialogue.get("scenario") not in {"image_search", "itinerary", "after_sales"}:
+        raise Week5DataError("invalid dialogue v2 scenario")
+    if not isinstance(dialogue.get("dialogue_id"), str) or not 1 <= len(dialogue["dialogue_id"]) <= 120:
+        raise Week5DataError("invalid dialogue v2 ID")
+    resources = dialogue.get("image_resources")
+    if not isinstance(resources, list) or not 1 <= len(resources) <= 8:
+        raise Week5DataError("dialogue v2 requires 1-8 image resources")
+    image_ids: set[str] = set()
+    for image in resources:
+        if not isinstance(image, dict) or set(image) != {"image_id", "path", "sha256"}:
+            raise Week5DataError("dialogue v2 image fields are invalid")
+        image_id = image.get("image_id")
+        if not isinstance(image_id, str) or not image_id or image_id in image_ids:
+            raise Week5DataError("dialogue v2 image IDs must be unique")
+        image_ids.add(image_id)
+        path = root / str(image.get("path", ""))
+        if not path.is_file() or re.fullmatch(r"[0-9a-f]{64}", str(image.get("sha256", ""))) is None:
+            raise Week5DataError("dialogue v2 image path or SHA-256 is invalid")
+        if _sha256_file(path) != image["sha256"]:
+            raise Week5DataError("dialogue v2 image bytes do not match SHA-256")
+    turns = dialogue.get("turns")
+    if not isinstance(turns, list) or not 6 <= len(turns) <= 16 or len(turns) % 2:
+        raise Week5DataError("dialogue v2 requires 3-8 user/assistant turns")
+    referenced: set[str] = set()
+    for index, turn in enumerate(turns):
+        expected = "user" if index % 2 == 0 else "assistant"
+        if not isinstance(turn, dict) or set(turn) != {"role", "content", "image_refs"}:
+            raise Week5DataError("dialogue v2 turn fields are invalid")
+        if turn.get("role") != expected or not isinstance(turn.get("content"), str) or not turn["content"].strip():
+            raise Week5DataError("dialogue v2 roles or content are invalid")
+        refs = turn.get("image_refs")
+        if not isinstance(refs, list) or len(refs) != len(set(refs)) or not set(refs) <= image_ids:
+            raise Week5DataError("dialogue v2 contains an invalid image reference")
+        referenced.update(refs)
+    if not referenced:
+        raise Week5DataError("dialogue v2 never references an image")
+    source_ids = dialogue.get("source_sample_ids")
+    if not isinstance(source_ids, list) or not source_ids or len(source_ids) != len(set(source_ids)) or any(not isinstance(value, str) or not value for value in source_ids):
+        raise Week5DataError("dialogue v2 source_sample_ids are invalid")
+    generation = dialogue.get("generation")
+    if not isinstance(generation, dict) or set(generation) != {"run_id", "model_name", "prompt_version"} or any(not isinstance(generation.get(name), str) or not generation[name] for name in generation):
+        raise Week5DataError("dialogue v2 generation metadata are invalid")
+    human = dialogue.get("human_review")
+    qc = dialogue.get("qc")
+    if not isinstance(human, dict) or not isinstance(qc, dict):
+        raise Week5DataError("dialogue v2 human review and QC records are required")
+    if human.get("status") not in {"awaiting_human_annotation", "partial", "accepted", "rejected"}:
+        raise Week5DataError("invalid dialogue v2 human review status")
+    if qc.get("status") not in {"partial", "accepted", "rework", "rejected"}:
+        raise Week5DataError("invalid dialogue v2 QC status")
+    if human.get("status") == "awaiting_human_annotation":
+        if human.get("reviewer") is not None or human.get("reviewed_at") is not None:
+            raise Week5DataError("awaiting dialogue review cannot contain a reviewer or time")
+        if qc.get("status") != "partial":
+            raise Week5DataError("unreviewed dialogue QC must remain partial")
 
 
 def workflow_summary(root: Path, config: dict[str, Any]) -> dict[str, Any]:

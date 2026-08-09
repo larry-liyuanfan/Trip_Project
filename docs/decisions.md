@@ -154,6 +154,31 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **影响**：最终 100 条行程 JSON/Schema 均通过，旧 Week 3/4 run、Prompt、
   Schema 和评分保持不可变。商品和售后配置不受影响。
 
+## ADR-016：Week 5 Qwen3-VL-4B 运行、状态与对话版本边界
+
+- **日期**：2026-08-09
+- **状态**：Accepted
+- **决策**：Qwen3-VL-4B 的商品预标注固定使用 `standardized_v2`，售后固定
+  使用 `fewshot_4_v2`。行程仅允许在同一组最多 30 条 Week 5 候选上配对比较
+  `fewshot_4_v2` 与 `standardized_v4`；若没有有效结论，默认使用
+  `fewshot_4_v2`。Week 5 候选只需与冻结评测集在样本、来源、图片、来源组和
+  约束模板五维隔离，训练候选场景之间不要求 `group_id` 互斥。现有 80,000 条
+  候选和 30 条历史 pilot 不覆盖。
+- **决策**：新增 workflow v2 sidecar，以候选文件哈希和 `sample_id` 绑定原候选；
+  模型状态与人工状态分离。新增 `multimodal_dialogue_v2`，使用
+  `image_resources/turns/source_sample_ids/generation/human_review/qc`，保留 v1
+  不变且禁止别名混用。
+- **决策**：任何全量预标注前必须具备不可覆盖 run ID、独立运行目录、配置和
+  候选哈希、逐请求输入/请求哈希、独立原始输出、尝试与 retry 记录、确定性分片、
+  checkpoint、独立失败文件，以及仅在元数据哈希完全一致时允许的显式 resume。
+- **成本边界**：本次仅授权行程配对 pilot：最多 30 个唯一样本、两个 Prompt、
+  60 次总请求、1.0 GPU 小时和 CNY 20，任一上限先到即停止；首 5 组后基础设施
+  或请求失败率超过 20% 立即停止。未授权 80,000 条全量预标注。
+- **原因**：模型预标注不能替代人工金标；历史候选和运行必须保持可追溯且不可
+  覆盖；GPU 成本需要显式上限。
+- **影响**：工具链和测试通过后才可启动 ECS。pilot 后必须停止 vLLM、执行
+  `sync`，并确认 ECS 为“已停止 + 节省停机模式”。Week 6 训练不在范围内。
+
 ## Decision Template
 
 ```markdown

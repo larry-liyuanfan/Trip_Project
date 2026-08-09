@@ -322,8 +322,23 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 详细规范和实测报告分别为 `docs/week5_annotation_guidelines.md` 与
 `reports/week5_dataset_quality_report.md`。大型生成产物保持 Git 忽略。
 
-验证：Week 5 定向测试 8/8、完整 `unittest` 270/270、样本池/隔离校验、三个
+验证：Week 5 定向测试 15/15、完整 `unittest` 285/285、样本池/隔离校验、三个
 新增 JSON 配置解析和 `git diff --check` 均通过。
+
+### 2026-08-09 增量证据
+
+- [x] Project Control 六项裁决已同步到 requirement、decision、配置、Schema、代码和测试。
+- [x] workflow v2 sidecar 绑定现有 80,000 条不可变候选，三场景数量为
+  50,000/20,000/10,000，初始人工状态均为 `awaiting_human_annotation`。
+- [x] 候选池全量图片、哈希、重复与冻结评测集隔离复核返回 `status=ok`；
+  唯一 sample/image 均为 80,000。
+- [x] 行程配对 pilot 使用新 run ID 完成 30×2=60 请求；保留 60 份原始输出和
+  2 条 Schema 失败，选中 `standardized_v4`，估算计算费 CNY 6.09。
+- [x] 从胜出 Prompt 导出 30 条版本化行程人工任务，状态全部为
+  `awaiting_human_annotation`，未填写或伪造 annotator/reviewer。
+- [ ] 三场景全量预标注未获授权；当前只有历史小 pilot 与本次 30 条行程配对 pilot。
+- [ ] 真实人工修正、自审、交叉互审、核心抽检与最终 accepted 均为 0。
+- [ ] 多轮对话候选和人工 accepted 均为 0；未执行未获授权的批量生成。
 
 ## Promotion Rule
 

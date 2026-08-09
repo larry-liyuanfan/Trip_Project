@@ -6,21 +6,29 @@ import copy
 import hashlib
 import json
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from itertools import islice
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from src.data.week5_dataset import (
     SCENARIOS,
     Week5DataError,
     append_jsonl,
+    candidate_manifest_sha256,
+    candidate_payload_sha256,
+    iter_jsonl,
     load_pools,
     qc_audit_selected,
     read_jsonl,
     validate_dialogue,
+    validate_dialogue_v2,
     validate_human_annotation,
+    write_jsonl_new,
 )
 from src.evaluation.config import load_evaluation_config
 from src.evaluation.manifests import load_configured_manifests
@@ -30,7 +38,7 @@ from src.evaluation.runner import _build_chat_payload, chat_completions_url, pos
 from src.evaluation.week4_prompting import load_week4_selection, render_week4_request
 
 
-_FEWSHOT_PREFIX_CACHE: dict[str, dict[str, Any]] = {}
+_FEWSHOT_PREFIX_CACHE: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 def _now() -> str:
@@ -41,6 +49,24 @@ def _api_key_available() -> bool:
     direct = os.getenv("MODEL_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
     key_file = os.getenv("MODEL_API_KEY_FILE") or os.getenv("DASHSCOPE_API_KEY_FILE")
     return bool(direct or (key_file and Path(key_file).is_file()))
+
+
+def _endpoint_allows_anonymous_access(base_url: str) -> bool:
+    """仅本机回环推理端点允许无密钥访问。"""
+    parsed = urlparse(base_url)
+    return parsed.scheme in {"http", "https"} and parsed.hostname in {
+        "127.0.0.1",
+        "localhost",
+        "::1",
+    }
+
+
+def _require_model_access(config: dict[str, Any]) -> None:
+    base_url = str(config["runtime"]["base_url"])
+    if not _api_key_available() and not _endpoint_allows_anonymous_access(base_url):
+        raise Week5DataError(
+            "MODEL_API_KEY or MODEL_API_KEY_FILE is required for a non-loopback model endpoint"
+        )
 
 
 def _runtime(root: Path, config: dict[str, Any], scenario: str) -> dict[str, Any]:
@@ -79,12 +105,14 @@ def _fewshot_context(root: Path) -> tuple[dict[str, Any], dict[str, dict[str, An
 def _render_preannotation(
     root: Path, config: dict[str, Any], candidate: dict[str, Any],
     selection: dict[str, Any], examples: dict[str, dict[str, Any]],
+    *, prompt_version: str | None = None,
 ) -> dict[str, Any]:
     scenario = candidate["scenario"]
-    version = config["prompt_versions"][scenario]
-    if version == "standardized_v4":
-        return render_standard_prompt(root, scenario, candidate["input"], version="standardized_v4")
-    cached = _FEWSHOT_PREFIX_CACHE.get(scenario)
+    version = prompt_version or config["prompt_versions"][scenario]
+    if version in {"standardized_v2", "standardized_v4"}:
+        return render_standard_prompt(root, scenario, candidate["input"], version=version)
+    cache_key = (scenario, version)
+    cached = _FEWSHOT_PREFIX_CACHE.get(cache_key)
     if cached is None:
         first = render_week4_request(
             root, scenario, candidate["input"], prompt_version=version,
@@ -97,7 +125,7 @@ def _render_preannotation(
             "example_collage_path": first.get("example_collage_path"),
             "example_collage_sha256": first.get("example_collage_sha256"),
         }
-        _FEWSHOT_PREFIX_CACHE[scenario] = cached
+        _FEWSHOT_PREFIX_CACHE[cache_key] = cached
     rendered = render_standard_prompt(
         root, scenario, candidate["input"], version="week4_optimized_v2"
     )
@@ -120,8 +148,7 @@ def run_preannotation(
     """Append one durable result per attempted sample and skip completed IDs on resume."""
     if scenario not in SCENARIOS:
         raise Week5DataError(f"unsupported scenario: {scenario}")
-    if not _api_key_available():
-        raise Week5DataError("MODEL_API_KEY or MODEL_API_KEY_FILE is required for real Qwen3.7 preannotation")
+    _require_model_access(config)
     output = root / config["paths"]["output_dir"] / "preannotations" / f"{scenario}.jsonl"
     existing = read_jsonl(output)
     completed = {row["sample_id"] for row in existing if row.get("status") == "completed"}
@@ -186,6 +213,431 @@ def run_preannotation(
     return {"attempted": attempted, "completed": succeeded, "failed": failed_count, "skipped": skipped}
 
 
+def _canonical_sha256(value: Any) -> str:
+    payload = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False),
+        encoding="utf-8",
+        newline="\n",
+    )
+    temporary.replace(path)
+
+
+def _safe_run_directory(root: Path, config: dict[str, Any], run_id: str) -> Path:
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}", run_id) is None:
+        raise Week5DataError("run_id must contain only letters, numbers, dot, underscore, or dash")
+    return root / config["paths"]["output_dir"] / "runs" / run_id
+
+
+def _pilot_run_identity(
+    root: Path,
+    config: dict[str, Any],
+    run_id: str,
+    candidates: list[dict[str, Any]],
+    prompt_versions: list[str],
+) -> dict[str, Any]:
+    runtime = _runtime(root, config, "itinerary_planning")
+    pool_path = (
+        root
+        / config["paths"]["output_dir"]
+        / "pools"
+        / "itinerary_planning.jsonl"
+    )
+    return {
+        "schema_version": "week5_preannotation_run_v2",
+        "run_id": run_id,
+        "run_kind": "itinerary_paired_prompt_pilot",
+        "dataset_version": config["dataset_version"],
+        "scenario": "itinerary_planning",
+        "model_name": runtime["model_name"],
+        "prompt_versions": prompt_versions,
+        "config_sha256": _canonical_sha256(config),
+        "candidate_manifest_path": pool_path.relative_to(root).as_posix(),
+        "candidate_manifest_sha256": candidate_manifest_sha256(
+            root, config, "itinerary_planning"
+        ),
+        "selected_sample_ids_sha256": _canonical_sha256(
+            [candidate["sample_id"] for candidate in candidates]
+        ),
+        "selected_candidate_payloads_sha256": _canonical_sha256(
+            [candidate_payload_sha256(candidate) for candidate in candidates]
+        ),
+        "selected_count": len(candidates),
+        "shard": {"index": 0, "count": 1, "strategy": "ordered_fixed_pair_v1"},
+    }
+
+
+def _prepare_audited_run(
+    run_dir: Path,
+    identity: dict[str, Any],
+    limits: dict[str, Any],
+    *,
+    resume: bool,
+) -> None:
+    manifest_path = run_dir / "run_manifest.json"
+    if run_dir.exists() and not resume:
+        raise Week5DataError(f"run already exists; use explicit resume: {run_dir.name}")
+    if resume:
+        if not manifest_path.is_file():
+            raise Week5DataError("resume requires an existing run manifest")
+        existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if existing.get("identity") != identity or existing.get("limits") != limits:
+            raise Week5DataError("resume metadata hash or limits do not match the existing run")
+        return
+    run_dir.mkdir(parents=True, exist_ok=False)
+    (run_dir / "raw").mkdir()
+    for name in ("attempts.jsonl", "results.jsonl", "failures.jsonl"):
+        (run_dir / name).touch(exist_ok=False)
+    manifest_path.write_text(
+        json.dumps(
+            {"identity": identity, "limits": limits, "created_at": _now()},
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def _attempt_error_type(status: str, error: str | None) -> str | None:
+    if status == "completed":
+        return None
+    if error and error.startswith("model_request_error:"):
+        return "request_error"
+    if error and ("JSON" in error or "json" in error):
+        return "json_parse_error"
+    return "schema_error"
+
+
+def _pilot_summary(
+    attempts: list[dict[str, Any]],
+    prompt_versions: list[str],
+    selected_count: int,
+    stop_reason: str | None,
+) -> dict[str, Any]:
+    aggregates: dict[str, Any] = {}
+    attempt_keys = {(row["sample_id"], row["prompt_version"]) for row in attempts}
+    paired = sum(
+        all((sample_id, prompt) in attempt_keys for prompt in prompt_versions)
+        for sample_id in {row["sample_id"] for row in attempts}
+    )
+    for prompt in prompt_versions:
+        rows = [row for row in attempts if row["prompt_version"] == prompt]
+        token_values = [
+            row.get("usage", {}).get("total_tokens")
+            for row in rows
+            if isinstance(row.get("usage"), dict)
+            and isinstance(row.get("usage", {}).get("total_tokens"), (int, float))
+        ]
+        aggregates[prompt] = {
+            "requests": len(rows),
+            "request_failures": sum(row.get("error_type") == "request_error" for row in rows),
+            "json_valid": sum(row.get("json_valid") is True for row in rows),
+            "schema_valid": sum(row.get("schema_valid") is True for row in rows),
+            "schema_rate": sum(row.get("schema_valid") is True for row in rows) / len(rows) if rows else 0.0,
+            "request_failure_rate": sum(row.get("error_type") == "request_error" for row in rows) / len(rows) if rows else 1.0,
+            "mean_total_tokens": sum(token_values) / len(token_values) if token_values else None,
+            "mean_latency_ms": sum(float(row["latency_ms"]) for row in rows) / len(rows) if rows else None,
+            "business_quality": None,
+        }
+    complete = paired == selected_count and all(
+        aggregates[prompt]["requests"] == selected_count for prompt in prompt_versions
+    )
+    selected = "fewshot_4_v2"
+    selection_status = "default_incomplete"
+    if complete and stop_reason is None:
+        def rank(prompt: str) -> tuple[float, float, float, float, int]:
+            item = aggregates[prompt]
+            return (
+                -float(item["schema_rate"]),
+                float(item["request_failure_rate"]),
+                float(item["mean_total_tokens"]) if item["mean_total_tokens"] is not None else float("inf"),
+                float(item["mean_latency_ms"]) if item["mean_latency_ms"] is not None else float("inf"),
+                prompt_versions.index(prompt),
+            )
+        selected = min(prompt_versions, key=rank)
+        selection_status = "selected_by_structural_tiebreak"
+    return {
+        "selected_prompt": selected,
+        "selection_status": selection_status,
+        "selection_rule": [
+            "business_quality_unavailable_tied",
+            "schema_rate_desc",
+            "request_failure_rate_asc",
+            "mean_total_tokens_asc",
+            "mean_latency_ms_asc",
+        ],
+        "paired_samples": paired,
+        "selected_samples": selected_count,
+        "stop_reason": stop_reason,
+        "prompt_metrics": aggregates,
+    }
+
+
+def run_itinerary_paired_prompt_pilot(
+    root: Path,
+    config: dict[str, Any],
+    run_id: str,
+    *,
+    limit: int = 30,
+    resume: bool = False,
+) -> dict[str, Any]:
+    """执行 Project Control 授权的唯一 4B 双 Prompt pilot。"""
+    _require_model_access(config)
+    pilot = config.get("pilot", {})
+    prompt_versions = list(pilot.get("itinerary_prompt_versions", []))
+    if prompt_versions != ["fewshot_4_v2", "standardized_v4"]:
+        raise Week5DataError("paired pilot prompt versions must be fixed and ordered")
+    max_samples = int(pilot.get("max_unique_samples", 0))
+    max_requests = int(pilot.get("max_total_requests", 0))
+    if limit < 1 or limit > max_samples or max_requests > 60 or limit * 2 > max_requests:
+        raise Week5DataError("paired pilot exceeds the approved sample or request limit")
+    if float(pilot.get("max_gpu_hours", 0)) > 1.0 or float(pilot.get("max_cost_cny", 0)) > 20.0:
+        raise Week5DataError("paired pilot exceeds the approved time or cost limit")
+    pool_path = (
+        root / config["paths"]["output_dir"] / "pools" / "itinerary_planning.jsonl"
+    )
+    candidates = list(islice(iter_jsonl(pool_path), limit))
+    if len(candidates) != limit:
+        raise Week5DataError("itinerary candidate pool is shorter than the pilot limit")
+    identity = _pilot_run_identity(root, config, run_id, candidates, prompt_versions)
+    limits = {
+        "max_unique_samples": limit,
+        "max_total_requests": max_requests,
+        "max_gpu_hours": float(pilot["max_gpu_hours"]),
+        "estimated_hourly_cost_cny": float(pilot["estimated_hourly_cost_cny"]),
+        "max_cost_cny": float(pilot["max_cost_cny"]),
+        "early_stop_pairs": int(pilot["early_stop_pairs"]),
+        "max_failure_rate_after_early_stop": float(pilot["max_failure_rate_after_early_stop"]),
+    }
+    run_dir = _safe_run_directory(root, config, run_id)
+    _prepare_audited_run(run_dir, identity, limits, resume=resume)
+    attempts_path = run_dir / "attempts.jsonl"
+    attempts = read_jsonl(attempts_path)
+    attempted_keys = {(row["sample_id"], row["prompt_version"]) for row in attempts}
+    selection, examples = _fewshot_context(root)
+    runtime = _runtime(root, config, "itinerary_planning")
+    started = time.monotonic()
+    stop_reason: str | None = None
+
+    for candidate in candidates:
+        for prompt_version in prompt_versions:
+            key = (candidate["sample_id"], prompt_version)
+            if key in attempted_keys:
+                continue
+            elapsed = time.monotonic() - started
+            estimated_cost = elapsed / 3600 * limits["estimated_hourly_cost_cny"]
+            if len(attempts) >= limits["max_total_requests"]:
+                stop_reason = "request_limit_reached"
+                break
+            if elapsed >= limits["max_gpu_hours"] * 3600:
+                stop_reason = "gpu_time_limit_reached"
+                break
+            if estimated_cost >= limits["max_cost_cny"]:
+                stop_reason = "cost_limit_reached"
+                break
+            request_started = time.perf_counter()
+            rendered: dict[str, Any] | None = None
+            raw_output: str | None = None
+            usage: dict[str, Any] | None = None
+            try:
+                rendered = _render_preannotation(
+                    root, config, candidate, selection, examples,
+                    prompt_version=prompt_version,
+                )
+                payload = _build_chat_payload(root, rendered, runtime)
+                response = post_chat_completion(
+                    chat_completions_url(runtime["live_base_url"]),
+                    payload,
+                    runtime["timeout_seconds"],
+                )
+                raw_output = response["choices"][0]["message"]["content"]
+                usage = response.get("usage") if isinstance(response.get("usage"), dict) else None
+                if not isinstance(raw_output, str):
+                    raise Week5DataError("model response content must be text")
+                parsed = parse_and_validate_output(
+                    root, "itinerary_planning", raw_output, "v2"
+                )
+                status = "completed" if parsed["schema_valid"] else "failed"
+                error = parsed["error"]
+            except Exception as exc:
+                parsed = {"parsed_output": None, "json_valid": False, "schema_valid": False}
+                status = "failed"
+                error = f"model_request_error: {type(exc).__name__}: {exc}"
+            attempt_number = 1 + sum(
+                row["sample_id"] == candidate["sample_id"]
+                and row["prompt_version"] == prompt_version
+                for row in attempts
+            )
+            raw_relative: str | None = None
+            if raw_output is not None:
+                raw_path = (
+                    run_dir / "raw" / candidate["sample_id"] / prompt_version
+                    / f"attempt_{attempt_number:03d}.txt"
+                )
+                raw_path.parent.mkdir(parents=True, exist_ok=True)
+                with raw_path.open("x", encoding="utf-8", newline="\n") as handle:
+                    handle.write(raw_output)
+                raw_relative = raw_path.relative_to(run_dir).as_posix()
+            attempt = {
+                "run_id": run_id,
+                "sample_id": candidate["sample_id"],
+                "scenario": "itinerary_planning",
+                "prompt_version": prompt_version,
+                "attempt": attempt_number,
+                "retry_count": attempt_number - 1,
+                "status": status,
+                "error_type": _attempt_error_type(status, error),
+                "error": error,
+                "input_sha256": _canonical_sha256(candidate["input"]),
+                "candidate_sha256": candidate_payload_sha256(candidate),
+                "request_sha256": _canonical_sha256(rendered or {}),
+                "raw_output_path": raw_relative,
+                "parsed_output": parsed["parsed_output"],
+                "json_valid": parsed["json_valid"],
+                "schema_valid": parsed["schema_valid"],
+                "usage": usage,
+                "latency_ms": (time.perf_counter() - request_started) * 1000,
+                "timestamp": _now(),
+            }
+            append_jsonl(attempts_path, attempt)
+            append_jsonl(
+                run_dir / ("results.jsonl" if status == "completed" else "failures.jsonl"),
+                attempt,
+            )
+            attempts.append(attempt)
+            attempted_keys.add(key)
+            _atomic_write_json(
+                run_dir / "checkpoint.json",
+                {
+                    "run_id": run_id,
+                    "attempted_requests": len(attempts),
+                    "completed": sum(row["status"] == "completed" for row in attempts),
+                    "failed": sum(row["status"] == "failed" for row in attempts),
+                    "last_sample_id": candidate["sample_id"],
+                    "last_prompt_version": prompt_version,
+                    "updated_at": _now(),
+                },
+            )
+        if stop_reason:
+            break
+        early_pairs = limits["early_stop_pairs"]
+        if len(attempts) >= early_pairs * len(prompt_versions):
+            first_ids = {candidate["sample_id"] for candidate in candidates[:early_pairs]}
+            early = [row for row in attempts if row["sample_id"] in first_ids]
+            if len(early) >= early_pairs * len(prompt_versions):
+                request_failures = sum(row.get("error_type") == "request_error" for row in early)
+                if request_failures / len(early) > limits["max_failure_rate_after_early_stop"]:
+                    stop_reason = "early_request_failure_rate_exceeded"
+                    break
+
+    summary = _pilot_summary(attempts, prompt_versions, limit, stop_reason)
+    summary.update({
+        "run_id": run_id,
+        "total_requests": len(attempts),
+        "elapsed_seconds_this_process": time.monotonic() - started,
+        "estimated_compute_cost_cny_this_process": (
+            (time.monotonic() - started) / 3600 * limits["estimated_hourly_cost_cny"]
+        ),
+    })
+    _atomic_write_json(run_dir / "summary.json", summary)
+    return summary
+
+
+def _load_audited_pilot_winner(
+    root: Path, config: dict[str, Any], run_id: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """读取已完成 pilot 的胜出预标注，并重新验证候选绑定。"""
+    run_dir = _safe_run_directory(root, config, run_id)
+    manifest_path = run_dir / "run_manifest.json"
+    summary_path = run_dir / "summary.json"
+    if not manifest_path.is_file() or not summary_path.is_file():
+        raise Week5DataError("audited pilot manifest or summary is missing")
+    identity = json.loads(manifest_path.read_text(encoding="utf-8")).get("identity", {})
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if (
+        identity.get("run_id") != run_id
+        or identity.get("scenario") != "itinerary_planning"
+        or identity.get("candidate_manifest_sha256")
+        != candidate_manifest_sha256(root, config, "itinerary_planning")
+    ):
+        raise Week5DataError("audited pilot identity or candidate manifest mismatch")
+    selected_prompt = summary.get("selected_prompt")
+    if (
+        summary.get("stop_reason") is not None
+        or summary.get("paired_samples") != identity.get("selected_count")
+        or selected_prompt not in identity.get("prompt_versions", [])
+    ):
+        raise Week5DataError("audited pilot is incomplete or has no valid winner")
+    rows = [
+        row for row in read_jsonl(run_dir / "attempts.jsonl")
+        if row.get("prompt_version") == selected_prompt
+        and row.get("status") == "completed"
+        and row.get("schema_valid") is True
+    ]
+    if len(rows) != identity.get("selected_count"):
+        raise Week5DataError("selected pilot winner lacks a valid output for every sample")
+    return {"identity": identity, "summary": summary}, rows
+
+
+def export_audited_pilot_annotation_packet(
+    root: Path, config: dict[str, Any], run_id: str, output: Path,
+) -> dict[str, Any]:
+    """导出仅等待真实人工填写的胜出 pilot 任务包。"""
+    if not output.is_absolute():
+        output = root / output
+    metadata, attempts = _load_audited_pilot_winner(root, config, run_id)
+    candidates = {
+        row["sample_id"]: row
+        for row in load_pools(root, config)["itinerary_planning"]
+    }
+
+    def tasks() -> Any:
+        for attempt in attempts:
+            candidate = candidates.get(attempt["sample_id"])
+            if candidate is None or candidate_payload_sha256(candidate) != attempt["candidate_sha256"]:
+                raise Week5DataError("pilot task candidate hash mismatch")
+            yield {
+                "schema_version": "week5_human_annotation_task_v2",
+                "sample_id": candidate["sample_id"],
+                "scenario": "itinerary_planning",
+                "candidate_sha256": attempt["candidate_sha256"],
+                "candidate_manifest_sha256": metadata["identity"]["candidate_manifest_sha256"],
+                "input": candidate["input"],
+                "sampling_metadata": candidate.get("sampling_metadata", {}),
+                "isolation": candidate.get("isolation", {}),
+                "model_preannotation": attempt["parsed_output"],
+                "model_preannotation_status": "completed",
+                "model_run_id": run_id,
+                "model_prompt_version": metadata["summary"]["selected_prompt"],
+                "workflow_status": "awaiting_human_annotation",
+                "annotator": None,
+                "human_annotation": None,
+                "corrected_at": None,
+                "revision_history": [],
+                "self_review": {"decision": "pending", "reviewer": None, "issues": []},
+            }
+
+    count = write_jsonl_new(output, tasks())
+    return {
+        "exported": count,
+        "run_id": run_id,
+        "prompt_version": metadata["summary"]["selected_prompt"],
+        "workflow_status": "awaiting_human_annotation",
+        "output": output.relative_to(root).as_posix() if output.is_relative_to(root) else str(output),
+    }
+
+
 def apply_human_corrections(
     root: Path, config: dict[str, Any], scenario: str, input_path: Path,
 ) -> dict[str, int]:
@@ -206,11 +658,20 @@ def apply_human_corrections(
         revisions[row["sample_id"]] = max(revisions.get(row["sample_id"], 0), int(row.get("revision", 1)))
     seen: set[str] = set()
     validated: list[dict[str, Any]] = []
+    audited_runs: dict[str, set[str]] = {}
     for row in submitted:
         sample_id = row.get("sample_id")
         if sample_id in seen or sample_id not in candidates:
             raise Week5DataError(f"duplicate or unknown human sample: {sample_id}")
-        if sample_id not in preannotated:
+        model_run_id = row.get("model_run_id")
+        if isinstance(model_run_id, str) and model_run_id:
+            if model_run_id not in audited_runs:
+                _, audited = _load_audited_pilot_winner(root, config, model_run_id)
+                audited_runs[model_run_id] = {item["sample_id"] for item in audited}
+            has_preannotation = sample_id in audited_runs[model_run_id]
+        else:
+            has_preannotation = sample_id in preannotated
+        if not has_preannotation:
             raise Week5DataError(f"human correction requires completed model preannotation: {sample_id}")
         seen.add(sample_id)
         annotator = row.get("annotator")
@@ -222,7 +683,8 @@ def apply_human_corrections(
             "sample_id": sample_id, "scenario": scenario, "annotator": annotator.strip(),
             "human_annotation": copy.deepcopy(row["human_annotation"]),
             "corrected_at": corrected_at, "revision": revisions.get(sample_id, 0) + 1,
-            "source": "human_correction", "qc_reset": True,
+            "source": "human_correction", "model_run_id": model_run_id,
+            "qc_reset": True,
         })
     for row in validated:
         append_jsonl(output, row)
@@ -297,24 +759,27 @@ def _qualified_sample_ids(root: Path, config: dict[str, Any]) -> dict[str, list[
 
 
 def generate_dialogue_candidates(
-    root: Path, config: dict[str, Any], *, limit: int | None = None,
+    root: Path, config: dict[str, Any], *, run_id: str, limit: int | None = None,
 ) -> dict[str, int]:
     """Generate resumable model-assisted dialogues only from qualified single-turn data."""
-    if not _api_key_available():
-        raise Week5DataError("a real Qwen3.7 API key is required for dialogue generation")
+    _require_model_access(config)
     qualified = _qualified_sample_ids(root, config)
     if not all(qualified.values()):
         raise Week5DataError("each scenario needs qualified human/QC single-turn samples before dialogue generation")
     pools = {scenario: {row["sample_id"]: row for row in rows} for scenario, rows in load_pools(root, config).items()}
-    output = root / config["paths"]["output_dir"] / "dialogues" / "candidates.jsonl"
+    run_dir = _safe_run_directory(root, config, f"dialogue-{run_id}")
+    if run_dir.exists():
+        raise Week5DataError("dialogue run already exists; candidates are immutable")
+    run_dir.mkdir(parents=True)
+    output = run_dir / "candidates.jsonl"
     existing = read_jsonl(output)
     existing_ids = {row["dialogue_id"] for row in existing}
     target = config["targets"]["dialogues"] if limit is None else min(limit, config["targets"]["dialogues"])
     generated = failed = 0
     dialogue_scenarios = {
-        "image_product_search": "image_search_consultation",
-        "after_sales": "after_sales_negotiation",
-        "itinerary_planning": "itinerary_iteration",
+        "image_product_search": "image_search",
+        "after_sales": "after_sales",
+        "itinerary_planning": "itinerary",
     }
     for index in range(target):
         source_scenario = SCENARIOS[index % 3]
@@ -329,11 +794,11 @@ def generate_dialogue_candidates(
             for image_index, image in enumerate(candidate["input"]["images"], start=1)
         ]
         prompt = (
-            "基于给定 OTA 单轮样本生成一段真实多轮对话。只返回 JSON 对象，字段必须为 dialogue_id、scenario、images、messages。"
+            "基于给定 OTA 单轮样本生成一段真实多轮对话。只返回 JSON 对象，字段必须为 scenario、turns。"
             f"对话共 {turns} 轮（每轮含 user 和 assistant 两条消息），用户口语化，助手专业友好；覆盖上传图片、补充条件、历史追问、约束修改和历史图片指代中的至少三项。"
-            "不得编造图片不可见事实、退款承诺、价格保证或安全结论。消息 role 必须从 user 开始严格交替；image_refs 只能引用 images 中的 image_id。"
+            "不得编造图片不可见事实、退款承诺、价格保证或安全结论。turns 中 role 必须从 user 开始严格交替；image_refs 只能引用给定 image_resources 中的 image_id。"
             f"\ndialogue_id={dialogue_id}\nscenario={dialogue_scenarios[source_scenario]}\n"
-            f"images={json.dumps(normalized_images, ensure_ascii=False)}\n"
+            f"image_resources={json.dumps(normalized_images, ensure_ascii=False)}\n"
             f"原始约束={candidate['input'].get('text_constraints')}"
         )
         runtime = _runtime(root, config, source_scenario)
@@ -352,25 +817,48 @@ def generate_dialogue_candidates(
         try:
             response = post_chat_completion(chat_completions_url(runtime["live_base_url"]), payload, runtime["timeout_seconds"])
             raw = response["choices"][0]["message"]["content"]
-            dialogue = json.loads(raw)
-            dialogue["dialogue_id"] = dialogue_id
-            dialogue["images"] = normalized_images
-            validate_dialogue(dialogue)
+            generated_payload = json.loads(raw)
+            dialogue = {
+                "schema_version": "multimodal_dialogue_v2",
+                "dialogue_id": dialogue_id,
+                "scenario": generated_payload.get("scenario"),
+                "image_resources": normalized_images,
+                "turns": generated_payload.get("turns"),
+                "source_sample_ids": [sample_id],
+                "generation": {
+                    "run_id": run_id,
+                    "model_name": runtime["model_name"],
+                    "prompt_version": "week5_dialogue_v2",
+                },
+                "human_review": {
+                    "status": "awaiting_human_annotation",
+                    "reviewer": None,
+                    "reviewed_at": None,
+                    "checks": {},
+                },
+                "qc": {
+                    "status": "partial",
+                    "reviewer": None,
+                    "reviewed_at": None,
+                    "issues": [],
+                },
+            }
+            validate_dialogue_v2(root, dialogue)
             if dialogue["scenario"] != dialogue_scenarios[source_scenario]:
                 raise Week5DataError("generated dialogue scenario changed")
-            if len(dialogue["messages"]) != turns * 2:
+            if len(dialogue["turns"]) != turns * 2:
                 raise Week5DataError("generated dialogue did not preserve requested turn count")
             append_jsonl(output, dialogue)
             existing_ids.add(dialogue_id)
             generated += 1
         except Exception as exc:
-            append_jsonl(output.with_name("failures.jsonl"), {"dialogue_id": dialogue_id, "sample_id": sample_id, "error": f"{type(exc).__name__}: {exc}", "timestamp": _now()})
+            append_jsonl(output.with_name("failures.jsonl"), {"dialogue_id": dialogue_id, "sample_id": sample_id, "error": f"{type(exc).__name__}: {exc}", "timestamp": _now(), "run_id": run_id})
             failed += 1
     return {"generated": generated, "failed": failed, "existing": len(existing)}
 
 
-def apply_dialogue_validation(root: Path, config: dict[str, Any], input_path: Path) -> dict[str, int]:
-    output_dir = root / config["paths"]["output_dir"] / "dialogues"
+def apply_dialogue_validation(root: Path, config: dict[str, Any], input_path: Path, *, run_id: str) -> dict[str, int]:
+    output_dir = _safe_run_directory(root, config, f"dialogue-{run_id}")
     candidates = {row["dialogue_id"]: row for row in read_jsonl(output_dir / "candidates.jsonl")}
     existing = {row.get("dialogue_id") for row in read_jsonl(output_dir / "human_validation.jsonl")}
     checked: list[dict[str, Any]] = []
@@ -378,7 +866,7 @@ def apply_dialogue_validation(root: Path, config: dict[str, Any], input_path: Pa
         dialogue_id = row.get("dialogue_id")
         if dialogue_id not in candidates or dialogue_id in existing:
             raise Week5DataError(f"unknown or already validated dialogue: {dialogue_id}")
-        validate_dialogue(candidates[dialogue_id])
+        validate_dialogue_v2(root, candidates[dialogue_id])
         if row.get("decision") not in {"pass", "rework", "reject"} or not isinstance(row.get("reviewer"), str) or not row["reviewer"].strip():
             raise Week5DataError("dialogue validation requires reviewer and valid decision")
         checks = row.get("checks")

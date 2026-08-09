@@ -79,13 +79,38 @@ Week 3 v1/v2 exclusion manifest 在 `source_id`、`image_sha256`、`group_id`
 - 人工修正、revision、自审、交叉互审、确定性 10%/5% 抽检、返工和剔除均有独立记录。
 - 对话结构强制 3–8 轮、角色交替、有效图片引用和五项人工检查。
 
-验证结果：Week 5 定向测试 8/8 通过；完整 `unittest` 270/270 通过；样本池
+验证结果：Week 5 定向测试 15/15 通过；完整 `unittest` 285/285 通过；样本池
 校验返回 `status=ok`、80,000 个唯一 sample 和图片哈希；三个配置/Schema JSON
 可解析；`git diff --check` 通过。
 
 生成的候选、合成图片、哈希缓存、预标注、人工包、质检记录和对话均在
-`outputs/week5/`，保持 Git 忽略。
+`outputs/week5_qwen3_vl_4b/`，保持 Git 忽略。
 
 已实际导出三份本地人工包：商品 50,000、售后 20,000、行程 10,000。导出发生在
 真实 smoke 前，包内 `model_preannotation_status=missing`；必须在全量预标注后重新
 导出新文件，现有包不得被解释为可直接计入人工修正的完成包。
+
+## 2026-08-09 Qwen3-VL-4B 受限行程 Prompt pilot
+
+- 运行 ID：`week5_itinerary_prompt_pair_4b_20260809_a`；使用 30 条唯一 Week 5
+  行程候选，对 `fewshot_4_v2` 与 `standardized_v4` 各请求一次，共 60 次，无重试。
+- 审计完整性：60 个唯一请求哈希、30 个唯一输入哈希、60 份独立原始输出；
+  `failures.jsonl` 保留 2 条 Schema 错误。候选 manifest SHA-256 为
+  `4072260173f0b25cf7d5d63ab694f0849b351a483f42e4c39b9a99c5b9a17e75`。
+- `fewshot_4_v2`：JSON 30/30、Schema 28/30、请求失败 0，平均 2,171.7 tokens，
+  平均延迟 21,353.77 ms。
+- `standardized_v4`：JSON 30/30、Schema 30/30、请求失败 0，平均 1,128.3 tokens，
+  平均延迟 18,523.86 ms。
+- 两个 Prompt 都没有可用的人工业务质量分，因此按已裁决的并列顺序先比较 Schema
+  合规率，选择 `standardized_v4`；不以任何后续全量结果反向改选。
+- 实测推理进程耗时 1,197.05 秒，按 CNY 18.3158/小时估算新增计算费 CNY 6.09；
+  低于 60 请求、1 GPU 小时和 CNY 20 三个授权上限。
+
+这 60 次请求只是模型 pilot。按胜出 Prompt 可得到 30 条行程预标注候选，但没有
+真实人工修正、自审、交叉互审或核心抽检，因此三场景 `human_revised`、三级质检和
+最终 `accepted` 数量仍全部为 0；多轮对话候选与人工合格数量也仍为 0。
+
+已从胜出 Prompt 的 30 条有效结果导出版本化人工任务包
+`outputs/week5_qwen3_vl_4b/human_tasks/itinerary_pilot_winner_20260809_a.jsonl`。
+包内 annotator、人工标签、修订历史均为空，状态严格保持
+`awaiting_human_annotation`；只有真实人工返回后才能导入下一状态。

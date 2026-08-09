@@ -8,6 +8,18 @@
     "cross_review_same_scenario",
     "core_sample_audit"
   ],
+  "workflow_v2": {
+    "model_statuses": ["not_started", "running", "completed", "failed"],
+    "human_statuses": [
+      "awaiting_human_annotation",
+      "partial",
+      "awaiting_cross_review",
+      "awaiting_core_audit",
+      "accepted",
+      "rejected"
+    ],
+    "sidecar_schema_version": "week5_workflow_v2"
+  },
   "read_only_context_fields": [
     "sample_id",
     "scenario",
@@ -17,6 +29,24 @@
     "model_preannotation"
   ],
   "human_required_fields": ["annotator", "human_annotation", "corrected_at"],
+  "label_vocabularies": {
+    "style_tags": [
+      "modern", "traditional", "historic", "luxury", "minimalist", "industrial",
+      "rustic", "casual", "romantic", "family_friendly", "nature_oriented",
+      "business", "resort", "artistic", "local_character", "quiet"
+    ],
+    "visible_facilities": [
+      "lobby", "front_desk", "guest_room", "bed", "pool", "spa", "gym",
+      "restaurant", "bar", "outdoor_seating", "parking", "accessible_entrance",
+      "elevator", "stage", "play_area", "restroom", "ticket_office", "viewpoint",
+      "garden", "beach", "buffet", "private_dining", "charging_facility"
+    ],
+    "style_preferences": [
+      "urban", "nature", "history_culture", "food", "leisure", "romantic",
+      "family", "adventure", "photography", "shopping", "nightlife", "quiet",
+      "luxury", "budget", "slow_paced"
+    ]
+  },
   "scenario_templates": {
     "image_product_search": {
       "schema": "configs/evaluation/schemas/image_product_search_v1.schema.json",
@@ -57,6 +87,10 @@
     "model_output_is_human_completion": false,
     "cross_reviewer_must_differ_from_annotator": true,
     "evaluation_collision_is_fatal": true,
-    "duplicate_sample_write_is_fatal": true
+    "duplicate_sample_write_is_fatal": true,
+    "candidate_artifacts_are_immutable": true,
+    "model_completion_never_completes_human_workflow": true,
+    "run_id_must_be_new_unless_explicit_resume": true,
+    "resume_requires_identical_metadata_hashes": true
   }
 }

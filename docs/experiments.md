@@ -271,3 +271,17 @@ manifest.
 - 同轨比较：`week4_common_semantic_coding_v1_20260726_003`，450 对、
   38 个指标、bootstrap 2,000 次；bad case v5 共 376 条。
 - 验证：`python scripts/validate_week4_delivery.py` 返回 `status=ok`。
+
+## 2026-08-09：Qwen3-VL-4B Week 5 行程配对 pilot
+
+- 运行：`week5_itinerary_prompt_pair_4b_20260809_a`；模型
+  `Qwen/Qwen3-VL-4B-Instruct`、vLLM 0.11.0、A10，回环模型端点经 SSH 隧道访问。
+- 数据：现有不可变行程候选池前 30 条唯一样本；候选 manifest SHA-256
+  `4072260173f0b25cf7d5d63ab694f0849b351a483f42e4c39b9a99c5b9a17e75`。
+- 请求：`fewshot_4_v2` 与 `standardized_v4` 各 30 次，共 60 次，无请求失败、无重试；
+  原始输出 60 份，Schema 失败 2 份且均来自 `fewshot_4_v2`。
+- 结果：Schema 合规率 93.33% 对 100%；平均总 token 2,171.7 对 1,128.3；
+  平均延迟 21,353.77 ms 对 18,523.86 ms。业务质量无人工分数，按裁决的结构性
+  并列规则选择 `standardized_v4`。
+- 成本：推理进程 1,197.05 秒，估算 CNY 6.09；未运行 80,000 条全量预标注、
+  对话批量生成或任何训练任务。

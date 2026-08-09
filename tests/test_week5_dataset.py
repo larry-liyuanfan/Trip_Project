@@ -1,25 +1,53 @@
 import json
+import os
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.data.week5_dataset import (
     Week5DataError,
     _check_candidate_isolation,
+    candidate_payload_sha256,
+    initialize_workflow_v2_sidecar,
     load_week5_config,
     qc_audit_selected,
     validate_dialogue,
+    validate_dialogue_v2,
     validate_human_annotation,
+    validate_workflow_v2_sidecar,
     write_jsonl_new,
 )
-from src.data.week5_workflow import apply_human_corrections, apply_quality_records
+from src.data.week5_workflow import (
+    _endpoint_allows_anonymous_access,
+    _require_model_access,
+    apply_human_corrections,
+    apply_quality_records,
+    export_audited_pilot_annotation_packet,
+    run_itinerary_paired_prompt_pilot,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class Week5DatasetTests(unittest.TestCase):
+    def test_only_loopback_model_endpoints_allow_anonymous_access(self) -> None:
+        self.assertTrue(_endpoint_allows_anonymous_access("http://127.0.0.1:18001/v1"))
+        self.assertTrue(_endpoint_allows_anonymous_access("http://localhost:8000/v1"))
+        self.assertTrue(_endpoint_allows_anonymous_access("https://[::1]:8000/v1"))
+        self.assertFalse(_endpoint_allows_anonymous_access("https://dashscope.aliyuncs.com/v1"))
+        self.assertFalse(_endpoint_allows_anonymous_access("http://example.test/127.0.0.1"))
+
+    def test_external_model_endpoint_still_requires_api_key(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            _require_model_access({"runtime": {"base_url": "http://127.0.0.1:18001/v1"}})
+            with self.assertRaises(Week5DataError):
+                _require_model_access(
+                    {"runtime": {"base_url": "https://dashscope.aliyuncs.com/v1"}}
+                )
+
     def _workflow_fixture(self, directory: str) -> tuple[Path, dict, str]:
         root = Path(directory)
         (root / "configs/evaluation/schemas").mkdir(parents=True)
@@ -50,6 +78,20 @@ class Week5DatasetTests(unittest.TestCase):
         self.assertEqual(config["prompt_versions"]["after_sales"], "fewshot_4_v2")
         self.assertEqual(config["prompt_versions"]["itinerary_planning"], "standardized_v4")
         self.assertTrue(config["schemas"]["itinerary_planning"].endswith("itinerary_planning_v2.schema.json"))
+
+    def test_qwen3_vl_4b_config_uses_project_control_prompt_mapping(self) -> None:
+        config = load_week5_config(ROOT, "configs/week5_dataset_qwen3_vl_4b_gpu.json")
+        self.assertEqual(config["prompt_versions"]["image_product_search"], "standardized_v2")
+        self.assertEqual(config["prompt_versions"]["after_sales"], "fewshot_4_v2")
+        self.assertEqual(config["prompt_versions"]["itinerary_planning"], "standardized_v4")
+        self.assertEqual(
+            config["pilot"]["itinerary_prompt_versions"],
+            ["fewshot_4_v2", "standardized_v4"],
+        )
+        self.assertLessEqual(config["pilot"]["max_total_requests"], 60)
+        self.assertLessEqual(config["pilot"]["max_gpu_hours"], 1.0)
+        self.assertLessEqual(config["pilot"]["max_cost_cny"], 20.0)
+        self.assertTrue(config["schemas"]["dialogue"].endswith("multimodal_dialogue_v2.schema.json"))
 
     def test_isolation_rejects_source_hash_group_and_template(self) -> None:
         candidate = {
@@ -84,6 +126,16 @@ class Week5DatasetTests(unittest.TestCase):
         with self.assertRaises(Week5DataError):
             validate_human_annotation(ROOT, "image_product_search", invalid)
 
+    def test_human_output_rejects_uncontrolled_synonym_labels(self) -> None:
+        annotation = {
+            "business_category": "hotel", "style_tags": ["contemporary"],
+            "visible_facilities": ["swimming_pool"], "price_range": "unknown",
+            "observed_evidence": [], "inferred_attributes": [],
+            "unknown_fields": ["price_range"], "confidence": None,
+        }
+        with self.assertRaises(Week5DataError):
+            validate_human_annotation(ROOT, "image_product_search", annotation)
+
     def test_dialogue_requires_turns_and_valid_image_references(self) -> None:
         dialogue = {
             "dialogue_id": "d-1",
@@ -102,6 +154,133 @@ class Week5DatasetTests(unittest.TestCase):
         dialogue["messages"][2]["image_refs"] = ["missing"]
         with self.assertRaises(Week5DataError):
             validate_dialogue(dialogue)
+
+    def test_dialogue_v2_rejects_v1_aliases_and_checks_image_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.bin"
+            image.write_bytes(b"week5-dialogue-image")
+            import hashlib
+            digest = hashlib.sha256(image.read_bytes()).hexdigest()
+            dialogue = {
+                "schema_version": "multimodal_dialogue_v2",
+                "dialogue_id": "d-v2",
+                "scenario": "image_search",
+                "image_resources": [{"image_id": "img_1", "path": "image.bin", "sha256": digest}],
+                "turns": [
+                    {"role": "user", "content": "看看这张图", "image_refs": ["img_1"]},
+                    {"role": "assistant", "content": "请问关注什么？", "image_refs": ["img_1"]},
+                    {"role": "user", "content": "设施", "image_refs": []},
+                    {"role": "assistant", "content": "只按可见设施说明。", "image_refs": ["img_1"]},
+                    {"role": "user", "content": "上一张呢？", "image_refs": ["img_1"]},
+                    {"role": "assistant", "content": "仍需商家信息确认。", "image_refs": ["img_1"]},
+                ],
+                "source_sample_ids": ["sample-1"],
+                "generation": {"run_id": "run-1", "model_name": "model", "prompt_version": "v2"},
+                "human_review": {"status": "awaiting_human_annotation", "reviewer": None, "reviewed_at": None, "checks": {}},
+                "qc": {"status": "partial", "reviewer": None, "reviewed_at": None, "issues": []},
+            }
+            validate_dialogue_v2(root, dialogue)
+            invalid = dict(dialogue)
+            invalid["images"] = invalid.pop("image_resources")
+            with self.assertRaises(Week5DataError):
+                validate_dialogue_v2(root, invalid)
+
+    def test_workflow_v2_sidecar_binds_immutable_candidate_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pool_dir = root / "outputs/week5/pools"
+            pool_dir.mkdir(parents=True)
+            candidate = {"sample_id": "sample-1", "scenario": "image_product_search", "input": {"images": []}}
+            for scenario in ("image_product_search", "after_sales", "itinerary_planning"):
+                rows = [candidate] if scenario == "image_product_search" else []
+                (pool_dir / f"{scenario}.jsonl").write_text(
+                    "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+                )
+            config = {"paths": {"output_dir": "outputs/week5"}}
+            result = initialize_workflow_v2_sidecar(root, config, "image_product_search")
+            self.assertEqual(result["records"], 1)
+            row = json.loads((root / result["output"]).read_text(encoding="utf-8"))
+            self.assertEqual(row["candidate_sha256"], candidate_payload_sha256(candidate))
+            self.assertEqual(row["workflow_status"], "awaiting_human_annotation")
+            self.assertEqual(row["model_preannotation"]["status"], "not_started")
+            self.assertEqual(validate_workflow_v2_sidecar(root, config, "image_product_search")["status"], "ok")
+            with self.assertRaises(Week5DataError):
+                initialize_workflow_v2_sidecar(root, config, "image_product_search")
+
+    def test_audited_pilot_refuses_overwrite_and_resumes_identical_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pool_dir = root / "outputs/week5/pools"
+            pool_dir.mkdir(parents=True)
+            candidates = [
+                {
+                    "sample_id": f"sample-{index}", "scenario": "itinerary_planning",
+                    "input": {"images": [], "text_constraints": "2天"},
+                }
+                for index in range(2)
+            ]
+            for scenario in ("image_product_search", "after_sales", "itinerary_planning"):
+                rows = candidates if scenario == "itinerary_planning" else []
+                (pool_dir / f"{scenario}.jsonl").write_text(
+                    "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+                )
+            config = {
+                "dataset_version": "week5_instruction_candidates_v1",
+                "paths": {"output_dir": "outputs/week5"},
+                "runtime": {"base_url": "http://127.0.0.1:18001/v1"},
+                "pilot": {
+                    "itinerary_prompt_versions": ["fewshot_4_v2", "standardized_v4"],
+                    "max_unique_samples": 30, "max_total_requests": 60,
+                    "max_gpu_hours": 1.0, "estimated_hourly_cost_cny": 18.3158,
+                    "max_cost_cny": 20.0, "early_stop_pairs": 5,
+                    "max_failure_rate_after_early_stop": 0.2,
+                },
+            }
+            runtime = {
+                "model_name": "Qwen3-VL-4B-Instruct", "served_model_name": "Qwen3-VL-4B-Instruct",
+                "live_base_url": "http://127.0.0.1:18001/v1", "timeout_seconds": 30,
+                "generation": {}, "model_config": {},
+            }
+            parsed = {"parsed_output": {"ok": True}, "json_valid": True, "schema_valid": True, "error": None}
+            with patch("src.data.week5_workflow._runtime", return_value=runtime), patch(
+                "src.data.week5_workflow._fewshot_context", return_value=({}, {})
+            ), patch(
+                "src.data.week5_workflow._render_preannotation",
+                side_effect=lambda *args, prompt_version=None, **kwargs: {"prompt": prompt_version},
+            ), patch(
+                "src.data.week5_workflow._build_chat_payload", side_effect=lambda root, rendered, runtime: rendered
+            ), patch(
+                "src.data.week5_workflow.post_chat_completion",
+                return_value={"choices": [{"message": {"content": "{}"}}], "usage": {"total_tokens": 10}},
+            ), patch(
+                "src.data.week5_workflow.parse_and_validate_output", return_value=parsed
+            ):
+                summary = run_itinerary_paired_prompt_pilot(root, config, "pilot-1", limit=2)
+                self.assertEqual(summary["total_requests"], 4)
+                run_dir = root / "outputs/week5/runs/pilot-1"
+                self.assertTrue((run_dir / "run_manifest.json").is_file())
+                self.assertTrue((run_dir / "checkpoint.json").is_file())
+                self.assertEqual((run_dir / "failures.jsonl").read_text(encoding="utf-8"), "")
+                attempt = json.loads((run_dir / "attempts.jsonl").read_text(encoding="utf-8").splitlines()[0])
+                for field in ("run_id", "input_sha256", "candidate_sha256", "request_sha256", "raw_output_path", "retry_count"):
+                    self.assertIn(field, attempt)
+                packet_path = root / "outputs/week5/human_tasks/pilot-1.jsonl"
+                exported = export_audited_pilot_annotation_packet(
+                    root, config, "pilot-1", packet_path
+                )
+                self.assertEqual(exported["exported"], 2)
+                packet = json.loads(packet_path.read_text(encoding="utf-8").splitlines()[0])
+                self.assertEqual(packet["workflow_status"], "awaiting_human_annotation")
+                self.assertIsNone(packet["annotator"])
+                self.assertEqual(packet["revision_history"], [])
+                with self.assertRaises(Week5DataError):
+                    run_itinerary_paired_prompt_pilot(root, config, "pilot-1", limit=2)
+                resumed = run_itinerary_paired_prompt_pilot(root, config, "pilot-1", limit=2, resume=True)
+                self.assertEqual(resumed["total_requests"], 4)
+                config["pilot"]["max_cost_cny"] = 19.0
+                with self.assertRaises(Week5DataError):
+                    run_itinerary_paired_prompt_pilot(root, config, "pilot-1", limit=2, resume=True)
 
     def test_audit_selection_is_deterministic_and_rate_bounded(self) -> None:
         config = load_week5_config(ROOT, "configs/week5_dataset.json")

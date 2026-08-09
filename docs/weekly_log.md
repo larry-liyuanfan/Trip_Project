@@ -266,3 +266,18 @@ as the current validated dataset or accepted baseline.
 - 新增 `reports/README.md` 作为报告索引；历史报告和过程状态保持原路径，
   不移动、不覆盖冻结运行产物。
 - 总报告明确区分同 Prompt 模型对比与 Prompt/预算联合修复，避免错误归因。
+
+## 2026-08-09：Week 5 冲突裁决落地与受限 pilot
+
+- 记录 Project Control 六项裁决，新增 workflow v2 sidecar 和
+  `multimodal_dialogue_v2`，保留候选池、历史 pilot 与 dialogue v1 不变。
+- workflow v2 sidecar 实际绑定商品/售后/行程 50,000/20,000/10,000 条候选，
+  初始人工状态全部为 `awaiting_human_annotation`；候选池全量校验返回
+  `status=ok`，80,000 个唯一 sample 和图片 SHA-256。
+- 新增不可覆盖 run 目录、配置/候选/输入/请求哈希、原始输出、attempt、checkpoint、
+  failures 和严格 resume 元数据校验。
+- 完成 30 条行程样本的双 Prompt pilot，共 60 请求；`fewshot_4_v2` Schema 28/30，
+  `standardized_v4` 30/30，请求失败均为 0，最终按既定规则选择
+  `standardized_v4`。实测推理 1,197.05 秒，估算 CNY 6.09。
+- 未执行全量预标注、全量对话生成或训练；真实人工修正、三级质检、最终合格和
+  人工合格对话数量仍均为 0。
