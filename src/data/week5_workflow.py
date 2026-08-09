@@ -363,12 +363,20 @@ def run_full_preannotation(
     full = config.get("full_preannotation", {})
     shard_size = int(full.get("shard_size", 500))
     max_retries = int(full.get("max_retries", 2))
-    if shard_size < 1 or max_retries < 0:
+    max_consecutive_request_failures = int(
+        full.get("max_consecutive_request_failures", 20)
+    )
+    if (
+        shard_size < 1
+        or max_retries < 0
+        or max_consecutive_request_failures < 1
+    ):
         raise Week5DataError("full preannotation shard_size/max_retries is invalid")
     identity = _full_run_identity(root, config, run_id)
     limits = {
         "shard_size": shard_size,
         "max_retries": max_retries,
+        "max_consecutive_request_failures": max_consecutive_request_failures,
         "concurrency": int(config["runtime"].get("concurrency", 1)),
     }
     if limits["concurrency"] < 1:
@@ -389,6 +397,7 @@ def run_full_preannotation(
     selection, examples = _fewshot_context(root)
     process_started = time.monotonic()
     process_attempts = process_completed = process_failed = process_skipped = 0
+    consecutive_request_failures = 0
 
     for scenario in SCENARIOS:
         runtime = _runtime(root, config, scenario)
@@ -404,6 +413,12 @@ def run_full_preannotation(
             start_attempt = prior_counts.get(sample_id, 0) + 1
             for retry_index in range(max_retries + 1):
                 attempt_number = start_attempt + retry_index
+                while (
+                    run_dir / "raw" / scenario / sample_id
+                    / f"attempt_{attempt_number:03d}.txt"
+                ).exists():
+                    # 进程可能在写 raw 后、追加 attempt 前中断；保留孤立文件并换新编号。
+                    attempt_number += 1
                 started = time.perf_counter()
                 rendered: dict[str, Any] | None = None
                 raw_output: str | None = None
@@ -480,13 +495,22 @@ def run_full_preannotation(
         def flush(batch: list[tuple[int, dict[str, Any]]]) -> None:
             nonlocal process_attempts, process_completed, process_failed
             nonlocal scenario_completed, scenario_failed
+            nonlocal consecutive_request_failures
             if not batch:
                 return
-            with ThreadPoolExecutor(max_workers=limits["concurrency"]) as executor:
-                for records, final in executor.map(execute, batch):
+            concurrency = limits["concurrency"]
+            for offset in range(0, len(batch), concurrency):
+                window = batch[offset:offset + concurrency]
+                with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                    completed_window = list(executor.map(execute, window))
+                for records, final in completed_window:
                     for record in records:
                         append_jsonl(attempts_path, record)
                         process_attempts += 1
+                        if record.get("error_type") == "request_error":
+                            consecutive_request_failures += 1
+                        else:
+                            consecutive_request_failures = 0
                     if final["status"] == "completed":
                         append_jsonl(results_path, final)
                         successful.add(final["sample_id"])
@@ -508,9 +532,14 @@ def run_full_preannotation(
                             "process_attempts": process_attempts,
                             "process_completed": process_completed,
                             "process_failed": process_failed,
+                            "consecutive_request_failures": consecutive_request_failures,
                             "updated_at": _now(),
                         },
                     )
+                    if consecutive_request_failures >= max_consecutive_request_failures:
+                        raise Week5DataError(
+                            "full preannotation stopped after consecutive model request failures"
+                        )
 
         for index, candidate in enumerate(iter_jsonl(pool_path)):
             scenario_seen += 1

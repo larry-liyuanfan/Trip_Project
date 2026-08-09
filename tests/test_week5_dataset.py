@@ -310,7 +310,10 @@ class Week5DatasetTests(unittest.TestCase):
                 "runtime": {
                     "base_url": "http://127.0.0.1:18001/v1", "concurrency": 2
                 },
-                "full_preannotation": {"shard_size": 2, "max_retries": 1},
+                "full_preannotation": {
+                    "shard_size": 2, "max_retries": 1,
+                    "max_consecutive_request_failures": 20,
+                },
             }
             runtime = {
                 "model_name": "Qwen3-VL-4B-Instruct",
@@ -356,6 +359,51 @@ class Week5DatasetTests(unittest.TestCase):
                 config["runtime"]["concurrency"] = 1
                 with self.assertRaises(Week5DataError):
                     run_full_preannotation(root, config, "full-1", resume=True)
+
+    def test_full_preannotation_stops_on_consecutive_request_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pool_dir = root / "outputs/week5/pools"
+            pool_dir.mkdir(parents=True)
+            for scenario in SCENARIOS:
+                candidate = {
+                    "sample_id": f"sample-{scenario}", "scenario": scenario,
+                    "input": {"images": [], "text_constraints": "unknown"},
+                }
+                (pool_dir / f"{scenario}.jsonl").write_text(
+                    json.dumps(candidate) + "\n", encoding="utf-8"
+                )
+            config = {
+                "dataset_version": "week5_instruction_candidates_v1",
+                "paths": {"output_dir": "outputs/week5"},
+                "targets": {scenario: 1 for scenario in SCENARIOS},
+                "prompt_versions": {scenario: "prompt" for scenario in SCENARIOS},
+                "runtime": {"base_url": "http://127.0.0.1:18001/v1", "concurrency": 2},
+                "full_preannotation": {
+                    "shard_size": 2, "max_retries": 0,
+                    "max_consecutive_request_failures": 2,
+                },
+            }
+            runtime = {
+                "model_name": "model", "live_base_url": "http://127.0.0.1:18001/v1",
+                "timeout_seconds": 1, "generation": {}, "model_config": {},
+            }
+            with patch("src.data.week5_workflow._runtime", return_value=runtime), patch(
+                "src.data.week5_workflow._fewshot_context", return_value=({}, {})
+            ), patch(
+                "src.data.week5_workflow._render_preannotation", return_value={"prompt": "x"}
+            ), patch(
+                "src.data.week5_workflow._build_chat_payload", return_value={"prompt": "x"}
+            ), patch(
+                "src.data.week5_workflow.post_chat_completion",
+                side_effect=ConnectionError("tunnel unavailable"),
+            ):
+                with self.assertRaises(Week5DataError):
+                    run_full_preannotation(root, config, "full-fail")
+            failures = (
+                root / "outputs/week5/runs/full-fail/failures.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(failures), 2)
 
     def test_audit_selection_is_deterministic_and_rate_bounded(self) -> None:
         config = load_week5_config(ROOT, "configs/week5_dataset.json")
