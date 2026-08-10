@@ -377,7 +377,8 @@ Week 5 使用 `configs/week5_dataset.json` 从本地 Yelp OTA 数据构建三场
 质检记录和对话输出均位于忽略目录 `outputs/week5/`。模型预标注永远不计为人工完成。
 当前采用单人最小人工模式：人工修正提交必须包含真实 `annotator`、`corrected_at`、
 `review_session_id` 和 `self_review_confirmed=true`，保存动作同时记录自审。商品仅有
-确定性选中的 1%/0.5% 样本需要盲二次复核/核心抽检，售后和行程为 2%/1%；同一人
+确定性选中的 0.2%/0.05% 样本需要盲二次复核/核心抽检，售后和行程为
+0.5%/0.1%；同一人
 可以执行后续阶段，但必须换用新的 `review_session_id`，不得声称独立审核。
 人工修订、质检和报告命令使用
 `--config configs/week5_dataset_qwen3_vl_4b_single_operator.json`。正在运行的全量

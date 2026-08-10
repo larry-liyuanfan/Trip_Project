@@ -110,10 +110,10 @@ class Week5DatasetTests(unittest.TestCase):
         )
         quality = config["quality"]
         self.assertEqual(quality["operator_count"], 1)
-        self.assertEqual(quality["general_cross_review_rate"], 0.01)
-        self.assertEqual(quality["general_audit_rate"], 0.005)
-        self.assertEqual(quality["core_cross_review_rate"], 0.02)
-        self.assertEqual(quality["core_audit_rate"], 0.01)
+        self.assertEqual(quality["general_cross_review_rate"], 0.002)
+        self.assertEqual(quality["general_audit_rate"], 0.0005)
+        self.assertEqual(quality["core_cross_review_rate"], 0.005)
+        self.assertEqual(quality["core_audit_rate"], 0.001)
 
     def test_isolation_rejects_source_hash_group_and_template(self) -> None:
         candidate = {
@@ -436,14 +436,14 @@ class Week5DatasetTests(unittest.TestCase):
         general_audit = {value for value in ids if qc_audit_selected(value, "image_product_search", config)}
         self.assertTrue(core_audit <= core_cross)
         self.assertTrue(general_audit <= general_cross)
-        self.assertGreaterEqual(len(core_cross), 150)
-        self.assertLessEqual(len(core_cross), 250)
-        self.assertGreaterEqual(len(core_audit), 70)
-        self.assertLessEqual(len(core_audit), 130)
-        self.assertGreaterEqual(len(general_cross), 70)
-        self.assertLessEqual(len(general_cross), 130)
-        self.assertGreaterEqual(len(general_audit), 30)
-        self.assertLessEqual(len(general_audit), 70)
+        self.assertGreaterEqual(len(core_cross), 30)
+        self.assertLessEqual(len(core_cross), 80)
+        self.assertGreaterEqual(len(core_audit), 3)
+        self.assertLessEqual(len(core_audit), 20)
+        self.assertGreaterEqual(len(general_cross), 10)
+        self.assertLessEqual(len(general_cross), 35)
+        self.assertGreaterEqual(len(general_audit), 1)
+        self.assertLessEqual(len(general_audit), 15)
 
     def test_human_correction_requires_real_preannotation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

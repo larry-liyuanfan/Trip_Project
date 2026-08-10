@@ -42,10 +42,10 @@
     "review_session_field": "review_session_id",
     "cross_review_is_blind_second_pass": true,
     "same_person_must_not_claim_independence": true,
-    "core_cross_review_rate": 0.02,
-    "general_cross_review_rate": 0.01,
-    "core_audit_rate": 0.01,
-    "general_audit_rate": 0.005
+    "core_cross_review_rate": 0.005,
+    "general_cross_review_rate": 0.002,
+    "core_audit_rate": 0.001,
+    "general_audit_rate": 0.0005
   },
   "label_vocabularies": {
     "style_tags": [
