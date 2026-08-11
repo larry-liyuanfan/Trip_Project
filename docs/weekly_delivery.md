@@ -384,6 +384,28 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [x] PowerShell 语法、守护流程定向测试 2/2、Week 5 联合定向测试 21/21、完整
   `unittest` 291/291 和 `git diff --check` 通过。
 
+### 2026-08-12 ECS 常驻迁移增量证据
+
+- [x] 80,000 条候选和 80,000 张唯一引用图片已同步，远端缺失 0；三份候选 manifest
+  与活动 run manifest 哈希一致。
+- [x] 远端 Week 5 定向测试 22/22、候选池与隔离验证 `status=ok`、回环端点验证通过。
+- [x] 本地在 checkpoint 15,190 安全停止；断点 JSONL 逐行有效并绑定原 run identity。
+- [x] systemd 服务已启用并从同一 run 恢复，成功数 15,166→15,197、checkpoint
+  15,190→15,209；历史 raw 已用不覆盖模式补传。
+- [x] 本地 supervisor、runner 和 SSH 隧道已停止，禁止与 ECS 服务并行写入。
+- [ ] 全量预标注仍在运行；真实人工修正、三级质检和最终 accepted 未因迁移而完成。
+
+### 2026-08-12 ECS 常驻迁移增量证据
+
+- [x] 80,000 条候选和 80,000 张唯一引用图片已同步，远端缺失 0；三份候选 manifest
+  与活动 run manifest 哈希一致。
+- [x] 远端 Week 5 定向测试 22/22、候选池与隔离验证 `status=ok`、回环端点验证通过。
+- [x] 本地在 checkpoint 15,190 安全停止；断点 JSONL 逐行有效并绑定原 run identity。
+- [x] systemd 服务已启用并从同一 run 恢复，成功数 15,166→15,197、checkpoint
+  15,190→15,209；历史 raw 已用不覆盖模式补传。
+- [x] 本地 supervisor、runner 和 SSH 隧道已停止，禁止与 ECS 服务并行写入。
+- [ ] 全量预标注仍在运行；真实人工修正、三级质检和最终 accepted 未因迁移而完成。
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`

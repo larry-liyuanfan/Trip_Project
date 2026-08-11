@@ -327,3 +327,29 @@ as the current validated dataset or accepted baseline.
   监控，用于检查进度、发现 supervisor 消失并安全恢复，不停止或释放 ECS。
 - PowerShell 语法检查、守护流程定向测试 2/2、Week 5 联合定向测试 21/21、完整
   `unittest` 291/291 和 `git diff --check` 均通过。
+
+## 2026-08-12：Week 5 预标注迁移到 ECS 常驻执行
+
+- 在不中断本地 runner 的阶段预同步 80,000 条候选、80,000 张唯一引用图片和冻结评测
+  依赖；迁移归档 81,109 个条目、2,975,730,176 字节，远端 SHA-256 一致。
+- 远端复核三份候选 manifest 与 run manifest 一致，图片缺失 0；Week 5 定向测试
+  22/22、`validate-pools` 返回 `status=ok`，运行端点仅为 `127.0.0.1:8001`。
+- 在池索引 15,190 停止本地 supervisor、runner 和 SSH 隧道；三份 JSONL 逐行合法，
+  随后以原 run ID、原 canonical config SHA-256 和 `--resume --retry-failures` 恢复。
+- systemd 服务启用并实际将成功结果从 15,166 推进到 15,197、checkpoint 推进到
+  15,209，连续请求失败归零；历史 raw 记录随后以不覆盖模式补传。
+- 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
+  运行依赖，且禁止本地与 ECS 同时写入该 run。
+
+## 2026-08-12：Week 5 预标注迁移到 ECS 常驻执行
+
+- 在不中断本地 runner 的阶段预同步 80,000 条候选、80,000 张唯一引用图片和冻结评测
+  依赖；迁移归档 81,109 个条目、2,975,730,176 字节，远端 SHA-256 一致。
+- 远端复核三份候选 manifest 与 run manifest 一致，图片缺失 0；Week 5 定向测试
+  22/22、`validate-pools` 返回 `status=ok`，运行端点仅为 `127.0.0.1:8001`。
+- 在池索引 15,190 停止本地 supervisor、runner 和 SSH 隧道；三份 JSONL 逐行合法，
+  随后以原 run ID、原 canonical config SHA-256 和 `--resume --retry-failures` 恢复。
+- systemd 服务启用并实际将成功结果从 15,166 推进到 15,197、checkpoint 推进到
+  15,209，连续请求失败归零；历史 raw 记录随后以不覆盖模式补传。
+- 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
+  运行依赖，且禁止本地与 ECS 同时写入该 run。

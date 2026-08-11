@@ -409,6 +409,18 @@ powershell -ExecutionPolicy Bypass -File scripts/supervise_week5_preannotation.p
   -SshHost <current-ecs-public-ip>
 ```
 
+当候选、引用图片和同一 run 的断点已通过哈希校验同步到 GPU ECS 后，可由服务器
+本机 systemd 服务运行，并设置
+`WEEK5_MODEL_BASE_URL_OVERRIDE=http://127.0.0.1:8001/v1`。该变量只覆盖部署端点，
+不修改已冻结配置或 run identity。服务器模式启用后不得同时启动 Windows supervisor；
+具体实例路径和服务名只记录在忽略的 `.agents/server.local.md`。
+
+当候选、引用图片和同一 run 的断点已通过哈希校验同步到 GPU ECS 后，可由服务器
+本机 systemd 服务运行，并设置
+`WEEK5_MODEL_BASE_URL_OVERRIDE=http://127.0.0.1:8001/v1`。该变量只覆盖部署端点，
+不修改已冻结配置或 run identity。服务器模式启用后不得同时启动 Windows supervisor；
+具体实例路径和服务名只记录在忽略的 `.agents/server.local.md`。
+
 真实候选池为商品 50,000、售后 20,000、行程 10,000，隔离验证通过；当前人工
 修正、三级质检和合格对话均为 0。字段口径见
 `docs/week5_annotation_guidelines.md`，实测数量见

@@ -297,3 +297,33 @@ manifest.
   隐藏启动同一 run ID 的 `--resume`，成功结果不重复请求。
 - 恢复证据：checkpoint 从池索引 13,498 推进到 13,546，本进程 48/48 成功、连续
   请求失败 0；全量运行仍在进行，不能记录为完成。
+
+## 2026-08-12：Week 5 全量预标注 ECS 原生续跑
+
+- 代码提交：`a9a8d99`；运行仍为
+  `week5_full_preannotation_qwen3_vl_4b_20260809_b`，未创建替代 run。
+- 部署输入：80,000 条候选、80,000 张唯一图片、图片缺失 0；迁移 payload SHA-256
+  `735b64305cf84790937ae94e63057f8ffcddb07d08ec812a0bd075c03e389bbc`。
+- 身份校验：canonical config SHA-256
+  `dd94313dfa0dbd070e11270ec70157ea60c5e9162ca4a56e76ca461c46d05484`，三份候选
+  manifest 哈希与历史 run manifest 完全一致。
+- 切换点：本地 checkpoint 15,190；`results/attempts/failures` 分别为
+  15,166/15,329/44，均逐行 JSON 合法。服务器恢复后首次确认点为成功 15,197、
+  checkpoint 15,209、连续请求失败 0。
+- 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
+  和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
+
+## 2026-08-12：Week 5 全量预标注 ECS 原生续跑
+
+- 代码提交：`a9a8d99`；运行仍为
+  `week5_full_preannotation_qwen3_vl_4b_20260809_b`，未创建替代 run。
+- 部署输入：80,000 条候选、80,000 张唯一图片、图片缺失 0；迁移 payload SHA-256
+  `735b64305cf84790937ae94e63057f8ffcddb07d08ec812a0bd075c03e389bbc`。
+- 身份校验：canonical config SHA-256
+  `dd94313dfa0dbd070e11270ec70157ea60c5e9162ca4a56e76ca461c46d05484`，三份候选
+  manifest 哈希与历史 run manifest 完全一致。
+- 切换点：本地 checkpoint 15,190；`results/attempts/failures` 分别为
+  15,166/15,329/44，均逐行 JSON 合法。服务器恢复后首次确认点为成功 15,197、
+  checkpoint 15,209、连续请求失败 0。
+- 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
+  和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。

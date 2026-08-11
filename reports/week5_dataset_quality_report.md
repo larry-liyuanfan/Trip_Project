@@ -135,3 +135,14 @@ checkpoint 最后更新时间为 2026-08-10 02:10:24（悉尼时间）。复核�
 `outputs/week5_qwen3_vl_4b/human_tasks/itinerary_pilot_winner_20260809_a.jsonl`。
 包内 annotator、人工标签、修订历史均为空，状态严格保持
 `awaiting_human_annotation`；只有真实人工返回后才能导入下一状态。
+
+## 2026-08-12 ECS 常驻迁移快照
+
+- 候选池保持商品/售后/行程 50,000/20,000/10,000 不变；远端复核 80,000 个
+  唯一图片引用，缺失 0，三份 manifest 哈希与活动 run 一致。
+- 本地切换点为 checkpoint 15,190、成功结果 15,166；ECS systemd 恢复后的首次
+  有效推进快照为 checkpoint 15,209、成功结果 15,197、连续请求失败 0。
+- 迁移后活动 run ID、模型、Prompt、Schema 和 canonical config SHA-256 均未改变；
+  本地 supervisor、runner 和 SSH 隧道已停止，服务器直接访问回环 vLLM。
+- 该快照只表示模型预标注仍在运行。真实 `human_revised`、三级质检、最终
+  `accepted` 和人工合格对话数量仍为 0。
