@@ -400,6 +400,15 @@ python scripts/manage_week5_dataset.py apply-dialogue-quality --input <dialogue-
 python scripts/manage_week5_dataset.py report
 ```
 
+Windows 本地执行长时间 GPU 预标注时，使用守护脚本维持 SSH 隧道并在连接中断后按
+原 manifest 自动续跑。主流程不会重复成功样本，也不会在每次重连时反复请求已知
+失败；全池结束后只执行一次失败清理。日志和状态写入对应 run 的 `supervisor/` 目录。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/supervise_week5_preannotation.ps1 `
+  -SshHost <current-ecs-public-ip>
+```
+
 真实候选池为商品 50,000、售后 20,000、行程 10,000，隔离验证通过；当前人工
 修正、三级质检和合格对话均为 0。字段口径见
 `docs/week5_annotation_guidelines.md`，实测数量见

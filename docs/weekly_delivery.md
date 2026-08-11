@@ -373,6 +373,17 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [ ] run B 当前未运行：checkpoint 停在 2026-08-10 02:10:24（悉尼时间），本机
   Python/SSH 进程与回环隧道均不存在。产物可按原 manifest 哈希安全 resume。
 
+### 2026-08-12 自动恢复增量证据
+
+- [x] 根因确认为本机 SSH 隧道退出；远端 vLLM 健康，run 数据与 manifest 未损坏。
+- [x] `scripts/supervise_week5_preannotation.ps1` 支持 keepalive、端点健康检查、互斥
+  防重、隐藏后台运行、自动重连和相同 run ID 安全 resume。
+- [x] 主流程不重复成功或反复重试 terminal bad case；仅在全池完成后做一次失败清理。
+- [x] 守护进程恢复后 checkpoint 实际继续增长，首轮观测新增 48/48 成功且连续失败 0。
+- [x] 已建立每 30 分钟本地 heartbeat 状态检查；全量完成前不自动停止或释放 ECS。
+- [x] PowerShell 语法、守护流程定向测试 2/2、Week 5 联合定向测试 21/21、完整
+  `unittest` 291/291 和 `git diff --check` 通过。
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`

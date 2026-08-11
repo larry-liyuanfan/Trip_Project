@@ -285,3 +285,15 @@ manifest.
   并列规则选择 `standardized_v4`。
 - 成本：推理进程 1,197.05 秒，估算 CNY 6.09；未运行 80,000 条全量预标注、
   对话批量生成或任何训练任务。
+
+## 2026-08-12：Week 5 全量预标注隧道故障恢复
+
+- 运行：`week5_full_preannotation_qwen3_vl_4b_20260809_b`，模型
+  `Qwen/Qwen3-VL-4B-Instruct`，vLLM 0.11.0，A10，SSH 回环隧道。
+- 故障：本机隧道退出后出现连续连接拒绝；runner 在 21 次连续请求失败时触发保护
+  停止。停止前唯一成功商品 13,477，未解决失败 22。
+- 远端核验：`/v1/models` 返回目标模型，说明 vLLM 健康；故障边界在本地隧道。
+- 恢复：使用 `scripts/supervise_week5_preannotation.ps1` 重建带 keepalive 的隧道，
+  隐藏启动同一 run ID 的 `--resume`，成功结果不重复请求。
+- 恢复证据：checkpoint 从池索引 13,498 推进到 13,546，本进程 48/48 成功、连续
+  请求失败 0；全量运行仍在进行，不能记录为完成。

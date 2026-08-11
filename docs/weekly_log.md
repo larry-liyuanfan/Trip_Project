@@ -312,3 +312,18 @@ as the current validated dataset or accepted baseline.
 - checkpoint 最后更新时间为 2026-08-10 02:10:24（悉尼时间）；复核时本机没有
   Python/SSH 运行进程且回环隧道端口关闭，因此 run 当前为 `partial / not running`，
   不能报告为仍在持续执行。人工修正、三级质检和 accepted 仍均为 0。
+
+## 2026-08-12：Week 5 全量预标注自动恢复与持续监控
+
+- 确认第二次中断由本机 SSH 隧道退出引起；远端 Qwen3-VL-4B vLLM 端点保持健康，
+  checkpoint 在连续 21 次连接拒绝后按既有保护阈值停止，候选、manifest 和成功结果
+  未损坏。
+- 新增 Windows 守护脚本，使用 SSH keepalive、全局互斥锁、端点健康检查和隐藏后台
+  runner；连接中断后自动重建隧道并以同一 run ID `--resume`，不重复成功样本。
+- 主流程跳过已知失败继续全池；全池结束后只执行一次 `--retry-failures` 清理，避免
+  永久 Schema bad case 在每次重连时反复消耗请求。
+- 2026-08-12 00:13（悉尼时间）恢复成功；首次复核 checkpoint 从池索引 13,498
+  推进至 13,546，新增 48/48 成功、连续请求失败为 0。另建立每 30 分钟 heartbeat
+  监控，用于检查进度、发现 supervisor 消失并安全恢复，不停止或释放 ECS。
+- PowerShell 语法检查、守护流程定向测试 2/2、Week 5 联合定向测试 21/21、完整
+  `unittest` 291/291 和 `git diff --check` 均通过。
