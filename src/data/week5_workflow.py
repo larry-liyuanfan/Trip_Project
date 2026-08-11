@@ -85,12 +85,20 @@ def _runtime(root: Path, config: dict[str, Any], scenario: str) -> dict[str, Any
         )
         if name in inference
     }
+    live_base_url = os.getenv(
+        "WEEK5_MODEL_BASE_URL_OVERRIDE", runtime_config["base_url"]
+    ).strip()
+    if not _endpoint_allows_anonymous_access(live_base_url) and not _api_key_available():
+        raise Week5DataError(
+            "MODEL_API_KEY or MODEL_API_KEY_FILE is required for a non-loopback runtime override"
+        )
     return {
         "model_name": model["served_model_name"],
         "served_model_name": model["served_model_name"],
         "model_config": model,
         "generation": generation,
-        "live_base_url": runtime_config["base_url"],
+        # 部署端点属于运行环境，不参与已冻结 run 的配置身份；只允许显式环境变量覆盖。
+        "live_base_url": live_base_url,
         "timeout_seconds": runtime_config["timeout_seconds"],
     }
 

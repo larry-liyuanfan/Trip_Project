@@ -24,6 +24,7 @@ from src.data.week5_dataset import (
 from src.data.week5_workflow import (
     _endpoint_allows_anonymous_access,
     _require_model_access,
+    _runtime,
     apply_human_corrections,
     apply_quality_records,
     export_audited_pilot_annotation_packet,
@@ -51,6 +52,40 @@ class Week5DatasetTests(unittest.TestCase):
                 _require_model_access(
                     {"runtime": {"base_url": "https://dashscope.aliyuncs.com/v1"}}
                 )
+
+    def test_runtime_endpoint_override_preserves_config_and_requires_key_off_loopback(self) -> None:
+        config = {
+            "runtime": {
+                "base_url": "http://127.0.0.1:18001/v1",
+                "model_config": "model.yaml",
+                "inference_config": "inference.yaml",
+                "itinerary_inference_config": "itinerary.yaml",
+                "timeout_seconds": 30,
+            }
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "model.yaml").write_text(
+                "served_model_name: Qwen3-VL-4B-Instruct\n", encoding="utf-8"
+            )
+            for name in ("inference.yaml", "itinerary.yaml"):
+                (root / name).write_text("temperature: 0.1\n", encoding="utf-8")
+            original = json.loads(json.dumps(config))
+            with patch.dict(
+                os.environ,
+                {"WEEK5_MODEL_BASE_URL_OVERRIDE": "http://127.0.0.1:8001/v1"},
+                clear=True,
+            ):
+                runtime = _runtime(root, config, "image_product_search")
+            self.assertEqual(runtime["live_base_url"], "http://127.0.0.1:8001/v1")
+            self.assertEqual(config, original)
+            with patch.dict(
+                os.environ,
+                {"WEEK5_MODEL_BASE_URL_OVERRIDE": "https://model.example/v1"},
+                clear=True,
+            ):
+                with self.assertRaises(Week5DataError):
+                    _runtime(root, config, "image_product_search")
 
     def _workflow_fixture(self, directory: str) -> tuple[Path, dict, str]:
         root = Path(directory)
