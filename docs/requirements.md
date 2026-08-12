@@ -367,6 +367,10 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - Week 5 工程验收要求 80,000 条均具有成功预标注或明确未解决失败记录；人工
   `human_revised/self_reviewed/cross_reviewed/core_audited/accepted` 和对话 accepted
   继续按真实输入单独报告。
+- Spartan 项目文件、缓存、日志、输出和虚拟环境只能写入
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`；不得使用 home。
+  Python 3.11 虚拟环境必须由 Slurm 作业创建并完成依赖校验，Week 5 Apptainer
+  推理环境与 Week 6 宿主 venv 保持分离。
 
 ## Week 6：单场景 QLoRA 小样本链路与专项训练
 

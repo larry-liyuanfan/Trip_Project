@@ -246,6 +246,42 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   migration。Spartan project、quota、scratch 和预计排队时间未核验前，只能交付可
   提交作业包，不能声称已经排队或运行。
 
+## ADR-021：Spartan 项目存储与虚拟环境隔离
+
+- **日期**：2026-08-12
+- **状态**：Accepted
+- **决策**：Trip 只使用 project GPFS 下的独立版本根目录
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。仓库、运行输出、
+  Hugging Face/Apptainer/pip 缓存、临时文件和 Python 环境均置于该根目录；禁止向
+  已满的 home 写入项目文件。Python 统一使用 `GCCcore/11.3.0` + `Python/3.11.3`，
+  虚拟环境固定为 `envs/trip-week5-week6-py311`，并通过 Slurm 作业安装
+  `requirements.txt` 与 `requirements-training.txt`。
+- **容量事实**：`/data/gpfs` 文件系统实测总量 467 GiB、已用 375 GiB、可用 93 GiB；
+  “500 GB”是共享 project 文件系统的标称总量，不是 Trip 独享配额。Trip 部署目录
+  在本次核验时仅 99 MiB；后续模型、容器和环境缓存增长必须继续留在独立根目录，
+  不得占用或整理同项目其他成员目录。
+- **运行边界**：Week 5 vLLM 使用固定 Apptainer 镜像；项目 venv 用于 CPU 工具、
+  校验及 Week 6 transformers/PEFT 训练入口。两者不混装。空间不足时先报告并清理
+  本项目可重建缓存或申请项目配额，不移动、删除或覆盖其他成员文件。
+
+## ADR-021：Spartan 项目存储与虚拟环境隔离
+
+- **日期**：2026-08-12
+- **状态**：Accepted
+- **决策**：Trip 只使用 project GPFS 下的独立版本根目录
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。仓库、运行输出、
+  Hugging Face/Apptainer/pip 缓存、临时文件和 Python 环境均置于该根目录；禁止向
+  已满的 home 写入项目文件。Python 统一使用 `GCCcore/11.3.0` + `Python/3.11.3`，
+  虚拟环境固定为 `envs/trip-week5-week6-py311`，并通过 Slurm 作业安装
+  `requirements.txt` 与 `requirements-training.txt`。
+- **容量事实**：`/data/gpfs` 文件系统实测总量 467 GiB、已用 375 GiB、可用 93 GiB；
+  “500 GB”是共享 project 文件系统的标称总量，不是 Trip 独享配额。Trip 部署目录
+  在本次核验时仅 99 MiB；后续模型、容器和环境缓存增长必须继续留在独立根目录，
+  不得占用或整理同项目其他成员目录。
+- **运行边界**：Week 5 vLLM 使用固定 Apptainer 镜像；项目 venv 用于 CPU 工具、
+  校验及 Week 6 transformers/PEFT 训练入口。两者不混装。空间不足时先报告并清理
+  本项目可重建缓存或申请项目配额，不移动、删除或覆盖其他成员文件。
+
 ## Decision Template
 
 ```markdown

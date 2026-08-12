@@ -16,10 +16,12 @@ set -euo pipefail
 : "${TRIP_EVAL_INPUT:?set locked validation JSONL}"
 : "${TRIP_OUTPUT_DIR:?set a new output directory}"
 : "${TRIP_HF_HOME:?set isolated model cache}"
+: "${TRIP_VENV:?set the project-scoped Spartan virtual environment}"
 
 cd "${TRIP_PROJECT_ROOT}"
 export HF_HOME="${TRIP_HF_HOME}"
 export PYTHONUNBUFFERED=1
+source "${TRIP_VENV}/bin/activate"
 python scripts/train_week6_qlora.py check-environment
 python scripts/train_week6_qlora.py validate-data \
   --scenario "${TRIP_SCENARIO}" --input "${TRIP_TRAIN_INPUT}"

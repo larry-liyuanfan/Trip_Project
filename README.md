@@ -446,6 +446,18 @@ scratch 路径和提交身份必须在提交前核验。当前获批登录身份
 落盘。远端必须新建 Trip_Project 专属目录，且只管理本项目 job ID，不得操作账户内其他
 文件、作业或进程。迁移产物继续位于忽略的 `outputs/`。
 
+Spartan 的 Trip 文件、缓存和虚拟环境统一放在 project GPFS 的版本目录，禁止写入
+已满的 home。当前部署根目录为
+`/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`，仓库位于
+`project/repo`，Python 3.11 环境位于 `envs/trip-week5-week6-py311`。基础和训练依赖
+由 CPU Slurm 作业安装；Week 5 vLLM 仍由固定 Apptainer 镜像提供：
+
+```bash
+sbatch --account=punim2936 \
+  --export=ALL,TRIP_DEPLOY_ROOT=<deploy-root>,TRIP_PROJECT_ROOT=<repo-root>,TRIP_VENV=<venv-path> \
+  scripts/spartan/setup_trip_venv.sbatch
+```
+
 ### Week 6：Qwen3-VL-8B QLoRA 小样本链路
 
 Week 6 使用 `configs/week6/qwen3_vl_8b_qlora.json`。训练依赖保持独立：
