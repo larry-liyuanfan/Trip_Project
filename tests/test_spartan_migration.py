@@ -22,6 +22,12 @@ class SpartanMigrationTests(unittest.TestCase):
         self.assertNotIn('"${container_args[@]}" python ', script)
         self.assertIn('${TRIP_RUN_ID}.${SLURM_JOB_ID:-manual}.vllm.log', script)
         self.assertIn('vLLM log already exists:', script)
+        self.assertIn('APPTAINERENV_HOME="${TRIP_RUNTIME_HOME}"', script)
+        self.assertIn('APPTAINERENV_XDG_CACHE_HOME="${TRIP_RUNTIME_CACHE}"', script)
+        self.assertIn(
+            'APPTAINERENV_FLASHINFER_WORKSPACE_DIR="${TRIP_RUNTIME_CACHE}/flashinfer"',
+            script,
+        )
 
     def _fixture(self, directory: str) -> tuple[Path, dict, Path]:
         root = Path(directory)
