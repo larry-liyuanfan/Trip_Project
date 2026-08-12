@@ -2,7 +2,7 @@
   "schema_version": "spartan_week5_gpu_profiles_v1",
   "selection_policy": "choose_one_partition_by_earliest_estimated_start_then_benchmark_throughput",
   "runtime": {
-    "module": "Apptainer/1.3.3",
+    "modules": ["GCCcore/11.3.0", "Apptainer/1.3.3"],
     "image": "docker://vllm/vllm-openai:v0.11.0",
     "qos": "publicgpu",
     "cache_scope": "isolated_trip_project_root"

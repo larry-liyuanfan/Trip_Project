@@ -42,6 +42,7 @@ export APPTAINERENV_WEEK5_MODEL_BASE_URL_OVERRIDE="${WEEK5_MODEL_BASE_URL_OVERRI
 mkdir -p "${APPTAINER_CACHEDIR}" "${APPTAINER_TMPDIR}"
 
 module purge
+module load GCCcore/11.3.0
 module load Apptainer/1.3.3
 
 container_args=(
