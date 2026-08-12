@@ -341,6 +341,21 @@ as the current validated dataset or accepted baseline.
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
 
+## 2026-08-12：Spartan 存储复核、环境与 benchmark 重提
+
+- 旧 L40S benchmark `29109265` 并非仍在排队：`sacct` 实测其于 18:50:23 AEST
+  以 `FAILED 1:0` 结束，日志显示 `Apptainer/1.3.3` 缺少
+  `GCCcore/11.3.0` 前置模块。修复提交 `1bdb419` 已同步到远端。
+- project GPFS 实测总量 467 GiB、已用 375 GiB、可用 93 GiB；Trip 版本目录为
+  99 MiB。“500 GB”是共享文件系统总量，不是 Trip 独享空间。home quota 已满，
+  后续只使用 `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。
+- 新增项目范围 Python 3.11 venv 作业，环境路径固定为
+  `envs/trip-week5-week6-py311`，pip/XDG/HF/tmp 缓存均留在 Trip 根目录。
+- 新作业已提交。环境安装 `29114275` 于 20:40:23–20:44:11 AEST 运行并
+  `COMPLETED 0:0`；`pip check` 无破损依赖，关键包导入成功。唯一 L40S benchmark
+  `29114276` 于 20:40:58 在 `spartan-gpgpu006` 启动，当前为 `RUNNING`；没有提交
+  H100/A100 重复竞争作业。两小时 heartbeat 已改为追踪这两个 job。
+
 ## 2026-08-12：包月展示部署与 Spartan 身份核验
 
 - 用户明确批准上传 `src/`、轻量样例、CPU Docker 资产、展示状态 JSON 和 Week 5

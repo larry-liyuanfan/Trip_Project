@@ -187,3 +187,11 @@ checkpoint 最后更新时间为 2026-08-10 02:10:24（悉尼时间）。复核�
 - 当前真实 Slurm 状态更新为 queued/running/completed=`1/0/0`：唯一 benchmark job
   `29109265` 位于 `gpu-l40s`，状态 `PD(Resources)`，预计启动
   `2026-08-12T20:27:34`。该排队状态尚未产生任何新预标注成功数。
+## 2026-08-12 Spartan 运行状态补充
+
+- 历史 benchmark job `29109265` 已失败，原因是缺少 Apptainer 前置模块；没有产生
+  可计数的预标注结果。
+- 修复后的环境作业 `29114275` 已 `COMPLETED 0:0`；唯一 L40S benchmark
+  `29114276` 已在 `spartan-gpgpu006` 运行。尚未生成可计数 benchmark 结果。
+- 当前可独立验证的预标注仍为商品 15,166、售后 0、行程 0；人工修正、三级质检、
+  最终 accepted、对话候选和对话 accepted 均仍为 0。

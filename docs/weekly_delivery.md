@@ -425,14 +425,19 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [x] 增加 Week 6 Qwen3-VL-8B NF4 QLoRA 配置、锁定数据契约、环境检查和最多
   10-step 的小样本 pilot 入口。
 - [x] 增加包月 CPU ECS 结果展示 Compose 和只读状态 API；不承担 GPU 推理。
-- [ ] Spartan 作业未提交：project ID、quota、scratch 路径及登记账户所有者提交仍待
-  真实核验。
+- [x] Spartan account=`punim2936`、project GPFS、Python/Apptainer 模块和提交身份已
+  实测；旧 benchmark `29109265` 因模块依赖失败后，修复版环境作业 `29114275` 与唯一
+  L40S benchmark `29114276` 已提交；环境作业已 `COMPLETED 0:0`，benchmark 当前
+  在 `spartan-gpgpu006` 上 `RUNNING`。
 - [ ] Week 5 全量预标注仍未完成；人工修正、三级质检、最终 accepted 与对话 accepted
   仍为 0。
 - [ ] Week 6 GPU pilot 和正式训练均未运行，不能计为训练完成。
 - [x] 验证：完整 unittest 299/299；Week 5 候选/隔离、Week 3 v1/v2、Slurm shell
   语法、展示 Compose 展开和 `git diff --check` 通过。本机 Week 6 环境如实返回缺少
   GPU 训练依赖，未计为 Spartan 环境通过。
+- [x] 新增 project-scoped Python 3.11 venv 安装作业；环境及全部缓存仅写入 Trip 专属
+  版本目录。job `29114275` 完成，`pip check` 和关键包导入通过。GPFS 实测可用
+  93 GiB；未使用 home 或其他成员目录。
 
 ### 2026-08-12 ECS 常驻迁移增量证据
 

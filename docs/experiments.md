@@ -313,6 +313,21 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
+## 2026-08-12：Spartan benchmark 失败诊断与修复重提
+
+- 历史 job `29109265`：`gpu-l40s`、16 秒、`FAILED 1:0`。stderr 明确为
+  `Apptainer/1.3.3` 缺少 `GCCcore/11.3.0` 前置模块；没有模型请求或 benchmark
+  结果，不能计为 pilot。
+- 修复：`scripts/spartan/week5_job.sbatch` 先加载 `GCCcore/11.3.0`；远端仓库更新到
+  `a6107bd`。新增 CPU 作业创建 `Python/3.11.3` 虚拟环境并安装基础和 Week 6 依赖。
+- 新提交：环境 job `29114275` 于 3 分 48 秒后 `COMPLETED 0:0`，Python 环境实际为
+  torch `2.13.0+cu130`、transformers `5.15.0`，`pip check` 和 accelerate/
+  bitsandbytes/peft/torch/transformers 导入通过。L40S benchmark job `29114276` 于
+  20:40:58 AEST 在 `spartan-gpgpu006` 启动，当前仍在等待回环 vLLM 健康；尚无
+  吞吐、成功率、checkpoint 或模型结果，不提交剩余分片。
+- 存储：`/data/gpfs` 467/375/93 GiB（总/已用/可用），Trip 版本目录 99 MiB；全部
+  新文件和缓存限定在 Trip 专属目录，未访问或修改其他成员项目内容。
+
 ## 2026-08-12：`trip-api-sg` CPU 展示部署
 
 - 输入：明确获批的 `src/`、`data/samples/`、Dockerfile、CPU 展示 Compose、
