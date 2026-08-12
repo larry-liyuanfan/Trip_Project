@@ -324,7 +324,12 @@ manifest.
   `3600a7b`（Apptainer `--home` 强制绑定和可写预检）。
 - 登录节点使用缓存镜像实测容器 HOME 为
   `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a/huggingface/runtime-home`。
-  替代作业 `29116943` 已在 L40S 运行；当前无完成吞吐或成功率，不反推全量时间。
+  作业 `29116943` 已使 vLLM health 返回 200，证明容器与缓存问题修复；随后因远端缺少
+  Week 4 development few-shot manifest，在首个模型请求前 `FAILED 1:0`。
+- 依赖恢复归档含 4 个 JSONL 和 36 张引用图片，共 40 个文件、1,151,658 字节，
+  SHA-256 `216b458546cbcc61e326c56f3b38517f1f06a96c9f7cdbec85078bee469ba0ff`；
+  以不覆盖模式解压后，容器内实际加载商品/售后/行程各 12 条并通过图片字节哈希校验。
+- 新作业 `29117353` 已提交，当前 `PD(Resources)`；没有完成吞吐或成功率，不反推全量时间。
 - 验证：Spartan 定向 `unittest` 3/3、完整 `unittest` 300/300、`bash -n` 和
   `git diff --check` 通过。
 

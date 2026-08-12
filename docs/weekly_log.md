@@ -349,8 +349,13 @@ as the current validated dataset or accepted baseline.
   已满的 `/home/yzhang3504/.cache`，两次均在模型请求前 `FAILED 4:0`，未产生结果。
 - 提交 `3600a7b` 将 Apptainer `--home`、XDG cache 和 FlashInfer workspace 强制绑定到
   Trip 专属 GPFS；登录节点预检确认容器 HOME 可写且位于专属目录。
-- 唯一替代 benchmark `29116943` 已在 `gpu-l40s` 运行；当前尚无可计数结果，剩余分片
-  未提交。定向测试 3/3、完整 `unittest` 300/300、shell 语法和 `git diff --check` 通过。
+- `29116943` 已证明 vLLM 健康端点返回 200，随后因远端缺少 Week 4 development
+  few-shot manifest 而在首个模型请求前失败。40 个冻结依赖文件以不覆盖方式补齐，归档
+  SHA-256 为 `216b458546cbcc61e326c56f3b38517f1f06a96c9f7cdbec85078bee469ba0ff`；
+  容器内三场景 manifest 校验为 12/12/12。
+- 唯一替代 benchmark `29117353` 已提交到 `gpu-l40s`，当前 `PD(Resources)` 且
+  `squeue --start` 无可用预计时间；尚无可计数结果，剩余分片未提交。定向测试 3/3、
+  完整 `unittest` 300/300、shell 语法和 `git diff --check` 通过。
 
 ## 2026-08-12：Spartan 存储复核、环境与 benchmark 重提
 

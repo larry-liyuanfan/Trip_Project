@@ -202,5 +202,9 @@ checkpoint 最后更新时间为 2026-08-10 02:10:24（悉尼时间）。复核�
   写入已满的账户 home 失败。三者均未发起 benchmark 模型请求，不能计入预标注。
 - 已将容器 HOME、XDG cache、FlashInfer workspace 和 HF cache 全部约束在 Trip 专属
   GPFS 目录，并加入容器入口、HOME 可写性和不可覆盖日志预检。
-- 当前唯一作业为 `29116943`（`gpu-l40s`，运行中）；尚无 checkpoint/results/failures，
-  因此真实数量仍为商品 15,166、售后 0、行程 0，人工及对话合格数仍为 0。
+- `29116943` 已成功启动 vLLM 并通过回环 health 200，但随后因缺少 Week 4 development
+  few-shot 依赖而在模型请求前失败。依赖已按本地 SHA-256 归档补齐且容器内三场景各
+  12 条 manifest 校验通过。
+- 当前唯一作业为 `29117353`（`gpu-l40s`，`PD(Resources)`）；尚无
+  checkpoint/results/failures，因此真实数量仍为商品 15,166、售后 0、行程 0，人工及
+  对话合格数仍为 0。
