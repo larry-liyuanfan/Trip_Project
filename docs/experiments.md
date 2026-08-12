@@ -331,6 +331,13 @@ manifest.
 > 代理核验和提交，但密码不落盘，且只允许使用新建的 Trip_Project 专属目录和本项目
 > job ID；本段原记录仍表示更正前未提交作业的真实状态。
 
+- 后续实测：account/project=`punim2936`，QOS 包含 `publicgpu`；home 51.2 GiB quota 已满，
+  project GPFS 可写且约余 93 GiB。新建隔离目录
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。
+- 公共分区待排观测：A100 约 280、H100 约 80、L40S 约 8。按最短总时间策略只提交
+  L40S benchmark job `29109265`；状态 `PD(Resources)`，预计启动
+  `2026-08-12T20:27:34`。运行时采用项目缓存内的 Apptainer 1.3.3 + vLLM 0.11.0。
+
 ## 2026-08-12：Spartan migration 准备（未运行 GPU）
 
 - 原因：用户报告 A10 因欠费停机，活动 run 无法访问；未释放实例和数据盘。

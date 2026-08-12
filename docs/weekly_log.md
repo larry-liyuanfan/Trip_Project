@@ -359,6 +359,12 @@ as the current validated dataset or accepted baseline.
 - 用户随后最新确认 `yzhang3504` 为本人持有并授权本项目使用的账户，允许 Agent 代理
   核验并提交。仍强制使用新建的 Trip_Project 专属目录，只管理本项目 job ID，不触碰
   账户内既有文件、作业或进程；密码不落盘。
+- 实测 account/project 为 `punim2936`，QOS 包含 `publicgpu`；home 51.2 GiB quota 已满，
+  project GPFS 可写且约余 93 GiB。已创建唯一目录
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。
+- GPU 待排观测为 A100 约 280、H100 约 80、L40S 约 8，故只提交 L40S benchmark。
+  job `29109265` 已进入 `PD(Resources)`，Slurm 估计启动时间为
+  `2026-08-12T20:27:34`；未提交重复竞争作业。
 
 ## 2026-08-12：A10 停机与 Spartan 迁移工程
 

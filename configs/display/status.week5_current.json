@@ -1,8 +1,8 @@
 {
   "schema_version": "trip_project_status_v1",
-  "generated_at": "2026-08-12T07:20:46Z",
+  "generated_at": "2026-08-12T08:47:00Z",
   "compute": {
-    "active_platform": "spartan_pending_submission",
+    "active_platform": "spartan_benchmark_queued",
     "aliyun_a10": "stopped_due_to_billing",
     "display_host": "trip-api-sg_cpu_only"
   },
@@ -21,9 +21,12 @@
       "migration_id": "week5_spartan_migration_20260812_a",
       "benchmark_candidates": 100,
       "shard_candidates": 64734,
-      "queued_jobs": 0,
+      "queued_jobs": 1,
       "running_jobs": 0,
-      "completed_jobs": 0
+      "completed_jobs": 0,
+      "benchmark_job_id": "29109265",
+      "benchmark_partition": "gpu-l40s",
+      "estimated_start": "2026-08-12T20:27:34"
     },
     "human_revised": 0,
     "self_reviewed": 0,

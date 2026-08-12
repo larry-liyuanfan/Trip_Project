@@ -181,3 +181,9 @@ checkpoint 最后更新时间为 2026-08-10 02:10:24（悉尼时间）。复核�
 > 用户随后最新确认该账户为本人持有并授权本项目使用。代理核验与提交边界已更新，但
 > 在真实提交成功前，上述 queued/running/completed=0 仍是有效历史快照；远端必须使用
 > 新建 Trip_Project 专属目录并且不得触碰既有文件、作业或进程。
+
+- 资源核验现已完成：account/project=`punim2936`，QOS=`publicgpu`，专属 project GPFS
+  目录可写且核验时约余 93 GiB；home quota 已满，未在 home 写入项目数据。
+- 当前真实 Slurm 状态更新为 queued/running/completed=`1/0/0`：唯一 benchmark job
+  `29109265` 位于 `gpu-l40s`，状态 `PD(Resources)`，预计启动
+  `2026-08-12T20:27:34`。该排队状态尚未产生任何新预标注成功数。

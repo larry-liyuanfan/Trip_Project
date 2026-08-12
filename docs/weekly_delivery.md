@@ -410,6 +410,11 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 > 核验和提交，但仍须先完成 project/quota/scratch/partition 实测，并只操作新建项目目录
 > 和本项目 job ID。上方条目保留为授权更正前的事实快照。
 
+- [x] 实测 account/project=`punim2936`、QOS=`publicgpu`、project GPFS 可写且约余
+  93 GiB；home quota 已满，因此所有 Trip 文件均进入新建专属 project 目录。
+- [x] 依据实测待排数量只选择 `gpu-l40s`；benchmark job `29109265` 已提交并处于
+  `PD(Resources)`，估计启动 `2026-08-12T20:27:34`。没有提交 H100/A100 重复作业。
+
 ### 2026-08-12 Spartan 接管增量证据
 
 - [x] 删除已失效的 A10 两小时监控；未释放实例或云盘。
