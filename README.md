@@ -426,6 +426,40 @@ powershell -ExecutionPolicy Bypass -File scripts/supervise_week5_preannotation.p
 `docs/week5_annotation_guidelines.md`，实测数量见
 `reports/week5_dataset_quality_report.md`。
 
+#### Spartan 迁移
+
+欠费停止的 A10 不再承担活动计算。Spartan 迁移不续写历史 run，而是从一个只读
+恢复快照生成 100 条 benchmark、确定性互斥分片和新的合并产物：
+
+```bash
+python scripts/manage_spartan_migration.py prepare \
+  --source-run-dir outputs/week5_qwen3_vl_4b/runs/<source-run> \
+  --output-dir outputs/week5_qwen3_vl_4b/spartan/<migration-id> \
+  --migration-id <migration-id> --shard-count 4 --benchmark-count 100
+bash scripts/spartan/inspect_gpu_queue.sh
+bash scripts/spartan/submit_week5.sh benchmark <account> <h100|a100|l40s> <migration-dir>
+python scripts/manage_spartan_migration.py status --migration-dir <migration-dir>
+```
+
+benchmark 通过且只选择一个分区后，才可提交 `shards`。Spartan project ID、quota、
+scratch 路径和提交身份必须先由登记账户所有者核验；不得自动使用共享密码或操作其他
+作业。迁移产物继续位于忽略的 `outputs/`。
+
+### Week 6：Qwen3-VL-8B QLoRA 小样本链路
+
+Week 6 使用 `configs/week6/qwen3_vl_8b_qlora.json`。训练依赖保持独立：
+
+```bash
+pip install -r requirements-training.txt
+python scripts/train_week6_qlora.py check-environment
+python scripts/train_week6_qlora.py validate-data --scenario <scenario> --input <locked.jsonl>
+```
+
+正式 `train-pilot` 必须显式提供锁定的数据版本、manifest/split 哈希和
+`--confirm-dataset-lock`。当前框架使用 8B、NF4 double quant、bf16、LoRA
+`r=16/alpha=32/dropout=0.05` 和等效 batch 16；冻结 Week 3 评测集不作为 validation
+或调参数据。
+
 ## Aliyun Runtime
 
 The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the
@@ -450,6 +484,11 @@ python scripts/score_week3_evaluation.py --config configs/evaluation_itinerary_q
 ```
 
 Measured repair results are in `reports/qwen37_itinerary_repair_report.md`.
+
+包月 CPU ECS `trip-api-sg` 的结果展示使用
+`docker/aliyun/docker-compose.display.yml`。它只挂载版本化 `status.json` 和静态报告，
+默认监听 `127.0.0.1:8010`，提供 `/v1/project-status` 与 `/reports/`；不安装 CUDA、vLLM、模型权重或实时 LoRA
+推理服务。
 
 ## Reports
 

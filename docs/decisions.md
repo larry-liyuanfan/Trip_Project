@@ -219,6 +219,31 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **边界**：降低的只是重复质检次数。每条最终 accepted 样本仍须由唯一操作者真实
   查看并确认或修正，且显式完成内联自审；不得把模型输出自动转为人工 accepted。
 
+## ADR-020：Spartan 计算迁移、8B 训练基座与阿里云展示边界
+
+- **日期**：2026-08-12
+- **状态**：Accepted
+- **决策**：欠费停机的阿里云 A10 不再作为活动计算节点，且不释放实例或数据盘。
+  Week 5 剩余预标注迁移到墨尔本大学 Spartan，继续固定使用
+  `Qwen/Qwen3-VL-4B-Instruct`、现有 Prompt 与 Schema，禁止将 4B/8B 输出混写进
+  同一运行。迁移使用版本化 benchmark、确定性互斥分片、独立 run 和合并校验，
+  不续写 A10 历史 run。
+- **决策**：Week 6 QLoRA 主基座采用 `Qwen/Qwen3-VL-8B-Instruct`；售后和行程
+  优先 8B，商品保留 4B 对照并只对 8B 做小样本验证。正式训练只能在 Week 5 数据
+  版本、训练/验证切分和哈希锁定后开始；冻结 Week 3 评测集只用于参数锁定后的最终
+  评估，不参与反复选参。
+- **决策**：包月 CPU ECS `trip-api-sg` 只提供结果 API、静态报告和预计算示例，
+  不部署本地 VLM、CUDA、vLLM、训练权重或实时 LoRA 推理。
+- **身份边界**：不得保存或自动使用共享密码操作第三方账户。Spartan 作业必须由
+  登记账户所有者提交，或由用户自己的 Spartan 身份在获批 project 中提交；只操作
+  独立目录和记录下来的本项目 Slurm job ID。
+- **原因**：降低阿里云 GPU 费用并缩短计算时间，同时保持历史运行不可变、任务审计
+  清楚和第三方账户资源安全。
+- **影响**：A10 最后远端观测只能作为历史线索；当前可独立验证的本地恢复点为
+  15,166 条。若以后安全取得更完整的远端快照，必须生成新的迁移版本，不得覆盖当前
+  migration。Spartan project、quota、scratch 和预计排队时间未核验前，只能交付可
+  提交作业包，不能声称已经排队或运行。
+
 ## Decision Template
 
 ```markdown

@@ -395,6 +395,25 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [x] 本地 supervisor、runner 和 SSH 隧道已停止，禁止与 ECS 服务并行写入。
 - [ ] 全量预标注仍在运行；真实人工修正、三级质检和最终 accepted 未因迁移而完成。
 
+### 2026-08-12 Spartan 接管增量证据
+
+- [x] 删除已失效的 A10 两小时监控；未释放实例或云盘。
+- [x] 从本地真实 15,166 条成功恢复点生成不可覆盖 Spartan migration；100 条
+  benchmark 加 4 个互斥分片覆盖剩余 64,834 条，连同恢复点合计 80,000。
+- [x] 增加分区只读检查、H100/A100/L40S 单分区提交模板、回环 vLLM、checkpoint、
+  状态统计和严格合并验证。
+- [x] 增加 Week 6 Qwen3-VL-8B NF4 QLoRA 配置、锁定数据契约、环境检查和最多
+  10-step 的小样本 pilot 入口。
+- [x] 增加包月 CPU ECS 结果展示 Compose 和只读状态 API；不承担 GPU 推理。
+- [ ] Spartan 作业未提交：project ID、quota、scratch 路径及登记账户所有者提交仍待
+  真实核验。
+- [ ] Week 5 全量预标注仍未完成；人工修正、三级质检、最终 accepted 与对话 accepted
+  仍为 0。
+- [ ] Week 6 GPU pilot 和正式训练均未运行，不能计为训练完成。
+- [x] 验证：完整 unittest 299/299；Week 5 候选/隔离、Week 3 v1/v2、Slurm shell
+  语法、展示 Compose 展开和 `git diff --check` 通过。本机 Week 6 环境如实返回缺少
+  GPU 训练依赖，未计为 Spartan 环境通过。
+
 ### 2026-08-12 ECS 常驻迁移增量证据
 
 - [x] 80,000 条候选和 80,000 张唯一引用图片已同步，远端缺失 0；三份候选 manifest

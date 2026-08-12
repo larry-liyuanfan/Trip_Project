@@ -1,0 +1,59 @@
+{
+  "schema_version": "week6_qwen3_vl_qlora_v1",
+  "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+  "model_role": "primary_week6_qlora_base",
+  "week5_label_policy": {
+    "required_dataset_lock": true,
+    "allowed_label_sources": ["model_preannotation", "human_revised"],
+    "model_preannotation_max_weight": 0.5,
+    "frozen_week3_evaluation_usage": "final_evaluation_after_parameter_lock_only"
+  },
+  "quantization": {
+    "load_in_4bit": true,
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": true,
+    "bnb_4bit_compute_dtype": "bfloat16"
+  },
+  "lora": {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "bias": "none",
+    "language_target_suffixes": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    "visual_projection_candidates": [
+      "visual_projection",
+      "visual.merger.linear_fc1",
+      "visual.merger.linear_fc2"
+    ],
+    "save_adapter_only": true
+  },
+  "training": {
+    "optimizer": "adamw_torch",
+    "learning_rate": 0.0002,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.01,
+    "per_device_train_batch_size": 1,
+    "per_device_eval_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "effective_global_batch_size_one_gpu": 16,
+    "gradient_checkpointing": true,
+    "bf16": true,
+    "logging_steps": 10,
+    "evaluation_fraction_steps": 0.1,
+    "save_total_limit": 3,
+    "load_best_model_at_end": true,
+    "metric_for_best_model": "eval_loss"
+  },
+  "scenarios": {
+    "image_product_search": {"epochs": 2, "max_length": 2048, "preferred_base": "4b_control_and_8b_pilot"},
+    "after_sales": {"epochs": 3, "max_length": 2048, "preferred_base": "8b"},
+    "itinerary_planning": {"epochs": 3, "max_length": 4096, "preferred_base": "8b"}
+  },
+  "pilot": {
+    "max_samples": 32,
+    "max_steps": 10,
+    "required_gpu_memory_gb": 48,
+    "preferred_gpu_memory_gb": 80
+  }
+}

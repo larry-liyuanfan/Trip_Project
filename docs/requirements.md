@@ -351,3 +351,44 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - 当前只授权受限行程 pilot：最多 30 个唯一样本、两个 Prompt、60 次总请求、
   1.0 GPU 小时、CNY 20；首 5 组后请求或基础设施失败率超过 20% 即停止。
   未授权 `preannotate-all`、80,000 条全量预标注、批量对话生成或任何训练。
+
+### 2026-08-12 计算迁移与验收补充
+
+- 用户后续直接授权的全量预标注继续有效。Week 5 模型固定为
+  `Qwen/Qwen3-VL-4B-Instruct`，商品/售后/行程继续使用已冻结的
+  `standardized_v2`/`fewshot_4_v2`/`standardized_v4` 映射，不得在同一全量
+  数据中改用 8B 或反向重选 Prompt。
+- 阿里云 A10 因欠费停止后，剩余预标注迁移到 Spartan。迁移必须使用独立版本、
+  确定性互斥分片、不可覆盖 run ID、原始输出、checkpoint、失败记录和严格合并；
+  A10 历史 run 保持只读。
+- 模型预标注仍不是人工金标。单人实际人工处理预算控制在 3 小时以内、全部操作
+  低于 500 次；降低人工预算只能减少 accepted 数量，不得把未人工确认的 silver
+  数据改写为人工完成。
+- Week 5 工程验收要求 80,000 条均具有成功预标注或明确未解决失败记录；人工
+  `human_revised/self_reviewed/cross_reviewed/core_audited/accepted` 和对话 accepted
+  继续按真实输入单独报告。
+
+## Week 6：单场景 QLoRA 小样本链路与专项训练
+
+### 当前授权边界
+
+- Week 6 工程框架可与 Week 5 剩余计算并行建设；正式训练只有在 Week 5 数据版本、
+  训练/验证切分和 manifest/split SHA-256 锁定后才能开始。
+- 主基座为 `Qwen/Qwen3-VL-8B-Instruct`。售后和行程优先 8B；商品保留 4B 对照，
+  先执行 8B 小样本链路验证，不因模型变大而重做 Week 5 全量预标注。
+- 使用 transformers、PEFT、bitsandbytes；NF4、double quantization、bf16、基座
+  参数冻结和 gradient checkpointing。LoRA 固定 `r=16`、`alpha=32`、
+  `dropout=0.05`、`bias=none`，覆盖语言注意力投影和实际模型存在的视觉投影模块。
+- adapter 独立保存，不合并基座。AdamW、cosine scheduler、warmup 0.03、weight
+  decay 0.01；单 GPU batch 1、梯度累积 16，等效全局 batch 16。
+- 模型预标注训练样本必须显式标记为 silver，权重不超过 0.5；人工修订样本可使用
+  1.0 权重。任何自动校验、8B 二次输出或 Agent 行为都不能生成真人身份或金标状态。
+- 冻结 Week 3 独立人工评测集只在训练参数锁定后进行最终效果评估，不参与训练、
+  validation、early stopping 或反复调参。
+
+### 验收
+
+- 依赖版本、CUDA、bf16、4bit 量化、LoRA 目标层、反向传播、adapter 保存和断点
+  checkpoint 在 Spartan 小样本试跑中真实通过后，才能标记链路完成。
+- 正式三场景训练、最优 checkpoint 和效果评测必须按实际 Slurm 运行产物报告；
+  只有配置和脚本时状态为 `READY FOR PILOT`，不是训练完成。

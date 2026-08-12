@@ -341,6 +341,26 @@ as the current validated dataset or accepted baseline.
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
 
+## 2026-08-12：A10 停机与 Spartan 迁移工程
+
+- 用户报告按量 A10 因欠费停机；旧两小时 heartbeat 监控已删除。没有停止、释放、
+  格式化或删除实例/云盘。
+- 当前本地可独立验证恢复点为商品成功 15,166；远端最后一次监控约 36,615 只能作为
+  未复核历史线索。完整候选池仍为 50,000/20,000/10,000。
+- 新增 `week5_spartan_migration_v1`：实际生成 migration
+  `week5_spartan_migration_20260812_a`，100 条 benchmark 按商品/售后/行程
+  49/36/15 分布；其余 64,734 条确定性拆为 4 个互斥分片。基线、benchmark、分片
+  覆盖合计 80,000，且不续写 A10 历史 run。
+- 新增 H100/A100/L40S 队列检查、benchmark、array shard、状态和不可覆盖合并工具。
+  Spartan project、quota、scratch 和提交身份仍未核验，因此本次没有声称作业已排队。
+- 新增 Week 6 Qwen3-VL-8B QLoRA 配置、数据锁定契约、环境检查、小样本训练入口和
+  Spartan pilot 模板；正式训练尚未运行。
+- 新增 `trip-api-sg` CPU 展示 Compose 和 `/v1/project-status`，只消费预计算结果和
+  静态报告；未部署 CUDA、vLLM 或模型权重。
+- 当前验证：新增定向测试 7/7、Week 5 联合定向测试 27/27、完整 unittest 299/299；
+  Week 5 候选/隔离、Week 3 v1/v2、四份 Slurm shell 语法、展示 Compose 展开和
+  `git diff --check` 均通过。
+
 ## 2026-08-12：Week 5 预标注迁移到 ECS 常驻执行
 
 - 在不中断本地 runner 的阶段预同步 80,000 条候选、80,000 张唯一引用图片和冻结评测

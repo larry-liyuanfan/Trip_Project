@@ -313,6 +313,23 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
+## 2026-08-12：Spartan migration 准备（未运行 GPU）
+
+- 原因：用户报告 A10 因欠费停机，活动 run 无法访问；未释放实例和数据盘。
+- 输入：不可变 80,000 条候选；本地 run B 可验证成功 15,166，全部为商品场景。
+- 命令：`python scripts/manage_spartan_migration.py prepare ... --shard-count 4
+  --benchmark-count 100`。
+- 产物：`week5_spartan_migration_20260812_a`，benchmark 商品/售后/行程为
+  49/36/15；4 个分片分别为 16,093、16,106、16,169、16,366，总计 64,734。
+  加上 benchmark 和恢复点后覆盖 80,000 个唯一候选。
+- 模型边界：Week 5 仍为 `Qwen/Qwen3-VL-4B-Instruct`；Week 6 配置固定 8B、NF4、
+  double quant、bf16 和 LoRA 16/32/0.05。
+- 运行状态：仅生成本地 manifest 和作业模板，Spartan project/quota/queue 未核验，
+  未提交 Slurm、未产生 GPU 吞吐、训练损失、费用或新模型输出。
+- 工程验证：新增定向测试 7/7、完整 unittest 299/299；Week 5 pools 和 Week 3 v1/v2
+  验证为 `status=ok`，Git for Windows Bash 对 4 个 Slurm shell 文件执行 `bash -n`
+  通过。展示 Compose 使用脱敏 `DISPLAY_DATA_DIR` 展开通过。
+
 ## 2026-08-12：Week 5 全量预标注 ECS 原生续跑
 
 - 代码提交：`a9a8d99`；运行仍为
