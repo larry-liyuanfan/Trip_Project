@@ -395,6 +395,17 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [x] 本地 supervisor、runner 和 SSH 隧道已停止，禁止与 ECS 服务并行写入。
 - [ ] 全量预标注仍在运行；真实人工修正、三级质检和最终 accepted 未因迁移而完成。
 
+### 2026-08-12 展示部署与提交身份增量证据
+
+- [x] `trip-api-sg:/opt/trip-display/20260812a` 独立部署完成；部署包 SHA-256 为
+  `404e7a681bdf35a839de56298568960a950203a21d9f7ae61b7dac4fdbe8a81d`。
+- [x] `ota-trip-display-api` 在 `127.0.0.1:8010` healthy，`/v1/project-status` 和 Week 5
+  静态报告可读；原 `ota-trip-api` 在 `127.0.0.1:8000` 仍 healthy。
+- [x] 未安装 CUDA、vLLM 或模型权重，未开放公网展示端口，未覆盖原服务。
+- [ ] Spartan Slurm 尚未提交：门户只读核验的当前身份为第三方账户 `yzhang3504`，不满足
+  ADR-020 的代理提交要求；project、quota、scratch 和 partition 仍待账户所有者或用户
+  自有身份核验。
+
 ### 2026-08-12 Spartan 接管增量证据
 
 - [x] 删除已失效的 A10 两小时监控；未释放实例或云盘。

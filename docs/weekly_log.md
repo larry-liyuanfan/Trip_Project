@@ -341,6 +341,19 @@ as the current validated dataset or accepted baseline.
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
 
+## 2026-08-12：包月展示部署与 Spartan 身份核验
+
+- 用户明确批准上传 `src/`、轻量样例、CPU Docker 资产、展示状态 JSON 和 Week 5
+  质量报告。部署包 SHA-256 为
+  `404e7a681bdf35a839de56298568960a950203a21d9f7ae61b7dac4fdbe8a81d`。
+- 已在 `trip-api-sg:/opt/trip-display/20260812a` 启动独立容器
+  `ota-trip-display-api`，仅绑定 `127.0.0.1:8010`；health、状态 API 和静态报告均返回
+  成功。原 `ota-trip-api` 的 `127.0.0.1:8000` health 仍成功。
+- Spartan Open OnDemand 只读核验显示当前登录身份为 `yzhang3504`。该身份属于用户声明
+  的第三方账户，不满足 ADR-020 的代理提交边界；未读取第三方 quota/scratch，未提交、
+  修改或取消任何 Slurm 作业。project、quota、scratch 和可用 GPU partition 仍须由账户
+  所有者或用户自己的 Spartan 身份核验。
+
 ## 2026-08-12：A10 停机与 Spartan 迁移工程
 
 - 用户报告按量 A10 因欠费停机；旧两小时 heartbeat 监控已删除。没有停止、释放、

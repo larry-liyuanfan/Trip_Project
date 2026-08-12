@@ -313,6 +313,20 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
+## 2026-08-12：`trip-api-sg` CPU 展示部署
+
+- 输入：明确获批的 `src/`、`data/samples/`、Dockerfile、CPU 展示 Compose、
+  `requirements-api.txt`、状态 JSON 和 Week 5 质量报告。
+- 版本目录：`/opt/trip-display/20260812a`；上传归档 SHA-256：
+  `404e7a681bdf35a839de56298568960a950203a21d9f7ae61b7dac4fdbe8a81d`。
+- 实测：`ota-trip-display-api` healthy，绑定 `127.0.0.1:8010`；health、
+  `/v1/project-status` 和静态报告均成功。原 `ota-trip-api` 的 `127.0.0.1:8000` health
+  同时成功。
+- 资源边界：CPU-only；没有 CUDA、vLLM、模型权重或实时 LoRA 推理，没有安全组或公网
+  端口变更。
+- Spartan 核验：门户显示当前登录为第三方账户 `yzhang3504`。为遵守 ADR-020，未代替
+  账户所有者运行 quota/scratch 命令或提交 Slurm；本次没有 GPU benchmark 结果。
+
 ## 2026-08-12：Spartan migration 准备（未运行 GPU）
 
 - 原因：用户报告 A10 因欠费停机，活动 run 无法访问；未释放实例和数据盘。

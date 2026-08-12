@@ -490,6 +490,18 @@ Measured repair results are in `reports/qwen37_itinerary_repair_report.md`.
 默认监听 `127.0.0.1:8010`，提供 `/v1/project-status` 与 `/reports/`；不安装 CUDA、vLLM、模型权重或实时 LoRA
 推理服务。
 
+2026-08-12 已在 `/opt/trip-display/20260812a` 完成独立部署，容器名为
+`ota-trip-display-api`。服务器内可用的只读检查为：
+
+```bash
+curl -fsS http://127.0.0.1:8010/health
+curl -fsS http://127.0.0.1:8010/v1/project-status
+curl -fsSI http://127.0.0.1:8010/reports/week5_dataset_quality_report.md
+```
+
+原有 `ota-trip-api` 继续监听 `127.0.0.1:8000`，本次部署未开放公网端口，也未覆盖
+其 Compose、容器或数据卷。
+
 ## Reports
 
 The consolidated Week 1-4 report after migration to Alibaba Cloud
