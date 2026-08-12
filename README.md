@@ -442,8 +442,9 @@ python scripts/manage_spartan_migration.py status --migration-dir <migration-dir
 ```
 
 benchmark 通过且只选择一个分区后，才可提交 `shards`。Spartan project ID、quota、
-scratch 路径和提交身份必须先由登记账户所有者核验；不得自动使用共享密码或操作其他
-作业。迁移产物继续位于忽略的 `outputs/`。
+scratch 路径和提交身份必须在提交前核验。当前获批登录身份为 `yzhang3504`；密码不得
+落盘。远端必须新建 Trip_Project 专属目录，且只管理本项目 job ID，不得操作账户内其他
+文件、作业或进程。迁移产物继续位于忽略的 `outputs/`。
 
 ### Week 6：Qwen3-VL-8B QLoRA 小样本链路
 

@@ -234,9 +234,11 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   评估，不参与反复选参。
 - **决策**：包月 CPU ECS `trip-api-sg` 只提供结果 API、静态报告和预计算示例，
   不部署本地 VLM、CUDA、vLLM、训练权重或实时 LoRA 推理。
-- **身份边界**：不得保存或自动使用共享密码操作第三方账户。Spartan 作业必须由
-  登记账户所有者提交，或由用户自己的 Spartan 身份在获批 project 中提交；只操作
-  独立目录和记录下来的本项目 Slurm job ID。
+- **身份边界**：用户于 2026-08-12 最新确认 `yzhang3504` 为本人持有并授权本项目使用的
+  Spartan 账户，因此允许 Agent 代理核验资源并提交 Trip_Project 作业。密码不得写入
+  文件、配置、命令、日志或 Git。所有项目文件必须位于新建的 Trip_Project 专属目录，
+  只允许读取和管理本项目 Slurm job ID；不得读取、修改、取消或影响账户内既有的其他
+  文件、目录、作业和进程。
 - **原因**：降低阿里云 GPU 费用并缩短计算时间，同时保持历史运行不可变、任务审计
   清楚和第三方账户资源安全。
 - **影响**：A10 最后远端观测只能作为历史线索；当前可独立验证的本地恢复点为

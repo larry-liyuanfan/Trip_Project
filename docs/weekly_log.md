@@ -354,6 +354,12 @@ as the current validated dataset or accepted baseline.
   修改或取消任何 Slurm 作业。project、quota、scratch 和可用 GPU partition 仍须由账户
   所有者或用户自己的 Spartan 身份核验。
 
+### 身份授权更正
+
+- 用户随后最新确认 `yzhang3504` 为本人持有并授权本项目使用的账户，允许 Agent 代理
+  核验并提交。仍强制使用新建的 Trip_Project 专属目录，只管理本项目 job ID，不触碰
+  账户内既有文件、作业或进程；密码不落盘。
+
 ## 2026-08-12：A10 停机与 Spartan 迁移工程
 
 - 用户报告按量 A10 因欠费停机；旧两小时 heartbeat 监控已删除。没有停止、释放、

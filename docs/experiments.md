@@ -327,6 +327,10 @@ manifest.
 - Spartan 核验：门户显示当前登录为第三方账户 `yzhang3504`。为遵守 ADR-020，未代替
   账户所有者运行 quota/scratch 命令或提交 Slurm；本次没有 GPU benchmark 结果。
 
+> 身份更正：用户随后确认 `yzhang3504` 为本人持有并授权本项目使用。后续允许 Agent
+> 代理核验和提交，但密码不落盘，且只允许使用新建的 Trip_Project 专属目录和本项目
+> job ID；本段原记录仍表示更正前未提交作业的真实状态。
+
 ## 2026-08-12：Spartan migration 准备（未运行 GPU）
 
 - 原因：用户报告 A10 因欠费停机，活动 run 无法访问；未释放实例和数据盘。

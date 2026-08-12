@@ -177,3 +177,7 @@ checkpoint 最后更新时间为 2026-08-10 02:10:24（悉尼时间）。复核�
 - Spartan 门户当前登录身份只读核验为第三方账户 `yzhang3504`，未通过代理提交合规
   边界。因此 Slurm queued/running/completed 仍为 0，project、quota、scratch 与 partition
   仍待账户所有者或用户自有身份核验。
+
+> 用户随后最新确认该账户为本人持有并授权本项目使用。代理核验与提交边界已更新，但
+> 在真实提交成功前，上述 queued/running/completed=0 仍是有效历史快照；远端必须使用
+> 新建 Trip_Project 专属目录并且不得触碰既有文件、作业或进程。

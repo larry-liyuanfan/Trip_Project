@@ -406,6 +406,10 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
   ADR-020 的代理提交要求；project、quota、scratch 和 partition 仍待账户所有者或用户
   自有身份核验。
 
+> 后续用户已更正账户归属：`yzhang3504` 为本人持有并授权 Trip_Project 使用。允许代理
+> 核验和提交，但仍须先完成 project/quota/scratch/partition 实测，并只操作新建项目目录
+> 和本项目 job ID。上方条目保留为授权更正前的事实快照。
+
 ### 2026-08-12 Spartan 接管增量证据
 
 - [x] 删除已失效的 A10 两小时监控；未释放实例或云盘。

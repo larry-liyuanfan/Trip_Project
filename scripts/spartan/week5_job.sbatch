@@ -9,6 +9,7 @@
 set -euo pipefail
 
 : "${TRIP_PROJECT_ROOT:?set TRIP_PROJECT_ROOT to the isolated Trip_Project checkout}"
+: "${TRIP_CONTAINER_CACHE:?set TRIP_CONTAINER_CACHE inside the isolated Trip project root}"
 
 if [[ -n "${TRIP_MIGRATION_DIR:-}" && -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
   shard_index=$(printf "%03d" "${SLURM_ARRAY_TASK_ID}")
@@ -32,6 +33,23 @@ fi
 export HF_HOME="${TRIP_HF_HOME:?set TRIP_HF_HOME to the isolated project cache}"
 export WEEK5_MODEL_BASE_URL_OVERRIDE="http://127.0.0.1:8001/v1"
 export PYTHONUNBUFFERED=1
+export APPTAINER_CACHEDIR="${TRIP_CONTAINER_CACHE}"
+export APPTAINER_TMPDIR="${TRIP_CONTAINER_CACHE}/tmp"
+export TRIP_VLLM_IMAGE="${TRIP_VLLM_IMAGE:-docker://vllm/vllm-openai:v0.11.0}"
+export APPTAINERENV_HF_HOME="${TRIP_HF_HOME}"
+export APPTAINERENV_PYTHONUNBUFFERED=1
+export APPTAINERENV_WEEK5_MODEL_BASE_URL_OVERRIDE="${WEEK5_MODEL_BASE_URL_OVERRIDE}"
+mkdir -p "${APPTAINER_CACHEDIR}" "${APPTAINER_TMPDIR}"
+
+module purge
+module load Apptainer/1.3.3
+
+container_args=(
+  exec --nv --cleanenv
+  --bind "${TRIP_PROJECT_ROOT}:${TRIP_PROJECT_ROOT}"
+  --bind "${TRIP_HF_HOME}:${TRIP_HF_HOME}"
+  "${TRIP_VLLM_IMAGE}"
+)
 
 cleanup() {
   if [[ -n "${VLLM_PID:-}" ]] && kill -0 "${VLLM_PID}" 2>/dev/null; then
@@ -42,7 +60,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-python -m vllm.entrypoints.openai.api_server \
+apptainer "${container_args[@]}" python -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen3-VL-4B-Instruct \
   --served-model-name Qwen3-VL-4B-Instruct \
   --host 127.0.0.1 \
@@ -70,4 +88,4 @@ args=(--config "${TRIP_CONFIG}" preannotate-all --run-id "${TRIP_RUN_ID}")
 if [[ "${TRIP_RESUME:-0}" == "1" ]]; then
   args+=(--resume)
 fi
-python scripts/manage_week5_dataset.py "${args[@]}"
+apptainer "${container_args[@]}" python scripts/manage_week5_dataset.py "${args[@]}"
