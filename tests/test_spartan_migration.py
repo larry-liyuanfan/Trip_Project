@@ -14,6 +14,15 @@ from src.data.week5_dataset import SCENARIOS, Week5DataError, candidate_payload_
 
 
 class SpartanMigrationTests(unittest.TestCase):
+    def test_week5_job_uses_verified_container_python3_entrypoint(self) -> None:
+        script = Path("scripts/spartan/week5_job.sbatch").read_text(encoding="utf-8")
+        self.assertIn('container_python="${TRIP_CONTAINER_PYTHON:-python3}"', script)
+        self.assertIn("command -v '${container_python}'", script)
+        self.assertIn("'${container_python}' -c 'import vllm'", script)
+        self.assertNotIn('"${container_args[@]}" python ', script)
+        self.assertIn('${TRIP_RUN_ID}.${SLURM_JOB_ID:-manual}.vllm.log', script)
+        self.assertIn('vLLM log already exists:', script)
+
     def _fixture(self, directory: str) -> tuple[Path, dict, Path]:
         root = Path(directory)
         output = root / "outputs/week5"

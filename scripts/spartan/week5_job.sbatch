@@ -51,6 +51,11 @@ container_args=(
   --bind "${TRIP_HF_HOME}:${TRIP_HF_HOME}"
   "${TRIP_VLLM_IMAGE}"
 )
+container_python="${TRIP_CONTAINER_PYTHON:-python3}"
+
+# vLLM 0.11.0 镜像只提供 python3；先做轻量预检，避免占用 GPU 后才发现入口错误。
+apptainer "${container_args[@]}" /bin/sh -c \
+  "command -v '${container_python}' >/dev/null && '${container_python}' -c 'import vllm'"
 
 cleanup() {
   if [[ -n "${VLLM_PID:-}" ]] && kill -0 "${VLLM_PID}" 2>/dev/null; then
@@ -61,14 +66,16 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-apptainer "${container_args[@]}" python -m vllm.entrypoints.openai.api_server \
+vllm_log="${TRIP_RUN_ID}.${SLURM_JOB_ID:-manual}.vllm.log"
+[[ ! -e "${vllm_log}" ]] || { echo "vLLM log already exists: ${vllm_log}" >&2; exit 6; }
+apptainer "${container_args[@]}" "${container_python}" -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen3-VL-4B-Instruct \
   --served-model-name Qwen3-VL-4B-Instruct \
   --host 127.0.0.1 \
   --port 8001 \
   --dtype bfloat16 \
   --max-model-len 4096 \
-  >"${TRIP_RUN_ID}.vllm.log" 2>&1 &
+  >"${vllm_log}" 2>&1 &
 VLLM_PID=$!
 
 healthy=0
@@ -89,4 +96,4 @@ args=(--config "${TRIP_CONFIG}" preannotate-all --run-id "${TRIP_RUN_ID}")
 if [[ "${TRIP_RESUME:-0}" == "1" ]]; then
   args+=(--resume)
 fi
-apptainer "${container_args[@]}" python scripts/manage_week5_dataset.py "${args[@]}"
+apptainer "${container_args[@]}" "${container_python}" scripts/manage_week5_dataset.py "${args[@]}"
