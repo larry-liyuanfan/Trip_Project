@@ -353,8 +353,8 @@ as the current validated dataset or accepted baseline.
   few-shot manifest 而在首个模型请求前失败。40 个冻结依赖文件以不覆盖方式补齐，归档
   SHA-256 为 `216b458546cbcc61e326c56f3b38517f1f06a96c9f7cdbec85078bee469ba0ff`；
   容器内三场景 manifest 校验为 12/12/12。
-- 唯一替代 benchmark `29117353` 已提交到 `gpu-l40s`，当前 `PD(Resources)` 且
-  `squeue --start` 无可用预计时间；尚无可计数结果，剩余分片未提交。定向测试 3/3、
+- 唯一替代 benchmark `29117353` 已提交到 `gpu-l40s`，当前 `PD(Resources)`；最新
+  `squeue --start` 预计为 2026-08-13 00:26:54 AEST。尚无可计数结果，剩余分片未提交。定向测试 3/3、
   完整 `unittest` 300/300、shell 语法和 `git diff --check` 通过。
 
 ## 2026-08-12：Spartan 存储复核、环境与 benchmark 重提

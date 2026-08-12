@@ -1,6 +1,6 @@
 {
   "schema_version": "trip_project_status_v1",
-  "generated_at": "2026-08-12T11:53:00Z",
+  "generated_at": "2026-08-12T11:55:00Z",
   "compute": {
     "active_platform": "spartan_benchmark_queued",
     "aliyun_a10": "stopped_due_to_billing",
@@ -29,7 +29,7 @@
       "benchmark_job_id": "29117353",
       "benchmark_partition": "gpu-l40s",
       "benchmark_job_state": "PENDING(Resources)",
-      "estimated_start": null,
+      "estimated_start": "2026-08-13T00:26:54+10:00",
       "previous_benchmark_jobs": [
         {
           "job_id": "29109265",
