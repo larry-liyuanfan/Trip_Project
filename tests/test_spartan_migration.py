@@ -30,6 +30,10 @@ class SpartanMigrationTests(unittest.TestCase):
             'APPTAINERENV_FLASHINFER_WORKSPACE_DIR="${TRIP_RUNTIME_CACHE}/flashinfer"',
             script,
         )
+        self.assertIn(
+            '--allowed-local-media-path "${TRIP_PROJECT_ROOT}"',
+            script,
+        )
 
     def _fixture(self, directory: str) -> tuple[Path, dict, Path]:
         root = Path(directory)

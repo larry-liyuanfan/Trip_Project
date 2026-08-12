@@ -83,6 +83,7 @@ apptainer "${container_args[@]}" "${container_python}" -m vllm.entrypoints.opena
   --served-model-name Qwen3-VL-4B-Instruct \
   --host 127.0.0.1 \
   --port 8001 \
+  --allowed-local-media-path "${TRIP_PROJECT_ROOT}" \
   --dtype bfloat16 \
   --max-model-len 4096 \
   >"${vllm_log}" 2>&1 &
