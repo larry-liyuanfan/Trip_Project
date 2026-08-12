@@ -23,6 +23,8 @@ class SpartanMigrationTests(unittest.TestCase):
         self.assertIn('${TRIP_RUN_ID}.${SLURM_JOB_ID:-manual}.vllm.log', script)
         self.assertIn('vLLM log already exists:', script)
         self.assertIn('APPTAINERENV_HOME="${TRIP_RUNTIME_HOME}"', script)
+        self.assertIn('--home "${TRIP_RUNTIME_HOME}"', script)
+        self.assertIn('test \\"\\${HOME}\\" =', script)
         self.assertIn('APPTAINERENV_XDG_CACHE_HOME="${TRIP_RUNTIME_CACHE}"', script)
         self.assertIn(
             'APPTAINERENV_FLASHINFER_WORKSPACE_DIR="${TRIP_RUNTIME_CACHE}/flashinfer"',

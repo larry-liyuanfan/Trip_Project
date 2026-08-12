@@ -56,6 +56,7 @@ module load Apptainer/1.3.3
 
 container_args=(
   exec --nv --cleanenv
+  --home "${TRIP_RUNTIME_HOME}"
   --bind "${TRIP_PROJECT_ROOT}:${TRIP_PROJECT_ROOT}"
   --bind "${TRIP_HF_HOME}:${TRIP_HF_HOME}"
   "${TRIP_VLLM_IMAGE}"
@@ -64,7 +65,7 @@ container_python="${TRIP_CONTAINER_PYTHON:-python3}"
 
 # vLLM 0.11.0 镜像只提供 python3；先做轻量预检，避免占用 GPU 后才发现入口错误。
 apptainer "${container_args[@]}" /bin/sh -c \
-  "command -v '${container_python}' >/dev/null && '${container_python}' -c 'import vllm'"
+  "test \"\${HOME}\" = '${TRIP_RUNTIME_HOME}' && test -w \"\${HOME}\" && command -v '${container_python}' >/dev/null && '${container_python}' -c 'import vllm'"
 
 cleanup() {
   if [[ -n "${VLLM_PID:-}" ]] && kill -0 "${VLLM_PID}" 2>/dev/null; then
