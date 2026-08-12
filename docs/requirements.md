@@ -371,6 +371,11 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`；不得使用 home。
   Python 3.11 虚拟环境必须由 Slurm 作业创建并完成依赖校验，Week 5 Apptainer
   推理环境与 Week 6 宿主 venv 保持分离。
+- 100 条 L40S benchmark 通过后，直接提交四个互斥分片的唯一 array 作业并持续监控，
+  不再设置额外人工审批。出现明确可修复故障时自动修复、验证并只恢复失败或未完成
+  分片；禁止盲目重试、成功样本重复请求、跨 run 双写或多分区竞争提交。
+- 全量自动执行的完成条件是 80,000 个唯一候选均有成功结果或经安全恢复后仍明确保留的
+  最终失败记录，并通过 merge、去重、隔离、配置/候选哈希和 JSONL 完整性验证。
 
 ## Week 6：单场景 QLoRA 小样本链路与专项训练
 

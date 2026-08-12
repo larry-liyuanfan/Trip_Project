@@ -282,6 +282,21 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   校验及 Week 6 transformers/PEFT 训练入口。两者不混装。空间不足时先报告并清理
   本项目可重建缓存或申请项目配额，不移动、删除或覆盖其他成员文件。
 
+## ADR-022：Week 5 Spartan 全量自动恢复执行
+
+- **日期**：2026-08-12
+- **状态**：Accepted
+- **决策**：当前 100 条 L40S benchmark 通过身份、哈希、成功率和吞吐核验后，
+  无需再次人工批准，立即提交唯一 `gpu-l40s` array `0-3`，并行处理四个确定性互斥
+  分片。benchmark 或 shard 失败时，先取得明确根因，再自动修复本任务直接相关的
+  脚本、依赖、路径、权限、容器、缓存、超时或恢复逻辑；验证通过后自动重新排队。
+- **恢复约束**：禁止盲目原样重试。可恢复运行必须保持 run identity、配置和候选哈希
+  一致，使用 `TRIP_RESUME=1`，只重提失败或未完成的 shard index；已成功 sample_id
+  不重复请求。不得同时提交多个 GPU 分区竞争作业。
+- **不变边界**：不得修改候选池、migration manifest、冻结 Week 3/4 产物、历史失败
+  证据或人工状态。所有操作限于 Trip 专属 GPFS 和登记作业。80,000 条闭环后执行
+  merge、去重、隔离、JSONL 与哈希验证，并停止监控。
+
 ## Decision Template
 
 ```markdown
