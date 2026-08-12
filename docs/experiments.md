@@ -313,6 +313,21 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
+## 2026-08-12：Spartan vLLM 容器启动修复
+
+- `29114276`：`FAILED 4:0`，容器无 `python`、仅有 `/usr/bin/python3`；没有模型请求。
+- `29116649`：改用 `python3` 后进入 vLLM 0.11.0 初始化，随后 FlashInfer 因写入已满的
+  `/home/yzhang3504/.cache/flashinfer` 而 `FAILED 4:0`；没有模型请求。
+- `29116828`：仅通过环境变量覆盖 HOME 不足，Apptainer 保留宿主 HOME，复现同一失败；
+  因此没有模型请求或结果。
+- 修复提交：`300ca04`（容器入口与版本化日志）、`270b8ba`（项目内 cache 变量）、
+  `3600a7b`（Apptainer `--home` 强制绑定和可写预检）。
+- 登录节点使用缓存镜像实测容器 HOME 为
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a/huggingface/runtime-home`。
+  替代作业 `29116943` 已在 L40S 运行；当前无完成吞吐或成功率，不反推全量时间。
+- 验证：Spartan 定向 `unittest` 3/3、完整 `unittest` 300/300、`bash -n` 和
+  `git diff --check` 通过。
+
 ## 2026-08-12：Spartan benchmark 失败诊断与修复重提
 
 - 历史 job `29109265`：`gpu-l40s`、16 秒、`FAILED 1:0`。stderr 明确为

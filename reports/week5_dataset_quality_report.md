@@ -195,3 +195,12 @@ checkpoint 最后更新时间为 2026-08-10 02:10:24（悉尼时间）。复核�
   `29114276` 已在 `spartan-gpgpu006` 运行。尚未生成可计数 benchmark 结果。
 - 当前可独立验证的预标注仍为商品 15,166、售后 0、行程 0；人工修正、三级质检、
   最终 accepted、对话候选和对话 accepted 均仍为 0。
+
+## 2026-08-12 Spartan 容器错误修复补充
+
+- `29114276` 因镜像仅含 `python3` 失败；`29116649` 和 `29116828` 随后因 FlashInfer
+  写入已满的账户 home 失败。三者均未发起 benchmark 模型请求，不能计入预标注。
+- 已将容器 HOME、XDG cache、FlashInfer workspace 和 HF cache 全部约束在 Trip 专属
+  GPFS 目录，并加入容器入口、HOME 可写性和不可覆盖日志预检。
+- 当前唯一作业为 `29116943`（`gpu-l40s`，运行中）；尚无 checkpoint/results/failures，
+  因此真实数量仍为商品 15,166、售后 0、行程 0，人工及对话合格数仍为 0。

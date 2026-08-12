@@ -1,8 +1,8 @@
 {
   "schema_version": "trip_project_status_v1",
-  "generated_at": "2026-08-12T10:45:00Z",
+  "generated_at": "2026-08-12T11:43:00Z",
   "compute": {
-    "active_platform": "spartan_benchmark_queued",
+    "active_platform": "spartan_benchmark_running",
     "aliyun_a10": "stopped_due_to_billing",
     "display_host": "trip-api-sg_cpu_only"
   },
@@ -26,12 +26,28 @@
       "completed_jobs": 1,
       "environment_job_id": "29114275",
       "environment_job_state": "COMPLETED",
-      "benchmark_job_id": "29114276",
+      "benchmark_job_id": "29116943",
       "benchmark_partition": "gpu-l40s",
       "benchmark_job_state": "RUNNING",
       "estimated_start": null,
-      "previous_benchmark_job_id": "29109265",
-      "previous_benchmark_state": "FAILED(module_dependency)"
+      "previous_benchmark_jobs": [
+        {
+          "job_id": "29109265",
+          "state": "FAILED(module_dependency)"
+        },
+        {
+          "job_id": "29114276",
+          "state": "FAILED(container_python_entrypoint)"
+        },
+        {
+          "job_id": "29116649",
+          "state": "FAILED(home_quota_flashinfer_cache)"
+        },
+        {
+          "job_id": "29116828",
+          "state": "FAILED(home_quota_flashinfer_cache)"
+        }
+      ]
     },
     "human_revised": 0,
     "self_reviewed": 0,

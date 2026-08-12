@@ -341,6 +341,17 @@ as the current validated dataset or accepted baseline.
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
 
+## 2026-08-12：Spartan 容器启动错误修复
+
+- `29114276` 确认因 vLLM 镜像仅提供 `python3` 而失败；入口已改为可预检的
+  `python3`，并为每个 Slurm job 使用不可覆盖的版本化 vLLM 日志。
+- `29116649`/`29116828` 越过 Python 入口后暴露第二个根因：FlashInfer 仍尝试写入
+  已满的 `/home/yzhang3504/.cache`，两次均在模型请求前 `FAILED 4:0`，未产生结果。
+- 提交 `3600a7b` 将 Apptainer `--home`、XDG cache 和 FlashInfer workspace 强制绑定到
+  Trip 专属 GPFS；登录节点预检确认容器 HOME 可写且位于专属目录。
+- 唯一替代 benchmark `29116943` 已在 `gpu-l40s` 运行；当前尚无可计数结果，剩余分片
+  未提交。定向测试 3/3、完整 `unittest` 300/300、shell 语法和 `git diff --check` 通过。
+
 ## 2026-08-12：Spartan 存储复核、环境与 benchmark 重提
 
 - 旧 L40S benchmark `29109265` 并非仍在排队：`sacct` 实测其于 18:50:23 AEST
