@@ -65,6 +65,27 @@ class Week5DatasetTests(unittest.TestCase):
         self.assertTrue(normalized["schema_valid"])
         self.assertEqual(normalized["parsed_output"]["ocr_text"], [output["ocr_text"]])
 
+    def test_week5_after_sales_preserves_object_ocr_as_reversible_json(self) -> None:
+        output = {
+            "issue_type": "unknown",
+            "severity": "unknown",
+            "issue_location": None,
+            "key_information": [],
+            "ocr_text": {"restaurant_name": "CHAGO'S", "cuisine": "MEXICAN"},
+            "observed_evidence": [],
+            "unknown_fields": [],
+            "confidence": None,
+        }
+
+        normalized = _parse_and_validate_week5_output(
+            ROOT, "after_sales", json.dumps(output), "v1"
+        )
+
+        self.assertTrue(normalized["schema_valid"])
+        wrapped = normalized["parsed_output"]["ocr_text"]
+        self.assertEqual(len(wrapped), 1)
+        self.assertEqual(json.loads(wrapped[0]), output["ocr_text"])
+
     def test_week5_normalization_does_not_repair_other_schema_errors(self) -> None:
         output = {
             "issue_type": "not_in_schema",

@@ -165,12 +165,18 @@ def _parse_and_validate_week5_output(
         return parsed
 
     ocr_text = output.get("ocr_text")
-    if scenario != "after_sales" or not isinstance(ocr_text, str):
+    if scenario != "after_sales" or not isinstance(ocr_text, (str, dict)):
         return parsed
 
-    # 模型偶尔把 OCR 数组压成单个字符串；仅包一层数组，原字符串逐字保留。
+    # OCR 偶尔被压成字符串或键值对象；仅做可逆包装，不猜测或丢弃内容。
     normalized = dict(output)
-    normalized["ocr_text"] = [ocr_text]
+    normalized["ocr_text"] = [
+        ocr_text
+        if isinstance(ocr_text, str)
+        else json.dumps(
+            ocr_text, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+    ]
     return parse_and_validate_output(
         root,
         scenario,

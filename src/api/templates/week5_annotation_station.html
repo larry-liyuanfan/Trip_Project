@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trip Week 5 人工标注与质检台</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, "Microsoft YaHei", sans-serif; }
+    body { margin: 0; background: #f3f5f7; color: #17202a; }
+    header { padding: 18px 24px; background: #143642; color: white; }
+    header h1 { margin: 0 0 5px; font-size: 22px; }
+    header p { margin: 0; color: #d9e7eb; font-size: 13px; }
+    .warning { margin: 14px 24px; padding: 12px 14px; background: #fff4d6; border-left: 4px solid #d39400; }
+    .toolbar { display: flex; gap: 12px; align-items: end; padding: 0 24px 14px; flex-wrap: wrap; }
+    label { display: grid; gap: 5px; font-size: 13px; font-weight: 600; }
+    select, input, textarea, button { font: inherit; }
+    select, input { padding: 8px; border: 1px solid #bac5cc; border-radius: 6px; background: white; }
+    button { padding: 9px 14px; border: 0; border-radius: 6px; background: #176b87; color: white; cursor: pointer; }
+    button.secondary { background: #5f6f78; }
+    button:disabled { opacity: .45; cursor: default; }
+    #counter { padding: 8px 0; font-weight: 700; }
+    main { display: grid; grid-template-columns: minmax(320px, 42%) minmax(420px, 58%); gap: 16px; padding: 0 24px 24px; }
+    .card { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 2px 10px #1d2c3320; min-height: 520px; }
+    img { width: 100%; max-height: 480px; object-fit: contain; background: #111; border-radius: 6px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #f5f7f8; padding: 10px; border-radius: 6px; max-height: 190px; overflow: auto; }
+    textarea { box-sizing: border-box; width: 100%; min-height: 280px; padding: 10px; border: 1px solid #bac5cc; border-radius: 6px; font-family: Consolas, monospace; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+    .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 500; margin: 10px 0; }
+    .issues { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; margin: 10px 0; }
+    .issues label { display: flex; gap: 6px; font-weight: 500; }
+    #message { min-height: 22px; margin: 10px 0; font-weight: 700; }
+    .ok { color: #126b35; } .error { color: #b42318; }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header><h1>Trip Week 5 人工标注与质检台</h1><p>单人真实操作工作流 · 模型预标注只读 · 保存即记录本次人工修订与显式自审</p></header>
+  <div class="warning">这里不会自动填写标注人、复核人、会话 ID、人工结论或 accepted。请查看原图和约束后再提交；证据不足时使用 Schema 允许的 unknown / null / 空数组。</div>
+  <div class="toolbar">
+    <label>场景<select id="scenario"><option value="image_product_search">商品图搜</option><option value="after_sales">智能售后</option><option value="itinerary_planning">行程规划</option></select></label>
+    <label>阶段<select id="stage"><option value="human">人工修订 + 自审</option><option value="cross_review">盲二次复核</option><option value="core_audit">核心抽检</option></select></label>
+    <button class="secondary" id="prev">上一条</button><button class="secondary" id="next">下一条</button>
+    <span id="counter">载入中…</span>
+  </div>
+  <main>
+    <section class="card"><h3 id="sample">暂无任务</h3><img id="image" hidden><h4>原始输入</h4><pre id="input"></pre><h4 id="reference-title">模型预标注（只读）</h4><pre id="reference"></pre></section>
+    <section class="card">
+      <div class="row"><label>真实操作人<input id="operator" autocomplete="off" placeholder="由本人填写"></label><label>本次 review_session_id<input id="session" autocomplete="off" placeholder="每个阶段使用不同 ID"></label></div>
+      <label id="decision-wrap" hidden>质检决定<select id="decision"><option value="">请选择</option><option value="pass">pass</option><option value="rework">rework</option><option value="reject">reject</option></select></label>
+      <div id="issues-wrap" hidden><h4>问题代码（可多选）</h4><div class="issues" id="issues"></div></div>
+      <label id="annotation-wrap">人工修订 JSON<textarea id="annotation" spellcheck="false"></textarea></label>
+      <label>备注<textarea id="notes" style="min-height:90px" placeholder="可选"></textarea></label>
+      <label class="check" id="self-wrap"><input type="checkbox" id="self-review">我已查看原图、文字约束并逐项自审，本次内容是我的真实人工判断。</label>
+      <div id="message"></div><button id="save">保存并进入下一条</button>
+    </section>
+  </main>
+  <script>
+    const issueCodes = ["classification_error","severity_error","ocr_error","constraint_omission","itinerary_structure_error","required_element_omission","missing_field","invalid_format","image_text_mismatch","ambiguous_evidence","business_compliance"];
+    const $ = id => document.getElementById(id); let offset = 0, total = 0, current = null;
+    $('issues').innerHTML = issueCodes.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join('');
+    async function loadTask(reset=false) {
+      if (reset) offset = 0; const scenario=$('scenario').value, stage=$('stage').value;
+      const response=await fetch(`/api/tasks?scenario=${scenario}&stage=${stage}&offset=${offset}&limit=1`); const data=await response.json();
+      if (!response.ok) return show(data.detail || '载入失败', true); total=data.total; current=data.tasks[0] || null;
+      if (offset >= total && total) { offset=total-1; return loadTask(); }
+      $('counter').textContent = total ? `${offset+1} / ${total}` : '当前阶段无待办'; $('prev').disabled=offset<=0; $('next').disabled=offset+1>=total;
+      const quality=stage!=='human'; $('decision-wrap').hidden=!quality; $('issues-wrap').hidden=!quality; $('annotation-wrap').hidden=quality; $('self-wrap').hidden=quality;
+      $('sample').textContent=current ? `${current.sample_id} · ${stage}` : '暂无任务'; $('input').textContent=current ? JSON.stringify(current.input,null,2) : '';
+      const ref=current ? (quality ? current.human_annotation : current.model_preannotation) : null; $('reference-title').textContent=quality?'当前人工标注（只读）':'模型预标注（只读）'; $('reference').textContent=ref?JSON.stringify(ref,null,2):'无';
+      $('annotation').value=!quality && ref ? JSON.stringify(ref,null,2) : ''; $('decision').value=''; $('notes').value=''; $('self-review').checked=false; document.querySelectorAll('#issues input').forEach(x=>x.checked=false);
+      if (current?.image_url) { $('image').src=current.image_url; $('image').hidden=false; } else { $('image').hidden=true; }
+      show('');
+    }
+    function show(text,error=false){$('message').textContent=text;$('message').className=error?'error':'ok';}
+    $('prev').onclick=()=>{if(offset>0){offset--;loadTask();}}; $('next').onclick=()=>{if(offset+1<total){offset++;loadTask();}};
+    $('scenario').onchange=()=>loadTask(true); $('stage').onchange=()=>loadTask(true);
+    $('save').onclick=async()=>{ if(!current) return; const stage=$('stage').value; let body, url;
+      try { if(stage==='human'){body={sample_id:current.sample_id,scenario:current.scenario,annotator:$('operator').value.trim(),human_annotation:JSON.parse($('annotation').value),self_review_confirmed:$('self-review').checked,review_session_id:$('session').value.trim(),self_review_notes:$('notes').value||null};url='/api/human';}
+      else {body={sample_id:current.sample_id,scenario:current.scenario,stage,decision:$('decision').value,reviewer:$('operator').value.trim(),issues:[...document.querySelectorAll('#issues input:checked')].map(x=>x.value),notes:$('notes').value||null,review_session_id:$('session').value.trim()};url='/api/quality';}
+      const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json(); if(!response.ok) throw new Error(data.detail||JSON.stringify(data)); show('已保存真实人工记录'); await loadTask(false);
+      } catch(error){show(error.message,true);} };
+    loadTask(true);
+  </script>
+</body>
+</html>
