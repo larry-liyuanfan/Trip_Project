@@ -34,6 +34,7 @@ class SpartanMigrationTests(unittest.TestCase):
             '--allowed-local-media-path "${TRIP_PROJECT_ROOT}"',
             script,
         )
+        self.assertIn('args+=(--retry-failures)', script)
 
     def _fixture(self, directory: str) -> tuple[Path, dict, Path]:
         root = Path(directory)

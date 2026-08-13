@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from PIL import Image, UnidentifiedImageError
+
 from src.data.week5_dataset import (
     SCENARIOS,
     Week5DataError,
@@ -323,9 +325,35 @@ def _attempt_error_type(status: str, error: str | None) -> str | None:
         return None
     if error and error.startswith("model_request_error:"):
         return "request_error"
+    if error and error.startswith("input_validation_error:"):
+        return "input_error"
     if error and ("JSON" in error or "json" in error):
         return "json_parse_error"
     return "schema_error"
+
+
+def _validate_candidate_images(root: Path, candidate: dict[str, Any]) -> None:
+    """在请求模型前拒绝缺失、越界或不可解码的候选图片。"""
+    resolved_root = root.resolve()
+    images = candidate.get("input", {}).get("images")
+    if not isinstance(images, list) or not images:
+        raise Week5DataError("candidate requires at least one image")
+    for image in images:
+        relative = image.get("path") if isinstance(image, dict) else None
+        if not isinstance(relative, str) or not relative.strip():
+            raise Week5DataError("candidate image path is missing")
+        path = (resolved_root / relative).resolve()
+        try:
+            path.relative_to(resolved_root)
+        except ValueError as exc:
+            raise Week5DataError(f"candidate image escapes project root: {relative}") from exc
+        if not path.is_file():
+            raise Week5DataError(f"candidate image is missing: {relative}")
+        try:
+            with Image.open(path) as opened:
+                opened.verify()
+        except (OSError, UnidentifiedImageError) as exc:
+            raise Week5DataError(f"candidate image is unreadable: {relative}") from exc
 
 
 def _full_run_identity(
@@ -433,6 +461,7 @@ def run_full_preannotation(
                 raw_output: str | None = None
                 usage: dict[str, Any] | None = None
                 try:
+                    _validate_candidate_images(root, candidate)
                     rendered = _render_preannotation(
                         root, config, candidate, selection, examples
                     )
@@ -459,7 +488,13 @@ def run_full_preannotation(
                         "schema_valid": False,
                     }
                     status = "failed"
-                    error = f"model_request_error: {type(exc).__name__}: {exc}"
+                    prefix = (
+                        "input_validation_error"
+                        if isinstance(exc, Week5DataError)
+                        and str(exc).startswith("candidate ")
+                        else "model_request_error"
+                    )
+                    error = f"{prefix}: {type(exc).__name__}: {exc}"
                 raw_relative: str | None = None
                 if raw_output is not None:
                     raw_path = (
@@ -496,7 +531,7 @@ def run_full_preannotation(
                 }
                 records.append(record)
                 final = record
-                if status == "completed":
+                if status == "completed" or record["error_type"] == "input_error":
                     break
             assert final is not None
             return records, final

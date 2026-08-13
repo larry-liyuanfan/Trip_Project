@@ -107,4 +107,7 @@ args=(--config "${TRIP_CONFIG}" preannotate-all --run-id "${TRIP_RUN_ID}")
 if [[ "${TRIP_RESUME:-0}" == "1" ]]; then
   args+=(--resume)
 fi
+if [[ "${TRIP_RETRY_FAILURES:-0}" == "1" ]]; then
+  args+=(--retry-failures)
+fi
 apptainer "${container_args[@]}" "${container_python}" scripts/manage_week5_dataset.py "${args[@]}"

@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from PIL import Image
+
 from src.data.week5_dataset import (
     SCENARIOS,
     Week5DataError,
@@ -342,13 +344,17 @@ class Week5DatasetTests(unittest.TestCase):
     def test_full_preannotation_is_audited_resumable_and_non_overwriting(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            Image.new("RGB", (2, 2), "white").save(root / "candidate.png")
             pool_dir = root / "outputs/week5/pools"
             pool_dir.mkdir(parents=True)
             for scenario in ("image_product_search", "after_sales", "itinerary_planning"):
                 candidate = {
                     "sample_id": f"sample-{scenario}",
                     "scenario": scenario,
-                    "input": {"images": [], "text_constraints": "2天"},
+                    "input": {
+                        "images": [{"path": "candidate.png"}],
+                        "text_constraints": "2天",
+                    },
                 }
                 (pool_dir / f"{scenario}.jsonl").write_text(
                     json.dumps(candidate, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -418,12 +424,16 @@ class Week5DatasetTests(unittest.TestCase):
     def test_full_preannotation_stops_on_consecutive_request_failures(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            Image.new("RGB", (2, 2), "white").save(root / "candidate.png")
             pool_dir = root / "outputs/week5/pools"
             pool_dir.mkdir(parents=True)
             for scenario in SCENARIOS:
                 candidate = {
                     "sample_id": f"sample-{scenario}", "scenario": scenario,
-                    "input": {"images": [], "text_constraints": "unknown"},
+                    "input": {
+                        "images": [{"path": "candidate.png"}],
+                        "text_constraints": "unknown",
+                    },
                 }
                 (pool_dir / f"{scenario}.jsonl").write_text(
                     json.dumps(candidate) + "\n", encoding="utf-8"
@@ -459,6 +469,56 @@ class Week5DatasetTests(unittest.TestCase):
                 root / "outputs/week5/runs/full-fail/failures.jsonl"
             ).read_text(encoding="utf-8").splitlines()
             self.assertEqual(len(failures), 2)
+
+    def test_full_preannotation_records_unreadable_images_without_model_requests(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "candidate.jpg").write_text("AccessDenied", encoding="utf-8")
+            pool_dir = root / "outputs/week5/pools"
+            pool_dir.mkdir(parents=True)
+            for scenario in SCENARIOS:
+                candidate = {
+                    "sample_id": f"sample-{scenario}",
+                    "scenario": scenario,
+                    "input": {
+                        "images": [{"path": "candidate.jpg"}],
+                        "text_constraints": "unknown",
+                    },
+                }
+                (pool_dir / f"{scenario}.jsonl").write_text(
+                    json.dumps(candidate) + "\n", encoding="utf-8"
+                )
+            config = {
+                "dataset_version": "week5_instruction_candidates_v1",
+                "paths": {"output_dir": "outputs/week5"},
+                "targets": {scenario: 1 for scenario in SCENARIOS},
+                "prompt_versions": {scenario: "prompt" for scenario in SCENARIOS},
+                "runtime": {"base_url": "http://127.0.0.1:18001/v1", "concurrency": 1},
+                "full_preannotation": {
+                    "shard_size": 2,
+                    "max_retries": 2,
+                    "max_consecutive_request_failures": 1,
+                },
+            }
+            runtime = {
+                "model_name": "model",
+                "served_model_name": "model",
+                "live_base_url": "http://127.0.0.1:18001/v1",
+                "timeout_seconds": 1,
+                "generation": {},
+                "model_config": {},
+            }
+            with patch("src.data.week5_workflow._runtime", return_value=runtime), patch(
+                "src.data.week5_workflow._fewshot_context", return_value=({}, {})
+            ), patch("src.data.week5_workflow.post_chat_completion") as request:
+                summary = run_full_preannotation(root, config, "invalid-images")
+            request.assert_not_called()
+            self.assertEqual(summary["failed_this_process"], 3)
+            attempts = (
+                root / "outputs/week5/runs/invalid-images/attempts.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(attempts), 3)
+            self.assertTrue(all(json.loads(row)["error_type"] == "input_error" for row in attempts))
 
     def test_single_operator_qc_selection_is_nested_and_rate_bounded(self) -> None:
         config = load_week5_config(ROOT, "configs/week5_dataset.json")
