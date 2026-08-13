@@ -25,6 +25,7 @@ from src.data.week5_dataset import (
 )
 from src.data.week5_workflow import (
     _endpoint_allows_anonymous_access,
+    _parse_and_validate_week5_output,
     _require_model_access,
     _runtime,
     apply_human_corrections,
@@ -34,12 +35,55 @@ from src.data.week5_workflow import (
     run_full_preannotation,
     run_itinerary_paired_prompt_pilot,
 )
+from src.evaluation.results import parse_and_validate_output
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class Week5DatasetTests(unittest.TestCase):
+    def test_week5_after_sales_preserves_string_ocr_as_one_item(self) -> None:
+        output = {
+            "issue_type": "hygiene_stain",
+            "severity": "medium",
+            "issue_location": "room 302",
+            "key_information": ["visible stain"],
+            "ocr_text": "EVENT ID: 123|IMPACT LEVEL: MEDIUM\nVISIBLE STAIN",
+            "observed_evidence": ["stain on bedding"],
+            "unknown_fields": [],
+            "confidence": 0.8,
+        }
+
+        strict = parse_and_validate_output(
+            ROOT, "after_sales", json.dumps(output), "v1"
+        )
+        normalized = _parse_and_validate_week5_output(
+            ROOT, "after_sales", json.dumps(output), "v1"
+        )
+
+        self.assertFalse(strict["schema_valid"])
+        self.assertTrue(normalized["schema_valid"])
+        self.assertEqual(normalized["parsed_output"]["ocr_text"], [output["ocr_text"]])
+
+    def test_week5_normalization_does_not_repair_other_schema_errors(self) -> None:
+        output = {
+            "issue_type": "not_in_schema",
+            "severity": "medium",
+            "issue_location": None,
+            "key_information": [],
+            "ocr_text": "VISIBLE TEXT",
+            "observed_evidence": [],
+            "unknown_fields": [],
+            "confidence": 0.8,
+        }
+
+        normalized = _parse_and_validate_week5_output(
+            ROOT, "after_sales", json.dumps(output), "v1"
+        )
+
+        self.assertFalse(normalized["schema_valid"])
+        self.assertIn("issue_type", normalized["error"])
+
     def test_only_loopback_model_endpoints_allow_anonymous_access(self) -> None:
         self.assertTrue(_endpoint_allows_anonymous_access("http://127.0.0.1:18001/v1"))
         self.assertTrue(_endpoint_allows_anonymous_access("http://localhost:8000/v1"))

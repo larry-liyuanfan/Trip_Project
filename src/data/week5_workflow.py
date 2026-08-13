@@ -152,6 +152,33 @@ def _render_preannotation(
     return rendered
 
 
+def _parse_and_validate_week5_output(
+    root: Path,
+    scenario: str,
+    raw_output: str,
+    schema_version: str,
+) -> dict[str, Any]:
+    """Apply only lossless Week 5 type normalization before Schema validation."""
+    parsed = parse_and_validate_output(root, scenario, raw_output, schema_version)
+    output = parsed.get("parsed_output")
+    if not parsed["json_valid"] or not isinstance(output, dict):
+        return parsed
+
+    ocr_text = output.get("ocr_text")
+    if scenario != "after_sales" or not isinstance(ocr_text, str):
+        return parsed
+
+    # 模型偶尔把 OCR 数组压成单个字符串；仅包一层数组，原字符串逐字保留。
+    normalized = dict(output)
+    normalized["ocr_text"] = [ocr_text]
+    return parse_and_validate_output(
+        root,
+        scenario,
+        json.dumps(normalized, ensure_ascii=False),
+        schema_version,
+    )
+
+
 def run_preannotation(
     root: Path, config: dict[str, Any], scenario: str, *, limit: int | None = None,
     retry_failures: bool = False,
@@ -193,7 +220,12 @@ def run_preannotation(
             raw_output = response["choices"][0]["message"]["content"]
             if not isinstance(raw_output, str):
                 raise Week5DataError("model response content must be text")
-            parsed = parse_and_validate_output(root, scenario, raw_output, "v2" if scenario == "itinerary_planning" else "v1")
+            parsed = _parse_and_validate_week5_output(
+                root,
+                scenario,
+                raw_output,
+                "v2" if scenario == "itinerary_planning" else "v1",
+            )
             status = "completed" if parsed["schema_valid"] else "failed"
             error = parsed["error"]
         except Exception as exc:
@@ -475,7 +507,7 @@ def run_full_preannotation(
                     usage = response.get("usage") if isinstance(response.get("usage"), dict) else None
                     if not isinstance(raw_output, str):
                         raise Week5DataError("model response content must be text")
-                    parsed = parse_and_validate_output(
+                    parsed = _parse_and_validate_week5_output(
                         root, scenario, raw_output,
                         "v2" if scenario == "itinerary_planning" else "v1",
                     )
@@ -784,7 +816,7 @@ def run_itinerary_paired_prompt_pilot(
                 usage = response.get("usage") if isinstance(response.get("usage"), dict) else None
                 if not isinstance(raw_output, str):
                     raise Week5DataError("model response content must be text")
-                parsed = parse_and_validate_output(
+                parsed = _parse_and_validate_week5_output(
                     root, "itinerary_planning", raw_output, "v2"
                 )
                 status = "completed" if parsed["schema_valid"] else "failed"
