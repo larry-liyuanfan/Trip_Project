@@ -43,8 +43,8 @@ def main() -> None:
         if args.command == "check-environment":
             payload = environment_report(require_cuda=True)
         elif args.command == "validate-data":
-            rows = list(iter_training_rows(args.input, scenario=args.scenario))
-            payload = {"status": "ok", "scenario": args.scenario, "records": len(rows)}
+            count = sum(1 for _ in iter_training_rows(args.input, scenario=args.scenario))
+            payload = {"status": "ok", "scenario": args.scenario, "records": count}
         else:
             payload = run_small_sample_training(
                 config,

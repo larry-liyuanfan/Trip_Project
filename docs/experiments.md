@@ -313,6 +313,22 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
+## 2026-08-14：Week 5 Spartan 最终合并与 Week 6 数据锁定
+
+- Git 基线：`824530e` 加本次未提交工作区；Spartan merge job `29190753`，打包 job
+  `29190774`，均为 `COMPLETED 0:0`。
+- 合并：商品/售后/行程成功 49,957/19,991/9,988，总成功 79,936；最终失败 64，
+  与 80,000 候选全集严格闭合。归档 SHA-256 为
+  `a9ae67cb677bb940c94197e692ba1ce85671a83cba9e5fb070b012dfaa43abee`。
+- 数据锁定：sample ID SHA-256 阈值切分，seed `20260814`，validation 5%；manifest
+  SHA-256 `877c16d8ee79d9b0601fe9b6a5f531dfcbd81bb7e16f3fbd6e2526b760d62198`，split
+  SHA-256 `7ec02ed629a4b434dae39c5eb32ff783ab7fafdde8ac151e4124b34a294fc018`。
+- 标签策略：真实人工修订 27 条、权重 1.0；其余 79,909 条模型预标注显式标记为
+  silver、权重 0.5。没有自动创建人工审核身份或金标状态。
+- 验证：六份训练/验证 JSONL 全部通过数据契约；Week 5 pools 与冻结评测隔离通过；
+  完整 unittest 312/312。本机环境因未安装 torch/transformers/PEFT/bitsandbytes
+  返回 `missing_dependencies`，不作为 Spartan GPU pilot 通过证据。
+
 ## 2026-08-12：Spartan vLLM 容器启动修复
 
 - `29114276`：`FAILED 4:0`，容器无 `python`、仅有 `/usr/bin/python3`；没有模型请求。

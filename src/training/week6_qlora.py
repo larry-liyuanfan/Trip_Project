@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 import json
+from itertools import islice
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -182,13 +183,20 @@ def run_small_sample_training(
         raise Week6TrainingError("formal training requires an explicit locked Week 5 dataset")
     if output_dir.exists():
         raise Week6TrainingError("refusing to overwrite an existing training output directory")
-    rows = list(iter_training_rows(train_path, scenario=scenario))
-    eval_rows = list(iter_training_rows(eval_path, scenario=scenario))
+    max_samples = int(config["pilot"]["max_samples"])
+    rows = list(islice(iter_training_rows(train_path, scenario=scenario), max_samples))
+    eval_rows = list(islice(iter_training_rows(eval_path, scenario=scenario), max_samples))
     if not rows or not eval_rows:
         raise Week6TrainingError("training and evaluation inputs must be non-empty")
-    max_samples = int(config["pilot"]["max_samples"])
-    rows = rows[:max_samples]
-    eval_rows = eval_rows[:max_samples]
+    locks = {
+        json.dumps(row["dataset_lock"], sort_keys=True, separators=(",", ":"))
+        for row in [*rows, *eval_rows]
+    }
+    if len(locks) != 1:
+        raise Week6TrainingError("training and validation inputs use different dataset locks")
+    expected_version = config.get("dataset", {}).get("dataset_version")
+    if expected_version and rows[0]["dataset_lock"]["dataset_version"] != expected_version:
+        raise Week6TrainingError("training inputs do not match the configured dataset version")
     report = environment_report(require_cuda=True)
     if report["status"] != "ok":
         raise Week6TrainingError(f"training environment is not ready: {report['status']}")

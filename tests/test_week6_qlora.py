@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from src.training.week6_qlora import (
@@ -62,6 +63,72 @@ class Week6QLoRATests(unittest.TestCase):
                 },
             }) + "\n", encoding="utf-8")
             self.assertEqual(len(list(iter_training_rows(path, scenario="itinerary_planning"))), 1)
+
+    def test_pilot_reads_only_configured_sample_cap(self) -> None:
+        from src.training.week6_qlora import run_small_sample_training
+
+        config = load_training_config(ROOT / "configs/week6/qwen3_vl_8b_qlora.json")
+        config["pilot"]["max_samples"] = 2
+        rows_read = []
+
+        def rows(*args, **kwargs):
+            for index in range(100):
+                rows_read.append(index)
+                yield {
+                    "sample_id": str(index),
+                    "dataset_lock": {
+                        "dataset_version": config["dataset"]["dataset_version"],
+                        "manifest_sha256": "a" * 64,
+                        "split_sha256": "b" * 64,
+                    },
+                }
+
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "src.training.week6_qlora.iter_training_rows", side_effect=rows
+        ), patch(
+            "src.training.week6_qlora.environment_report",
+            return_value={"status": "cuda_unavailable"},
+        ):
+            with self.assertRaisesRegex(Week6TrainingError, "cuda_unavailable"):
+                run_small_sample_training(
+                    config,
+                    scenario="after_sales",
+                    train_path=Path(directory) / "train.jsonl",
+                    eval_path=Path(directory) / "eval.jsonl",
+                    output_dir=Path(directory) / "output",
+                    dataset_lock_confirmed=True,
+                )
+        self.assertEqual(len(rows_read), 4)
+
+    def test_pilot_rejects_mixed_dataset_locks(self) -> None:
+        from src.training.week6_qlora import run_small_sample_training
+
+        config = load_training_config(ROOT / "configs/week6/qwen3_vl_8b_qlora.json")
+        config["pilot"]["max_samples"] = 1
+
+        def rows(path, **kwargs):
+            marker = "a" if Path(path).name == "train.jsonl" else "c"
+            yield {
+                "sample_id": marker,
+                "dataset_lock": {
+                    "dataset_version": config["dataset"]["dataset_version"],
+                    "manifest_sha256": marker * 64,
+                    "split_sha256": "b" * 64,
+                },
+            }
+
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "src.training.week6_qlora.iter_training_rows", side_effect=rows
+        ):
+            with self.assertRaisesRegex(Week6TrainingError, "different dataset locks"):
+                run_small_sample_training(
+                    config,
+                    scenario="after_sales",
+                    train_path=Path(directory) / "train.jsonl",
+                    eval_path=Path(directory) / "eval.jsonl",
+                    output_dir=Path(directory) / "output",
+                    dataset_lock_confirmed=True,
+                )
 
 
 if __name__ == "__main__":

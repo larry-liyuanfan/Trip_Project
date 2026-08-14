@@ -464,14 +464,17 @@ Week 6 使用 `configs/week6/qwen3_vl_8b_qlora.json`。训练依赖保持独立�
 
 ```bash
 pip install -r requirements-training.txt
+python scripts/prepare_week6_data.py
 python scripts/train_week6_qlora.py check-environment
-python scripts/train_week6_qlora.py validate-data --scenario <scenario> --input <locked.jsonl>
+python scripts/train_week6_qlora.py validate-data --scenario <scenario> \
+  --input outputs/week6/locked_data/<dataset-version>/<scenario>/train.jsonl
 ```
 
 正式 `train-pilot` 必须显式提供锁定的数据版本、manifest/split 哈希和
 `--confirm-dataset-lock`。当前框架使用 8B、NF4 double quant、bf16、LoRA
 `r=16/alpha=32/dropout=0.05` 和等效 batch 16；冻结 Week 3 评测集不作为 validation
-或调参数据。
+或调参数据。数据锁定采用 sample ID SHA-256 的确定性 95%/5% 训练/验证切分；模型
+预标注保持 `model_preannotation` 且权重为 0.5，只有真实人工修订使用 1.0。
 
 ## Aliyun Runtime
 

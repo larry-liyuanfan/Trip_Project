@@ -8,6 +8,15 @@
     "model_preannotation_max_weight": 0.5,
     "frozen_week3_evaluation_usage": "final_evaluation_after_parameter_lock_only"
   },
+  "dataset": {
+    "dataset_version": "week6_week5_spartan_merge_20260814_8cbfd8d_v1",
+    "week5_config": "configs/week5_dataset_qwen3_vl_4b_single_operator.json",
+    "source_merge_dir": "outputs/week5_qwen3_vl_4b/spartan/week5_spartan_merge_20260814_8cbfd8d",
+    "output_root": "outputs/week6/locked_data",
+    "split_seed": 20260814,
+    "validation_fraction": 0.05,
+    "model_preannotation_weight": 0.5
+  },
   "quantization": {
     "load_in_4bit": true,
     "bnb_4bit_quant_type": "nf4",

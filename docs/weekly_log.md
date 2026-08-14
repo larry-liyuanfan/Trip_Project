@@ -341,6 +341,23 @@ as the current validated dataset or accepted baseline.
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
 
+## 2026-08-14：Week 5 最终闭环与 Week 6 数据锁定
+
+- Spartan merge job `29190753` 为 `COMPLETED 0:0`；下载归档 SHA-256
+  `a9ae67cb677bb940c94197e692ba1ce85671a83cba9e5fb070b012dfaa43abee`。
+- 最终覆盖为 79,936 条 Schema-valid 成功与 64 条最终失败，共 80,000 个唯一候选；
+  失败含 44 条不可读输入、19 条 Schema 错误和 1 条 JSON 解析错误。44 条不可读输入
+  保持 `input_error`，未请求模型或替换候选池。
+- 全量预标注已同步到本地标注台，保留真人完成的商品/售后/行程 10/8/9 条修订；
+  自动化没有增加人工身份、自审、交叉复核、核心抽检或 accepted。
+- Week 6 锁定版本为 `week6_week5_spartan_merge_20260814_8cbfd8d_v1`；manifest SHA-256
+  `877c16d8ee79d9b0601fe9b6a5f531dfcbd81bb7e16f3fbd6e2526b760d62198`，split SHA-256
+  `7ec02ed629a4b434dae39c5eb32ff783ab7fafdde8ac151e4124b34a294fc018`。
+- 训练/验证计数分别为商品 47,393/2,564、售后 19,039/952、行程 9,502/486；
+  27 条真人修订权重 1.0，其余 79,909 条 silver 权重 0.5。六份 JSONL 均通过流式
+  `validate-data`；本机未安装 GPU 训练依赖，因此环境检查如实为 `missing_dependencies`。
+- 当前完整 unittest 为 312/312，Week 5 `validate-pools` 返回 `status=ok`。
+
 ## 2026-08-12：Spartan 容器启动错误修复
 
 - `29114276` 确认因 vLLM 镜像仅提供 `python3` 而失败；入口已改为可预检的
