@@ -69,6 +69,7 @@
       "after_sales": 3,
       "itinerary_planning": 3
     },
+    "dialogue_human_review_target": 100,
     "self_review_mode": "inline_human_confirmation",
     "cross_review_mode": "same_operator_blind_second_pass",
     "distinct_review_session_required": true,

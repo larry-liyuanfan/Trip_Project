@@ -383,7 +383,8 @@ def create_annotation_station(
 
     @app.get("/api/status")
     def status() -> dict[str, Any]:
-        store.refresh()
+        # 服务启动时已加载全量只读候选；提交路径只增量刷新小型人工文件。
+        # 避免每次状态查询重新扫描 80,000 条记录导致页面等待。
         return store.summary()
 
     @app.get("/api/tasks")

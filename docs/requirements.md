@@ -367,12 +367,14 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - 2026-08-14 用户进一步确认采用可完成的抽样验收：三场景各固定选择 100 条人工
   验证样本，并在该队列内固定包含每场景 10 条盲二次复核候选和 3 条核心抽检候选。
   已完成的 27 条真实修订计入三场景各 100 条目标，因此计划总操作为
-  `300 + 30 + 9 = 339`，满足 3 小时与低于 500 次边界。未进入人工队列的成功
+  `300 + 30 + 9 = 339`。多轮对话先自动生成 10,000 条候选，再固定抽取 100 条由
+  本人验收，因此总人工操作上限为 439，满足 3 小时与低于 500 次边界。未进入人工队列的成功
   预标注保持 `silver`，不得计为 `human_revised`、`accepted` 或人工合格数据。
 - 原始 4.5 万/1.8 万/0.9 万单轮合格目标和 0.9 万人工合格对话目标，在当前单人
   预算下不作为人工完成声明；工程输出、silver 候选、人工抽样合格和对话候选/人工
   合格必须分别报告。自动生成的多轮对话可以作为候选，但未由本人检查的记录保持
-  `awaiting_human_validation`，不得美化为人工 accepted。
+  `awaiting_human_validation`；仅抽样验收通过的对话可计为人工 accepted，不得美化
+  未抽样对话。
 - Week 5 工程验收要求 80,000 条均具有成功预标注或明确未解决失败记录；人工
   `human_revised/self_reviewed/cross_reviewed/core_audited/accepted` 和对话 accepted
   继续按真实输入单独报告。
