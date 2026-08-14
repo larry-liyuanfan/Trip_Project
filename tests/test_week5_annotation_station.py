@@ -115,6 +115,20 @@ class Week5AnnotationStationTests(unittest.TestCase):
                 store.queue_ids("image_product_search", "cross_review"), [sample_id]
             )
 
+    def test_task_removes_uncontrolled_model_labels_from_human_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store, sample_id = self.fixture(directory)
+            preannotation = store.preannotations["image_product_search"][sample_id]
+            preannotation["parsed_output"]["style_tags"] = ["traditional", "decorative"]
+            task = store.task("image_product_search", "human", sample_id)
+            self.assertEqual(
+                task["model_preannotation"]["style_tags"],
+                ["traditional", "decorative"],
+            )
+            self.assertEqual(task["human_draft"]["style_tags"], ["traditional"])
+            self.assertEqual(len(task["draft_warnings"]), 1)
+            self.assertIn("decorative", task["draft_warnings"][0])
+
     def test_image_path_cannot_escape_project_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             store, _ = self.fixture(directory)

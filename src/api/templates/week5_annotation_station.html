@@ -31,6 +31,7 @@
     .issues { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; margin: 10px 0; }
     .issues label { display: flex; gap: 6px; font-weight: 500; }
     #message { min-height: 22px; margin: 10px 0; font-weight: 700; }
+    #draft-warnings { padding: 9px 11px; background: #fff0ed; border-left: 4px solid #b42318; color: #8f1f16; font-size: 13px; white-space: pre-wrap; }
     .ok { color: #126b35; } .error { color: #b42318; }
     @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
   </style>
@@ -52,6 +53,7 @@
       <label id="decision-wrap" hidden>质检决定<select id="decision"><option value="">请选择</option><option value="pass">pass</option><option value="rework">rework</option><option value="reject">reject</option></select></label>
       <div id="issues-wrap" hidden><h4>问题代码（可多选）</h4><div class="issues" id="issues"></div></div>
       <label id="annotation-wrap">人工修订 JSON<textarea id="annotation" spellcheck="false"></textarea></label>
+      <p id="draft-warnings" hidden></p>
       <label>备注<textarea id="notes" style="min-height:90px" placeholder="可选"></textarea></label>
       <label class="check" id="self-wrap"><input type="checkbox" id="self-review">我已查看原图、文字约束并逐项自审，本次内容是我的真实人工判断。</label>
       <div id="message"></div><button id="save">保存并进入下一条</button>
@@ -97,7 +99,10 @@
       const quality=stage!=='human'; $('decision-wrap').hidden=!quality; $('issues-wrap').hidden=!quality; $('annotation-wrap').hidden=quality; $('self-wrap').hidden=quality;
       $('sample').textContent=current ? `${current.sample_id} · ${stage}` : '暂无任务'; $('input').textContent=current ? JSON.stringify(current.input,null,2) : ''; $('input-cn').textContent=current ? JSON.stringify(translated(current.input),null,2) : '';
       const ref=current ? (quality ? current.human_annotation : current.model_preannotation) : null; $('reference-title').textContent=quality?'当前人工标注（只读）':'模型预标注（只读）'; $('reference-cn-title').textContent=quality?'当前人工标注（中文速览）':'模型预标注（中文速览）'; $('reference').textContent=ref?JSON.stringify(ref,null,2):'无'; $('reference-cn').textContent=ref?JSON.stringify(translated(ref),null,2):'无';
-      $('annotation').value=!quality && ref ? JSON.stringify(ref,null,2) : ''; $('decision').value=''; $('notes').value=''; $('self-review').checked=false; document.querySelectorAll('#issues input').forEach(x=>x.checked=false);
+      const draft=!quality && current ? current.human_draft : null;
+      $('annotation').value=draft ? JSON.stringify(draft,null,2) : ''; $('decision').value=''; $('notes').value=''; $('self-review').checked=false; document.querySelectorAll('#issues input').forEach(x=>x.checked=false);
+      const warnings=!quality && current ? (current.draft_warnings || []) : [];
+      $('draft-warnings').hidden=!warnings.length; $('draft-warnings').textContent=warnings.length ? `提交前提示：\n${warnings.join('\n')}\n请结合原图确认草稿，必要时从项目受控词表中人工选择其他标签。` : '';
       if (current?.image_url) { $('image').src=current.image_url; $('image').hidden=false; } else { $('image').hidden=true; }
       show('');
     }

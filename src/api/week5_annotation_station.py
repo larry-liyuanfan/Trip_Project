@@ -148,14 +148,51 @@ class Week5AnnotationStore:
             "image_url": self._image_url(candidate),
         }
         if stage == "human":
-            task["model_preannotation"] = deepcopy(
+            model_preannotation = deepcopy(
                 self.preannotations[scenario][sample_id].get("parsed_output")
+            )
+            task["model_preannotation"] = model_preannotation
+            task["human_draft"], task["draft_warnings"] = self._human_draft(
+                scenario, model_preannotation
             )
         else:
             annotation = self.annotations[scenario][sample_id]
             task["annotation_revision"] = int(annotation["revision"])
             task["human_annotation"] = deepcopy(annotation["human_annotation"])
         return task
+
+    def _human_draft(
+        self, scenario: str, model_preannotation: Any
+    ) -> tuple[Any, list[str]]:
+        """移除模型生成的非受控标签，同时保留原预标注作为只读证据。"""
+        draft = deepcopy(model_preannotation)
+        if not isinstance(draft, dict):
+            return draft, []
+        tool = json.loads(
+            (self.root / "configs/week5/annotation_tool.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        vocabularies = tool.get("label_vocabularies", {})
+        fields = {
+            "image_product_search": ("style_tags", "visible_facilities"),
+            "after_sales": (),
+            "itinerary_planning": ("style_preferences",),
+        }[scenario]
+        warnings: list[str] = []
+        for field in fields:
+            values = draft.get(field, [])
+            if not isinstance(values, list):
+                continue
+            allowed = set(vocabularies.get(field, []))
+            removed = [value for value in values if value not in allowed]
+            if removed:
+                draft[field] = [value for value in values if value in allowed]
+                warnings.append(
+                    f"{field} 已从人工草稿移除非受控模型标签: "
+                    + ", ".join(map(str, removed))
+                )
+        return draft, warnings
 
     def _image_url(self, candidate: dict[str, Any]) -> str | None:
         image = candidate.get("image")
