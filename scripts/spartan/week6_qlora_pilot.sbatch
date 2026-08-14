@@ -19,12 +19,17 @@ set -euo pipefail
 : "${TRIP_VENV:?set the project-scoped Spartan virtual environment}"
 
 cd "${TRIP_PROJECT_ROOT}"
+module purge
+module load GCCcore/11.3.0
+module load Python/3.11.3
 export HF_HOME="${TRIP_HF_HOME}"
 export PYTHONUNBUFFERED=1
 source "${TRIP_VENV}/bin/activate"
 python scripts/train_week6_qlora.py check-environment
 python scripts/train_week6_qlora.py validate-data \
   --scenario "${TRIP_SCENARIO}" --input "${TRIP_TRAIN_INPUT}"
+python scripts/train_week6_qlora.py validate-data \
+  --scenario "${TRIP_SCENARIO}" --input "${TRIP_EVAL_INPUT}"
 python scripts/train_week6_qlora.py train-pilot \
   --scenario "${TRIP_SCENARIO}" \
   --train-input "${TRIP_TRAIN_INPUT}" \
