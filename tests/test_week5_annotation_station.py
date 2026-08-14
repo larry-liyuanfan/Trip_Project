@@ -14,6 +14,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Week5AnnotationStationTests(unittest.TestCase):
+    def test_station_prefills_authorized_operator_and_shows_chinese_preview(self) -> None:
+        html = (ROOT / "src/api/templates/week5_annotation_station.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('value="Larry Fan"', html)
+        self.assertIn('id="reference-cn"', html)
+        self.assertIn('business_category:"商家类别"', html)
+        self.assertIn("newSessionId()", html)
+
     def fixture(self, directory: str) -> tuple[Week5AnnotationStore, str]:
         root = Path(directory)
         (root / "configs/evaluation/schemas").mkdir(parents=True)
