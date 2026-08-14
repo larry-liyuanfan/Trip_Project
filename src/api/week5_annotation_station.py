@@ -97,6 +97,10 @@ class Week5AnnotationStore:
                 self.quality[scenario] = read_jsonl(
                     self.output_dir / "quality" / f"{scenario}.jsonl"
                 )
+            self.human_cohorts = {
+                scenario: self._compute_human_cohort_ids(scenario)
+                for scenario in SCENARIOS
+            }
 
     def _refresh_records(self, scenario: str) -> None:
         """提交后仅刷新小型人工记录，避免重复扫描 80,000 条候选池。"""
@@ -124,7 +128,7 @@ class Week5AnnotationStore:
                 )
         return passed
 
-    def _human_cohort_ids(self, scenario: str) -> set[str]:
+    def _compute_human_cohort_ids(self, scenario: str) -> set[str]:
         """按固定哈希构造小规模人工验证队列，并保留已经完成的真实记录。"""
         quality = self.config.get("quality", {})
         targets = quality.get("human_review_targets", {})
@@ -175,6 +179,9 @@ class Week5AnnotationStore:
                 break
             selected.add(sample_id)
         return selected
+
+    def _human_cohort_ids(self, scenario: str) -> set[str]:
+        return self.human_cohorts[scenario]
 
     def queue_ids(self, scenario: str, stage: Stage) -> list[str]:
         if scenario not in SCENARIOS:
