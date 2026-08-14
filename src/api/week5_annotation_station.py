@@ -97,6 +97,22 @@ class Week5AnnotationStore:
                     self.output_dir / "quality" / f"{scenario}.jsonl"
                 )
 
+    def _refresh_records(self, scenario: str) -> None:
+        """提交后仅刷新小型人工记录，避免重复扫描 80,000 条候选池。"""
+        latest: dict[str, dict[str, Any]] = {}
+        for row in read_jsonl(
+            self.output_dir / "annotations" / f"{scenario}.jsonl"
+        ):
+            sample_id = str(row["sample_id"])
+            if int(row.get("revision", 0)) >= int(
+                latest.get(sample_id, {}).get("revision", 0)
+            ):
+                latest[sample_id] = row
+        self.annotations[scenario] = latest
+        self.quality[scenario] = read_jsonl(
+            self.output_dir / "quality" / f"{scenario}.jsonl"
+        )
+
     def _passed(self, scenario: str) -> dict[str, set[tuple[str, int]]]:
         passed = {stage: set() for stage in ("self_review", "cross_review", "core_audit")}
         for row in self.quality[scenario]:
@@ -246,9 +262,17 @@ class Week5AnnotationStore:
                 encoding="utf-8",
             )
             result = apply_human_corrections(
-                self.root, self.config, submission.scenario, path
+                self.root,
+                self.config,
+                submission.scenario,
+                path,
+                cached_candidates=self.candidates[submission.scenario],
+                cached_preannotated_ids=set(
+                    self.preannotations[submission.scenario]
+                ),
+                cached_existing=list(self.annotations[submission.scenario].values()),
             )
-            self.refresh()
+            self._refresh_records(submission.scenario)
             return result
 
     def save_quality(self, submission: QualitySubmission) -> dict[str, int]:
@@ -265,9 +289,14 @@ class Week5AnnotationStore:
                 encoding="utf-8",
             )
             result = apply_quality_records(
-                self.root, self.config, submission.scenario, path
+                self.root,
+                self.config,
+                submission.scenario,
+                path,
+                cached_annotations=self.annotations[submission.scenario],
+                cached_existing=self.quality[submission.scenario],
             )
-            self.refresh()
+            self._refresh_records(submission.scenario)
             return result
 
 

@@ -997,20 +997,35 @@ def export_audited_pilot_annotation_packet(
 
 
 def apply_human_corrections(
-    root: Path, config: dict[str, Any], scenario: str, input_path: Path,
+    root: Path,
+    config: dict[str, Any],
+    scenario: str,
+    input_path: Path,
+    *,
+    cached_candidates: dict[str, dict[str, Any]] | None = None,
+    cached_preannotated_ids: set[str] | None = None,
+    cached_existing: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
     """Append a real human correction and its explicit inline self-review."""
     if scenario not in SCENARIOS:
         raise Week5DataError(f"unsupported scenario: {scenario}")
-    candidates = {row["sample_id"]: row for row in load_pools(root, config)[scenario]}
+    candidates = (
+        cached_candidates
+        if cached_candidates is not None
+        else {row["sample_id"]: row for row in load_pools(root, config)[scenario]}
+    )
     preannotation_path = root / config["paths"]["output_dir"] / "preannotations" / f"{scenario}.jsonl"
-    preannotated = {
-        row["sample_id"] for row in read_jsonl(preannotation_path)
-        if row.get("status") == "completed" and row.get("schema_valid") is True
-    }
+    preannotated = (
+        cached_preannotated_ids
+        if cached_preannotated_ids is not None
+        else {
+            row["sample_id"] for row in read_jsonl(preannotation_path)
+            if row.get("status") == "completed" and row.get("schema_valid") is True
+        }
+    )
     submitted = read_jsonl(input_path)
     output = root / config["paths"]["output_dir"] / "annotations" / f"{scenario}.jsonl"
-    existing = read_jsonl(output)
+    existing = cached_existing if cached_existing is not None else read_jsonl(output)
     revisions: dict[str, int] = {}
     for row in existing:
         revisions[row["sample_id"]] = max(revisions.get(row["sample_id"], 0), int(row.get("revision", 1)))
@@ -1078,7 +1093,9 @@ def export_quality_packet(
         raise Week5DataError(f"unsupported scenario: {scenario}")
     if stage not in {"cross_review", "core_audit"}:
         raise Week5DataError("single-operator QC export supports cross_review or core_audit")
-    candidates = {row["sample_id"]: row for row in load_pools(root, config)[scenario]}
+    candidates = {
+        row["sample_id"]: row for row in load_pools(root, config)[scenario]
+    }
     annotations = {
         row["sample_id"]: row
         for row in read_jsonl(
@@ -1138,14 +1155,24 @@ def export_quality_packet(
 
 
 def apply_quality_records(
-    root: Path, config: dict[str, Any], scenario: str, input_path: Path,
+    root: Path,
+    config: dict[str, Any],
+    scenario: str,
+    input_path: Path,
+    *,
+    cached_annotations: dict[str, dict[str, Any]] | None = None,
+    cached_existing: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
     """Validate and append self-review, same-scenario cross-review, or core audit."""
     annotations_path = root / config["paths"]["output_dir"] / "annotations" / f"{scenario}.jsonl"
-    annotations = {row["sample_id"]: row for row in read_jsonl(annotations_path)}
+    annotations = (
+        cached_annotations
+        if cached_annotations is not None
+        else {row["sample_id"]: row for row in read_jsonl(annotations_path)}
+    )
     rows = read_jsonl(input_path)
     output = root / config["paths"]["output_dir"] / "quality" / f"{scenario}.jsonl"
-    existing = read_jsonl(output)
+    existing = cached_existing if cached_existing is not None else read_jsonl(output)
     allowed_issues = set(json.loads((root / "configs/week5/annotation_tool.json").read_text(encoding="utf-8"))["qc_issue_codes"])
     checked: list[dict[str, Any]] = []
     for row in rows:

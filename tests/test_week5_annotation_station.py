@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.api.week5_annotation_station import HumanSubmission, Week5AnnotationStore
 from src.data.week5_dataset import Week5DataError
@@ -109,7 +110,11 @@ class Week5AnnotationStationTests(unittest.TestCase):
             with self.assertRaises(Week5DataError):
                 store.save_human(submission)
             submission.self_review_confirmed = True
-            self.assertEqual(store.save_human(submission), {"applied": 1})
+            with patch(
+                "src.data.week5_workflow.load_pools",
+                side_effect=AssertionError("station submit must use its candidate cache"),
+            ):
+                self.assertEqual(store.save_human(submission), {"applied": 1})
             self.assertEqual(store.queue_ids("image_product_search", "human"), [])
             self.assertEqual(
                 store.queue_ids("image_product_search", "cross_review"), [sample_id]
