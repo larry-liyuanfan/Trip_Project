@@ -1259,6 +1259,7 @@ def _qualified_sample_ids(root: Path, config: dict[str, Any]) -> dict[str, list[
 
 def generate_dialogue_candidates(
     root: Path, config: dict[str, Any], *, run_id: str, limit: int | None = None,
+    resume: bool = False,
 ) -> dict[str, int]:
     """Generate resumable model-assisted dialogues only from qualified single-turn data."""
     _require_model_access(config)
@@ -1267,13 +1268,37 @@ def generate_dialogue_candidates(
         raise Week5DataError("each scenario needs qualified human/QC single-turn samples before dialogue generation")
     pools = {scenario: {row["sample_id"]: row for row in rows} for scenario, rows in load_pools(root, config).items()}
     run_dir = _safe_run_directory(root, config, f"dialogue-{run_id}")
+    target = config["targets"]["dialogues"] if limit is None else min(limit, config["targets"]["dialogues"])
+    identity = {
+        "schema_version": "week5_dialogue_run_v1",
+        "run_id": run_id,
+        "target": target,
+        "config_sha256": hashlib.sha256(
+            json.dumps(config, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest(),
+        "qualified_sample_ids_sha256": {
+            scenario: hashlib.sha256(
+                json.dumps(ids, ensure_ascii=False).encode("utf-8")
+            ).hexdigest()
+            for scenario, ids in qualified.items()
+        },
+    }
+    manifest_path = run_dir / "run_manifest.json"
     if run_dir.exists():
-        raise Week5DataError("dialogue run already exists; candidates are immutable")
-    run_dir.mkdir(parents=True)
+        if not resume:
+            raise Week5DataError("dialogue run already exists; use --resume after identity verification")
+        if not manifest_path.is_file() or json.loads(
+            manifest_path.read_text(encoding="utf-8")
+        ) != identity:
+            raise Week5DataError("dialogue resume identity mismatch")
+    else:
+        if resume:
+            raise Week5DataError("dialogue resume requested but run does not exist")
+        run_dir.mkdir(parents=True)
+        _atomic_write_json(manifest_path, identity)
     output = run_dir / "candidates.jsonl"
     existing = read_jsonl(output)
     existing_ids = {row["dialogue_id"] for row in existing}
-    target = config["targets"]["dialogues"] if limit is None else min(limit, config["targets"]["dialogues"])
     generated = failed = 0
     dialogue_scenarios = {
         "image_product_search": "image_search",

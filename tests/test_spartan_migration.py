@@ -14,6 +14,18 @@ from src.data.week5_dataset import SCENARIOS, Week5DataError, candidate_payload_
 
 
 class SpartanMigrationTests(unittest.TestCase):
+    def test_week5_dialogue_job_keeps_runtime_inside_project(self) -> None:
+        script = Path("scripts/spartan/week5_dialogues.sbatch").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(': "${TRIP_DIALOGUE_RUN_ID:', script)
+        self.assertIn('--allowed-local-media-path "${TRIP_PROJECT_ROOT}"', script)
+        self.assertIn('--max-model-len 8192', script)
+        self.assertIn('generate-dialogues', script)
+        self.assertIn('--limit "${TRIP_DIALOGUE_LIMIT:-10000}"', script)
+        self.assertIn('dialogue_args+=(--resume)', script)
+        self.assertIn('APPTAINERENV_HOME="${TRIP_RUNTIME_HOME}"', script)
+
     def test_week5_job_uses_verified_container_python3_entrypoint(self) -> None:
         script = Path("scripts/spartan/week5_job.sbatch").read_text(encoding="utf-8")
         self.assertIn('container_python="${TRIP_CONTAINER_PYTHON:-python3}"', script)

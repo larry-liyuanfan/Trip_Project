@@ -405,9 +405,17 @@ python scripts/manage_week5_dataset.py export-quality --scenario <scenario> --st
 python scripts/manage_week5_dataset.py export-quality --scenario <scenario> --stage core_audit --output <packet.jsonl>
 python scripts/manage_week5_dataset.py apply-quality --scenario <scenario> --input <quality.jsonl>
 python scripts/manage_week5_dataset.py generate-dialogues
+python scripts/manage_week5_dataset.py generate-dialogues --resume
 python scripts/manage_week5_dataset.py apply-dialogue-quality --input <dialogue-quality.jsonl>
 python scripts/manage_week5_dataset.py report
+python scripts/export_week5_localized_annotations.py
 ```
+
+`export_week5_localized_annotations.py` 生成仅供快速复核的中文展示镜像：稳定字段名和
+已知枚举值转换为中文，并附带 canonical annotation SHA-256；自由文本及 canonical
+人工标注保持原样。该镜像不得作为训练数据或覆盖正式标注。对话生成首次运行会写入
+不可变 run identity；中断后只能使用相同 run ID、配置哈希和合格样本集合配合
+`--resume` 续跑。
 
 Windows 本地执行长时间 GPU 预标注时，使用守护脚本维持 SSH 隧道并在连接中断后按
 原 manifest 自动续跑。主流程不会重复成功样本，也不会在每次重连时反复请求已知
@@ -430,8 +438,9 @@ powershell -ExecutionPolicy Bypass -File scripts/supervise_week5_preannotation.p
 不修改已冻结配置或 run identity。服务器模式启用后不得同时启动 Windows supervisor；
 具体实例路径和服务名只记录在忽略的 `.agents/server.local.md`。
 
-真实候选池为商品 50,000、售后 20,000、行程 10,000，隔离验证通过；当前人工
-修正、三级质检和合格对话均为 0。字段口径见
+真实候选池为商品 50,000、售后 20,000、行程 10,000，隔离验证通过。预算内人工
+验收已完成三场景各 100 条修订与内联自审、各 10 条盲二次复核及各 3 条核心抽检；
+合格对话仍为 0，须等待 10,000 条自动候选生成后由本人验收固定抽样 100 条。字段口径见
 `docs/week5_annotation_guidelines.md`，实测数量见
 `reports/week5_dataset_quality_report.md`。
 

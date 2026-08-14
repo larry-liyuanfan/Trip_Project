@@ -371,6 +371,21 @@ as the current validated dataset or accepted baseline.
   作为候选，未经本人检查不能计为人工 accepted。
 - 标注台已在 `http://127.0.0.1:8095` 重启；定向测试 5/5 和配置 JSON 校验通过。
 
+## 2026-08-15：Week 5 预算内人工验收完成与对话链路准备
+
+- 本人 Larry Fan 已完成商品/售后/行程各 100 条真实人工修订和内联自审；三个场景
+  各完成 10 条确定性盲二次复核与其中 3 条核心抽检。共 300 条修订、300 次自审、
+  30 次盲复核、9 次核心抽检，均绑定真实 session，未由自动化代填。
+- 300 条最新 canonical annotations 全部通过对应 Schema；同一 sample/revision/stage
+  的 review session 无重复。其余 79,636 条有效预标注继续保持 silver。
+- 新增中文展示镜像导出：三场景各 100 条，翻译稳定字段名及已知枚举，保留自由文本
+  与 canonical JSON，并用 SHA-256 绑定原人工标注，不能反向覆盖训练数据。
+- 新增 Spartan 对话生成 sbatch 及严格 resume identity。目标仍为 10,000 条自动候选，
+  之后固定抽样 100 条由本人验收；当前候选和人工合格对话均为 0。
+- 本地定向测试 7/7、完整 `unittest` 319/319、Slurm shell 语法与
+  `git diff --check` 通过。当前 Chrome 中缺少精确 OOD shell 标签，因此尚未上传人工
+  质检归档或提交 GPU 作业，未将门户 dashboard 误作终端。
+
 ## 2026-08-12：Spartan 容器启动错误修复
 
 - `29114276` 确认因 vLLM 镜像仅提供 `python3` 而失败；入口已改为可预检的

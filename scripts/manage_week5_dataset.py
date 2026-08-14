@@ -76,6 +76,7 @@ def parser() -> argparse.ArgumentParser:
     dialogues = subparsers.add_parser("generate-dialogues")
     dialogues.add_argument("--limit", type=int)
     dialogues.add_argument("--run-id", required=True)
+    dialogues.add_argument("--resume", action="store_true")
     dialogue_qc = subparsers.add_parser("apply-dialogue-quality")
     dialogue_qc.add_argument("--input", type=Path, required=True)
     dialogue_qc.add_argument("--run-id", required=True)
@@ -123,7 +124,7 @@ def main() -> None:
             payload = apply_quality_records(root, config, args.scenario, args.input)
         elif args.command == "generate-dialogues":
             payload = generate_dialogue_candidates(
-                root, config, run_id=args.run_id, limit=args.limit
+                root, config, run_id=args.run_id, limit=args.limit, resume=args.resume
             )
         elif args.command == "apply-dialogue-quality":
             payload = apply_dialogue_validation(
