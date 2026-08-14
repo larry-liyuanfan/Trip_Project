@@ -383,8 +383,9 @@ as the current validated dataset or accepted baseline.
 - 新增 Spartan 对话生成 sbatch 及严格 resume identity。目标仍为 10,000 条自动候选，
   之后固定抽样 100 条由本人验收；当前候选和人工合格对话均为 0。
 - 本地定向测试 7/7、完整 `unittest` 319/319、Slurm shell 语法与
-  `git diff --check` 通过。当前 Chrome 中缺少精确 OOD shell 标签，因此尚未上传人工
-  质检归档或提交 GPU 作业，未将门户 dashboard 误作终端。
+  `git diff --check` 通过。精确 OOD shell 恢复后，Spartan checkout 已 fast-forward
+  到 `ad16545`；远端仍仅有旧 27 条人工修订且无质检 JSONL，因此在 300 条人工/QC
+  归档完成传输和哈希核验前未提交 GPU 作业。
 
 ## 2026-08-12：Spartan 容器启动错误修复
 
