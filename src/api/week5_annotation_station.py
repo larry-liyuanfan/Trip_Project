@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import mimetypes
 import threading
 import uuid
@@ -123,11 +124,63 @@ class Week5AnnotationStore:
                 )
         return passed
 
+    def _human_cohort_ids(self, scenario: str) -> set[str]:
+        """按固定哈希构造小规模人工验证队列，并保留已经完成的真实记录。"""
+        quality = self.config.get("quality", {})
+        targets = quality.get("human_review_targets", {})
+        target = int(targets.get(scenario, 0))
+        available = set(self.preannotations[scenario])
+        if target <= 0 or target >= len(available):
+            return available
+
+        completed = set(self.annotations[scenario]) & available
+        selected = set(completed)
+        cross_target = int(
+            quality.get("bounded_cross_review_targets", {}).get(scenario, 0)
+        )
+        audit_target = int(
+            quality.get("bounded_core_audit_targets", {}).get(scenario, 0)
+        )
+
+        def rank(sample_id: str) -> tuple[str, str]:
+            digest = hashlib.sha256(
+                f"week5-bounded-human-v1:{scenario}:{sample_id}".encode("utf-8")
+            ).hexdigest()
+            return digest, sample_id
+
+        ranked = sorted(available, key=rank)
+        audit_ids = [
+            sample_id
+            for sample_id in ranked
+            if qc_audit_selected(sample_id, scenario, self.config)
+        ]
+        selected.update(audit_ids[:audit_target])
+
+        current_cross = sum(
+            qc_cross_review_selected(sample_id, scenario, self.config)
+            for sample_id in selected
+        )
+        for sample_id in ranked:
+            if current_cross >= cross_target:
+                break
+            if (
+                sample_id not in selected
+                and qc_cross_review_selected(sample_id, scenario, self.config)
+            ):
+                selected.add(sample_id)
+                current_cross += 1
+
+        for sample_id in ranked:
+            if len(selected) >= target:
+                break
+            selected.add(sample_id)
+        return selected
+
     def queue_ids(self, scenario: str, stage: Stage) -> list[str]:
         if scenario not in SCENARIOS:
             raise Week5DataError(f"unsupported scenario: {scenario}")
         if stage == "human":
-            return sorted(set(self.preannotations[scenario]) - set(self.annotations[scenario]))
+            return sorted(self._human_cohort_ids(scenario) - set(self.annotations[scenario]))
 
         passed = self._passed(scenario)
         ids: list[str] = []
@@ -240,6 +293,15 @@ class Week5AnnotationStore:
             },
             "human_revisions": {
                 scenario: len(self.annotations[scenario]) for scenario in SCENARIOS
+            },
+            "human_review_plan": {
+                scenario: {
+                    "target": len(self._human_cohort_ids(scenario)),
+                    "completed": len(
+                        set(self.annotations[scenario]) & self._human_cohort_ids(scenario)
+                    ),
+                }
+                for scenario in SCENARIOS
             },
         }
 

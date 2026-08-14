@@ -140,6 +140,30 @@ class Week5AnnotationStationTests(unittest.TestCase):
             with self.assertRaises(Week5DataError):
                 store.image_path("../outside.jpg")
 
+    def test_bounded_human_queue_preserves_completed_records(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store, sample_id = self.fixture(directory)
+            store.config["quality"]["human_review_targets"] = {
+                "image_product_search": 1
+            }
+            self.assertEqual(store.queue_ids("image_product_search", "human"), [sample_id])
+            annotation = store.preannotations["image_product_search"][sample_id][
+                "parsed_output"
+            ]
+            store.save_human(
+                HumanSubmission(
+                    sample_id=sample_id,
+                    scenario="image_product_search",
+                    annotator="operator-a",
+                    human_annotation=annotation,
+                    self_review_confirmed=True,
+                    review_session_id="bounded-session-1",
+                )
+            )
+            self.assertEqual(store.queue_ids("image_product_search", "human"), [])
+            plan = store.summary()["human_review_plan"]["image_product_search"]
+            self.assertEqual(plan, {"target": 1, "completed": 1})
+
 
 if __name__ == "__main__":
     unittest.main()

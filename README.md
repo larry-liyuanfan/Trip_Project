@@ -375,7 +375,9 @@ python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
 Week 5 使用 `configs/week5_dataset.json` 从本地 Yelp OTA 数据构建三场景候选池，
 并同时调用 Week 3 v1/v2 exclusion manifest。候选、合成凭证、预标注、人工包、
 质检记录和对话输出均位于忽略目录 `outputs/week5/`。模型预标注永远不计为人工完成。
-当前采用单人最小人工模式：人工修正提交必须包含真实 `annotator`、`corrected_at`、
+当前采用单人预算内抽样验收：三场景各固定选择 100 条，并固定包含每场景 10 条盲
+二次复核候选和 3 条核心抽检候选，总操作上限 339 次。未进入队列的有效预标注保持
+`silver`。人工修正提交必须包含真实 `annotator`、`corrected_at`、
 `review_session_id` 和 `self_review_confirmed=true`，保存动作同时记录自审。商品仅有
 确定性选中的 0.2%/0.05% 样本需要盲二次复核/核心抽检，售后和行程为
 0.5%/0.1%；同一人
@@ -384,6 +386,12 @@ Week 5 使用 `configs/week5_dataset.json` 从本地 Yelp OTA 数据构建三场
 `--config configs/week5_dataset_qwen3_vl_4b_single_operator.json`。正在运行的全量
 预标注继续使用其 manifest 已绑定的 `configs/week5_dataset_qwen3_vl_4b_gpu.json`，
 不得为修改质检规则而改变该活动 run 的配置哈希。
+
+本地标注台仅显示上述确定性队列：
+
+```bash
+python scripts/run_week5_annotation_station.py --host 127.0.0.1 --port 8095
+```
 
 ```bash
 python scripts/manage_week5_dataset.py build-pools

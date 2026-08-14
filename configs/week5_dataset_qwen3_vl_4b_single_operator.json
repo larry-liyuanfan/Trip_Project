@@ -54,6 +54,21 @@
     "core_audit_rate": 0.001,
     "general_audit_rate": 0.0005,
     "selection_strategy": "nested_sample_id_sha256_v1",
+    "human_review_targets": {
+      "image_product_search": 100,
+      "after_sales": 100,
+      "itinerary_planning": 100
+    },
+    "bounded_cross_review_targets": {
+      "image_product_search": 10,
+      "after_sales": 10,
+      "itinerary_planning": 10
+    },
+    "bounded_core_audit_targets": {
+      "image_product_search": 3,
+      "after_sales": 3,
+      "itinerary_planning": 3
+    },
     "self_review_mode": "inline_human_confirmation",
     "cross_review_mode": "same_operator_blind_second_pass",
     "distinct_review_session_required": true,

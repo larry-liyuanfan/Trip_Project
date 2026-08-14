@@ -38,7 +38,7 @@
 </head>
 <body>
   <header><h1>Trip Week 5 人工标注与质检台</h1><p>单人真实操作工作流 · 模型预标注只读 · 保存即记录本次人工修订与显式自审</p></header>
-  <div class="warning">操作人和会话 ID 已按你的授权自动预填；人工结论、逐项自审和 accepted 仍不会自动填写。请查看原图和约束后再提交；证据不足时使用 Schema 允许的 unknown / null / 空数组。</div>
+  <div class="warning">当前只展示单人预算内的确定性验证队列：每场景 100 条，其中固定包含 10 条盲审候选和 3 条核心抽检候选。未进入队列的数据保持 silver，不会冒充人工完成。操作人和会话 ID 已按授权预填；请查看原图和约束后再提交。</div>
   <div class="toolbar">
     <label>场景<select id="scenario"><option value="image_product_search">商品图搜</option><option value="after_sales">智能售后</option><option value="itinerary_planning">行程规划</option></select></label>
     <label>阶段<select id="stage"><option value="human">人工修订 + 自审</option><option value="cross_review">盲二次复核</option><option value="core_audit">核心抽检</option></select></label>
