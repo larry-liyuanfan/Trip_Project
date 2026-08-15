@@ -26,11 +26,10 @@ class SpartanMigrationTests(unittest.TestCase):
         self.assertIn('dialogue_args+=(--resume)', script)
         self.assertIn('APPTAINERENV_HOME="${TRIP_RUNTIME_HOME}"', script)
         self.assertIn('TRIP_APPTAINER_DISABLE_CACHE:-0', script)
-        self.assertIn('apptainer_global_args+=(--disable-cache)', script)
+        self.assertIn('export APPTAINER_DISABLE_CACHE=true', script)
+        self.assertNotIn('--disable-cache)', script)
         self.assertEqual(
-            script.count(
-                'apptainer "${apptainer_global_args[@]}" "${container_args[@]}"'
-            ),
+            script.count('apptainer "${container_args[@]}"'),
             3,
         )
 
