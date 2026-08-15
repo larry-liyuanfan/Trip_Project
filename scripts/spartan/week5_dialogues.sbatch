@@ -66,6 +66,7 @@ trap cleanup EXIT INT TERM
 
 vllm_log="dialogue-${TRIP_DIALOGUE_RUN_ID}.${SLURM_JOB_ID:-manual}.vllm.log"
 [[ ! -e "${vllm_log}" ]] || { echo "vLLM log already exists: ${vllm_log}" >&2; exit 3; }
+structured_outputs_config='{"backend":"xgrammar","disable_any_whitespace":true}'
 apptainer "${container_args[@]}" "${container_python}" -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen3-VL-4B-Instruct \
   --served-model-name Qwen3-VL-4B-Instruct \
@@ -74,6 +75,7 @@ apptainer "${container_args[@]}" "${container_python}" -m vllm.entrypoints.opena
   --allowed-local-media-path "${TRIP_PROJECT_ROOT}" \
   --dtype bfloat16 \
   --max-model-len 8192 \
+  --structured-outputs-config "${structured_outputs_config}" \
   >"${vllm_log}" 2>&1 &
 VLLM_PID=$!
 

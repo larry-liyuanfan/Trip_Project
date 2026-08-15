@@ -21,6 +21,13 @@ class SpartanMigrationTests(unittest.TestCase):
         self.assertIn(': "${TRIP_DIALOGUE_RUN_ID:', script)
         self.assertIn('--allowed-local-media-path "${TRIP_PROJECT_ROOT}"', script)
         self.assertIn('--max-model-len 8192', script)
+        self.assertIn(
+            'structured_outputs_config=\'{"backend":"xgrammar","disable_any_whitespace":true}\'',
+            script,
+        )
+        self.assertIn(
+            '--structured-outputs-config "${structured_outputs_config}"', script
+        )
         self.assertIn('generate-dialogues', script)
         self.assertIn('--limit "${TRIP_DIALOGUE_LIMIT:-10000}"', script)
         self.assertIn('dialogue_args+=(--resume)', script)
