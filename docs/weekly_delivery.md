@@ -416,7 +416,10 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [x] 三场景各 100 条 canonical annotation 均通过 Schema；中文展示镜像各 100 条，
   以 canonical SHA-256 绑定且不覆盖训练数据。
 - [x] 对话生成支持严格 run identity 和显式 `--resume`，Spartan sbatch 通过语法检查；
-  目标为 10,000 条自动候选，尚未提交，不能计为完成或 accepted。
+  目标为 10,000 条自动候选。唯一作业 `29226849` 已提交到 `gpu-l40s`，首次状态为
+  `PENDING (Priority)`；尚未产出候选，不能计为完成或 accepted。
+- [x] 300 条人工/QC 归档已在 Spartan 项目目录校验并安装；旧 27 条全部被新记录
+  包含，安装前副本可恢复，六个 JSONL 的 SHA-256 与本地一致。
 - [x] 本轮完整 `unittest` 319/319、定向测试 7/7、`bash -n` 和
   `git diff --check` 通过。
 - [x] 修复 vLLM 容器 `python3` 入口，并将容器 HOME、XDG 与 FlashInfer 缓存绑定到

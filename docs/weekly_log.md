@@ -384,8 +384,12 @@ as the current validated dataset or accepted baseline.
   之后固定抽样 100 条由本人验收；当前候选和人工合格对话均为 0。
 - 本地定向测试 7/7、完整 `unittest` 319/319、Slurm shell 语法与
   `git diff --check` 通过。精确 OOD shell 恢复后，Spartan checkout 已 fast-forward
-  到 `ad16545`；远端仍仅有旧 27 条人工修订且无质检 JSONL，因此在 300 条人工/QC
-  归档完成传输和哈希核验前未提交 GPU 作业。
+  到 `3396c41`。300 条人工/QC 归档已传入项目限定目录，归档 SHA-256 为
+  `e288c8ef21a1eff59e836516e8b380665b481cd21080e33309d57f48f0cc9967`；旧 27 条逐行
+  均包含于新文件，安装前副本已保留，六个安装后 JSONL 哈希与本地一致。
+- 唯一 Week 5 对话候选作业 `29226849` 已提交到 `gpu-l40s`，run ID 为
+  `week5_dialogues_qwen3_vl_4b_20260815_3396c41_a`，目标 10,000 条；首次状态为
+  `PENDING (Priority)`，没有提交竞争作业。
 
 ## 2026-08-12：Spartan 容器启动错误修复
 
