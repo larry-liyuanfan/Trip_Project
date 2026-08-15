@@ -9,6 +9,24 @@ from pathlib import Path
 class EvaluationRunnerConfigTest(unittest.TestCase):
     PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+    def test_chat_payload_forwards_native_structured_outputs(self):
+        from src.evaluation.runner import _build_chat_payload
+
+        schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
+        rendered = {
+            "messages": [{"role": "user", "content": "test"}],
+            "structured_outputs": {"json": schema},
+        }
+        runtime = {
+            "served_model_name": "test-model",
+            "generation": {"temperature": 0.1},
+        }
+
+        payload = _build_chat_payload(self.PROJECT_ROOT, rendered, runtime)
+
+        self.assertEqual(payload["structured_outputs"], {"json": schema})
+        self.assertNotIn("response_format", payload)
+
     def test_checked_in_config_declares_runtime_and_verified_model_sources(self):
         from src.data.yelp_paths import parse_simple_yaml
         from src.evaluation.config import load_evaluation_config

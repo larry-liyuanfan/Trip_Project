@@ -27,6 +27,7 @@ from src.data.week5_workflow import (
     _build_dialogue_generation_prompt,
     _dialogue_failure_record,
     _dialogue_response_format,
+    _dialogue_structured_outputs,
     _endpoint_allows_anonymous_access,
     _parse_and_validate_week5_output,
     _require_model_access,
@@ -86,6 +87,17 @@ class Week5DatasetTests(unittest.TestCase):
         refs = item["properties"]["image_refs"]
         self.assertEqual(refs["items"]["enum"], ["img_1", "img_2"])
         self.assertNotIn("uniqueItems", refs)
+
+    def test_dialogue_structured_outputs_uses_native_vllm_json_schema(self) -> None:
+        structured_outputs = _dialogue_structured_outputs(
+            scenario="after_sales",
+            message_count=10,
+            image_ids=["img_1", "img_2"],
+        )
+        self.assertEqual(set(structured_outputs), {"json"})
+        schema = structured_outputs["json"]
+        self.assertEqual(schema["properties"]["scenario"]["enum"], ["after_sales"])
+        self.assertEqual(schema["properties"]["turns"]["minItems"], 10)
 
     def test_week5_after_sales_preserves_string_ocr_as_one_item(self) -> None:
         output = {

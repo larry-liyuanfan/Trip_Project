@@ -497,6 +497,9 @@ def _build_chat_payload(
     response_format = rendered.get("response_format")
     if response_format is not None:
         payload["response_format"] = copy.deepcopy(response_format)
+    structured_outputs = rendered.get("structured_outputs")
+    if structured_outputs is not None:
+        payload["structured_outputs"] = copy.deepcopy(structured_outputs)
     return payload
 
 

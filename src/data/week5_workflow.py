@@ -1332,6 +1332,18 @@ def _dialogue_response_format(
     }
 
 
+def _dialogue_structured_outputs(
+    *, scenario: str, message_count: int, image_ids: list[str],
+) -> dict[str, Any]:
+    """使用 vLLM 原生 structured_outputs 字段传递同一份严格 JSON Schema。"""
+    response_format = _dialogue_response_format(
+        scenario=scenario,
+        message_count=message_count,
+        image_ids=image_ids,
+    )
+    return {"json": response_format["json_schema"]["schema"]}
+
+
 def generate_dialogue_candidates(
     root: Path, config: dict[str, Any], *, run_id: str, limit: int | None = None,
     resume: bool = False,
@@ -1410,7 +1422,7 @@ def generate_dialogue_candidates(
                 {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": f"file://{candidate['input']['images'][0]['path']}"}},
             ]}],
-            "response_format": _dialogue_response_format(
+            "structured_outputs": _dialogue_structured_outputs(
                 scenario=dialogue_scenarios[source_scenario],
                 message_count=turns * 2,
                 image_ids=[image["image_id"] for image in normalized_images],
