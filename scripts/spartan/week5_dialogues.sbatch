@@ -47,8 +47,13 @@ container_args=(
   --bind "${TRIP_HF_HOME}:${TRIP_HF_HOME}"
   "${TRIP_VLLM_IMAGE}"
 )
+apptainer_global_args=()
+if [[ "${TRIP_APPTAINER_DISABLE_CACHE:-0}" == "1" ]]; then
+  # OCI layer 缓存和 rootfs 解包会叠加占用项目配额；恢复时允许无缓存转换。
+  apptainer_global_args+=(--disable-cache)
+fi
 container_python="${TRIP_CONTAINER_PYTHON:-python3}"
-apptainer "${container_args[@]}" /bin/sh -c \
+apptainer "${apptainer_global_args[@]}" "${container_args[@]}" /bin/sh -c \
   "test -w \"\${HOME}\" && command -v '${container_python}' >/dev/null && '${container_python}' -c 'import vllm'"
 
 cleanup() {
@@ -62,7 +67,7 @@ trap cleanup EXIT INT TERM
 
 vllm_log="dialogue-${TRIP_DIALOGUE_RUN_ID}.${SLURM_JOB_ID:-manual}.vllm.log"
 [[ ! -e "${vllm_log}" ]] || { echo "vLLM log already exists: ${vllm_log}" >&2; exit 3; }
-apptainer "${container_args[@]}" "${container_python}" -m vllm.entrypoints.openai.api_server \
+apptainer "${apptainer_global_args[@]}" "${container_args[@]}" "${container_python}" -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen3-VL-4B-Instruct \
   --served-model-name Qwen3-VL-4B-Instruct \
   --host 127.0.0.1 \
@@ -91,6 +96,6 @@ dialogue_args=(
 if [[ "${TRIP_DIALOGUE_RESUME:-0}" == "1" ]]; then
   dialogue_args+=(--resume)
 fi
-apptainer "${container_args[@]}" "${container_python}" \
+apptainer "${apptainer_global_args[@]}" "${container_args[@]}" "${container_python}" \
   scripts/manage_week5_dataset.py "${dialogue_args[@]}"
 sync

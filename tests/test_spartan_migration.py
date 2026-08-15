@@ -25,6 +25,14 @@ class SpartanMigrationTests(unittest.TestCase):
         self.assertIn('--limit "${TRIP_DIALOGUE_LIMIT:-10000}"', script)
         self.assertIn('dialogue_args+=(--resume)', script)
         self.assertIn('APPTAINERENV_HOME="${TRIP_RUNTIME_HOME}"', script)
+        self.assertIn('TRIP_APPTAINER_DISABLE_CACHE:-0', script)
+        self.assertIn('apptainer_global_args+=(--disable-cache)', script)
+        self.assertEqual(
+            script.count(
+                'apptainer "${apptainer_global_args[@]}" "${container_args[@]}"'
+            ),
+            3,
+        )
 
     def test_week5_job_uses_verified_container_python3_entrypoint(self) -> None:
         script = Path("scripts/spartan/week5_job.sbatch").read_text(encoding="utf-8")
