@@ -83,7 +83,9 @@ class Week5DatasetTests(unittest.TestCase):
         item = turns["items"]
         self.assertFalse(item["additionalProperties"])
         self.assertEqual(item["required"], ["role", "content", "image_refs"])
-        self.assertEqual(item["properties"]["image_refs"]["items"]["enum"], ["img_1", "img_2"])
+        refs = item["properties"]["image_refs"]
+        self.assertEqual(refs["items"]["enum"], ["img_1", "img_2"])
+        self.assertNotIn("uniqueItems", refs)
 
     def test_week5_after_sales_preserves_string_ocr_as_one_item(self) -> None:
         output = {

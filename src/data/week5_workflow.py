@@ -1319,7 +1319,8 @@ def _dialogue_response_format(
                                 "image_refs": {
                                     "type": "array",
                                     "maxItems": 8,
-                                    "uniqueItems": True,
+                                    # vLLM 0.11 的 xgrammar 不支持 uniqueItems；
+                                    # 重复引用仍由 validate_dialogue_v2 确定性拒绝。
                                     "items": {"type": "string", "enum": image_ids},
                                 },
                             },
