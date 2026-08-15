@@ -24,6 +24,8 @@ from src.data.week5_dataset import (
     write_jsonl_new,
 )
 from src.data.week5_workflow import (
+    _build_dialogue_generation_prompt,
+    _dialogue_failure_record,
     _endpoint_allows_anonymous_access,
     _parse_and_validate_week5_output,
     _require_model_access,
@@ -42,6 +44,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Week5DatasetTests(unittest.TestCase):
+    def test_dialogue_prompt_requires_flat_exact_turn_contract(self) -> None:
+        prompt = _build_dialogue_generation_prompt(
+            dialogue_id="dialogue-1",
+            scenario="image_search",
+            turns=4,
+            image_resources=[{"image_id": "img_1", "path": "a.jpg", "sha256": "a" * 64}],
+            text_constraints="安静",
+        )
+        self.assertIn("长度恰好为 8 的扁平 JSON 数组", prompt)
+        self.assertIn("只能包含 role、content、image_refs", prompt)
+        self.assertIn("没有引用时写 []", prompt)
+
+    def test_dialogue_failure_record_preserves_raw_output(self) -> None:
+        record = _dialogue_failure_record(
+            dialogue_id="dialogue-1",
+            sample_id="sample-1",
+            run_id="run-1",
+            exc=Week5DataError("invalid turns"),
+            raw_output='{"turns": []}',
+        )
+        self.assertEqual(record["raw_output"], '{"turns": []}')
+        self.assertEqual(record["error"], "Week5DataError: invalid turns")
+
     def test_week5_after_sales_preserves_string_ocr_as_one_item(self) -> None:
         output = {
             "issue_type": "hygiene_stain",

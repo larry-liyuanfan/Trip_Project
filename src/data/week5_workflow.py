@@ -1257,6 +1257,39 @@ def _qualified_sample_ids(root: Path, config: dict[str, Any]) -> dict[str, list[
     return qualified
 
 
+def _build_dialogue_generation_prompt(
+    *, dialogue_id: str, scenario: str, turns: int,
+    image_resources: list[dict[str, str]], text_constraints: Any,
+) -> str:
+    """构造明确的扁平消息契约，避免模型把一轮输出为成对对象。"""
+    return (
+        "基于给定 OTA 单轮样本生成一段真实多轮对话。只返回 JSON 对象，字段必须为 scenario、turns。"
+        f"对话共 {turns} 轮（每轮含 user 和 assistant 两条消息），用户口语化，助手专业友好；覆盖上传图片、补充条件、历史追问、约束修改和历史图片指代中的至少三项。"
+        f"turns 必须是长度恰好为 {turns * 2} 的扁平 JSON 数组，不得把一轮写成包含 user、assistant 的成对对象。"
+        "数组每一项必须且只能包含 role、content、image_refs 三个字段；role 必须从 user 开始严格交替，content 必须是非空字符串，image_refs 必须始终为 JSON 数组（没有引用时写 []）。"
+        "格式示例：{\"scenario\":\"image_search\",\"turns\":[{\"role\":\"user\",\"content\":\"请看这张图\",\"image_refs\":[\"img_1\"]},{\"role\":\"assistant\",\"content\":\"请问更关注风格还是设施？\",\"image_refs\":[\"img_1\"]}]}。"
+        "不得编造图片不可见事实、退款承诺、价格保证或安全结论；image_refs 只能引用给定 image_resources 中的 image_id。"
+        f"\ndialogue_id={dialogue_id}\nscenario={scenario}\n"
+        f"image_resources={json.dumps(image_resources, ensure_ascii=False)}\n"
+        f"原始约束={text_constraints}"
+    )
+
+
+def _dialogue_failure_record(
+    *, dialogue_id: str, sample_id: str, run_id: str,
+    exc: Exception, raw_output: str | None,
+) -> dict[str, Any]:
+    """保留失败原始输出，支持后续无猜测的确定性解析取证。"""
+    return {
+        "dialogue_id": dialogue_id,
+        "sample_id": sample_id,
+        "error": f"{type(exc).__name__}: {exc}",
+        "raw_output": raw_output,
+        "timestamp": _now(),
+        "run_id": run_id,
+    }
+
+
 def generate_dialogue_candidates(
     root: Path, config: dict[str, Any], *, run_id: str, limit: int | None = None,
     resume: bool = False,
@@ -1317,13 +1350,12 @@ def generate_dialogue_candidates(
             {"image_id": f"img_{image_index}", "path": image["path"], "sha256": image["sha256"]}
             for image_index, image in enumerate(candidate["input"]["images"], start=1)
         ]
-        prompt = (
-            "基于给定 OTA 单轮样本生成一段真实多轮对话。只返回 JSON 对象，字段必须为 scenario、turns。"
-            f"对话共 {turns} 轮（每轮含 user 和 assistant 两条消息），用户口语化，助手专业友好；覆盖上传图片、补充条件、历史追问、约束修改和历史图片指代中的至少三项。"
-            "不得编造图片不可见事实、退款承诺、价格保证或安全结论。turns 中 role 必须从 user 开始严格交替；image_refs 只能引用给定 image_resources 中的 image_id。"
-            f"\ndialogue_id={dialogue_id}\nscenario={dialogue_scenarios[source_scenario]}\n"
-            f"image_resources={json.dumps(normalized_images, ensure_ascii=False)}\n"
-            f"原始约束={candidate['input'].get('text_constraints')}"
+        prompt = _build_dialogue_generation_prompt(
+            dialogue_id=dialogue_id,
+            scenario=dialogue_scenarios[source_scenario],
+            turns=turns,
+            image_resources=normalized_images,
+            text_constraints=candidate["input"].get("text_constraints"),
         )
         runtime = _runtime(root, config, source_scenario)
         dialogue_runtime = copy.deepcopy(runtime)
@@ -1338,6 +1370,7 @@ def generate_dialogue_candidates(
             ]}],
             "response_format": {"type": "json_object"},
         }, dialogue_runtime)
+        raw: str | None = None
         try:
             response = post_chat_completion(chat_completions_url(runtime["live_base_url"]), payload, runtime["timeout_seconds"])
             raw = response["choices"][0]["message"]["content"]
@@ -1376,7 +1409,13 @@ def generate_dialogue_candidates(
             existing_ids.add(dialogue_id)
             generated += 1
         except Exception as exc:
-            append_jsonl(output.with_name("failures.jsonl"), {"dialogue_id": dialogue_id, "sample_id": sample_id, "error": f"{type(exc).__name__}: {exc}", "timestamp": _now(), "run_id": run_id})
+            append_jsonl(output.with_name("failures.jsonl"), _dialogue_failure_record(
+                dialogue_id=dialogue_id,
+                sample_id=sample_id,
+                run_id=run_id,
+                exc=exc,
+                raw_output=raw,
+            ))
             failed += 1
     return {"generated": generated, "failed": failed, "existing": len(existing)}
 
