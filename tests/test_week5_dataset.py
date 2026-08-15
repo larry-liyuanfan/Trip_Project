@@ -26,8 +26,6 @@ from src.data.week5_dataset import (
 from src.data.week5_workflow import (
     _build_dialogue_generation_prompt,
     _dialogue_failure_record,
-    _dialogue_response_format,
-    _dialogue_structured_outputs,
     _endpoint_allows_anonymous_access,
     _parse_and_validate_week5_output,
     _require_model_access,
@@ -54,9 +52,9 @@ class Week5DatasetTests(unittest.TestCase):
             image_resources=[{"image_id": "img_1", "path": "a.jpg", "sha256": "a" * 64}],
             text_constraints="安静",
         )
-        self.assertIn("长度恰好为 8 的扁平 JSON 数组", prompt)
-        self.assertIn("只能包含 role、content、image_refs", prompt)
-        self.assertIn("没有引用时写 []", prompt)
+        self.assertIn("必须输出恰好 8 条消息", prompt)
+        self.assertIn("只填写每项的 content", prompt)
+        self.assertIn('"role": "assistant", "content": "", "image_refs": []', prompt)
 
     def test_dialogue_failure_record_preserves_raw_output(self) -> None:
         record = _dialogue_failure_record(
@@ -68,36 +66,6 @@ class Week5DatasetTests(unittest.TestCase):
         )
         self.assertEqual(record["raw_output"], '{"turns": []}')
         self.assertEqual(record["error"], "Week5DataError: invalid turns")
-
-    def test_dialogue_response_format_fixes_message_count_and_fields(self) -> None:
-        response_format = _dialogue_response_format(
-            scenario="after_sales",
-            message_count=10,
-            image_ids=["img_1", "img_2"],
-        )
-        self.assertEqual(response_format["type"], "json_schema")
-        self.assertTrue(response_format["json_schema"]["strict"])
-        schema = response_format["json_schema"]["schema"]
-        self.assertEqual(schema["properties"]["scenario"]["enum"], ["after_sales"])
-        turns = schema["properties"]["turns"]
-        self.assertEqual((turns["minItems"], turns["maxItems"]), (10, 10))
-        item = turns["items"]
-        self.assertFalse(item["additionalProperties"])
-        self.assertEqual(item["required"], ["role", "content", "image_refs"])
-        refs = item["properties"]["image_refs"]
-        self.assertEqual(refs["items"]["enum"], ["img_1", "img_2"])
-        self.assertNotIn("uniqueItems", refs)
-
-    def test_dialogue_structured_outputs_uses_native_vllm_json_schema(self) -> None:
-        structured_outputs = _dialogue_structured_outputs(
-            scenario="after_sales",
-            message_count=10,
-            image_ids=["img_1", "img_2"],
-        )
-        self.assertEqual(set(structured_outputs), {"json"})
-        schema = structured_outputs["json"]
-        self.assertEqual(schema["properties"]["scenario"]["enum"], ["after_sales"])
-        self.assertEqual(schema["properties"]["turns"]["minItems"], 10)
 
     def test_week5_after_sales_preserves_string_ocr_as_one_item(self) -> None:
         output = {

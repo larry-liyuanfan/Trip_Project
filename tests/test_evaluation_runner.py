@@ -4,6 +4,9 @@ import math
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+import requests
 
 
 class EvaluationRunnerConfigTest(unittest.TestCase):
@@ -26,6 +29,23 @@ class EvaluationRunnerConfigTest(unittest.TestCase):
 
         self.assertEqual(payload["structured_outputs"], {"json": schema})
         self.assertNotIn("response_format", payload)
+
+    def test_chat_completion_preserves_bounded_http_error_body(self):
+        from src.evaluation.runner import EvaluationRunError, post_chat_completion
+
+        response = Mock(status_code=500, ok=False, text="engine failed\ntrace")
+        response.raise_for_status.side_effect = requests.HTTPError("500 error")
+        with patch("src.evaluation.runner.requests.post", return_value=response):
+            with self.assertRaisesRegex(
+                EvaluationRunError,
+                "chat completion HTTP 500: engine failed trace",
+            ):
+                post_chat_completion(
+                    "http://127.0.0.1:8001/v1/chat/completions",
+                    {"messages": []},
+                    1,
+                    max_attempts=1,
+                )
 
     def test_checked_in_config_declares_runtime_and_verified_model_sources(self):
         from src.data.yelp_paths import parse_simple_yaml

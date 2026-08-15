@@ -606,10 +606,17 @@ def post_chat_completion(
             if not isinstance(result, dict):
                 raise EvaluationRunError("chat completion response must be an object")
             return result
-        except (requests.Timeout, requests.ConnectionError, requests.HTTPError):
+        except (requests.Timeout, requests.ConnectionError, requests.HTTPError) as exc:
             retryable_status = response.status_code if response is not None else None
             retryable = retryable_status is None or retryable_status == 429 or retryable_status >= 500
             if not retryable or attempt == max_attempts:
+                if response is not None:
+                    body = response.text.strip().replace("\r", " ").replace("\n", " ")
+                    if len(body) > 1000:
+                        body = body[:1000] + "..."
+                    raise EvaluationRunError(
+                        f"chat completion HTTP {response.status_code}: {body or '<empty body>'}"
+                    ) from exc
                 raise
             time.sleep(2 ** attempt)
     raise EvaluationRunError("chat completion retry loop exhausted")

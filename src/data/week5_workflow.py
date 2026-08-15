@@ -1262,12 +1262,25 @@ def _build_dialogue_generation_prompt(
     image_resources: list[dict[str, str]], text_constraints: Any,
 ) -> str:
     """构造明确的扁平消息契约，避免模型把一轮输出为成对对象。"""
+    message_count = turns * 2
+    turn_skeleton = [
+        {
+            "role": "user" if index % 2 == 0 else "assistant",
+            "content": "",
+            "image_refs": [image_resources[0]["image_id"]]
+            if index == 0 and image_resources
+            else [],
+        }
+        for index in range(message_count)
+    ]
     return (
         "基于给定 OTA 单轮样本生成一段真实多轮对话。只返回 JSON 对象，字段必须为 scenario、turns。"
-        f"对话共 {turns} 轮（每轮含 user 和 assistant 两条消息），用户口语化，助手专业友好；覆盖上传图片、补充条件、历史追问、约束修改和历史图片指代中的至少三项。"
-        f"turns 必须是长度恰好为 {turns * 2} 的扁平 JSON 数组，不得把一轮写成包含 user、assistant 的成对对象。"
-        "数组每一项必须且只能包含 role、content、image_refs 三个字段；role 必须从 user 开始严格交替，content 必须是非空字符串，image_refs 必须始终为 JSON 数组（没有引用时写 []）。"
-        "格式示例：{\"scenario\":\"image_search\",\"turns\":[{\"role\":\"user\",\"content\":\"请看这张图\",\"image_refs\":[\"img_1\"]},{\"role\":\"assistant\",\"content\":\"请问更关注风格还是设施？\",\"image_refs\":[\"img_1\"]}]}。"
+        f"必须输出恰好 {message_count} 条消息，也就是 {turns} 轮；不要提前结束，也不要增加消息。"
+        "用户口语化，助手专业友好；覆盖上传图片、补充条件、历史追问、约束修改和历史图片指代中的至少三项。"
+        "下面给出的 turns 骨架已经包含最终消息数量、固定 role 和安全的 image_refs。"
+        "复制该骨架，只填写每项的 content；不得改变数组长度、role、字段或 image_refs。"
+        "每个 content 写一条 10 至 60 个汉字的具体短句，不得留空，不得输出骨架说明。"
+        f"\nturns骨架={json.dumps(turn_skeleton, ensure_ascii=False)}"
         "不得编造图片不可见事实、退款承诺、价格保证或安全结论；image_refs 只能引用给定 image_resources 中的 image_id。"
         f"\ndialogue_id={dialogue_id}\nscenario={scenario}\n"
         f"image_resources={json.dumps(image_resources, ensure_ascii=False)}\n"
@@ -1288,60 +1301,6 @@ def _dialogue_failure_record(
         "timestamp": _now(),
         "run_id": run_id,
     }
-
-
-def _dialogue_response_format(
-    *, scenario: str, message_count: int, image_ids: list[str],
-) -> dict[str, Any]:
-    """用 vLLM guided JSON 固定消息数量和字段，业务语义仍由模型生成。"""
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "week5_dialogue_turns_v2",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["scenario", "turns"],
-                "properties": {
-                    "scenario": {"type": "string", "enum": [scenario]},
-                    "turns": {
-                        "type": "array",
-                        "minItems": message_count,
-                        "maxItems": message_count,
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["role", "content", "image_refs"],
-                            "properties": {
-                                "role": {"type": "string", "enum": ["user", "assistant"]},
-                                "content": {"type": "string", "minLength": 1, "maxLength": 1000},
-                                "image_refs": {
-                                    "type": "array",
-                                    "maxItems": 8,
-                                    # vLLM 0.11 的 xgrammar 不支持 uniqueItems；
-                                    # 重复引用仍由 validate_dialogue_v2 确定性拒绝。
-                                    "items": {"type": "string", "enum": image_ids},
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    }
-
-
-def _dialogue_structured_outputs(
-    *, scenario: str, message_count: int, image_ids: list[str],
-) -> dict[str, Any]:
-    """使用 vLLM 原生 structured_outputs 字段传递同一份严格 JSON Schema。"""
-    response_format = _dialogue_response_format(
-        scenario=scenario,
-        message_count=message_count,
-        image_ids=image_ids,
-    )
-    return {"json": response_format["json_schema"]["schema"]}
 
 
 def generate_dialogue_candidates(
@@ -1386,7 +1345,7 @@ def generate_dialogue_candidates(
     output = run_dir / "candidates.jsonl"
     existing = read_jsonl(output)
     existing_ids = {row["dialogue_id"] for row in existing}
-    generated = failed = 0
+    generated = failed = consecutive_failures = 0
     dialogue_scenarios = {
         "image_product_search": "image_search",
         "after_sales": "after_sales",
@@ -1414,7 +1373,7 @@ def generate_dialogue_candidates(
         runtime = _runtime(root, config, source_scenario)
         dialogue_runtime = copy.deepcopy(runtime)
         dialogue_runtime["generation"] = {
-            "temperature": 0.1, "top_p": 0.9, "max_tokens": 2560,
+            "temperature": 0.1, "top_p": 0.9, "max_tokens": 1800,
             "enable_thinking": False,
         }
         payload = _build_chat_payload(root, {
@@ -1422,11 +1381,7 @@ def generate_dialogue_candidates(
                 {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": f"file://{candidate['input']['images'][0]['path']}"}},
             ]}],
-            "structured_outputs": _dialogue_structured_outputs(
-                scenario=dialogue_scenarios[source_scenario],
-                message_count=turns * 2,
-                image_ids=[image["image_id"] for image in normalized_images],
-            ),
+            "response_format": {"type": "json_object"},
         }, dialogue_runtime)
         raw: str | None = None
         try:
@@ -1466,6 +1421,7 @@ def generate_dialogue_candidates(
             append_jsonl(output, dialogue)
             existing_ids.add(dialogue_id)
             generated += 1
+            consecutive_failures = 0
         except Exception as exc:
             append_jsonl(output.with_name("failures.jsonl"), _dialogue_failure_record(
                 dialogue_id=dialogue_id,
@@ -1475,6 +1431,11 @@ def generate_dialogue_candidates(
                 raw_output=raw,
             ))
             failed += 1
+            consecutive_failures += 1
+            if consecutive_failures >= 8:
+                raise Week5DataError(
+                    "dialogue generation stopped after 8 consecutive failures"
+                ) from exc
     return {"generated": generated, "failed": failed, "existing": len(existing)}
 
 
