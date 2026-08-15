@@ -1290,6 +1290,47 @@ def _dialogue_failure_record(
     }
 
 
+def _dialogue_response_format(
+    *, scenario: str, message_count: int, image_ids: list[str],
+) -> dict[str, Any]:
+    """用 vLLM guided JSON 固定消息数量和字段，业务语义仍由模型生成。"""
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "week5_dialogue_turns_v2",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["scenario", "turns"],
+                "properties": {
+                    "scenario": {"type": "string", "enum": [scenario]},
+                    "turns": {
+                        "type": "array",
+                        "minItems": message_count,
+                        "maxItems": message_count,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["role", "content", "image_refs"],
+                            "properties": {
+                                "role": {"type": "string", "enum": ["user", "assistant"]},
+                                "content": {"type": "string", "minLength": 1, "maxLength": 1000},
+                                "image_refs": {
+                                    "type": "array",
+                                    "maxItems": 8,
+                                    "uniqueItems": True,
+                                    "items": {"type": "string", "enum": image_ids},
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+
 def generate_dialogue_candidates(
     root: Path, config: dict[str, Any], *, run_id: str, limit: int | None = None,
     resume: bool = False,
@@ -1368,7 +1409,11 @@ def generate_dialogue_candidates(
                 {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": f"file://{candidate['input']['images'][0]['path']}"}},
             ]}],
-            "response_format": {"type": "json_object"},
+            "response_format": _dialogue_response_format(
+                scenario=dialogue_scenarios[source_scenario],
+                message_count=turns * 2,
+                image_ids=[image["image_id"] for image in normalized_images],
+            ),
         }, dialogue_runtime)
         raw: str | None = None
         try:
