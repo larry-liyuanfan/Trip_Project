@@ -313,6 +313,27 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
+## 2026-08-16：Week 5 多轮对话并行生成、合并与人工抽样验收
+
+- 模型/后端：`Qwen/Qwen3-VL-4B-Instruct`、Spartan vLLM 0.11；活动主作业保留，
+  额外数组任务使用独立 run、输出、日志和临时目录，客户端并发上限为 4。
+- 代码提交：并行生成 `306527e`、单源快照 `ae11be6`、多源快照 `522b4af`、验收
+  队列 `f93e7ef`、图片展示修复 `48108a7`。
+- 生成结果：不可变主前缀 4,000 条，四片各 1,500 条，合并 run
+  `week5_dialogues_merged_10000_20260816_522b4af` 为 10,000 个唯一 ID；场景
+  3334/3333/3333，消息数 8–12，缺失、重复和冲突均为 0。
+- 哈希：candidates
+  `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99`；manifest
+  `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`；人工队列
+  `45c34b558456577d5eaaf9b74cf04a8766b0160ec05935a181131db66134634e`。
+- 人工结果：`Larry Fan` 实际完成固定队列 100/100，五项检查完整，全部决定为
+  `pass`；验证 JSONL SHA-256 为
+  `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。其余 9,900
+  条保持未人工验收候选。
+- 验证：完整 unittest 329/329；Week 5 `validate-pools` 返回 `status=ok`，确认
+  80,000 个唯一 sample ID 和图片 SHA-256；`git diff --check` 通过。
+- 结论：Week 5 在批准的抽样人工预算内闭环。本实验没有执行 Week 6 训练。
+
 ## 2026-08-14：Week 5 Spartan 最终合并与 Week 6 数据锁定
 
 - Git 基线：`824530e` 加本次未提交工作区；Spartan merge job `29190753`，打包 job

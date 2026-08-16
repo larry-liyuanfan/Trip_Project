@@ -341,6 +341,28 @@ as the current validated dataset or accepted baseline.
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
 
+## 2026-08-16：Week 5 多轮对话与人工验收最终完成
+
+- 保留原 L40S 作业的同时，按 ADR-024 使用独立输出的四个确定性互斥分片；每片
+  1,500 条。对主 run 的索引 0–3999 生成不可变 4,000 条前缀快照，随后显式合并为
+  `week5_dialogues_merged_10000_20260816_522b4af`。
+- 权威 run 含 10,000 个唯一 `dialogue_id`，索引 0–9999，三场景分布
+  3334/3333/3333，消息数 8–12；严格角色交替、图片字段、Schema、配置和 qualified
+  集合哈希均通过，duplicate/conflict/missing 均为 0。
+- 候选/manifest SHA-256 分别为
+  `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99` 与
+  `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`；本地 JSONL、
+  gzip 和 manifest 与远端一致。
+- 固定 100 条人工验收队列 SHA-256 为
+  `45c34b558456577d5eaaf9b74cf04a8766b0160ec05935a181131db66134634e`。本人实际完成
+  100/100；记录 ID 唯一且全部属于队列，reviewer 均为 `Larry Fan`，五项 checks
+  完整，100 条 decision 均为 `pass`，人工验收 JSONL SHA-256 为
+  `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
+- 只将抽样通过的 100 条计为人工 accepted，其余 9,900 条保持未人工验收候选。
+  Week 5 按批准的单人预算内口径完成；完整 unittest 329/329、Week 5
+  `validate-pools`（80,000 个唯一 sample/image，`status=ok`）和 `git diff --check`
+  通过。本轮未执行 Week 6。
+
 ## 2026-08-14：Week 5 最终闭环与 Week 6 数据锁定
 
 - Spartan merge job `29190753` 为 `COMPLETED 0:0`；下载归档 SHA-256

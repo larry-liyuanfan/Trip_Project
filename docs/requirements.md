@@ -392,6 +392,13 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   sample 集合哈希，按 index 范围和 modulo 互斥，每个作业写独立 JSONL；最终只能
   通过显式 merge、Schema、图片引用、唯一 ID 和 10,000 条完整覆盖校验形成权威候选。
   该授权仅放宽多轮对话的“唯一活动作业”限制，不允许分片共同写文件或执行 Week 6。
+- 2026-08-16 Week 5 最终完成事实：权威合并 run
+  `week5_dialogues_merged_10000_20260816_522b4af` 含 10,000 个唯一候选，索引
+  0–9999 完整，三场景分布 3334/3333/3333，消息数 8–12，角色交替、图片引用、
+  配置与 qualified 集合哈希均通过验证，duplicate/conflict/missing 均为 0。固定
+  100 条人工验收队列已由本人全部完成，五项 checks 完整且 100 条 decision 均为
+  `pass`。只允许这 100 条计为人工 accepted；其余 9,900 条仍为未人工验收候选。
+  至此 Week 5 已按单人预算内验收口径闭环，不表示执行或完成任何 Week 6 训练。
 
 ## Week 6：单场景 QLoRA 小样本链路与专项训练
 

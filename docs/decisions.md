@@ -330,6 +330,25 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   独立输出的多轮对话分片。现有作业不取消、不修改；额外 GPU 只处理版本化分片，
   未经 merge 完整校验的分片不能单独计为最终候选，也不授权任何 Week 6 工作。
 
+## ADR-025：Week 5 对话权威版本与人工验收闭环
+
+- **日期**：2026-08-16
+- **状态**：Accepted；记录 ADR-023/024 的实际完成结果。
+- **决策**：将 `week5_dialogues_merged_10000_20260816_522b4af` 固定为 Week 5
+  多轮对话权威候选版本。该 run 由不可变 4,000 条前缀快照与四个各 1,500 条互斥
+  分片显式合并，完整覆盖 10,000 个唯一 ID。固定人工队列的 100 条记录由本人完成
+  五项检查和最终决定，全部为 `pass`，因此仅这 100 条计为人工 accepted。
+- **证据**：候选 SHA-256 为
+  `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99`，manifest
+  SHA-256 为 `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`，
+  固定队列 SHA-256 为
+  `45c34b558456577d5eaaf9b74cf04a8766b0160ec05935a181131db66134634e`，人工验收
+  JSONL SHA-256 为
+  `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
+- **影响**：其余 9,900 条候选不获得人工身份或 accepted 状态。Week 5 至此按
+  单人预算内口径完成；Week 6 仍须在独立执行阶段核验最终 Week 5 输入并建立新的
+  不可变训练数据锁，不得把此前仅含 27 条真人修订的历史锁误称为最终锁。
+
 ## Decision Template
 
 ```markdown

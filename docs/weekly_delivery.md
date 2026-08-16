@@ -486,6 +486,24 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [x] 本地 supervisor、runner 和 SSH 隧道已停止，禁止与 ECS 服务并行写入。
 - [ ] 全量预标注仍在运行；真实人工修正、三级质检和最终 accepted 未因迁移而完成。
 
+### 2026-08-16 Week 5 多轮对话最终交付证据
+
+- [x] 权威合并 run `week5_dialogues_merged_10000_20260816_522b4af` 包含 10,000 个
+  唯一对话，索引 0–9999，三场景 3334/3333/3333，消息数 8–12。
+- [x] Schema、严格角色交替、图片引用、配置与 qualified 集合哈希通过；
+  duplicate/conflict/missing 均为 0。
+- [x] candidates/manifest SHA-256 分别为
+  `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99` 与
+  `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`，本地同步
+  JSONL、gzip 与 manifest 哈希和远端一致。
+- [x] 固定 100 条人工队列全部完成：100 个队列内唯一 ID，reviewer 非空，五项
+  checks 完整，100 条 decision 均为 `pass`；人工验收 JSONL SHA-256 为
+  `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
+- [x] 仅 100 条抽样对话计为人工 accepted；其余 9,900 条未被伪装成人工验收。
+- [x] 完整 unittest 329/329、Week 5 `validate-pools`（80,000 个唯一 sample/image，
+  `status=ok`）和 `git diff --check` 通过。
+- [x] Week 5 按 ADR-023 的单人预算口径闭环；未运行 Week 6 pilot、训练或评估。
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`

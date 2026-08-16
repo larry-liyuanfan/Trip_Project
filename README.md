@@ -439,9 +439,11 @@ powershell -ExecutionPolicy Bypass -File scripts/supervise_week5_preannotation.p
 具体实例路径和服务名只记录在忽略的 `.agents/server.local.md`。
 
 真实候选池为商品 50,000、售后 20,000、行程 10,000，隔离验证通过。预算内人工
-验收已完成三场景各 100 条修订与内联自审、各 10 条盲二次复核及各 3 条核心抽检；
-合格对话仍为 0，须等待 10,000 条自动候选生成后由本人验收固定抽样 100 条。字段口径见
-`docs/week5_annotation_guidelines.md`，实测数量见
+验收已完成三场景各 100 条修订与内联自审、各 10 条盲二次复核及各 3 条核心抽检。
+权威多轮对话 run `week5_dialogues_merged_10000_20260816_522b4af` 已合并并严格验证
+10,000 个唯一候选；本人随后完成固定 100 条人工验收队列，100 条决定均为 `pass`。
+因此只计 100 条人工 accepted；其余 9,900 条仍是未人工验收候选，不得改写为人工
+accepted。字段口径见 `docs/week5_annotation_guidelines.md`，实测数量见
 `reports/week5_dataset_quality_report.md`。
 
 #### Spartan 迁移
