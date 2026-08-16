@@ -4,10 +4,48 @@ import math
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+import requests
 
 
 class EvaluationRunnerConfigTest(unittest.TestCase):
     PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+    def test_chat_payload_forwards_native_structured_outputs(self):
+        from src.evaluation.runner import _build_chat_payload
+
+        schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
+        rendered = {
+            "messages": [{"role": "user", "content": "test"}],
+            "structured_outputs": {"json": schema},
+        }
+        runtime = {
+            "served_model_name": "test-model",
+            "generation": {"temperature": 0.1},
+        }
+
+        payload = _build_chat_payload(self.PROJECT_ROOT, rendered, runtime)
+
+        self.assertEqual(payload["structured_outputs"], {"json": schema})
+        self.assertNotIn("response_format", payload)
+
+    def test_chat_completion_preserves_bounded_http_error_body(self):
+        from src.evaluation.runner import EvaluationRunError, post_chat_completion
+
+        response = Mock(status_code=500, ok=False, text="engine failed\ntrace")
+        response.raise_for_status.side_effect = requests.HTTPError("500 error")
+        with patch("src.evaluation.runner.requests.post", return_value=response):
+            with self.assertRaisesRegex(
+                EvaluationRunError,
+                "chat completion HTTP 500: engine failed trace",
+            ):
+                post_chat_completion(
+                    "http://127.0.0.1:8001/v1/chat/completions",
+                    {"messages": []},
+                    1,
+                    max_attempts=1,
+                )
 
     def test_checked_in_config_declares_runtime_and_verified_model_sources(self):
         from src.data.yelp_paths import parse_simple_yaml
@@ -200,6 +238,67 @@ class EvaluationRunnerConfigTest(unittest.TestCase):
             [row["sample_id"] for row in selected],
             ["hotel-first", "attraction-first", "damage-first"],
         )
+
+    def test_itinerary_v3_uses_compact_exact_constraint_contract(self):
+        from src.evaluation.prompting import render_standard_prompt
+
+        rendered = render_standard_prompt(
+            self.PROJECT_ROOT,
+            "itinerary_planning",
+            {
+                "images": [{"path": "data/eval/images/example.jpg"}],
+                "text_constraints": "3天，预算不超过3000元，公共交通优先。",
+            },
+            version="standardized_v3",
+        )
+
+        instruction = rendered["layers"]["task_instruction"]
+        self.assertEqual(rendered["schema_name"], "itinerary_planning_v2.schema.json")
+        self.assertEqual(rendered["response_format"], {"type": "json_object"})
+        self.assertIn("不得改写、扩展、拆分或合并", instruction)
+        self.assertIn("source_evidence 固定为空数组", instruction)
+        self.assertIn("constraint 必须逐字复制", instruction)
+
+    def test_completion_metadata_records_usage_and_finish_reason(self):
+        from src.evaluation.runner import _completion_response_metadata
+
+        content, usage, finish_reason = _completion_response_metadata(
+            {
+                "choices": [
+                    {
+                        "message": {"content": "{}"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 20,
+                    "total_tokens": 30,
+                },
+            }
+        )
+
+        self.assertEqual(content, "{}")
+        self.assertEqual(usage["completion_tokens"], 20)
+        self.assertEqual(finish_reason, "stop")
+
+    def test_itinerary_v4_requires_schema_enum_literals(self):
+        from src.evaluation.prompting import render_standard_prompt
+
+        rendered = render_standard_prompt(
+            self.PROJECT_ROOT,
+            "itinerary_planning",
+            {
+                "images": [{"path": "data/eval/images/example.jpg"}],
+                "text_constraints": "4天，包含每日用餐与交通安排。",
+            },
+            version="standardized_v4",
+        )
+
+        instruction = rendered["layers"]["task_instruction"]
+        self.assertIn("绝不能翻译成中文", instruction)
+        self.assertIn("daily_schedule、poi、accommodation", instruction)
+        self.assertIn("要求每日用餐时加入 meals", instruction)
 
 
 class EvaluationResultTest(unittest.TestCase):
@@ -674,22 +773,23 @@ class EvaluationModelRunnerTest(unittest.TestCase):
         self.assertEqual(runtime["generation"]["repetition_penalty"], 1.05)
 
     def test_live_transport_failure_is_persisted_without_fabricated_output(self):
-        from src.evaluation.runner import run_records
+        from src.evaluation.runner import EvaluationRunError, run_records
 
         def failing_transport(url, payload, timeout):
             raise RuntimeError("service unavailable")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            run_records(
-                root=self.PROJECT_ROOT,
-                records=[self._record()],
-                runs_dir=Path(temp_dir),
-                run_id="stage3_live_failure",
-                mode="live",
-                prompt_version="baseline_minimal_v1",
-                runtime=self._runtime(),
-                transport=failing_transport,
-            )
+            with self.assertRaisesRegex(EvaluationRunError, "run is ineligible"):
+                run_records(
+                    root=self.PROJECT_ROOT,
+                    records=[self._record()],
+                    runs_dir=Path(temp_dir),
+                    run_id="stage3_live_failure",
+                    mode="live",
+                    prompt_version="baseline_minimal_v1",
+                    runtime=self._runtime(),
+                    transport=failing_transport,
+                )
             row = json.loads(
                 (Path(temp_dir) / "stage3_live_failure" / "results.jsonl")
                 .read_text(encoding="utf-8")
@@ -701,6 +801,12 @@ class EvaluationModelRunnerTest(unittest.TestCase):
             self.assertFalse(row["schema_valid"])
             self.assertIn("model_request_error", row["error"])
             self.assertIn("service unavailable", row["error"])
+            metadata = json.loads(
+                (Path(temp_dir) / "stage3_live_failure" / "metadata.json")
+                .read_text(encoding="utf-8")
+            )
+            self.assertEqual(metadata["status"], "failed")
+            self.assertEqual(metadata["model_request_error_count"], 1)
 
 
 class EvaluationRunnerCliTest(unittest.TestCase):

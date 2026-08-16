@@ -25,8 +25,9 @@ def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "ota-multimodal-search-planning",
-        "model": os.getenv("VLLM_MODEL_NAME", "Qwen/Qwen2.5-VL-3B-Instruct"),
-        "backend": "vLLM",
+        "model": os.getenv("MODEL_NAME")
+        or os.getenv("VLLM_MODEL_NAME", "Qwen/Qwen2-VL-2B-Instruct"),
+        "backend": os.getenv("MODEL_PROVIDER", "vLLM"),
         "version": "0.1.0",
     }
 

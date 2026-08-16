@@ -10,8 +10,13 @@ venv/
 env/
 .env
 .env.local
+secrets/
+docker/**/.env
 data/raw/
 data/yelp/
+data/eval/
+docker/milvus/volumes/
 models/
 outputs/
+work/
 *.log

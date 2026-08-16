@@ -2,7 +2,9 @@
 
 import copy
 import json
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -31,6 +33,8 @@ SUPPORTED_PROMPT_VERSIONS = {
     "baseline_minimal_v1",
     "standardized_v1",
     "standardized_v2",
+    "standardized_v3",
+    "standardized_v4",
 }
 
 
@@ -87,13 +91,23 @@ def load_runtime_settings(
         ):
             raise EvaluationRunError("inference repetition_penalty must be positive")
         generation["repetition_penalty"] = repetition_penalty
+    enable_thinking = inference.get("enable_thinking")
+    if enable_thinking is not None:
+        if not isinstance(enable_thinking, bool):
+            raise EvaluationRunError("inference enable_thinking must be boolean")
+        generation["enable_thinking"] = enable_thinking
     return {
         "model_name": model["model_name"],
         "served_model_name": model["served_model_name"],
         "model_config": model,
         "generation": generation,
-        "live_base_url": live_base_url or runtime_config["live_base_url"],
+        "live_base_url": (
+            live_base_url
+            or os.getenv("MODEL_API_BASE_URL")
+            or runtime_config["live_base_url"]
+        ),
         "timeout_seconds": runtime_config["timeout_seconds"],
+        "full_concurrency": runtime_config.get("full_concurrency", 1),
     }
 
 
@@ -108,6 +122,7 @@ def run_configured_evaluation(
     mock_outputs: dict[str, str] | None = None,
     live_base_url: str | None = None,
     transport: ModelTransport | None = None,
+    scenario: str | None = None,
 ) -> dict[str, Any]:
     """Load configured manifests and execute one immutable evaluation run."""
     project_root = Path(root)
@@ -115,6 +130,8 @@ def run_configured_evaluation(
     if not resolved_config.is_absolute():
         resolved_config = project_root / resolved_config
     config = load_evaluation_config(resolved_config)
+    if scenario is not None and scenario not in config["scenarios"]:
+        raise EvaluationRunError(f"unsupported scenario filter: {scenario}")
     configured_records = load_configured_manifests(config, root=project_root)
     records = [
         record
@@ -141,10 +158,15 @@ def run_configured_evaluation(
         records = selected_records
     elif run_scope != "framework":
         raise EvaluationRunError("mock and dry-run modes require run_scope framework")
+    if scenario is not None:
+        records = [record for record in records if record["scenario"] == scenario]
+        if mode == "live" and not records:
+            raise EvaluationRunError(f"no eligible records for scenario: {scenario}")
     artifact_hashes = build_run_artifact_hashes(
         project_root,
         config,
         prompt_version,
+        [scenario] if scenario is not None else None,
     )
     runtime = load_runtime_settings(
         project_root,
@@ -283,91 +305,118 @@ def run_records(
             [record["sample_id"] for record in selected]
         ),
         "selected_count": len(selected),
+        "concurrency": (
+            runtime.get("full_concurrency", 1)
+            if mode == "live" and run_scope == "full"
+            else 1
+        ),
     }
     active_transport = transport or _request_chat_completion
 
-    with ImmutableRunWriter(Path(runs_dir), run_id, metadata) as writer:
-        for record in selected:
-            scenario = record["scenario"]
-            input_metadata = copy.deepcopy(record["input"])
-            rendered = _render_request(
-                project_root,
-                scenario,
-                input_metadata,
-                prompt_version,
-            )
-            request_sha256 = canonical_sha256(rendered)
-            started = time.perf_counter()
-            raw_output: str | None = None
-            parsed_output: Any = None
-            json_valid = False
-            schema_valid = False
-            error: str | None = None
+    def execute(record: dict[str, Any]) -> dict[str, Any]:
+        scenario = record["scenario"]
+        input_metadata = copy.deepcopy(record["input"])
+        rendered = _render_request(
+            project_root,
+            scenario,
+            input_metadata,
+            prompt_version,
+        )
+        request_sha256 = canonical_sha256(rendered)
+        started = time.perf_counter()
+        raw_output: str | None = None
+        parsed_output: Any = None
+        json_valid = False
+        schema_valid = False
+        error: str | None = None
+        token_usage = _empty_token_usage()
+        finish_reason: str | None = None
 
-            if mode == "dry-run":
-                error = "dry_run"
-            elif mode == "mock" and (
-                mock_outputs is None or record["sample_id"] not in mock_outputs
-            ):
-                error = (
-                    "mock_fixture_missing: no raw output for sample_id "
-                    f"{record['sample_id']}"
-                )
-            else:
-                try:
-                    if mode == "mock":
-                        assert mock_outputs is not None
-                        raw_output = mock_outputs[record["sample_id"]]
-                    else:
-                        payload = _build_chat_payload(project_root, rendered, runtime)
-                        endpoint = (
-                            runtime["live_base_url"].rstrip("/")
-                            + "/v1/chat/completions"
+        if mode == "dry-run":
+            error = "dry_run"
+        elif mode == "mock" and (
+            mock_outputs is None or record["sample_id"] not in mock_outputs
+        ):
+            error = (
+                "mock_fixture_missing: no raw output for sample_id "
+                f"{record['sample_id']}"
+            )
+        else:
+            try:
+                if mode == "mock":
+                    assert mock_outputs is not None
+                    raw_output = mock_outputs[record["sample_id"]]
+                else:
+                    payload = _build_chat_payload(project_root, rendered, runtime)
+                    endpoint = chat_completions_url(runtime["live_base_url"])
+                    if transport is None:
+                        response_payload = post_chat_completion(
+                            endpoint,
+                            payload,
+                            runtime["timeout_seconds"],
                         )
+                        raw_output, token_usage, finish_reason = (
+                            _completion_response_metadata(response_payload)
+                        )
+                    else:
                         raw_output = active_transport(
                             endpoint,
                             payload,
                             runtime["timeout_seconds"],
                         )
-                    if not isinstance(raw_output, str):
-                        raise EvaluationRunError("model transport must return text")
-                    parsed = parse_and_validate_output(
-                        project_root,
-                        scenario,
-                        raw_output,
-                        _rendered_schema_version(rendered),
-                    )
-                    parsed_output = parsed["parsed_output"]
-                    json_valid = parsed["json_valid"]
-                    schema_valid = parsed["schema_valid"]
-                    error = parsed["error"]
-                except Exception as exc:
-                    raw_output = None
-                    parsed_output = None
-                    json_valid = False
-                    schema_valid = False
-                    error = f"model_request_error: {type(exc).__name__}: {exc}"
+                if not isinstance(raw_output, str):
+                    raise EvaluationRunError("model transport must return text")
+                parsed = parse_and_validate_output(
+                    project_root,
+                    scenario,
+                    raw_output,
+                    _rendered_schema_version(rendered),
+                )
+                parsed_output = parsed["parsed_output"]
+                json_valid = parsed["json_valid"]
+                schema_valid = parsed["schema_valid"]
+                error = parsed["error"]
+            except Exception as exc:
+                error = f"model_request_error: {type(exc).__name__}: {exc}"
 
-            latency_ms = (time.perf_counter() - started) * 1000
-            writer.write(
-                {
-                    "run_id": run_id,
-                    "sample_id": record["sample_id"],
-                    "scenario": scenario,
-                    "mode": mode,
-                    "model_name": runtime["model_name"],
-                    "model_config": record_model_config,
-                    "prompt_version": prompt_version,
-                    "request_sha256": request_sha256,
-                    "input_metadata": input_metadata,
-                    "raw_output": raw_output,
-                    "parsed_output": parsed_output,
-                    "json_valid": json_valid,
-                    "schema_valid": schema_valid,
-                    "latency_ms": latency_ms,
-                    "error": error,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
+        return {
+            "run_id": run_id,
+            "sample_id": record["sample_id"],
+            "scenario": scenario,
+            "mode": mode,
+            "model_name": runtime["model_name"],
+            "model_config": record_model_config,
+            "prompt_version": prompt_version,
+            "request_sha256": request_sha256,
+            "input_metadata": input_metadata,
+            "raw_output": raw_output,
+            "parsed_output": parsed_output,
+            "json_valid": json_valid,
+            "schema_valid": schema_valid,
+            "latency_ms": (time.perf_counter() - started) * 1000,
+            "token_usage": token_usage,
+            "finish_reason": finish_reason,
+            "error": error,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    request_errors: list[dict[str, str]] = []
+    with ImmutableRunWriter(Path(runs_dir), run_id, metadata) as writer:
+        if metadata["concurrency"] == 1:
+            results = map(execute, selected)
+            for result in results:
+                writer.write(result)
+                _collect_live_request_error(result, request_errors)
+        else:
+            with ThreadPoolExecutor(max_workers=metadata["concurrency"]) as executor:
+                for result in executor.map(execute, selected):
+                    writer.write(result)
+                    _collect_live_request_error(result, request_errors)
+        writer.metadata["model_request_error_count"] = len(request_errors)
+        if mode == "live" and request_errors:
+            raise EvaluationRunError(
+                "model requests failed; run is ineligible: "
+                f"count={len(request_errors)}"
             )
 
     return json.loads(
@@ -448,6 +497,9 @@ def _build_chat_payload(
     response_format = rendered.get("response_format")
     if response_format is not None:
         payload["response_format"] = copy.deepcopy(response_format)
+    structured_outputs = rendered.get("structured_outputs")
+    if structured_outputs is not None:
+        payload["structured_outputs"] = copy.deepcopy(structured_outputs)
     return payload
 
 
@@ -466,12 +518,131 @@ def _request_chat_completion(
     payload: dict[str, Any],
     timeout_seconds: int,
 ) -> str:
-    response = requests.post(url, json=payload, timeout=timeout_seconds)
-    response.raise_for_status()
-    content = response.json()["choices"][0]["message"]["content"]
+    response_payload = post_chat_completion(url, payload, timeout_seconds)
+    content = response_payload["choices"][0]["message"]["content"]
     if not isinstance(content, str):
         raise EvaluationRunError("chat completion content must be text")
     return content
+
+
+def _completion_response_metadata(
+    response_payload: dict[str, Any],
+) -> tuple[str, dict[str, int | None], str | None]:
+    """Extract text and bounded runtime metadata from a chat completion."""
+    choices = response_payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise EvaluationRunError("chat completion choices must be a non-empty array")
+    message = choices[0].get("message")
+    if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+        raise EvaluationRunError("chat completion content must be text")
+    finish_reason = choices[0].get("finish_reason")
+    if finish_reason is not None and not isinstance(finish_reason, str):
+        finish_reason = None
+    return (
+        message["content"],
+        _normalize_token_usage(response_payload.get("usage")),
+        finish_reason,
+    )
+
+
+def _normalize_token_usage(value: Any) -> dict[str, int | None]:
+    if not isinstance(value, dict):
+        return _empty_token_usage()
+    normalized: dict[str, int | None] = {}
+    for field in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        count = value.get(field)
+        normalized[field] = (
+            count
+            if isinstance(count, int) and not isinstance(count, bool) and count >= 0
+            else None
+        )
+    return normalized
+
+
+def _empty_token_usage() -> dict[str, None]:
+    return {
+        "prompt_tokens": None,
+        "completion_tokens": None,
+        "total_tokens": None,
+    }
+
+
+def _collect_live_request_error(
+    result: dict[str, Any],
+    errors: list[dict[str, str]],
+) -> None:
+    error = result.get("error")
+    if isinstance(error, str) and error.startswith("model_request_error:"):
+        errors.append(
+            {
+                "sample_id": str(result.get("sample_id")),
+                "error": error,
+            }
+        )
+
+
+def post_chat_completion(
+    url: str,
+    payload: dict[str, Any],
+    timeout_seconds: int,
+    *,
+    max_attempts: int = 3,
+) -> dict[str, Any]:
+    """POST a hosted completion with bounded retries for transient failures."""
+    for attempt in range(1, max_attempts + 1):
+        response = None
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=model_request_headers(),
+                timeout=timeout_seconds,
+            )
+            if response.status_code == 429 or response.status_code >= 500:
+                response.raise_for_status()
+            if not response.ok:
+                response.raise_for_status()
+            result = response.json()
+            if not isinstance(result, dict):
+                raise EvaluationRunError("chat completion response must be an object")
+            return result
+        except (requests.Timeout, requests.ConnectionError, requests.HTTPError) as exc:
+            retryable_status = response.status_code if response is not None else None
+            retryable = retryable_status is None or retryable_status == 429 or retryable_status >= 500
+            if not retryable or attempt == max_attempts:
+                if response is not None:
+                    body = response.text.strip().replace("\r", " ").replace("\n", " ")
+                    if len(body) > 1000:
+                        body = body[:1000] + "..."
+                    raise EvaluationRunError(
+                        f"chat completion HTTP {response.status_code}: {body or '<empty body>'}"
+                    ) from exc
+                raise
+            time.sleep(2 ** attempt)
+    raise EvaluationRunError("chat completion retry loop exhausted")
+
+
+def chat_completions_url(base_url: str) -> str:
+    """Build a chat-completions URL for local and versioned hosted endpoints."""
+    normalized = base_url.rstrip("/")
+    if normalized.endswith("/v1"):
+        return normalized + "/chat/completions"
+    return normalized + "/v1/chat/completions"
+
+
+def model_request_headers() -> dict[str, str]:
+    """Load an optional hosted-model key without persisting it in run metadata."""
+    headers = {"Content-Type": "application/json"}
+    api_key = os.getenv("MODEL_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
+    if not api_key:
+        key_file = os.getenv("MODEL_API_KEY_FILE") or os.getenv(
+            "DASHSCOPE_API_KEY_FILE"
+        )
+        if key_file:
+            api_key = Path(key_file).read_text(encoding="utf-8")
+    if api_key and api_key.strip():
+        headers["Authorization"] = f"Bearer {api_key.strip()}"
+    return headers
 
 
 def _validate_runtime(runtime: dict[str, Any]) -> None:
@@ -488,6 +659,13 @@ def _validate_runtime(runtime: dict[str, Any]) -> None:
     timeout = runtime.get("timeout_seconds")
     if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
         raise EvaluationRunError("runtime.timeout_seconds must be positive")
+    concurrency = runtime.get("full_concurrency", 1)
+    if (
+        isinstance(concurrency, bool)
+        or not isinstance(concurrency, int)
+        or concurrency <= 0
+    ):
+        raise EvaluationRunError("runtime.full_concurrency must be positive")
 
 
 def _load_yaml_mapping(path: Path, label: str) -> dict[str, Any]:

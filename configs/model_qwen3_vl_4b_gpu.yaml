@@ -1,0 +1,7 @@
+model_name: Qwen/Qwen3-VL-4B-Instruct
+served_model_name: Qwen3-VL-4B-Instruct
+backend: vLLM
+task: image_understanding
+input_type: image_plus_text
+precision: bfloat16
+notes: Single-A10 Qwen3-VL 4B rerun through the loopback-only GPU ECS endpoint.

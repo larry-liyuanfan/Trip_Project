@@ -24,8 +24,12 @@ class EvaluationProvenanceTest(unittest.TestCase):
             self.assertEqual(
                 hashes,
                 {
-                    "manifest.jsonl": hashlib.sha256(first.read_bytes()).hexdigest(),
-                    "prompt.txt": hashlib.sha256(second.read_bytes()).hexdigest(),
+                    "manifest.jsonl": hashlib.sha256(
+                        first.read_bytes().replace(b"\r\n", b"\n")
+                    ).hexdigest(),
+                    "prompt.txt": hashlib.sha256(
+                        second.read_bytes().replace(b"\r\n", b"\n")
+                    ).hexdigest(),
                 },
             )
             verify_artifact_hashes(root, hashes)
@@ -36,6 +40,25 @@ class EvaluationProvenanceTest(unittest.TestCase):
                 "artifact hash mismatch.*manifest.jsonl",
             ):
                 verify_artifact_hashes(root, hashes)
+
+    def test_artifact_hashes_accept_lf_and_crlf_legacy_runs(self) -> None:
+        from src.evaluation.provenance import verify_artifact_hashes
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prompt = root / "prompt.txt"
+            lf_bytes = "第一行\n第二行\n".encode("utf-8")
+            crlf_bytes = lf_bytes.replace(b"\n", b"\r\n")
+            prompt.write_bytes(crlf_bytes)
+
+            verify_artifact_hashes(
+                root,
+                {"prompt.txt": hashlib.sha256(lf_bytes).hexdigest()},
+            )
+            verify_artifact_hashes(
+                root,
+                {"prompt.txt": hashlib.sha256(crlf_bytes).hexdigest()},
+            )
 
     def test_canonical_hash_is_stable_and_order_sensitive_for_lists(self) -> None:
         from src.evaluation.provenance import canonical_sha256

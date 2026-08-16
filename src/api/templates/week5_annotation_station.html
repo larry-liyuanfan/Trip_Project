@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trip Week 5 人工标注与质检台</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, "Microsoft YaHei", sans-serif; }
+    body { margin: 0; background: #f3f5f7; color: #17202a; }
+    header { padding: 18px 24px; background: #143642; color: white; }
+    header h1 { margin: 0 0 5px; font-size: 22px; }
+    header p { margin: 0; color: #d9e7eb; font-size: 13px; }
+    .warning { margin: 14px 24px; padding: 12px 14px; background: #fff4d6; border-left: 4px solid #d39400; }
+    .toolbar { display: flex; gap: 12px; align-items: end; padding: 0 24px 14px; flex-wrap: wrap; }
+    label { display: grid; gap: 5px; font-size: 13px; font-weight: 600; }
+    select, input, textarea, button { font: inherit; }
+    select, input { padding: 8px; border: 1px solid #bac5cc; border-radius: 6px; background: white; }
+    button { padding: 9px 14px; border: 0; border-radius: 6px; background: #176b87; color: white; cursor: pointer; }
+    button.secondary { background: #5f6f78; }
+    button:disabled { opacity: .45; cursor: default; }
+    #counter { padding: 8px 0; font-weight: 700; }
+    main { display: grid; grid-template-columns: minmax(320px, 42%) minmax(420px, 58%); gap: 16px; padding: 0 24px 24px; }
+    .card { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 2px 10px #1d2c3320; min-height: 520px; }
+    img { width: 100%; max-height: 480px; object-fit: contain; background: #111; border-radius: 6px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #f5f7f8; padding: 10px; border-radius: 6px; max-height: 190px; overflow: auto; }
+    .translation { background: #eef8f3; border-left: 4px solid #18835a; }
+    .hint { color: #52636c; font-size: 12px; margin-top: -8px; }
+    textarea { box-sizing: border-box; width: 100%; min-height: 280px; padding: 10px; border: 1px solid #bac5cc; border-radius: 6px; font-family: Consolas, monospace; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+    .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 500; margin: 10px 0; }
+    .issues { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; margin: 10px 0; }
+    .issues label { display: flex; gap: 6px; font-weight: 500; }
+    #message { min-height: 22px; margin: 10px 0; font-weight: 700; }
+    #draft-warnings { padding: 9px 11px; background: #fff0ed; border-left: 4px solid #b42318; color: #8f1f16; font-size: 13px; white-space: pre-wrap; }
+    .ok { color: #126b35; } .error { color: #b42318; }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header><h1>Trip Week 5 人工标注与质检台</h1><p>单人真实操作工作流 · 模型预标注只读 · 保存即记录本次人工修订与显式自审</p></header>
+  <div class="warning">当前只展示单人预算内的确定性验证队列：每场景 100 条，其中固定包含 10 条盲审候选和 3 条核心抽检候选；后续仅抽取 100 条自动生成的对话进行人工验收。总人工操作上限 439 次。未进入队列的数据保持 silver，不会冒充人工完成。</div>
+  <div class="toolbar">
+    <label>场景<select id="scenario"><option value="image_product_search">商品图搜</option><option value="after_sales">智能售后</option><option value="itinerary_planning">行程规划</option></select></label>
+    <label>阶段<select id="stage"><option value="human">人工修订 + 自审</option><option value="cross_review">盲二次复核</option><option value="core_audit">核心抽检</option></select></label>
+    <button class="secondary" id="prev">上一条</button><button class="secondary" id="next">下一条</button>
+    <span id="counter">载入中…</span>
+  </div>
+  <main>
+    <section class="card"><h3 id="sample">暂无任务</h3><img id="image" hidden><h4>原始输入</h4><pre id="input"></pre><h4>原始输入（中文速览）</h4><pre class="translation" id="input-cn"></pre><h4 id="reference-title">模型预标注（只读）</h4><pre id="reference"></pre><h4 id="reference-cn-title">模型预标注（中文速览）</h4><pre class="translation" id="reference-cn"></pre></section>
+    <section class="card">
+      <div class="row"><label>真实操作人<input id="operator" autocomplete="off" value="Larry Fan"></label><label>本次 review_session_id<input id="session" autocomplete="off"></label></div>
+      <p class="hint">字段已预填，但只有你点击保存才会形成真实人工记录；切换阶段时会生成新的 session ID。</p>
+      <label id="decision-wrap" hidden>质检决定<select id="decision"><option value="">请选择</option><option value="pass">pass</option><option value="rework">rework</option><option value="reject">reject</option></select></label>
+      <div id="issues-wrap" hidden><h4>问题代码（可多选）</h4><div class="issues" id="issues"></div></div>
+      <label id="annotation-wrap">人工修订 JSON<textarea id="annotation" spellcheck="false"></textarea></label>
+      <p id="draft-warnings" hidden></p>
+      <label>备注<textarea id="notes" style="min-height:90px" placeholder="可选"></textarea></label>
+      <label class="check" id="self-wrap"><input type="checkbox" id="self-review">我已查看原图、文字约束并逐项自审，本次内容是我的真实人工判断。</label>
+      <div id="message"></div><button id="save">保存并进入下一条</button>
+    </section>
+  </main>
+  <script>
+    const issueCodes = ["classification_error","severity_error","ocr_error","constraint_omission","itinerary_structure_error","required_element_omission","missing_field","invalid_format","image_text_mismatch","ambiguous_evidence","business_compliance"];
+    const keyZh = {
+      images:"图片",path:"路径",sha256:"文件哈希",text_constraints:"文字约束",
+      business_category:"商家类别",style_tags:"风格标签",visible_facilities:"可见设施",price_range:"价格档次",
+      observed_evidence:"可观察证据",inferred_attributes:"推断属性",unknown_fields:"无法判断字段",confidence:"置信度",
+      issue_type:"问题类型",severity:"严重程度",issue_location:"问题位置",key_information:"关键信息",ocr_text:"图片文字 OCR",
+      style_preferences:"风格偏好",hard_constraints:"硬性约束",soft_constraints:"软性约束",required_itinerary_elements:"必需行程要素",
+      itinerary:"行程",day_index:"第几天",date:"日期",summary:"当日概要",activities:"活动",start_time:"开始时间",end_time:"结束时间",
+      place_name:"地点名称",activity:"活动内容",transport:"交通方式",source_evidence:"来源证据",constraint_check:"约束检查",
+      constraint:"约束",constraint_type:"约束类型",status:"满足状态",evidence:"依据"
+    };
+    const valueZh = {
+      hotel:"酒店",attraction:"景点",restaurant:"餐厅",other:"其他",unknown:"无法判断",
+      budget:"经济型",mid_range:"中档",premium:"高档",luxury:"奢华",
+      hygiene_stain:"卫生污渍",facility_damage:"设施损坏",attraction_closure:"景点关闭",transport_delay:"交通延误",
+      low:"低",medium:"中",high:"高",critical:"严重",hard:"硬性",soft:"软性",
+      satisfied:"已满足",violated:"未满足",pass:"通过",rework:"返工",reject:"拒绝"
+    };
+    const $ = id => document.getElementById(id); let offset = 0, total = 0, current = null;
+    function translated(value) {
+      if (Array.isArray(value)) return value.map(translated);
+      if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v]) => [keyZh[k] || k, translated(v)]));
+      return typeof value === 'string' && valueZh[value] ? `${valueZh[value]}（${value}）` : value;
+    }
+    function newSessionId() {
+      const stamp = new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14);
+      return `week5-${$('stage').value}-${stamp}`;
+    }
+    $('operator').value = 'Larry Fan'; $('session').value = newSessionId();
+    $('issues').innerHTML = issueCodes.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join('');
+    async function loadTask(reset=false) {
+      if (reset) offset = 0; const scenario=$('scenario').value, stage=$('stage').value;
+      const response=await fetch(`/api/tasks?scenario=${scenario}&stage=${stage}&offset=${offset}&limit=1`); const data=await response.json();
+      if (!response.ok) return show(data.detail || '载入失败', true); total=data.total; current=data.tasks[0] || null;
+      if (offset >= total && total) { offset=total-1; return loadTask(); }
+      $('counter').textContent = total ? `${offset+1} / ${total}` : '当前阶段无待办'; $('prev').disabled=offset<=0; $('next').disabled=offset+1>=total;
+      const quality=stage!=='human'; $('decision-wrap').hidden=!quality; $('issues-wrap').hidden=!quality; $('annotation-wrap').hidden=quality; $('self-wrap').hidden=quality;
+      $('sample').textContent=current ? `${current.sample_id} · ${stage}` : '暂无任务'; $('input').textContent=current ? JSON.stringify(current.input,null,2) : ''; $('input-cn').textContent=current ? JSON.stringify(translated(current.input),null,2) : '';
+      const ref=current ? (quality ? current.human_annotation : current.model_preannotation) : null; $('reference-title').textContent=quality?'当前人工标注（只读）':'模型预标注（只读）'; $('reference-cn-title').textContent=quality?'当前人工标注（中文速览）':'模型预标注（中文速览）'; $('reference').textContent=ref?JSON.stringify(ref,null,2):'无'; $('reference-cn').textContent=ref?JSON.stringify(translated(ref),null,2):'无';
+      const draft=!quality && current ? current.human_draft : null;
+      $('annotation').value=draft ? JSON.stringify(draft,null,2) : ''; $('decision').value=''; $('notes').value=''; $('self-review').checked=false; document.querySelectorAll('#issues input').forEach(x=>x.checked=false);
+      const warnings=!quality && current ? (current.draft_warnings || []) : [];
+      $('draft-warnings').hidden=!warnings.length; $('draft-warnings').textContent=warnings.length ? `提交前提示：\n${warnings.join('\n')}\n请结合原图确认草稿，必要时从项目受控词表中人工选择其他标签。` : '';
+      if (current?.image_url) { $('image').src=current.image_url; $('image').hidden=false; } else { $('image').hidden=true; }
+      show('');
+    }
+    function show(text,error=false){$('message').textContent=text;$('message').className=error?'error':'ok';}
+    $('prev').onclick=()=>{if(offset>0){offset--;loadTask();}}; $('next').onclick=()=>{if(offset+1<total){offset++;loadTask();}};
+    $('scenario').onchange=()=>loadTask(true); $('stage').onchange=()=>{$('session').value=newSessionId();loadTask(true);};
+    $('save').onclick=async()=>{ if(!current) return; const stage=$('stage').value; let body, url;
+      try { if(stage==='human'){body={sample_id:current.sample_id,scenario:current.scenario,annotator:$('operator').value.trim(),human_annotation:JSON.parse($('annotation').value),self_review_confirmed:$('self-review').checked,review_session_id:$('session').value.trim(),self_review_notes:$('notes').value||null};url='/api/human';}
+      else {body={sample_id:current.sample_id,scenario:current.scenario,stage,decision:$('decision').value,reviewer:$('operator').value.trim(),issues:[...document.querySelectorAll('#issues input:checked')].map(x=>x.value),notes:$('notes').value||null,review_session_id:$('session').value.trim()};url='/api/quality';}
+      const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json(); if(!response.ok) throw new Error(data.detail||JSON.stringify(data)); show('已保存真实人工记录'); await loadTask(false);
+      } catch(error){show(error.message,true);} };
+    loadTask(true);
+  </script>
+</body>
+</html>

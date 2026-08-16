@@ -102,6 +102,8 @@ Prefer configuration and structured parsers over hard-coded values or ad hoc str
 
 Add short comments for non-obvious logic, data assumptions, parsing and filtering rules, alignment quality, resource bounds, and error handling. Avoid comments that merely restate the code.
 
+Prefer concise Simplified Chinese for new business-logic comments and explanatory notes. Keep code identifiers, public API names, protocol fields, library terms, commands, and existing English conventions unchanged when translation would reduce clarity or compatibility.
+
 Keep changes scoped to the request. Preserve existing user changes in a dirty worktree and do not reformat, rewrite, delete, or revert unrelated files. Do not add abstractions or dependencies without a concrete need.
 
 ## Testing and Verification
@@ -140,6 +142,8 @@ Semantic denoising is optional. When run, record model, threshold, batch limits,
 
 Update documentation when behavior, commands, schemas, configuration, or accepted decisions change. Keep `README.md` focused on what can be run now, and keep historical evidence in weekly and experiment records.
 
+Use Simplified Chinese as the primary language for mentor-facing reports, requirement and decision explanations, weekly logs, delivery records, experiment narratives, and human-readable run summaries. Tables, metric names, paths, commands, configuration keys, Schema fields, model names, and machine-readable log values may remain in English. Do not translate stable interfaces or rewrite unrelated historical records solely to change their language.
+
 Record model-serving, prompt, dataset, retrieval, or evaluation changes in the appropriate experiment files. Each experiment should identify the date, Git commit, model and backend, configuration, dataset version, command, metrics, failures, and next action. Use only observed results.
 
 For weekly review work, map every delivered change to the current requirement. Include reproducible commands, verification results, expected outputs, known limitations, and documentation updates. Do not commit personal schedules, agent scratch plans, chat transcripts, or internship reflections.
@@ -165,3 +169,7 @@ Never commit secrets, API keys, credentials, private endpoints, model weights, l
 Before changing or running GPU services, verify the documented CUDA, container runtime, model compatibility, and memory assumptions. Do not run competing GPU workloads concurrently when the documented workflow requires exclusive access.
 
 Avoid destructive Git, filesystem, Docker, and data operations unless the user explicitly requests them and the target has been verified. Prefer reversible, scoped operations and preserve reproducibility evidence.
+
+## Single-Operator Human Review
+
+When the user explicitly declares that only one human operator is available, never invent a second annotator or independent reviewer. Use the accepted single-operator workflow: the operator explicitly confirms self-review while saving each correction, then performs deterministic blind second-pass cross-review and core audit only for selected samples in distinct review sessions. Unsampled records may be accepted after real human correction plus inline self-review. Model output, automatic validation, or an agent action must never supply the human confirmation, reviewer identity, review session, or acceptance decision.

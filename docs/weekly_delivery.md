@@ -205,6 +205,311 @@ created.
 All mentor-required Week 3 baseline metrics now have persisted values and
 support counts. No numeric semantic score is derived from JSON failure.
 
+## Week 4 交付：Prompt 优化与 Milvus
+
+状态：`READY FOR MENTOR REVIEW`。Milvus 与 Prompt 交付均完成；新
+Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行保留为
+历史证据，不参与新选择。
+
+### 完成清单
+
+- [x] 保持 Week 3 manifest、金标、baseline、输出、Prompt、Schema 和评分不变。
+- [x] 三个场景各固定选择 5 个正例和 2 个边界例。
+- [x] 构建并实测 `standardized_v2`、4-shot v2、7-shot v2 pilot；
+  三组均无模型请求错误。
+- [x] 使用业务质量、格式、token 和延迟选择每场景胜出版本。
+- [x] 只对三个胜出版本执行 450 条 Week 3 v2 全量跑测。
+- [x] 保存原始输出、哈希、token、延迟、评分和 bad case。
+- [x] 提供不修复内容的 JSON/Schema 格式兜底和定向测试。
+- [x] 部署带持久化、健康检查和资源限制的固定版本 Milvus standalone。
+- [x] 实现并验证批量入库、单条新增、过滤检索、删除和索引构建。
+- [x] 生成 20 条真实 CLIP 向量并完成 CRUD 与性能测量。
+- [x] 移除跟踪文件中的明文凭据，提交脱敏环境模板并完成本地凭据轮换。
+- [x] 修复 LF/CRLF 运行绑定问题，新增 Week 4 统一只读证据验证。
+- [x] runner/验证器拒绝模型请求失败；删除跨评分轨道业务差值。
+- [x] 新增不覆盖旧评分的 450 对共同确定性语义评分与 paired bootstrap。
+- [x] 旧 Few-Shot pilot 明确标为 test-gold contamination 历史证据。
+- [x] 建立 36 条独立 `week4_demo_dev_v1` 人工金标并验证与 450 条最终
+  evaluation 在样本、来源、图片和来源组四层隔离。
+- [x] 使用 selection v2 重跑 45 条无偏 pilot；商品胜出 4-shot，售后和
+  行程胜出 `standardized_v2`。
+- [x] 只按 pilot 胜出映射执行新的 450 条全量，不用全量结果反向改选。
+
+实测 Prompt 和 Milvus 结果记录在
+`reports/week4_prompt_optimization_report.md`,
+`reports/week4_bad_cases.md` 和
+`reports/week4_milvus_deployment_performance_report.md`。生成的运行、
+向量和数据库 volumes 均保持忽略。
+
+### 修复后验证证据
+
+- `python -m unittest discover -s tests -v`：248/248 通过。
+- Week 3 v2 数据验证和 baseline/standardized 两个 run-bound 验证均为
+  `status=ok`，tested_count 为 200/150/100。
+- `python scripts/validate_week4_delivery.py`：3 个有效 pilot 共 45 条且
+  请求错误为 0；全量 450 条、score 450 条和 bad case 376 条全部通过。
+- baseline token 未记录，明确为 `PENDING`；原词法轨道与原结构化轨道
+  仍不直接相减。新增共同语义轨道包含 450 对预测、38 个聚合指标和
+  2,000 次 paired bootstrap。
+- Compose 脱敏展开通过；凭据轮换后 etcd、MinIO、Milvus 均 healthy，
+  19 条逻辑可见向量保持可查询。
+- 基准脚本会在既有输出或非空集合上写入前失败，并以 Milvus `count(*)`
+  记录插入和删除后的真实可见行数。
+
+2026-07-26 本次复核中，使用临时脱敏环境变量执行 Compose 配置展开通过；
+本次已启动 Docker daemon 和固定 Qwen2-VL vLLM，仅执行 Prompt 推理，
+未与 CLIP 并发。Milvus、MinIO、etcd 当前均 healthy；正式集合 19 条逻辑
+可见行，临时集合 CRUD 为插入 1、命中 1、删除后 0。历史性能产物未改写。
+
+## Week 1-4 Qwen3.7 整体交付整理
+
+- [x] 云端模型配置固定为阿里云百炼 `qwen3.7-plus`，关闭 thinking。
+- [x] Week 1 真实图片 API smoke 通过，且禁止请求失败时静默 fallback。
+- [x] Week 2 数据与 CLIP 结果确认为模型无关项，不重复制造运行数据。
+- [x] Week 3 baseline、standardized 和 Week 4 winner 均完成 Qwen3.7
+  450/450 全量运行，请求错误为 0。
+- [x] 行程 `standardized_v4` 完成 100/100，JSON/Schema 均为 100%。
+- [x] 保留 Milvus 真实 CRUD、HNSW 和小规模性能证据。
+- [x] 新增总报告与报告索引，明确纯模型变化、Prompt 联合修复和已知限制。
+- [x] stg 推广范围固定到 Week 1-4，不包含后续 Week 5 实现。
+
+总报告：`reports/week1_to_week4_qwen37_overall_report.md`。
+报告索引：`reports/README.md`。
+
+### 整理后验证证据
+
+- `python -m unittest discover -s tests -v`：262/262 通过。
+- `python scripts/validate_week2_pipeline.py --config configs/data_processing.yaml`：
+  `status=ok`，无 errors 或 warnings。
+- Qwen3.7 baseline、standardized 和行程 v4 三个 run-bound 验证均为
+  `status=ok`；exclusion count 为 450。
+- `python scripts/validate_week4_delivery.py --config
+  configs/evaluation_week4_qwen37_plus_aliyun.yaml`：`status=ok`，pilot 45、
+  full/score/common-semantic paired 均为 450，请求错误为 0。
+
+## Week 5 交付：数据集标注与质检
+
+状态：`PARTIAL / WAITING FOR REQUIRED HUMAN INPUT`。候选池、隔离、Schema、
+标注配置、预标注/人工修正/三级质检/对话脚本已交付；真实模型预标注和人工工作
+尚未发生。
+
+### 实际交付与数量
+
+- [x] 三场景标注规范与当前 accepted 推理 Schema 对齐。
+- [x] 多模态 JSONL 标注配置和字段自动校验规则。
+- [x] 样本池构建、两版 exclusion manifest 隔离和重复图片拒绝。
+- [x] 商品 50,000、售后 20,000、行程 10,000 候选池实际生成并验证。
+- [x] Qwen3.7 最优 Prompt 映射、批量预标注、断点续跑和失败记录。
+- [x] 人工 revision、自审、同场景交叉互审及确定性抽检能力（原 10%/5% 方案已由
+  2026-08-10 单人最小人工方案替代）。
+- [x] 三类多轮对话 Schema、生成、结构校验和人工五项质检。
+- [x] 实际导出商品/售后/行程 50,000/20,000/10,000 条本地人工包；包内明确标记
+  预标注缺失，生成文件保持 Git 忽略。
+- [ ] 模型预标注：商品真实 smoke 3/3 完成、失败 0；其余全量仍在执行范围内。
+- [ ] 人工修正与三级质检：0；未收到必要人工输入。
+- [ ] 最终合格单轮：商品/售后/行程均 0。
+- [ ] 对话候选与最终合格：均 0；不能使用评估集绕过合格单轮前置条件。
+
+### 隔离与分布证据
+
+- 80,000 个唯一 `sample_id` 和 80,000 个唯一图片 SHA-256。
+- exclusion 共加载唯一 source/image 520、group 520、constraint template 12；
+  最终冲突 0。
+- 商品：酒店/景点/餐饮 200/800/49,000。
+- 售后：公开/合成 5,552/14,448，四类问题路由各 5,000。
+- 行程：四类人群各 2,500；预算 3,336/3,332/3,332；天数
+  3,336/3,336/3,328。
+
+详细规范和实测报告分别为 `docs/week5_annotation_guidelines.md` 与
+`reports/week5_dataset_quality_report.md`。大型生成产物保持 Git 忽略。
+
+验证：Week 5 定向测试 15/15、完整 `unittest` 285/285、样本池/隔离校验、三个
+新增 JSON 配置解析和 `git diff --check` 均通过。
+
+### 2026-08-09 增量证据
+
+- [x] Project Control 六项裁决已同步到 requirement、decision、配置、Schema、代码和测试。
+- [x] workflow v2 sidecar 绑定现有 80,000 条不可变候选，三场景数量为
+  50,000/20,000/10,000，初始人工状态均为 `awaiting_human_annotation`。
+- [x] 候选池全量图片、哈希、重复与冻结评测集隔离复核返回 `status=ok`；
+  唯一 sample/image 均为 80,000。
+- [x] 行程配对 pilot 使用新 run ID 完成 30×2=60 请求；保留 60 份原始输出和
+  2 条 Schema 失败，选中 `standardized_v4`，估算计算费 CNY 6.09。
+- [x] 从胜出 Prompt 导出 30 条版本化行程人工任务，状态全部为
+  `awaiting_human_annotation`，未填写或伪造 annotator/reviewer。
+- [ ] 三场景全量预标注未获授权；当前只有历史小 pilot 与本次 30 条行程配对 pilot。
+- [ ] 真实人工修正、自审、交叉互审、核心抽检与最终 accepted 均为 0。
+- [ ] 多轮对话候选和人工 accepted 均为 0；未执行未获授权的批量生成。
+
+### 2026-08-10 单人质检增量证据
+
+- [x] 全局规则、Week 5 requirement、accepted decision、操作规范、标注工具配置、
+  数据集配置和 README 已统一为单人最小人工模式。
+- [x] 人工修正提交必须包含真实 `annotator`、`corrected_at`、独立
+  `review_session_id` 和显式 `self_review_confirmed=true`；保存时生成同一 revision
+  的真实内联自审记录，不允许模型或 Agent 自动确认。
+- [x] 商品交叉复核/核心抽检为 1%/0.5%，售后和行程为 2%/1%；核心集合固定嵌套于
+  交叉复核集合，未抽中的样本在真实修正和内联自审后无需额外重复审核。
+- [x] 对现有 80,000 个候选实际计算出的盲复核/核心抽检集合为商品 516/259、售后
+  399/219、行程 190/94；共 1,677 次额外阶段操作，均尚未计为人工完成。
+- [x] 同一操作者可执行后续复核，但必须使用不同审核会话；程序拒绝未抽中样本、
+  会话复用、缺失人工身份和跳级状态。
+- [x] `export-quality` 只导出当前阶段准备完成、确定性选中且尚未记录的任务，避免
+  人工筛选和重复审核；输出包不预填人工决定、身份、时间或会话 ID。
+- [x] 活动 GPU 预标注配置保持不变；新增独立的
+  `configs/week5_dataset_qwen3_vl_4b_single_operator.json` 仅用于后处理。
+- [x] Week 5 定向测试 19/19、完整 `unittest` 289/289、Week 3 v1/v2 隔离验证、
+  配置解析和 `git diff --check` 通过；活动 run 配置 SHA-256 与 manifest 一致。
+- [ ] 真实人工修正、自审、盲二次复核、核心抽检与 accepted 数量仍为 0；规则精简
+  不改变“必须有真实人工确认”的事实边界。
+
+### 2026-08-10 低于 500 次质检与预标注进度证据
+
+- [x] 当前单人质检比例调整为商品 0.2%/0.05%、售后和行程 0.5%/0.1%。
+- [x] 对现有候选的确定性实算集合为商品 112/26、售后 102/21、行程 53/7，合计
+  321 次额外阶段操作，满足低于 500 次的要求；它们尚未计为人工完成。
+- [x] 全量预标注 run B 实际成功商品 8,140，未解决失败 8；商品完成 16.28%，全池
+  完成 10.175%，售后和行程全量完成数均为 0。
+- [ ] run B 当前未运行：checkpoint 停在 2026-08-10 02:10:24（悉尼时间），本机
+  Python/SSH 进程与回环隧道均不存在。产物可按原 manifest 哈希安全 resume。
+
+### 2026-08-12 自动恢复增量证据
+
+- [x] 根因确认为本机 SSH 隧道退出；远端 vLLM 健康，run 数据与 manifest 未损坏。
+- [x] `scripts/supervise_week5_preannotation.ps1` 支持 keepalive、端点健康检查、互斥
+  防重、隐藏后台运行、自动重连和相同 run ID 安全 resume。
+- [x] 主流程不重复成功或反复重试 terminal bad case；仅在全池完成后做一次失败清理。
+- [x] 守护进程恢复后 checkpoint 实际继续增长，首轮观测新增 48/48 成功且连续失败 0。
+- [x] 已建立每 30 分钟本地 heartbeat 状态检查；全量完成前不自动停止或释放 ECS。
+- [x] PowerShell 语法、守护流程定向测试 2/2、Week 5 联合定向测试 21/21、完整
+  `unittest` 291/291 和 `git diff --check` 通过。
+
+### 2026-08-12 ECS 常驻迁移增量证据
+
+- [x] 80,000 条候选和 80,000 张唯一引用图片已同步，远端缺失 0；三份候选 manifest
+  与活动 run manifest 哈希一致。
+- [x] 远端 Week 5 定向测试 22/22、候选池与隔离验证 `status=ok`、回环端点验证通过。
+- [x] 本地在 checkpoint 15,190 安全停止；断点 JSONL 逐行有效并绑定原 run identity。
+- [x] systemd 服务已启用并从同一 run 恢复，成功数 15,166→15,197、checkpoint
+  15,190→15,209；历史 raw 已用不覆盖模式补传。
+- [x] 本地 supervisor、runner 和 SSH 隧道已停止，禁止与 ECS 服务并行写入。
+- [ ] 全量预标注仍在运行；真实人工修正、三级质检和最终 accepted 未因迁移而完成。
+
+### 2026-08-14 Week 5 闭环与 Week 6 数据锁定证据
+
+- [x] 最终 merge 覆盖 80,000 个唯一候选：成功 79,936、最终失败 64，成功/失败互斥且
+  无缺失；商品/售后/行程成功为 49,957/19,991/9,988。
+- [x] 44 条不可读输入保持最终 `input_error`；其余失败为 Schema 19、JSON 解析 1，
+  未伪造成功或人工结果。
+- [x] 标注台已加载全量 Schema-valid 预标注，并原样保留 27 条真实人工修订。
+- [x] Week 6 训练/验证数据版本及 manifest/split SHA-256 已锁定；模型预标注权重 0.5，
+  仅 27 条真人修订权重 1.0；冻结 Week 3 样本未进入训练或验证。
+- [x] 六份锁定 JSONL 通过流式数据契约校验；完整 unittest 312/312、Week 5 候选池与
+  隔离验证通过。
+- [ ] Week 6 GPU pilot、正式训练和参数锁定后的 Week 3 最终评估尚未完成。
+- [x] 依据 2026-08-14 最新单人预算决策，将人工验收限制为三场景各 100 条，并在每个
+  队列内固定包含 10 条盲复核候选与 3 条核心抽检候选；另预留 100 次自动对话候选
+  人工验收，总预算 439 次，未把其余 silver 记录改写为人工完成。
+- [x] 当前真实人工修订和内联自审为商品/售后/行程 100/100/100；预算内首轮队列
+  已清零。三场景各完成 10 次盲复核和 3 次核心抽检，review session 互异且记录有效。
+- [ ] 多轮对话候选及人工 accepted 尚未完成；候选生成和人工验收数量必须分开报告。
+- [x] 三场景各 100 条 canonical annotation 均通过 Schema；中文展示镜像各 100 条，
+  以 canonical SHA-256 绑定且不覆盖训练数据。
+- [x] 对话生成支持严格 run identity 和显式 `--resume`，Spartan sbatch 通过语法检查；
+  目标为 10,000 条自动候选。唯一作业 `29226849` 已提交到 `gpu-l40s`，首次状态为
+  `PENDING (Priority)`；尚未产出候选，不能计为完成或 accepted。
+- [x] 300 条人工/QC 归档已在 Spartan 项目目录校验并安装；旧 27 条全部被新记录
+  包含，安装前副本可恢复，六个 JSONL 的 SHA-256 与本地一致。
+- [x] 本轮完整 `unittest` 319/319、定向测试 7/7、`bash -n` 和
+  `git diff --check` 通过。
+- [x] 修复 vLLM 容器 `python3` 入口，并将容器 HOME、XDG 与 FlashInfer 缓存绑定到
+  Trip 专属 GPFS，避免使用已满的 Spartan home。
+- [x] 历史失败 `29114276`、`29116649`、`29116828` 均保留为不可覆盖证据；未生成
+  benchmark 结果，也未提交剩余分片。
+- [x] `29116943` 已验证 vLLM health 200；随后发现并补齐缺失的 36 条 Week 4
+  development manifests 与 36 张引用图片，容器内校验三场景各 12 条通过。
+- [ ] 唯一替代 benchmark `29117353` 当前在 `gpu-l40s` 等待资源；须实际完成并通过
+  身份、哈希、成功率和吞吐核验后才能提交剩余分片。
+
+### 2026-08-12 展示部署与提交身份增量证据
+
+- [x] `trip-api-sg:/opt/trip-display/20260812a` 独立部署完成；部署包 SHA-256 为
+  `404e7a681bdf35a839de56298568960a950203a21d9f7ae61b7dac4fdbe8a81d`。
+- [x] `ota-trip-display-api` 在 `127.0.0.1:8010` healthy，`/v1/project-status` 和 Week 5
+  静态报告可读；原 `ota-trip-api` 在 `127.0.0.1:8000` 仍 healthy。
+- [x] 未安装 CUDA、vLLM 或模型权重，未开放公网展示端口，未覆盖原服务。
+- [ ] Spartan Slurm 尚未提交：门户只读核验的当前身份为第三方账户 `yzhang3504`，不满足
+  ADR-020 的代理提交要求；project、quota、scratch 和 partition 仍待账户所有者或用户
+  自有身份核验。
+
+> 后续用户已更正账户归属：`yzhang3504` 为本人持有并授权 Trip_Project 使用。允许代理
+> 核验和提交，但仍须先完成 project/quota/scratch/partition 实测，并只操作新建项目目录
+> 和本项目 job ID。上方条目保留为授权更正前的事实快照。
+
+- [x] 实测 account/project=`punim2936`、QOS=`publicgpu`、project GPFS 可写且约余
+  93 GiB；home quota 已满，因此所有 Trip 文件均进入新建专属 project 目录。
+- [x] 依据实测待排数量只选择 `gpu-l40s`；benchmark job `29109265` 已提交并处于
+  `PD(Resources)`，估计启动 `2026-08-12T20:27:34`。没有提交 H100/A100 重复作业。
+
+### 2026-08-12 Spartan 接管增量证据
+
+- [x] 删除已失效的 A10 两小时监控；未释放实例或云盘。
+- [x] 从本地真实 15,166 条成功恢复点生成不可覆盖 Spartan migration；100 条
+  benchmark 加 4 个互斥分片覆盖剩余 64,834 条，连同恢复点合计 80,000。
+- [x] 增加分区只读检查、H100/A100/L40S 单分区提交模板、回环 vLLM、checkpoint、
+  状态统计和严格合并验证。
+- [x] 增加 Week 6 Qwen3-VL-8B NF4 QLoRA 配置、锁定数据契约、环境检查和最多
+  10-step 的小样本 pilot 入口。
+- [x] 增加包月 CPU ECS 结果展示 Compose 和只读状态 API；不承担 GPU 推理。
+- [x] Spartan account=`punim2936`、project GPFS、Python/Apptainer 模块和提交身份已
+  实测；旧 benchmark `29109265` 因模块依赖失败后，修复版环境作业 `29114275` 与唯一
+  L40S benchmark `29114276` 已提交；环境作业已 `COMPLETED 0:0`，benchmark 当前
+  在 `spartan-gpgpu006` 上 `RUNNING`。
+- [ ] Week 5 全量预标注仍未完成；人工修正、三级质检、最终 accepted 与对话 accepted
+  仍为 0。
+- [ ] Week 6 GPU pilot 和正式训练均未运行，不能计为训练完成。
+- [x] 验证：完整 unittest 299/299；Week 5 候选/隔离、Week 3 v1/v2、Slurm shell
+  语法、展示 Compose 展开和 `git diff --check` 通过。本机 Week 6 环境如实返回缺少
+  GPU 训练依赖，未计为 Spartan 环境通过。
+- [x] 新增 project-scoped Python 3.11 venv 安装作业；环境及全部缓存仅写入 Trip 专属
+  版本目录。job `29114275` 完成，`pip check` 和关键包导入通过。GPFS 实测可用
+  93 GiB；未使用 home 或其他成员目录。
+
+### 2026-08-12 ECS 常驻迁移增量证据
+
+- [x] 80,000 条候选和 80,000 张唯一引用图片已同步，远端缺失 0；三份候选 manifest
+  与活动 run manifest 哈希一致。
+- [x] 远端 Week 5 定向测试 22/22、候选池与隔离验证 `status=ok`、回环端点验证通过。
+- [x] 本地在 checkpoint 15,190 安全停止；断点 JSONL 逐行有效并绑定原 run identity。
+- [x] systemd 服务已启用并从同一 run 恢复，成功数 15,166→15,197、checkpoint
+  15,190→15,209；历史 raw 已用不覆盖模式补传。
+- [x] 本地 supervisor、runner 和 SSH 隧道已停止，禁止与 ECS 服务并行写入。
+- [ ] 全量预标注仍在运行；真实人工修正、三级质检和最终 accepted 未因迁移而完成。
+
+### 2026-08-16 Week 5 多轮对话最终交付证据
+
+- [x] 权威合并 run `week5_dialogues_merged_10000_20260816_522b4af` 包含 10,000 个
+  唯一对话，索引 0–9999，三场景 3334/3333/3333，消息数 8–12。
+- [x] Schema、严格角色交替、图片引用、配置与 qualified 集合哈希通过；
+  duplicate/conflict/missing 均为 0。
+- [x] candidates/manifest SHA-256 分别为
+  `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99` 与
+  `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`，本地同步
+  JSONL、gzip 与 manifest 哈希和远端一致。
+- [x] 固定 100 条人工队列全部完成：100 个队列内唯一 ID，reviewer 非空，五项
+  checks 完整，100 条 decision 均为 `pass`；人工验收 JSONL SHA-256 为
+  `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
+- [x] 仅 100 条抽样对话计为人工 accepted；其余 9,900 条未被伪装成人工验收。
+- [x] 干净 checkout 完整 unittest 330/330、Week 5 `validate-pools`（80,000 个唯一
+  sample/image，
+  `status=ok`）和 `git diff --check` 通过。
+- [x] `report --dialogue-run-id week5_dialogues_merged_10000_20260816_522b4af`
+  从权威 run-scoped 目录实测返回候选 10,000、人工校验 100、最终合格 100；裸
+  `report` 会拒绝运行，避免旧固定目录再次静默报告为 0。
+- [x] 已跟踪测试实际依赖的 4 份 Qwen3-VL-4B 脱敏配置/示例；干净 checkout 不再
+  依赖开发机未提交文件。
+- [x] Week 5 按 ADR-023 的单人预算口径闭环；未运行 Week 6 pilot、训练或评估。
+
 ## Promotion Rule
 
 Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`

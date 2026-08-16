@@ -1,5 +1,47 @@
 # Experiment Notes
 
+## 2026-08-02：Week 5 候选池与隔离验证
+
+- Git 基线：`72be7ce` 加本次未提交工作区；数据版本
+  `week5_instruction_candidates_v1`。
+- 输入：本地 Yelp business/photo/weak-pair Parquet；排除接口为 Week 3 v1/v2
+  exclusion manifest。
+- 命令：`python scripts/manage_week5_dataset.py build-pools` 与
+  `python scripts/manage_week5_dataset.py validate-pools`。
+- 实际候选：商品 50,000、售后 20,000、行程 10,000；跨场景唯一图片 SHA-256
+  为 80,000，评估 source/hash/group/template 冲突为 0。
+- 售后公开图片关键词路由在严格来源组排除后得到 5,552 条；用 14,448 条独立
+  Week 5 项目自有业务合成凭证补足四类各 5,000。路由和严重度提示不是金标。
+- Qwen3.7 映射为商品/售后 `fewshot_4_v2`、行程 `standardized_v4`。通过
+  `trip-api-sg` SSH 别名从 ECS 进程内临时读取密钥，商品 smoke 3/3 Schema
+  合规、失败 0；密钥未写入本地文件、运行记录或 Git。
+- 人工修正、三级质检、最终合格和多轮对话均为 0；原因是未收到必要人工输入。
+
+## 2026-08-02：Qwen3.7-Plus 前期任务重跑
+
+- 模型/后端：`qwen3.7-plus`，阿里云百炼新加坡 OpenAI-compatible API，
+  thinking disabled。
+- 数据：不可变 `week3_evaluation_v2`，商品/售后/行程 200/150/100。
+- Week 3：baseline `_002` 与 standardized `_001` 均完成 450/450，
+  请求错误 0；baseline `_001` 的单条 ReadTimeout 仅作为失败证据保留。
+- Week 4 pilot：商品和售后选择 `fewshot_4_v2`，行程选择
+  `standardized_v2`；winner full 完成 450/450，请求错误 0。
+- 共同语义比较：450 对、38 个聚合指标、2,000 次 bootstrap。
+- 主要结果：winner 商品/售后/行程 JSON 合规率 100%/100%/33%，
+  Schema 98.5%/100%/33%；行程格式和约束仍是主要短板。
+- 完整报告：`reports/qwen37_previous_weeks_rerun_report.md`。
+
+## 2026-08-02：Qwen3.7-Plus 行程规划修复
+
+- 根因：旧行程输出中 67/100 条精确达到 1280 completion tokens 并截断。
+- 修复：版本化 `standardized_v4`、紧凑字段、约束原文保留、英文枚举约束，
+  行程专用 `max_tokens=2560`。
+- 最终 run：`itinerary_qwen37_repair_v4_full_20260802_001`，100/100 JSON，
+  100/100 Schema，请求错误和 token 上限命中均为 0。
+- 业务指标：约束识别 89.95%，硬/软约束 F1 96.33%/85.67%，约束检查
+  覆盖率 94%，行程要素完整度 100%。
+- 报告：`reports/qwen37_itinerary_repair_report.md`。
+
 ## Week 1 Serving and API Baseline
 
 - Runtime: `vllm/vllm-openai:v0.8.5` with `Qwen/Qwen2-VL-2B-Instruct` on the local 8GB NVIDIA GPU.
@@ -145,3 +187,257 @@ manifest.
 - Baseline JSON/Schema compliance remains 0%/0% in all scenarios. The lexical and strict structured tracks are shown separately and are not used for a causal Prompt-effect claim.
 - Verification: 226/226 unit tests passed; standalone v2 validation and both run-bound validators returned `status=ok`; the 450-row semantic score passed strict JSON, support, run-ID, codebook-hash, and scenario-count checks.
 - Status: `READY / COMPLETED`.
+
+## 2026-07-25：Week 4 Prompt pilot 与 Milvus standalone
+
+- 数据集：不可变的 `week3_evaluation_v2`；每场景固定 5 个正例、
+  2 个边界例和 5 个不重叠 pilot 样本。
+- 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`、vLLM；temperature 0.1、
+  top-p 0.9、repetition penalty 1.05、max tokens 1280。
+- 旧候选 `fewshot_4_v1`、`fewshot_7_v1` 的行程请求因上下文超过
+  4096-token 上限而返回 HTTP 400，保留为无效运行证据。
+- 版本化候选 `fewshot_4_v2`、`fewshot_7_v2` 保持模型、生成参数和示例
+  数量不变，只压缩重复 Schema 与行程展开；两组均完成 15/15，
+  `model_request_error_count=0`。
+- 有效 pilot 中，商品、售后、行程均由 `standardized_v2` 胜出，选择分数
+  为 0.3280、0.5967、0.4775。新增 Few-Shot 未超过控制组。
+- 全量运行 `week4_winners_full_20260725_001` 完成 450/450；
+  样本哈希为 `3e900e64...ad648c`。
+- 全量结构化轨道的商品、售后、行程 JSON/Schema 分别为
+  77.5%/75.5%、96.67%/96.67%、90.0%/87.0%。baseline 词法业务轨道
+  与结构化业务轨道不计算差值；baseline token 未记录，明确为 `PENDING`。
+- Milvus 2.6.20、PyMilvus 2.6.16、etcd 3.5.18 和固定 MinIO
+  部署 healthy；十字段 Schema、HNSW/COSINE 和 8 个标量索引已验证。
+- 20 条真实 CUDA CLIP 向量完成 CRUD。HNSW 构建 5.6621 s，
+  10 次查询平均/P95 为 7.7982/10.7236 ms，Recall@5 为 1.0000。
+
+### 中央审查问题及修复
+
+- 审查发现 Windows CRLF 使两个 Week 3 run-bound 原始字节哈希失败。
+  新增 `.gitattributes`，provenance 对文本换行归一化并兼容既有
+  LF/CRLF 历史哈希；两个验证现均为 `status=ok`。
+- 移除跟踪配置中的 Milvus/MinIO 明文凭据，改为环境变量和脱敏
+  `.env.example`；本地容器已使用新随机凭据重建，19 条可见向量保留。
+- Milvus 基准现在要求输出不存在且集合物理行数为 0；插入/删除后的数量
+  来自 `count(*)`，不再由输入长度推断。
+- runner 在任何模型请求失败时将运行标为 `failed`；统一验证器同时拒绝
+  运行记录或候选摘要中的请求错误。
+- v2 比较产物删除跨轨道 `business_quality_delta`，只比较同口径格式、
+  延迟和 token 可用性；全套 244 个测试通过，状态为
+  `READY / COMPLETED`。
+
+## 2026-07-26：共同语义评分与 Few-Shot 设计复核
+
+- Git 基线：`d6e1b8c`；模型运行未重跑，使用冻结的
+  `week3_v2_baseline_full_20260724_001` 和
+  `week4_winners_full_20260725_001` 原始输出。
+- 数据/模型：`week3_evaluation_v2`，450 对相同 sample，SHA-256
+  `3e900e64...ad648c`；`Qwen/Qwen2-VL-2B-Instruct`、vLLM 和原生成
+  参数保持不变。
+- 命令：`python scripts/compare_week4_common_semantics.py`。
+- 评分：两边均使用 `BaselineSemanticCoder.encode`、
+  `baseline_semantic_coding_v1` codebook
+  `563dc074...033a6`、同一人工金标与指标函数；bootstrap 2,000 次，
+  seed `20260726`。
+- 主要结果：商品 category/price delta +32.73/+13.00 pp，style/facility
+  macro F1 +3.93/-19.88 pp；售后 issue/severity +18.00/0.00 pp，
+  key-information F1/OCR recall +0.67/-9.78 pp；行程 constraint
+  recognition 0.00 pp，element completeness -55.40 pp。
+- 局限：固定词法 codebook 原为 baseline 自然语言设计，对 JSON 标点分隔
+  的枚举值、改写和隐含约束识别有限；共同轨道只支持该编码器下的成对解释。
+- Few-Shot 示例来自最终 test gold。现有 v2 pilot 请求有效，但只作描述性
+  证据；不构造未授权的新 demo/dev 数据，不重跑模型。
+- 验证：245/245 单元测试通过；Week 3 v2 数据、baseline/standardized
+  run-bound 和 Week 4 统一验证均为 `status=ok`。Compose 配置展开通过；
+  当前容器状态复核因 Docker daemon 未运行而 `PENDING`，历史 Milvus
+  CRUD/性能证据未改写。
+
+## 2026-07-26：独立 demo/dev Few-Shot 重跑
+
+- Git 基线：`abb689a` 加本次未提交工作区；数据版本
+  `week4_demo_dev_v1`（development 36 条人工金标）与
+  `week3_evaluation_v2`（evaluation 450 条）。
+- 模型/后端：`Qwen/Qwen2-VL-2B-Instruct`、vLLM 0.8.5；
+  temperature 0.1、top-p 0.9、repetition penalty 1.05、
+  max tokens 1280；未运行 CLIP。
+- 隔离：完整 development 池与最终 evaluation 在 sample_id、source_id、
+  image SHA-256 和 group_id 上无交集；selection v2 选择 21 个示例。
+- Pilot：`standardized_v2`、4-shot、7-shot 各 15 条，全部完成且请求
+  错误为 0。综合分胜出为商品 4-shot、售后 zero-shot、行程 zero-shot。
+- 全量运行 `week4_winners_full_20260726_002` 完成 450/450，样本
+  SHA-256 `3e900e64...ad648c`。
+- 全量 JSON/Schema：商品 82.0%/20.5%，售后 96.67%/96.67%，行程
+  91.0%/88.0%。商品结果显示小 pilot 选择方差，负结果不触发反向选模。
+- 同轨比较：`week4_common_semantic_coding_v1_20260726_003`，450 对、
+  38 个指标、bootstrap 2,000 次；bad case v5 共 376 条。
+- 验证：`python scripts/validate_week4_delivery.py` 返回 `status=ok`。
+
+## 2026-08-09：Qwen3-VL-4B Week 5 行程配对 pilot
+
+- 运行：`week5_itinerary_prompt_pair_4b_20260809_a`；模型
+  `Qwen/Qwen3-VL-4B-Instruct`、vLLM 0.11.0、A10，回环模型端点经 SSH 隧道访问。
+- 数据：现有不可变行程候选池前 30 条唯一样本；候选 manifest SHA-256
+  `4072260173f0b25cf7d5d63ab694f0849b351a483f42e4c39b9a99c5b9a17e75`。
+- 请求：`fewshot_4_v2` 与 `standardized_v4` 各 30 次，共 60 次，无请求失败、无重试；
+  原始输出 60 份，Schema 失败 2 份且均来自 `fewshot_4_v2`。
+- 结果：Schema 合规率 93.33% 对 100%；平均总 token 2,171.7 对 1,128.3；
+  平均延迟 21,353.77 ms 对 18,523.86 ms。业务质量无人工分数，按裁决的结构性
+  并列规则选择 `standardized_v4`。
+- 成本：推理进程 1,197.05 秒，估算 CNY 6.09；未运行 80,000 条全量预标注、
+  对话批量生成或任何训练任务。
+
+## 2026-08-12：Week 5 全量预标注隧道故障恢复
+
+- 运行：`week5_full_preannotation_qwen3_vl_4b_20260809_b`，模型
+  `Qwen/Qwen3-VL-4B-Instruct`，vLLM 0.11.0，A10，SSH 回环隧道。
+- 故障：本机隧道退出后出现连续连接拒绝；runner 在 21 次连续请求失败时触发保护
+  停止。停止前唯一成功商品 13,477，未解决失败 22。
+- 远端核验：`/v1/models` 返回目标模型，说明 vLLM 健康；故障边界在本地隧道。
+- 恢复：使用 `scripts/supervise_week5_preannotation.ps1` 重建带 keepalive 的隧道，
+  隐藏启动同一 run ID 的 `--resume`，成功结果不重复请求。
+- 恢复证据：checkpoint 从池索引 13,498 推进到 13,546，本进程 48/48 成功、连续
+  请求失败 0；全量运行仍在进行，不能记录为完成。
+
+## 2026-08-12：Week 5 全量预标注 ECS 原生续跑
+
+- 代码提交：`a9a8d99`；运行仍为
+  `week5_full_preannotation_qwen3_vl_4b_20260809_b`，未创建替代 run。
+- 部署输入：80,000 条候选、80,000 张唯一图片、图片缺失 0；迁移 payload SHA-256
+  `735b64305cf84790937ae94e63057f8ffcddb07d08ec812a0bd075c03e389bbc`。
+- 身份校验：canonical config SHA-256
+  `dd94313dfa0dbd070e11270ec70157ea60c5e9162ca4a56e76ca461c46d05484`，三份候选
+  manifest 哈希与历史 run manifest 完全一致。
+- 切换点：本地 checkpoint 15,190；`results/attempts/failures` 分别为
+  15,166/15,329/44，均逐行 JSON 合法。服务器恢复后首次确认点为成功 15,197、
+  checkpoint 15,209、连续请求失败 0。
+- 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
+  和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
+
+## 2026-08-16：Week 5 多轮对话并行生成、合并与人工抽样验收
+
+- 模型/后端：`Qwen/Qwen3-VL-4B-Instruct`、Spartan vLLM 0.11；活动主作业保留，
+  额外数组任务使用独立 run、输出、日志和临时目录，客户端并发上限为 4。
+- 代码提交：并行生成 `306527e`、单源快照 `ae11be6`、多源快照 `522b4af`、验收
+  队列 `f93e7ef`、图片展示修复 `48108a7`。
+- 生成结果：不可变主前缀 4,000 条，四片各 1,500 条，合并 run
+  `week5_dialogues_merged_10000_20260816_522b4af` 为 10,000 个唯一 ID；场景
+  3334/3333/3333，消息数 8–12，缺失、重复和冲突均为 0。
+- 哈希：candidates
+  `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99`；manifest
+  `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`；人工队列
+  `45c34b558456577d5eaaf9b74cf04a8766b0160ec05935a181131db66134634e`。
+- 人工结果：`Larry Fan` 实际完成固定队列 100/100，五项检查完整，全部决定为
+  `pass`；验证 JSONL SHA-256 为
+  `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。其余 9,900
+  条保持未人工验收候选。
+- 验证：完整 unittest 329/329；Week 5 `validate-pools` 返回 `status=ok`，确认
+  80,000 个唯一 sample ID 和图片 SHA-256；`git diff --check` 通过。
+- 结论：Week 5 在批准的抽样人工预算内闭环。本实验没有执行 Week 6 训练。
+
+## 2026-08-14：Week 5 Spartan 最终合并与 Week 6 数据锁定
+
+- Git 基线：`824530e` 加本次未提交工作区；Spartan merge job `29190753`，打包 job
+  `29190774`，均为 `COMPLETED 0:0`。
+- 合并：商品/售后/行程成功 49,957/19,991/9,988，总成功 79,936；最终失败 64，
+  与 80,000 候选全集严格闭合。归档 SHA-256 为
+  `a9ae67cb677bb940c94197e692ba1ce85671a83cba9e5fb070b012dfaa43abee`。
+- 数据锁定：sample ID SHA-256 阈值切分，seed `20260814`，validation 5%；manifest
+  SHA-256 `877c16d8ee79d9b0601fe9b6a5f531dfcbd81bb7e16f3fbd6e2526b760d62198`，split
+  SHA-256 `7ec02ed629a4b434dae39c5eb32ff783ab7fafdde8ac151e4124b34a294fc018`。
+- 标签策略：真实人工修订 27 条、权重 1.0；其余 79,909 条模型预标注显式标记为
+  silver、权重 0.5。没有自动创建人工审核身份或金标状态。
+- 验证：六份训练/验证 JSONL 全部通过数据契约；Week 5 pools 与冻结评测隔离通过；
+  完整 unittest 312/312。本机环境因未安装 torch/transformers/PEFT/bitsandbytes
+  返回 `missing_dependencies`，不作为 Spartan GPU pilot 通过证据。
+
+## 2026-08-12：Spartan vLLM 容器启动修复
+
+- `29114276`：`FAILED 4:0`，容器无 `python`、仅有 `/usr/bin/python3`；没有模型请求。
+- `29116649`：改用 `python3` 后进入 vLLM 0.11.0 初始化，随后 FlashInfer 因写入已满的
+  `/home/yzhang3504/.cache/flashinfer` 而 `FAILED 4:0`；没有模型请求。
+- `29116828`：仅通过环境变量覆盖 HOME 不足，Apptainer 保留宿主 HOME，复现同一失败；
+  因此没有模型请求或结果。
+- 修复提交：`300ca04`（容器入口与版本化日志）、`270b8ba`（项目内 cache 变量）、
+  `3600a7b`（Apptainer `--home` 强制绑定和可写预检）。
+- 登录节点使用缓存镜像实测容器 HOME 为
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a/huggingface/runtime-home`。
+  作业 `29116943` 已使 vLLM health 返回 200，证明容器与缓存问题修复；随后因远端缺少
+  Week 4 development few-shot manifest，在首个模型请求前 `FAILED 1:0`。
+- 依赖恢复归档含 4 个 JSONL 和 36 张引用图片，共 40 个文件、1,151,658 字节，
+  SHA-256 `216b458546cbcc61e326c56f3b38517f1f06a96c9f7cdbec85078bee469ba0ff`；
+  以不覆盖模式解压后，容器内实际加载商品/售后/行程各 12 条并通过图片字节哈希校验。
+- 新作业 `29117353` 已提交，当前 `PD(Resources)`；没有完成吞吐或成功率，不反推全量时间。
+- 验证：Spartan 定向 `unittest` 3/3、完整 `unittest` 300/300、`bash -n` 和
+  `git diff --check` 通过。
+
+## 2026-08-12：Spartan benchmark 失败诊断与修复重提
+
+- 历史 job `29109265`：`gpu-l40s`、16 秒、`FAILED 1:0`。stderr 明确为
+  `Apptainer/1.3.3` 缺少 `GCCcore/11.3.0` 前置模块；没有模型请求或 benchmark
+  结果，不能计为 pilot。
+- 修复：`scripts/spartan/week5_job.sbatch` 先加载 `GCCcore/11.3.0`；远端仓库更新到
+  `a6107bd`。新增 CPU 作业创建 `Python/3.11.3` 虚拟环境并安装基础和 Week 6 依赖。
+- 新提交：环境 job `29114275` 于 3 分 48 秒后 `COMPLETED 0:0`，Python 环境实际为
+  torch `2.13.0+cu130`、transformers `5.15.0`，`pip check` 和 accelerate/
+  bitsandbytes/peft/torch/transformers 导入通过。L40S benchmark job `29114276` 于
+  20:40:58 AEST 在 `spartan-gpgpu006` 启动，当前仍在等待回环 vLLM 健康；尚无
+  吞吐、成功率、checkpoint 或模型结果，不提交剩余分片。
+- 存储：`/data/gpfs` 467/375/93 GiB（总/已用/可用），Trip 版本目录 99 MiB；全部
+  新文件和缓存限定在 Trip 专属目录，未访问或修改其他成员项目内容。
+
+## 2026-08-12：`trip-api-sg` CPU 展示部署
+
+- 输入：明确获批的 `src/`、`data/samples/`、Dockerfile、CPU 展示 Compose、
+  `requirements-api.txt`、状态 JSON 和 Week 5 质量报告。
+- 版本目录：`/opt/trip-display/20260812a`；上传归档 SHA-256：
+  `404e7a681bdf35a839de56298568960a950203a21d9f7ae61b7dac4fdbe8a81d`。
+- 实测：`ota-trip-display-api` healthy，绑定 `127.0.0.1:8010`；health、
+  `/v1/project-status` 和静态报告均成功。原 `ota-trip-api` 的 `127.0.0.1:8000` health
+  同时成功。
+- 资源边界：CPU-only；没有 CUDA、vLLM、模型权重或实时 LoRA 推理，没有安全组或公网
+  端口变更。
+- Spartan 核验：门户显示当前登录为第三方账户 `yzhang3504`。为遵守 ADR-020，未代替
+  账户所有者运行 quota/scratch 命令或提交 Slurm；本次没有 GPU benchmark 结果。
+
+> 身份更正：用户随后确认 `yzhang3504` 为本人持有并授权本项目使用。后续允许 Agent
+> 代理核验和提交，但密码不落盘，且只允许使用新建的 Trip_Project 专属目录和本项目
+> job ID；本段原记录仍表示更正前未提交作业的真实状态。
+
+- 后续实测：account/project=`punim2936`，QOS 包含 `publicgpu`；home 51.2 GiB quota 已满，
+  project GPFS 可写且约余 93 GiB。新建隔离目录
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。
+- 公共分区待排观测：A100 约 280、H100 约 80、L40S 约 8。按最短总时间策略只提交
+  L40S benchmark job `29109265`；状态 `PD(Resources)`，预计启动
+  `2026-08-12T20:27:34`。运行时采用项目缓存内的 Apptainer 1.3.3 + vLLM 0.11.0。
+
+## 2026-08-12：Spartan migration 准备（未运行 GPU）
+
+- 原因：用户报告 A10 因欠费停机，活动 run 无法访问；未释放实例和数据盘。
+- 输入：不可变 80,000 条候选；本地 run B 可验证成功 15,166，全部为商品场景。
+- 命令：`python scripts/manage_spartan_migration.py prepare ... --shard-count 4
+  --benchmark-count 100`。
+- 产物：`week5_spartan_migration_20260812_a`，benchmark 商品/售后/行程为
+  49/36/15；4 个分片分别为 16,093、16,106、16,169、16,366，总计 64,734。
+  加上 benchmark 和恢复点后覆盖 80,000 个唯一候选。
+- 模型边界：Week 5 仍为 `Qwen/Qwen3-VL-4B-Instruct`；Week 6 配置固定 8B、NF4、
+  double quant、bf16 和 LoRA 16/32/0.05。
+- 运行状态：仅生成本地 manifest 和作业模板，Spartan project/quota/queue 未核验，
+  未提交 Slurm、未产生 GPU 吞吐、训练损失、费用或新模型输出。
+- 工程验证：新增定向测试 7/7、完整 unittest 299/299；Week 5 pools 和 Week 3 v1/v2
+  验证为 `status=ok`，Git for Windows Bash 对 4 个 Slurm shell 文件执行 `bash -n`
+  通过。展示 Compose 使用脱敏 `DISPLAY_DATA_DIR` 展开通过。
+
+## 2026-08-12：Week 5 全量预标注 ECS 原生续跑
+
+- 代码提交：`a9a8d99`；运行仍为
+  `week5_full_preannotation_qwen3_vl_4b_20260809_b`，未创建替代 run。
+- 部署输入：80,000 条候选、80,000 张唯一图片、图片缺失 0；迁移 payload SHA-256
+  `735b64305cf84790937ae94e63057f8ffcddb07d08ec812a0bd075c03e389bbc`。
+- 身份校验：canonical config SHA-256
+  `dd94313dfa0dbd070e11270ec70157ea60c5e9162ca4a56e76ca461c46d05484`，三份候选
+  manifest 哈希与历史 run manifest 完全一致。
+- 切换点：本地 checkpoint 15,190；`results/attempts/failures` 分别为
+  15,166/15,329/44，均逐行 JSON 合法。服务器恢复后首次确认点为成功 15,197、
+  checkpoint 15,209、连续请求失败 0。
+- 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
+  和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。

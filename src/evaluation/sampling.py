@@ -22,6 +22,7 @@ def stratified_sample(
     seed: int,
     stratum_field: str,
     quotas: dict[str, int],
+    split: str = "evaluation",
     root: Path | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Select fixed-seed per-stratum candidates and leave human states pending."""
@@ -82,6 +83,7 @@ def stratified_sample(
             scenario=scenario,
             dataset_version=dataset_version,
             sampling_stratum=stratum,
+            split=split,
             root=root,
         )
         for stratum, candidate in sorted(
@@ -109,6 +111,7 @@ def _candidate_to_pending_record(
     scenario: str,
     dataset_version: str,
     sampling_stratum: str,
+    split: str,
     root: Path | None,
 ) -> dict[str, Any]:
     source_id = candidate.get("source_id")
@@ -141,7 +144,7 @@ def _candidate_to_pending_record(
         "source_license": candidate.get("source_license"),
         "image_sha256": image_sha256,
         "input": input_payload,
-        "split": "evaluation",
+        "split": split,
         "dataset_version": dataset_version,
         "annotation_status": "pending",
         "annotator": None,

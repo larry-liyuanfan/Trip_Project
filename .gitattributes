@@ -1,0 +1,5 @@
+# 评估契约参与运行哈希，所有平台统一使用 LF。
+configs/evaluation/prompts/** text eol=lf
+configs/evaluation/schemas/** text eol=lf
+configs/evaluation/*.json text eol=lf
+configs/evaluation_*.yaml text eol=lf

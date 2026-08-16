@@ -145,6 +145,21 @@ class CandidateDeduplicator:
         self.image_hashes: set[str] = set()
         self.perceptual_hashes: list[str] = []
 
+    def reserve(
+        self,
+        *,
+        source_id: str,
+        group_id: str | None,
+        image_sha256: str,
+        perceptual_hash: str,
+    ) -> None:
+        """预留既有数据身份，使新候选不能与其精确或近似重叠。"""
+        self.source_ids.add(source_id)
+        if group_id:
+            self.group_ids.add(group_id)
+        self.image_hashes.add(image_sha256)
+        self.perceptual_hashes.append(perceptual_hash)
+
     def accept(
         self,
         *,

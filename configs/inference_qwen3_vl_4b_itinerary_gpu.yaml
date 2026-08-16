@@ -1,0 +1,7 @@
+temperature: 0.1
+top_p: 0.9
+repetition_penalty: 1.05
+max_tokens: 2560
+prompt_version: standardized_v4
+input_type: image_plus_text
+dataset_version: week3_evaluation_v2

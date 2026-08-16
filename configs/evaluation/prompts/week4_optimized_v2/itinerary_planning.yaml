@@ -1,0 +1,6 @@
+scenario: itinerary_planning
+schema_name: itinerary_planning_v2.schema.json
+format_skeleton: >-
+  {"style_preferences":[],"hard_constraints":[],"soft_constraints":[],"required_itinerary_elements":[],"itinerary":[{"day_index":1,"date":null,"summary":"待按约束安排","activities":[{"start_time":null,"end_time":null,"place_name":null,"activity":"待按约束安排","transport":null,"source_evidence":[]}]}],"constraint_check":[],"observed_evidence":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  按 style_preferences、hard_constraints、soft_constraints、required_itinerary_elements、itinerary、constraint_check、observed_evidence、unknown_fields、confidence 的顺序检查并输出。从图片提取可见旅行风格，从原始文字逐项保留天数、预算、结束时间、步行限制、餐食和交通要求；明确不可违反的内容进入 hard_constraints，偏好进入 soft_constraints。itinerary 天数必须等于文字要求且最多 4 天，每天活动不重复。constraint_check 必须覆盖每条 hard_constraints 和 soft_constraints；无法由计划确认时 status 使用 unknown，不得省略约束。Few-Shot 示例只提供既有人工金标字段，最终结果仍须自行生成完整 itinerary 和 constraint_check。

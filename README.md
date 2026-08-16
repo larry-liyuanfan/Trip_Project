@@ -321,3 +321,226 @@ Framework metric groups include:
 - Week 1: Docker/vLLM, API, live single-image inference, Yelp sample preparation, and experiment records completed.
 - Week 2: Full Yelp parsing, image validation, multimodal alignment, CLIP denoising, output validation, and report completed.
 - Week 3: `READY / COMPLETED`. Data, human gold, real baseline, deterministic baseline semantic scoring, standardized v2, and reporting are complete and traceable.
+
+### Week 4：Prompt 优化与 Milvus
+
+Week 4 保持全部 Week 3 产物不变。Few-Shot 示例来自独立的
+`week4_demo_dev_v1` development 人工金标池；固定 pilot 和全量测试仍使用
+`week3_evaluation_v2`。两个池按样本、来源、图片哈希和来源组隔离。格式
+兜底仅移除可选 Markdown 围栏、解析 JSON 并执行现有场景 Schema 校验，
+不修复模型内容。
+
+当前有效 Few-Shot 版本为 `fewshot_4_v2` 和 `fewshot_7_v2`。旧 v1
+行程请求因超过 4096-token 上下文而返回 HTTP 400，仅保留为失败证据；
+runner 和统一验证器会拒绝包含模型请求错误的运行。独立池重跑后，商品由
+`fewshot_4_v2` 胜出，售后和行程由 `standardized_v2` 胜出；450 条混合
+winner 全量结果单独版本化。baseline 与 winner 的业务指标通过共同语义
+轨道成对比较，不覆盖 Week 3 原评分。
+
+```bash
+python scripts/build_week3_candidate_manifests.py --config configs/evaluation_week4_demo_dev_v1.yaml
+python scripts/manage_week3_annotations.py --config configs/evaluation_week4_demo_dev_v1.yaml --scenario <scenario> export --include-suggestions --output <packet.jsonl>
+python scripts/manage_week3_annotations.py --config configs/evaluation_week4_demo_dev_v1.yaml --scenario <scenario> apply --input <completed-packet.jsonl>
+python scripts/run_week4_prompt_evaluation.py --config configs/evaluation_week4.yaml --run-id <run-id> --stage pilot --variant <standardized_v2|fewshot_4_v2|fewshot_7_v2>
+python scripts/analyze_week4_prompts.py --config configs/evaluation_week4.yaml --pilot-run-id <run-id> --pilot-run-id <run-id> --pilot-run-id <run-id>
+python scripts/compare_week4_common_semantics.py --winner-run-id week4_winners_full_20260726_002 --output-dir outputs/week4/common_semantic/week4_common_semantic_coding_v1_20260726_003
+python scripts/validate_week4_output.py --scenario image_product_search --raw-output-file <raw-output-file>
+python scripts/validate_week4_delivery.py --config configs/evaluation_week4.yaml
+```
+
+Milvus 客户端使用独立依赖组，不向 API、data 或 vLLM 环境添加依赖。
+standalone Compose 固定 Milvus、etcd 和 MinIO 版本，并包含健康检查、
+持久化、本地端口和资源限制。凭据只从本机环境文件读取；仓库只提交脱敏示例。
+
+```bash
+python -m pip install -r requirements-milvus.txt
+Copy-Item docker/milvus/.env.example docker/milvus/.env
+# 编辑 docker/milvus/.env，替换两个 MinIO 占位值
+docker compose --env-file docker/milvus/.env -f docker/milvus/docker-compose.yml config
+docker compose --env-file docker/milvus/.env -f docker/milvus/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml stop vllm
+python scripts/build_week4_clip_vectors.py --config configs/milvus_week4.yaml
+python scripts/benchmark_week4_milvus.py --config configs/milvus_week4.yaml
+```
+
+本地 8 GB GPU 不得同时运行 vLLM 和 CLIP。生成的 Week 4 运行、向量、
+性能输出和 Milvus volumes 均保持忽略。详细说明见
+`reports/week4_prompt_optimization_report.md`,
+`reports/week4_bad_cases.md`,
+`docs/milvus_collection_design.md`, and
+`reports/week4_milvus_deployment_performance_report.md`.
+
+### Week 5：数据集标注与质检
+
+Week 5 使用 `configs/week5_dataset.json` 从本地 Yelp OTA 数据构建三场景候选池，
+并同时调用 Week 3 v1/v2 exclusion manifest。候选、合成凭证、预标注、人工包、
+质检记录和对话输出均位于忽略目录 `outputs/week5/`。模型预标注永远不计为人工完成。
+当前采用单人预算内抽样验收：三场景各固定选择 100 条，并固定包含每场景 10 条盲
+二次复核候选和 3 条核心抽检候选；另从 10,000 条自动对话候选中固定抽取 100 条
+人工验收，总操作上限 439 次。未进入队列的有效预标注保持
+`silver`。人工修正提交必须包含真实 `annotator`、`corrected_at`、
+`review_session_id` 和 `self_review_confirmed=true`，保存动作同时记录自审。商品仅有
+确定性选中的 0.2%/0.05% 样本需要盲二次复核/核心抽检，售后和行程为
+0.5%/0.1%；同一人
+可以执行后续阶段，但必须换用新的 `review_session_id`，不得声称独立审核。
+人工修订、质检和报告命令使用
+`--config configs/week5_dataset_qwen3_vl_4b_single_operator.json`。正在运行的全量
+预标注继续使用其 manifest 已绑定的 `configs/week5_dataset_qwen3_vl_4b_gpu.json`，
+不得为修改质检规则而改变该活动 run 的配置哈希。
+
+本地标注台仅显示上述确定性队列：
+
+```bash
+python scripts/run_week5_annotation_station.py --host 127.0.0.1 --port 8095
+```
+
+```bash
+python scripts/manage_week5_dataset.py build-pools
+python scripts/manage_week5_dataset.py validate-pools
+python scripts/manage_week5_dataset.py preannotate --scenario <image_product_search|after_sales|itinerary_planning>
+python scripts/manage_week5_dataset.py preannotate-all --run-id <unique-run-id>
+python scripts/manage_week5_dataset.py export-annotations --scenario <scenario> --output <packet.jsonl>
+python scripts/manage_week5_dataset.py apply-human --scenario <scenario> --input <completed.jsonl>
+python scripts/manage_week5_dataset.py export-quality --scenario <scenario> --stage cross_review --output <packet.jsonl>
+python scripts/manage_week5_dataset.py export-quality --scenario <scenario> --stage core_audit --output <packet.jsonl>
+python scripts/manage_week5_dataset.py apply-quality --scenario <scenario> --input <quality.jsonl>
+python scripts/manage_week5_dataset.py generate-dialogues
+python scripts/manage_week5_dataset.py generate-dialogues --resume
+python scripts/manage_week5_dataset.py apply-dialogue-quality --input <dialogue-quality.jsonl>
+python scripts/manage_week5_dataset.py report --dialogue-run-id <authoritative-run-id>
+python scripts/export_week5_localized_annotations.py
+```
+
+`export_week5_localized_annotations.py` 生成仅供快速复核的中文展示镜像：稳定字段名和
+已知枚举值转换为中文，并附带 canonical annotation SHA-256；自由文本及 canonical
+人工标注保持原样。该镜像不得作为训练数据或覆盖正式标注。对话生成首次运行会写入
+不可变 run identity；中断后只能使用相同 run ID、配置哈希和合格样本集合配合
+`--resume` 续跑。
+
+Windows 本地执行长时间 GPU 预标注时，使用守护脚本维持 SSH 隧道并在连接中断后按
+原 manifest 自动续跑。主流程不会重复成功样本，也不会在每次重连时反复请求已知
+失败；全池结束后只执行一次失败清理。日志和状态写入对应 run 的 `supervisor/` 目录。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/supervise_week5_preannotation.ps1 `
+  -SshHost <current-ecs-public-ip>
+```
+
+当候选、引用图片和同一 run 的断点已通过哈希校验同步到 GPU ECS 后，可由服务器
+本机 systemd 服务运行，并设置
+`WEEK5_MODEL_BASE_URL_OVERRIDE=http://127.0.0.1:8001/v1`。该变量只覆盖部署端点，
+不修改已冻结配置或 run identity。服务器模式启用后不得同时启动 Windows supervisor；
+具体实例路径和服务名只记录在忽略的 `.agents/server.local.md`。
+
+当候选、引用图片和同一 run 的断点已通过哈希校验同步到 GPU ECS 后，可由服务器
+本机 systemd 服务运行，并设置
+`WEEK5_MODEL_BASE_URL_OVERRIDE=http://127.0.0.1:8001/v1`。该变量只覆盖部署端点，
+不修改已冻结配置或 run identity。服务器模式启用后不得同时启动 Windows supervisor；
+具体实例路径和服务名只记录在忽略的 `.agents/server.local.md`。
+
+真实候选池为商品 50,000、售后 20,000、行程 10,000，隔离验证通过。预算内人工
+验收已完成三场景各 100 条修订与内联自审、各 10 条盲二次复核及各 3 条核心抽检。
+权威多轮对话 run `week5_dialogues_merged_10000_20260816_522b4af` 已合并并严格验证
+10,000 个唯一候选；本人随后完成固定 100 条人工验收队列，100 条决定均为 `pass`。
+因此只计 100 条人工 accepted；其余 9,900 条仍是未人工验收候选，不得改写为人工
+accepted。字段口径见 `docs/week5_annotation_guidelines.md`，实测数量见
+`reports/week5_dataset_quality_report.md`。
+
+#### Spartan 迁移
+
+欠费停止的 A10 不再承担活动计算。Spartan 迁移不续写历史 run，而是从一个只读
+恢复快照生成 100 条 benchmark、确定性互斥分片和新的合并产物：
+
+```bash
+python scripts/manage_spartan_migration.py prepare \
+  --source-run-dir outputs/week5_qwen3_vl_4b/runs/<source-run> \
+  --output-dir outputs/week5_qwen3_vl_4b/spartan/<migration-id> \
+  --migration-id <migration-id> --shard-count 4 --benchmark-count 100
+bash scripts/spartan/inspect_gpu_queue.sh
+bash scripts/spartan/submit_week5.sh benchmark <account> <h100|a100|l40s> <migration-dir>
+python scripts/manage_spartan_migration.py status --migration-dir <migration-dir>
+```
+
+benchmark 通过且只选择一个分区后，才可提交 `shards`。Spartan project ID、quota、
+scratch 路径和提交身份必须在提交前核验。当前获批登录身份为 `yzhang3504`；密码不得
+落盘。远端必须新建 Trip_Project 专属目录，且只管理本项目 job ID，不得操作账户内其他
+文件、作业或进程。迁移产物继续位于忽略的 `outputs/`。
+
+Spartan 的 Trip 文件、缓存和虚拟环境统一放在 project GPFS 的版本目录，禁止写入
+已满的 home。当前部署根目录为
+`/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`，仓库位于
+`project/repo`，Python 3.11 环境位于 `envs/trip-week5-week6-py311`。基础和训练依赖
+由 CPU Slurm 作业安装；Week 5 vLLM 仍由固定 Apptainer 镜像提供：
+
+```bash
+sbatch --account=punim2936 \
+  --export=ALL,TRIP_DEPLOY_ROOT=<deploy-root>,TRIP_PROJECT_ROOT=<repo-root>,TRIP_VENV=<venv-path> \
+  scripts/spartan/setup_trip_venv.sbatch
+```
+
+### Week 6：Qwen3-VL-8B QLoRA 小样本链路
+
+Week 6 使用 `configs/week6/qwen3_vl_8b_qlora.json`。训练依赖保持独立：
+
+```bash
+pip install -r requirements-training.txt
+python scripts/prepare_week6_data.py
+python scripts/train_week6_qlora.py check-environment
+python scripts/train_week6_qlora.py validate-data --scenario <scenario> \
+  --input outputs/week6/locked_data/<dataset-version>/<scenario>/train.jsonl
+```
+
+正式 `train-pilot` 必须显式提供锁定的数据版本、manifest/split 哈希和
+`--confirm-dataset-lock`。当前框架使用 8B、NF4 double quant、bf16、LoRA
+`r=16/alpha=32/dropout=0.05` 和等效 batch 16；冻结 Week 3 评测集不作为 validation
+或调参数据。数据锁定采用 sample ID SHA-256 的确定性 95%/5% 训练/验证切分；模型
+预标注保持 `model_preannotation` 且权重为 0.5，只有真实人工修订使用 1.0。
+
+## Aliyun Runtime
+
+The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the
+Singapore workspace-specific OpenAI-compatible endpoint. The ECS deployment
+does not run local vLLM. FastAPI and Milvus bind to loopback by default; use an
+SSH tunnel for operator access. See `docs/aliyun_deployment.md` for the exact
+deployment and secret-handling workflow.
+
+The versioned Qwen3.7 evaluation configs are
+`configs/evaluation_week3_qwen37_plus_aliyun.yaml` and
+`configs/evaluation_week4_qwen37_plus_aliyun.yaml`. The measured rerun is
+summarized in `reports/qwen37_previous_weeks_rerun_report.md`; generated runs
+and scores remain local and ignored.
+
+The Qwen3.7 itinerary repair uses the versioned `standardized_v4` prompt and a
+scenario-only evaluation config. With `MODEL_API_BASE_URL` and
+`MODEL_API_KEY_FILE` set locally, reproduce the live run and score it with:
+
+```bash
+python scripts/run_week3_evaluation.py --config configs/evaluation_itinerary_qwen37_repair.yaml --run-id <new-run-id> --mode live --run-scope full --prompt-version standardized_v4 --scenario itinerary_planning
+python scripts/score_week3_evaluation.py --config configs/evaluation_itinerary_qwen37_repair.yaml --run-id <new-run-id>
+```
+
+Measured repair results are in `reports/qwen37_itinerary_repair_report.md`.
+
+包月 CPU ECS `trip-api-sg` 的结果展示使用
+`docker/aliyun/docker-compose.display.yml`。它只挂载版本化 `status.json` 和静态报告，
+默认监听 `127.0.0.1:8010`，提供 `/v1/project-status` 与 `/reports/`；不安装 CUDA、vLLM、模型权重或实时 LoRA
+推理服务。
+
+2026-08-12 已在 `/opt/trip-display/20260812a` 完成独立部署，容器名为
+`ota-trip-display-api`。服务器内可用的只读检查为：
+
+```bash
+curl -fsS http://127.0.0.1:8010/health
+curl -fsS http://127.0.0.1:8010/v1/project-status
+curl -fsSI http://127.0.0.1:8010/reports/week5_dataset_quality_report.md
+```
+
+原有 `ota-trip-api` 继续监听 `127.0.0.1:8000`，本次部署未开放公网端口，也未覆盖
+其 Compose、容器或数据卷。
+
+## Reports
+
+The consolidated Week 1-4 report after migration to Alibaba Cloud
+`qwen3.7-plus` is `reports/week1_to_week4_qwen37_overall_report.md`.
+Use `reports/README.md` as the report index; historical process snapshots are
+kept separate from current conclusions.

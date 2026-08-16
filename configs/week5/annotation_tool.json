@@ -1,0 +1,115 @@
+{
+  "format": "jsonl",
+  "encoding": "utf-8",
+  "workflow": [
+    "model_preannotation",
+    "human_correction",
+    "self_review",
+    "cross_review_same_scenario",
+    "core_sample_audit"
+  ],
+  "workflow_v2": {
+    "model_statuses": ["not_started", "running", "completed", "failed"],
+    "human_statuses": [
+      "awaiting_human_annotation",
+      "partial",
+      "awaiting_cross_review",
+      "awaiting_core_audit",
+      "accepted",
+      "rejected"
+    ],
+    "sidecar_schema_version": "week5_workflow_v2"
+  },
+  "read_only_context_fields": [
+    "sample_id",
+    "scenario",
+    "input",
+    "sampling_metadata",
+    "isolation",
+    "model_preannotation"
+  ],
+  "human_required_fields": [
+    "annotator",
+    "human_annotation",
+    "corrected_at",
+    "review_session_id",
+    "self_review_confirmed"
+  ],
+  "single_operator_qc": {
+    "mode": "single_operator_minimal_review_v1",
+    "self_review_is_inline": true,
+    "self_review_confirmation_field": "self_review_confirmed",
+    "review_session_field": "review_session_id",
+    "cross_review_is_blind_second_pass": true,
+    "same_person_must_not_claim_independence": true,
+    "core_cross_review_rate": 0.005,
+    "general_cross_review_rate": 0.002,
+    "core_audit_rate": 0.001,
+    "general_audit_rate": 0.0005
+  },
+  "label_vocabularies": {
+    "style_tags": [
+      "modern", "traditional", "historic", "luxury", "minimalist", "industrial",
+      "rustic", "casual", "romantic", "family_friendly", "nature_oriented",
+      "business", "resort", "artistic", "local_character", "quiet"
+    ],
+    "visible_facilities": [
+      "lobby", "front_desk", "guest_room", "bed", "pool", "spa", "gym",
+      "restaurant", "bar", "outdoor_seating", "parking", "accessible_entrance",
+      "elevator", "stage", "play_area", "restroom", "ticket_office", "viewpoint",
+      "garden", "beach", "buffet", "private_dining", "charging_facility"
+    ],
+    "style_preferences": [
+      "urban", "nature", "history_culture", "food", "leisure", "romantic",
+      "family", "adventure", "photography", "shopping", "nightlife", "quiet",
+      "luxury", "budget", "slow_paced"
+    ]
+  },
+  "scenario_templates": {
+    "image_product_search": {
+      "schema": "configs/evaluation/schemas/image_product_search_v1.schema.json",
+      "image_count": 1,
+      "text_constraints": false,
+      "focus_fields": ["business_category", "style_tags", "visible_facilities", "price_range"]
+    },
+    "after_sales": {
+      "schema": "configs/evaluation/schemas/after_sales_v1.schema.json",
+      "image_count": 1,
+      "text_constraints": false,
+      "focus_fields": ["issue_type", "severity", "key_information", "ocr_text"]
+    },
+    "itinerary_planning": {
+      "schema": "configs/evaluation/schemas/itinerary_planning_v2.schema.json",
+      "image_count": 1,
+      "text_constraints": true,
+      "focus_fields": ["hard_constraints", "soft_constraints", "itinerary", "required_itinerary_elements"]
+    }
+  },
+  "qc_decisions": ["pass", "rework", "reject"],
+  "qc_issue_codes": [
+    "classification_error",
+    "severity_error",
+    "ocr_error",
+    "constraint_omission",
+    "itinerary_structure_error",
+    "required_element_omission",
+    "missing_field",
+    "invalid_format",
+    "image_text_mismatch",
+    "ambiguous_evidence",
+    "business_compliance"
+  ],
+  "automatic_rules": {
+    "output_schema_required": true,
+    "additional_properties_allowed": false,
+    "model_output_is_human_completion": false,
+    "cross_reviewer_must_differ_from_annotator": false,
+    "single_operator_cross_review_must_use_distinct_session": true,
+    "evaluation_collision_is_fatal": true,
+    "duplicate_sample_write_is_fatal": true,
+    "candidate_artifacts_are_immutable": true,
+    "model_completion_never_completes_human_workflow": true,
+    "run_id_must_be_new_unless_explicit_resume": true,
+    "resume_requires_identical_metadata_hashes": true
+  }
+}

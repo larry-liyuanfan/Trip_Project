@@ -173,3 +173,336 @@ as the current validated dataset or accepted baseline.
 - Moved the earlier gold-leaking semantic score and incompatible cross-track comparison unchanged into ignored quarantine with a hash disposition record.
 - Final verification passed 226 Python tests, standalone v2 validation, both run-bound validators, semantic score integrity checks, and Git diff/boundary checks.
 - Week 3 status is `READY / COMPLETED`; the deterministic lexical method and its limitations are documented without attributing cross-track differences solely to Prompt behavior.
+
+## 2026-07-25：Week 4 Prompt 优化与 Milvus
+
+- 保持全部 Week 3 产物不变；每场景从 v2 金标固定选择 5 个正例和
+  2 个边界例，构建 4-shot（3+1）和 7-shot（5+2）。
+- 旧 Few-Shot v1 行程请求因上下文超限全部返回 HTTP 400，不能作为有效
+  候选。新增版本化 v2 删除重复长上下文后，4-shot 和 7-shot 均完成
+  15/15，模型请求错误为 0。
+- 有效 pilot 中 `standardized_v2` 在三个场景均胜出；选择分数为商品
+  0.3280、售后 0.5967、行程 0.4775。新增 Few-Shot 候选未超过控制组，
+  没有产生新的胜出 Prompt。
+- 全量胜出运行 `week4_winners_full_20260725_001` 保持 450/450。
+  baseline 词法业务轨道与 Week 4 结构化业务轨道不再计算差值；同口径
+  JSON/Schema 和延迟单独比较，baseline token 明确为 `PENDING`。
+- 导出真实 bad case：分类错误 86、字段/Schema 错误 7、格式错误 67、
+  严重等级错误 105、约束遗漏 100；类别允许重叠。
+- 格式兜底只去除可选围栏、解析 JSON、执行现有 Schema 校验，不补字段、
+  不修改枚举、不猜标签、不重试模型。
+- Milvus 2.6.20、etcd 和 MinIO 均 healthy；固定十字段集合、
+  HNSW/COSINE 和 8 个标量索引均已验证。
+- 停止 vLLM 后，用 CUDA CLIP 编码 20 张真实 Yelp 图片。HNSW 构建
+  5.6621 s，10 次查询平均/P95 为 7.7982/10.7236 ms，
+  Recall@5 为 1.0000。
+- 中央审查发现的两个阻断项已修复：Milvus/MinIO 凭据改为本机环境变量并
+  完成实际轮换；评估文本哈希统一换行且兼容既有 LF/CRLF 运行记录。
+- 修复后 244 个单元测试通过；Week 3 v2 数据验证、两个 run-bound
+  验证、Week 4 统一只读验证、Compose 展开和容器健康检查均通过。
+- Week 4 状态恢复为 `READY / COMPLETED`；不进入 `stg`，不打标签。
+
+## 2026-07-26：Week 4 共同语义评分与证据边界修正
+
+- 保持 Week 3 baseline、原始输出和 `baseline_semantic_coding_v1` 原评分
+  不变，新增 `week4_common_semantic_coding_v1_20260726_001`。
+- baseline 与 Week 4 winner 的 450 对原始输出均使用同一个
+  `BaselineSemanticCoder.encode`、同一 codebook 和同一指标函数；预测
+  完成后才连接金标，并执行 2,000 次 paired bootstrap。
+- 共同轨道实测：商品业态 +32.73 pp、价位 +13.00 pp、设施 macro F1
+  -19.88 pp；售后分类 +18.00 pp、OCR recall -9.78 pp；行程要素完整度
+  -55.40 pp。该结果只解释固定词法编码轨道，不替代人工语义编码。
+- 明确现有 Few-Shot 示例取自最终 test gold，pilot 降级为描述性证据；
+  `standardized_v2` 仍是三场景描述性最高分且不含示例，全量运行不受该
+  污染直接影响。
+- Week 3 过程状态文件已标为历史快照并链接后续 `READY / COMPLETED`
+  正式报告；Week 4 bad case 增补真实金标、预测、错误原因和字段检查方向。
+- Prompt 部分因缺少独立 demo/dev pool 保持 `PARTIAL`；Milvus 保持
+  `READY`。不新增标注或数据集版本，不重跑模型。
+
+## 2026-07-26：独立 demo/dev Few-Shot 完成
+
+- 用户后续直接授权完成独立 demo/dev pool，取代此前“禁止新增”的临时
+  限制；Week 3 v1/v2 数据、Prompt、Schema、运行和评分保持不变。
+- 建立 `week4_demo_dev_v1`：三场景各 12 条、共 36 条人工金标，
+  split=`development`；与 450 条最终 evaluation 在 sample/source/image/
+  group 四层无重叠。
+- selection v2 从每场景 development 金标固定选择 5 正例 + 2 边界例；
+  三组新 pilot 共 45/45 请求完成，模型请求错误 0。
+- 固定综合分胜出：商品 `fewshot_4_v2`，售后与行程
+  `standardized_v2`。新的混合 winner 全量
+  `week4_winners_full_20260726_002` 完成 450/450。
+- 全量 JSON/Schema：商品 82.0%/20.5%，售后 96.67%/96.67%，行程
+  91.0%/88.0%。商品 4-shot 的低 Schema 率作为 pilot 方差与负结果保留，
+  不用全量结果反向改选。
+- common comparison `_003` 完成 450 对同编码器评分、38 个聚合指标和
+  2,000 次 bootstrap；v5 bad case 共 376 条。
+- Week 4 状态更新为 `READY FOR MENTOR REVIEW`。
+
+## 2026-08-02：Week 5 数据集标注与质检工程交付（人工阶段未完成）
+
+- 新增三场景标注规范、accepted Schema 映射、多模态 JSONL 标注配置、人工 revision
+  和三级质检规则；售后/行程确定性抽检 10%，商品抽检 5%。
+- 从本地 Yelp 数据实际构建 80,000 条互不重复候选：商品 50,000、售后 20,000、
+  行程 10,000；调用 Week 3 v1/v2 exclusion manifest 后，source、图片 SHA-256、
+  来源组和约束模板冲突均为 0。
+- 商品层为酒店 200、景点 800、餐饮 49,000；评估来源组排除后仅剩 258 张可用
+  酒店图片，未伪造均衡分布。
+- 售后为公开 Yelp 5,552、项目自有业务合成 14,448，四个问题路由各 5,000；
+  路由和严重度只是抽样提示，不是人工金标。
+- 行程四类人群各 2,500，预算和 2/3/4 天近似均衡。
+- 新增 Qwen3.7 批量预标注、断点续跑、失败记录和重复执行保护；商品/售后复用
+  `fewshot_4_v2`，行程复用 `standardized_v4`。
+- 通过全局 SSH 别名从 ECS 进程内临时读取百炼密钥，商品真实 smoke 预标注 3/3
+  Schema 合规、失败 0；密钥未落盘。没有 Week 5 人工输入，人工修正、三级质检、
+  最终合格和对话候选/合格数量均为 0。
+
+## 2026-08-03：Week 1-4 Qwen3.7 整体报告与 stg 整理
+
+- 以 Week 1-4 最后验证提交 `83c67f0` 为边界，排除后续 Week 5 实现。
+- 新增 `reports/week1_to_week4_qwen37_overall_report.md`，统一整理云端模型
+  迁移、Week 2 不变项、Week 3 重跑、Week 4 Prompt 重选、行程 v4 修复和
+  Milvus 原型结果。
+- 新增 `reports/README.md` 作为报告索引；历史报告和过程状态保持原路径，
+  不移动、不覆盖冻结运行产物。
+- 总报告明确区分同 Prompt 模型对比与 Prompt/预算联合修复，避免错误归因。
+
+## 2026-08-09：Week 5 冲突裁决落地与受限 pilot
+
+- 记录 Project Control 六项裁决，新增 workflow v2 sidecar 和
+  `multimodal_dialogue_v2`，保留候选池、历史 pilot 与 dialogue v1 不变。
+- workflow v2 sidecar 实际绑定商品/售后/行程 50,000/20,000/10,000 条候选，
+  初始人工状态全部为 `awaiting_human_annotation`；候选池全量校验返回
+  `status=ok`，80,000 个唯一 sample 和图片 SHA-256。
+- 新增不可覆盖 run 目录、配置/候选/输入/请求哈希、原始输出、attempt、checkpoint、
+  failures 和严格 resume 元数据校验。
+- 完成 30 条行程样本的双 Prompt pilot，共 60 请求；`fewshot_4_v2` Schema 28/30，
+  `standardized_v4` 30/30，请求失败均为 0，最终按既定规则选择
+  `standardized_v4`。实测推理 1,197.05 秒，估算 CNY 6.09。
+- 未执行全量预标注、全量对话生成或训练；真实人工修正、三级质检、最终合格和
+  人工合格对话数量仍均为 0。
+
+## 2026-08-10：Week 5 单人最小人工质检
+
+- 用户确认仅由一名真实操作者完成 Week 5 人工环节；不得虚构第二位标注人或独立
+  审核人。人工修正保存时同步显式确认自审，不再安排一次重复的全量自审遍历。
+- 交叉互审改为同一操作者在不同 `review_session_id` 中进行的盲二次复核；商品按
+  1% 抽取，售后和行程按 2% 抽取。核心抽检分别按 0.5% 和 1% 抽取，且使用同一
+  SHA-256 选择值，保证核心抽检是交叉复核的固定子集。
+- 未抽中二次复核的样本只有在真实人工修正和内联自审均完成后才可 accepted；模型、
+  校验器和 Agent 均不能填写人工身份、确认、审核意见或通过状态。
+- 新增 `configs/week5_dataset_qwen3_vl_4b_single_operator.json` 供预标注后的人工处理、
+  质检和报告使用；正在运行的全量预标注仍绑定原配置和 manifest 哈希，不作修改。
+- 新增 `export-quality`，仅导出确定性选中、前序已通过且当前 revision 尚未处理的
+  二次复核或核心抽检任务；同阶段重复导入和审核会话复用会被拒绝。
+- 按现有 80,000 个真实 `sample_id` 计算，额外盲复核/核心抽检固定集合为商品
+  516/259、售后 399/219、行程 190/94，共 1,677 次额外阶段操作。它们是待处理
+  集合，不是已完成人工数量；当前真实人工修正和质检数量仍为 0。
+- Week 5 定向测试 19/19、完整 `unittest` 289/289、Week 3 v1/v2 隔离验证、三个
+  单人配置 JSON 解析和 `git diff --check` 均通过；活动 run 配置哈希核对一致。
+
+## 2026-08-10：额外质检压缩与全量预标注进度复核
+
+- 用户要求把额外人工质检压到 500 次以下。当前比例更新为商品 0.2%/0.05%、售后
+  和行程 0.5%/0.1%；对不可变 80,000 个候选实算为商品 112/26、售后 102/21、
+  行程 53/7，合计 321 次盲复核/核心抽检操作。上一版 1,677 次方案已被替代。
+- 全量 run `week5_full_preannotation_qwen3_vl_4b_20260809_b` 实际保留商品成功
+  8,140、未解决失败 8（Schema 3、请求 5），已覆盖池索引 0–8,147；商品进度
+  16.28%，全体 80,000 候选进度 10.175%。售后和行程全量成功数仍为 0。
+- checkpoint 最后更新时间为 2026-08-10 02:10:24（悉尼时间）；复核时本机没有
+  Python/SSH 运行进程且回环隧道端口关闭，因此 run 当前为 `partial / not running`，
+  不能报告为仍在持续执行。人工修正、三级质检和 accepted 仍均为 0。
+
+## 2026-08-12：Week 5 全量预标注自动恢复与持续监控
+
+- 确认第二次中断由本机 SSH 隧道退出引起；远端 Qwen3-VL-4B vLLM 端点保持健康，
+  checkpoint 在连续 21 次连接拒绝后按既有保护阈值停止，候选、manifest 和成功结果
+  未损坏。
+- 新增 Windows 守护脚本，使用 SSH keepalive、全局互斥锁、端点健康检查和隐藏后台
+  runner；连接中断后自动重建隧道并以同一 run ID `--resume`，不重复成功样本。
+- 主流程跳过已知失败继续全池；全池结束后只执行一次 `--retry-failures` 清理，避免
+  永久 Schema bad case 在每次重连时反复消耗请求。
+- 2026-08-12 00:13（悉尼时间）恢复成功；首次复核 checkpoint 从池索引 13,498
+  推进至 13,546，新增 48/48 成功、连续请求失败为 0。另建立每 30 分钟 heartbeat
+  监控，用于检查进度、发现 supervisor 消失并安全恢复，不停止或释放 ECS。
+- PowerShell 语法检查、守护流程定向测试 2/2、Week 5 联合定向测试 21/21、完整
+  `unittest` 291/291 和 `git diff --check` 均通过。
+
+## 2026-08-12：Week 5 预标注迁移到 ECS 常驻执行
+
+- 在不中断本地 runner 的阶段预同步 80,000 条候选、80,000 张唯一引用图片和冻结评测
+  依赖；迁移归档 81,109 个条目、2,975,730,176 字节，远端 SHA-256 一致。
+- 远端复核三份候选 manifest 与 run manifest 一致，图片缺失 0；Week 5 定向测试
+  22/22、`validate-pools` 返回 `status=ok`，运行端点仅为 `127.0.0.1:8001`。
+- 在池索引 15,190 停止本地 supervisor、runner 和 SSH 隧道；三份 JSONL 逐行合法，
+  随后以原 run ID、原 canonical config SHA-256 和 `--resume --retry-failures` 恢复。
+- systemd 服务启用并实际将成功结果从 15,166 推进到 15,197、checkpoint 推进到
+  15,209，连续请求失败归零；历史 raw 记录随后以不覆盖模式补传。
+- 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
+  运行依赖，且禁止本地与 ECS 同时写入该 run。
+
+## 2026-08-16：Week 5 多轮对话与人工验收最终完成
+
+- 保留原 L40S 作业的同时，按 ADR-024 使用独立输出的四个确定性互斥分片；每片
+  1,500 条。对主 run 的索引 0–3999 生成不可变 4,000 条前缀快照，随后显式合并为
+  `week5_dialogues_merged_10000_20260816_522b4af`。
+- 权威 run 含 10,000 个唯一 `dialogue_id`，索引 0–9999，三场景分布
+  3334/3333/3333，消息数 8–12；严格角色交替、图片字段、Schema、配置和 qualified
+  集合哈希均通过，duplicate/conflict/missing 均为 0。
+- 候选/manifest SHA-256 分别为
+  `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99` 与
+  `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`；本地 JSONL、
+  gzip 和 manifest 与远端一致。
+- 固定 100 条人工验收队列 SHA-256 为
+  `45c34b558456577d5eaaf9b74cf04a8766b0160ec05935a181131db66134634e`。本人实际完成
+  100/100；记录 ID 唯一且全部属于队列，reviewer 均为 `Larry Fan`，五项 checks
+  完整，100 条 decision 均为 `pass`，人工验收 JSONL SHA-256 为
+  `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
+- 只将抽样通过的 100 条计为人工 accepted，其余 9,900 条保持未人工验收候选。
+  Week 5 按批准的单人预算内口径完成；干净 checkout 完整 unittest 330/330、Week 5
+  `validate-pools`（80,000 个唯一 sample/image，`status=ok`）和 `git diff --check`
+  通过。本轮未执行 Week 6。
+- 修复最终汇总固定读取旧 `dialogues/` 目录的问题；`report` 现在必须显式指定权威
+  `--dialogue-run-id`，并从 run-scoped 目录读取 10,000 条候选和 100 条人工验收。
+  同时修复 v2 `turns` 的平均轮次统计，更新最终质量报告与机器可读当前状态。
+- 推广前干净 checkout 发现 4 份已被测试引用的 Qwen3-VL-4B 脱敏配置仍未跟踪；补齐
+  这些轻量文件后重新验证，避免依赖开发机未提交文件产生假阳性。
+
+## 2026-08-14：Week 5 最终闭环与 Week 6 数据锁定
+
+- Spartan merge job `29190753` 为 `COMPLETED 0:0`；下载归档 SHA-256
+  `a9ae67cb677bb940c94197e692ba1ce85671a83cba9e5fb070b012dfaa43abee`。
+- 最终覆盖为 79,936 条 Schema-valid 成功与 64 条最终失败，共 80,000 个唯一候选；
+  失败含 44 条不可读输入、19 条 Schema 错误和 1 条 JSON 解析错误。44 条不可读输入
+  保持 `input_error`，未请求模型或替换候选池。
+- 全量预标注已同步到本地标注台，保留真人完成的商品/售后/行程 10/8/9 条修订；
+  自动化没有增加人工身份、自审、交叉复核、核心抽检或 accepted。
+- Week 6 锁定版本为 `week6_week5_spartan_merge_20260814_8cbfd8d_v1`；manifest SHA-256
+  `877c16d8ee79d9b0601fe9b6a5f531dfcbd81bb7e16f3fbd6e2526b760d62198`，split SHA-256
+  `7ec02ed629a4b434dae39c5eb32ff783ab7fafdde8ac151e4124b34a294fc018`。
+- 训练/验证计数分别为商品 47,393/2,564、售后 19,039/952、行程 9,502/486；
+  27 条真人修订权重 1.0，其余 79,909 条 silver 权重 0.5。六份 JSONL 均通过流式
+  `validate-data`；本机未安装 GPU 训练依赖，因此环境检查如实为 `missing_dependencies`。
+- 当前完整 unittest 为 312/312，Week 5 `validate-pools` 返回 `status=ok`。
+
+## 2026-08-14：Week 5 单人预算内抽样验收
+
+- 用户确认全量人工修订和 0.9 万条人工对话验收在单人条件下不可执行，继续遵守此前
+  已记录的 3 小时、全部操作低于 500 次约束，不得美化或伪造结果。
+- 标注台改为每场景 100 条确定性人工验证队列，保留既有真实修订商品 10、售后 8、
+  行程 9 条；当前剩余首轮任务为 90/92/91，共 273 条。
+- 每场景队列固定包含 10 条现行 SHA-256 盲复核候选和其中 3 条核心抽检候选；另从
+  自动生成的 10,000 条对话候选中固定抽取 100 条人工验收。完整人工预算为
+  300 + 30 + 9 + 100 = 439 次。
+- 未进入队列的 79,636 条 Schema-valid 预标注继续保持 silver；自动生成的对话只能
+  作为候选，未经本人检查不能计为人工 accepted。
+- 标注台已在 `http://127.0.0.1:8095` 重启；定向测试 5/5 和配置 JSON 校验通过。
+
+## 2026-08-15：Week 5 预算内人工验收完成与对话链路准备
+
+- 本人 Larry Fan 已完成商品/售后/行程各 100 条真实人工修订和内联自审；三个场景
+  各完成 10 条确定性盲二次复核与其中 3 条核心抽检。共 300 条修订、300 次自审、
+  30 次盲复核、9 次核心抽检，均绑定真实 session，未由自动化代填。
+- 300 条最新 canonical annotations 全部通过对应 Schema；同一 sample/revision/stage
+  的 review session 无重复。其余 79,636 条有效预标注继续保持 silver。
+- 新增中文展示镜像导出：三场景各 100 条，翻译稳定字段名及已知枚举，保留自由文本
+  与 canonical JSON，并用 SHA-256 绑定原人工标注，不能反向覆盖训练数据。
+- 新增 Spartan 对话生成 sbatch 及严格 resume identity。目标仍为 10,000 条自动候选，
+  之后固定抽样 100 条由本人验收；当前候选和人工合格对话均为 0。
+- 本地定向测试 7/7、完整 `unittest` 319/319、Slurm shell 语法与
+  `git diff --check` 通过。精确 OOD shell 恢复后，Spartan checkout 已 fast-forward
+  到 `3396c41`。300 条人工/QC 归档已传入项目限定目录，归档 SHA-256 为
+  `e288c8ef21a1eff59e836516e8b380665b481cd21080e33309d57f48f0cc9967`；旧 27 条逐行
+  均包含于新文件，安装前副本已保留，六个安装后 JSONL 哈希与本地一致。
+- 唯一 Week 5 对话候选作业 `29226849` 已提交到 `gpu-l40s`，run ID 为
+  `week5_dialogues_qwen3_vl_4b_20260815_3396c41_a`，目标 10,000 条；首次状态为
+  `PENDING (Priority)`，没有提交竞争作业。
+
+## 2026-08-12：Spartan 容器启动错误修复
+
+- `29114276` 确认因 vLLM 镜像仅提供 `python3` 而失败；入口已改为可预检的
+  `python3`，并为每个 Slurm job 使用不可覆盖的版本化 vLLM 日志。
+- `29116649`/`29116828` 越过 Python 入口后暴露第二个根因：FlashInfer 仍尝试写入
+  已满的 `/home/yzhang3504/.cache`，两次均在模型请求前 `FAILED 4:0`，未产生结果。
+- 提交 `3600a7b` 将 Apptainer `--home`、XDG cache 和 FlashInfer workspace 强制绑定到
+  Trip 专属 GPFS；登录节点预检确认容器 HOME 可写且位于专属目录。
+- `29116943` 已证明 vLLM 健康端点返回 200，随后因远端缺少 Week 4 development
+  few-shot manifest 而在首个模型请求前失败。40 个冻结依赖文件以不覆盖方式补齐，归档
+  SHA-256 为 `216b458546cbcc61e326c56f3b38517f1f06a96c9f7cdbec85078bee469ba0ff`；
+  容器内三场景 manifest 校验为 12/12/12。
+- 唯一替代 benchmark `29117353` 已提交到 `gpu-l40s`，当前 `PD(Resources)`；最新
+  `squeue --start` 预计为 2026-08-13 00:26:54 AEST。尚无可计数结果，剩余分片未提交。定向测试 3/3、
+  完整 `unittest` 300/300、shell 语法和 `git diff --check` 通过。
+
+## 2026-08-12：Spartan 存储复核、环境与 benchmark 重提
+
+- 旧 L40S benchmark `29109265` 并非仍在排队：`sacct` 实测其于 18:50:23 AEST
+  以 `FAILED 1:0` 结束，日志显示 `Apptainer/1.3.3` 缺少
+  `GCCcore/11.3.0` 前置模块。修复提交 `1bdb419` 已同步到远端。
+- project GPFS 实测总量 467 GiB、已用 375 GiB、可用 93 GiB；Trip 版本目录为
+  99 MiB。“500 GB”是共享文件系统总量，不是 Trip 独享空间。home quota 已满，
+  后续只使用 `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。
+- 新增项目范围 Python 3.11 venv 作业，环境路径固定为
+  `envs/trip-week5-week6-py311`，pip/XDG/HF/tmp 缓存均留在 Trip 根目录。
+- 新作业已提交。环境安装 `29114275` 于 20:40:23–20:44:11 AEST 运行并
+  `COMPLETED 0:0`；`pip check` 无破损依赖，关键包导入成功。唯一 L40S benchmark
+  `29114276` 于 20:40:58 在 `spartan-gpgpu006` 启动，当前为 `RUNNING`；没有提交
+  H100/A100 重复竞争作业。两小时 heartbeat 已改为追踪这两个 job。
+
+## 2026-08-12：包月展示部署与 Spartan 身份核验
+
+- 用户明确批准上传 `src/`、轻量样例、CPU Docker 资产、展示状态 JSON 和 Week 5
+  质量报告。部署包 SHA-256 为
+  `404e7a681bdf35a839de56298568960a950203a21d9f7ae61b7dac4fdbe8a81d`。
+- 已在 `trip-api-sg:/opt/trip-display/20260812a` 启动独立容器
+  `ota-trip-display-api`，仅绑定 `127.0.0.1:8010`；health、状态 API 和静态报告均返回
+  成功。原 `ota-trip-api` 的 `127.0.0.1:8000` health 仍成功。
+- Spartan Open OnDemand 只读核验显示当前登录身份为 `yzhang3504`。该身份属于用户声明
+  的第三方账户，不满足 ADR-020 的代理提交边界；未读取第三方 quota/scratch，未提交、
+  修改或取消任何 Slurm 作业。project、quota、scratch 和可用 GPU partition 仍须由账户
+  所有者或用户自己的 Spartan 身份核验。
+
+### 身份授权更正
+
+- 用户随后最新确认 `yzhang3504` 为本人持有并授权本项目使用的账户，允许 Agent 代理
+  核验并提交。仍强制使用新建的 Trip_Project 专属目录，只管理本项目 job ID，不触碰
+  账户内既有文件、作业或进程；密码不落盘。
+- 实测 account/project 为 `punim2936`，QOS 包含 `publicgpu`；home 51.2 GiB quota 已满，
+  project GPFS 可写且约余 93 GiB。已创建唯一目录
+  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。
+- GPU 待排观测为 A100 约 280、H100 约 80、L40S 约 8，故只提交 L40S benchmark。
+  job `29109265` 已进入 `PD(Resources)`，Slurm 估计启动时间为
+  `2026-08-12T20:27:34`；未提交重复竞争作业。
+
+## 2026-08-12：A10 停机与 Spartan 迁移工程
+
+- 用户报告按量 A10 因欠费停机；旧两小时 heartbeat 监控已删除。没有停止、释放、
+  格式化或删除实例/云盘。
+- 当前本地可独立验证恢复点为商品成功 15,166；远端最后一次监控约 36,615 只能作为
+  未复核历史线索。完整候选池仍为 50,000/20,000/10,000。
+- 新增 `week5_spartan_migration_v1`：实际生成 migration
+  `week5_spartan_migration_20260812_a`，100 条 benchmark 按商品/售后/行程
+  49/36/15 分布；其余 64,734 条确定性拆为 4 个互斥分片。基线、benchmark、分片
+  覆盖合计 80,000，且不续写 A10 历史 run。
+- 新增 H100/A100/L40S 队列检查、benchmark、array shard、状态和不可覆盖合并工具。
+  Spartan project、quota、scratch 和提交身份仍未核验，因此本次没有声称作业已排队。
+- 新增 Week 6 Qwen3-VL-8B QLoRA 配置、数据锁定契约、环境检查、小样本训练入口和
+  Spartan pilot 模板；正式训练尚未运行。
+- 新增 `trip-api-sg` CPU 展示 Compose 和 `/v1/project-status`，只消费预计算结果和
+  静态报告；未部署 CUDA、vLLM 或模型权重。
+- 当前验证：新增定向测试 7/7、Week 5 联合定向测试 27/27、完整 unittest 299/299；
+  Week 5 候选/隔离、Week 3 v1/v2、四份 Slurm shell 语法、展示 Compose 展开和
+  `git diff --check` 均通过。
+
+## 2026-08-12：Week 5 预标注迁移到 ECS 常驻执行
+
+- 在不中断本地 runner 的阶段预同步 80,000 条候选、80,000 张唯一引用图片和冻结评测
+  依赖；迁移归档 81,109 个条目、2,975,730,176 字节，远端 SHA-256 一致。
+- 远端复核三份候选 manifest 与 run manifest 一致，图片缺失 0；Week 5 定向测试
+  22/22、`validate-pools` 返回 `status=ok`，运行端点仅为 `127.0.0.1:8001`。
+- 在池索引 15,190 停止本地 supervisor、runner 和 SSH 隧道；三份 JSONL 逐行合法，
+  随后以原 run ID、原 canonical config SHA-256 和 `--resume --retry-failures` 恢复。
+- systemd 服务启用并实际将成功结果从 15,166 推进到 15,197、checkpoint 推进到
+  15,209，连续请求失败归零；历史 raw 记录随后以不覆盖模式补传。
+- 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
+  运行依赖，且禁止本地与 ECS 同时写入该 run。

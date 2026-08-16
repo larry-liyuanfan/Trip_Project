@@ -629,6 +629,40 @@ class EvaluationManifestTest(unittest.TestCase):
         self.assertEqual(records[0]["review_status"], "pending")
         self.assertIsNone(records[0]["annotation"])
 
+    def test_sampling_can_create_an_isolated_development_split(self):
+        candidate = {
+            "source_type": "synthetic_fixture",
+            "source_id": "development-candidate-001",
+            "source_license": "synthetic-test-only",
+            "image_sha256": "d" * 64,
+            "input": {
+                "images": [
+                    {
+                        "path": "data/eval/images/development-001.jpg",
+                        "sha256": "d" * 64,
+                    }
+                ],
+                "text_constraints": None,
+            },
+            "coverage_group": "hotel",
+        }
+
+        records, _ = stratified_sample(
+            [candidate],
+            scenario="image_product_search",
+            dataset_version="week4_demo_dev_v1",
+            split="development",
+            seed=7,
+            stratum_field="coverage_group",
+            quotas={"hotel": 1},
+        )
+
+        self.assertEqual(records[0]["split"], "development")
+        self.assertEqual(
+            validate_manifest_record(records[0])["dataset_version"],
+            "week4_demo_dev_v1",
+        )
+
     def test_sampling_preserves_inference_input_for_pending_records(self):
         candidate = {
             "source_type": "synthetic_fixture",
