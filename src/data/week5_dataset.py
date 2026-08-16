@@ -811,7 +811,12 @@ def validate_dialogue_v2(root: Path, dialogue: dict[str, Any]) -> None:
             raise Week5DataError("unreviewed dialogue QC must remain partial")
 
 
-def workflow_summary(root: Path, config: dict[str, Any]) -> dict[str, Any]:
+def workflow_summary(
+    root: Path,
+    config: dict[str, Any],
+    *,
+    dialogue_run_id: str | None = None,
+) -> dict[str, Any]:
     output = root / config["paths"]["output_dir"]
     result: dict[str, Any] = {"scenarios": {}, "dialogues": {"candidate": 0, "human_validated": 0, "final_qualified": 0}}
     for scenario in SCENARIOS:
@@ -856,13 +861,28 @@ def workflow_summary(root: Path, config: dict[str, Any]) -> dict[str, Any]:
             "rework_records": rework, "rejected_records": reject,
             "final_qualified": final, "issue_distribution": dict(sorted(issues.items())),
         }
-    candidates = read_jsonl(output / "dialogues" / "candidates.jsonl")
-    validated = read_jsonl(output / "dialogues" / "human_validation.jsonl")
+    dialogue_dir = output / "dialogues"
+    if dialogue_run_id is not None:
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}", dialogue_run_id) is None:
+            raise Week5DataError(
+                "dialogue_run_id must contain only letters, numbers, dot, underscore, or dash"
+            )
+        dialogue_dir = output / "runs" / f"dialogue-{dialogue_run_id}"
+        if not (dialogue_dir / "candidates.jsonl").is_file():
+            raise Week5DataError(
+                f"dialogue run candidates do not exist: {dialogue_run_id}"
+            )
+    candidates = read_jsonl(dialogue_dir / "candidates.jsonl")
+    validated = read_jsonl(dialogue_dir / "human_validation.jsonl")
     result["dialogues"] = {
+        "run_id": dialogue_run_id,
         "candidate": len(candidates),
         "scenario_distribution": dict(sorted(Counter(row.get("scenario") for row in candidates).items())),
         "average_turns": (
-            sum(len(row.get("messages", [])) / 2 for row in candidates) / len(candidates)
+            sum(
+                len(row.get("turns", row.get("messages", []))) / 2
+                for row in candidates
+            ) / len(candidates)
             if candidates else 0
         ),
         "human_validated": len({row.get("dialogue_id") for row in validated}),

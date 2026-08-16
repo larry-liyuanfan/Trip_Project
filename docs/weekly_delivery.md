@@ -500,8 +500,11 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
   checks 完整，100 条 decision 均为 `pass`；人工验收 JSONL SHA-256 为
   `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
 - [x] 仅 100 条抽样对话计为人工 accepted；其余 9,900 条未被伪装成人工验收。
-- [x] 完整 unittest 329/329、Week 5 `validate-pools`（80,000 个唯一 sample/image，
+- [x] 完整 unittest 331/331、Week 5 `validate-pools`（80,000 个唯一 sample/image，
   `status=ok`）和 `git diff --check` 通过。
+- [x] `report --dialogue-run-id week5_dialogues_merged_10000_20260816_522b4af`
+  从权威 run-scoped 目录实测返回候选 10,000、人工校验 100、最终合格 100；裸
+  `report` 会拒绝运行，避免旧固定目录再次静默报告为 0。
 - [x] Week 5 按 ADR-023 的单人预算口径闭环；未运行 Week 6 pilot、训练或评估。
 
 ## Promotion Rule

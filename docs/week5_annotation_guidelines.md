@@ -139,7 +139,7 @@ python scripts/manage_week5_dataset.py apply-human --scenario image_product_sear
 python scripts/manage_week5_dataset.py apply-quality --scenario image_product_search --input <quality.jsonl>
 python scripts/manage_week5_dataset.py generate-dialogues
 python scripts/manage_week5_dataset.py apply-dialogue-quality --input <dialogue-quality.jsonl>
-python scripts/manage_week5_dataset.py report
+python scripts/manage_week5_dataset.py report --dialogue-run-id <authoritative-run-id>
 ```
 
 预标注和对话生成支持按已完成 ID 断点续跑；失败单独记录，`--retry-failures`

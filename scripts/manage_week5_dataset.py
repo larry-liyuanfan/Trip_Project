@@ -96,7 +96,8 @@ def parser() -> argparse.ArgumentParser:
     dialogue_qc.add_argument("--run-id", required=True)
     dialogue_queue = subparsers.add_parser("build-dialogue-review-queue")
     dialogue_queue.add_argument("--run-id", required=True)
-    subparsers.add_parser("report")
+    report = subparsers.add_parser("report")
+    report.add_argument("--dialogue-run-id", required=True)
     return result
 
 
@@ -161,7 +162,9 @@ def main() -> None:
         elif args.command == "build-dialogue-review-queue":
             payload = build_dialogue_review_queue(root, config, run_id=args.run_id)
         else:
-            payload = workflow_summary(root, config)
+            payload = workflow_summary(
+                root, config, dialogue_run_id=args.dialogue_run_id
+            )
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     except Week5DataError as exc:
         raise SystemExit(f"Week 5 workflow error: {exc}") from exc

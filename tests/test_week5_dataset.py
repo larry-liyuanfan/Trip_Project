@@ -21,6 +21,7 @@ from src.data.week5_dataset import (
     validate_dialogue_v2,
     validate_human_annotation,
     validate_workflow_v2_sidecar,
+    workflow_summary,
     write_jsonl_new,
 )
 from src.data.week5_workflow import (
@@ -44,6 +45,60 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Week5DatasetTests(unittest.TestCase):
+    def test_workflow_summary_reads_explicit_dialogue_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "outputs/week5"
+            for scenario in SCENARIOS:
+                for folder in ("pools", "preannotations", "annotations", "quality"):
+                    path = output / folder / f"{scenario}.jsonl"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("", encoding="utf-8")
+            run_dir = output / "runs/dialogue-final"
+            run_dir.mkdir(parents=True)
+            candidates = [
+                {"dialogue_id": "d-1", "scenario": "image_search", "turns": [{}, {}]},
+                {"dialogue_id": "d-2", "scenario": "after_sales", "turns": [{}, {}, {}, {}]},
+            ]
+            validations = [
+                {"dialogue_id": "d-1", "decision": "pass"},
+                {"dialogue_id": "d-2", "decision": "fail"},
+            ]
+            (run_dir / "candidates.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in candidates), encoding="utf-8"
+            )
+            (run_dir / "human_validation.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in validations), encoding="utf-8"
+            )
+
+            summary = workflow_summary(
+                root,
+                {"paths": {"output_dir": "outputs/week5"}, "quality": {}},
+                dialogue_run_id="final",
+            )
+
+            self.assertEqual(summary["dialogues"]["run_id"], "final")
+            self.assertEqual(summary["dialogues"]["candidate"], 2)
+            self.assertEqual(summary["dialogues"]["human_validated"], 2)
+            self.assertEqual(summary["dialogues"]["final_qualified"], 1)
+            self.assertEqual(summary["dialogues"]["average_turns"], 1.5)
+
+    def test_workflow_summary_rejects_missing_explicit_dialogue_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "outputs/week5"
+            for scenario in SCENARIOS:
+                for folder in ("pools", "preannotations", "annotations", "quality"):
+                    path = output / folder / f"{scenario}.jsonl"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("", encoding="utf-8")
+            with self.assertRaises(Week5DataError):
+                workflow_summary(
+                    root,
+                    {"paths": {"output_dir": "outputs/week5"}, "quality": {}},
+                    dialogue_run_id="missing",
+                )
+
     def test_dialogue_prompt_requires_flat_exact_turn_contract(self) -> None:
         prompt = _build_dialogue_generation_prompt(
             dialogue_id="dialogue-1",

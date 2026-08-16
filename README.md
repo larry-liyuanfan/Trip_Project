@@ -407,7 +407,7 @@ python scripts/manage_week5_dataset.py apply-quality --scenario <scenario> --inp
 python scripts/manage_week5_dataset.py generate-dialogues
 python scripts/manage_week5_dataset.py generate-dialogues --resume
 python scripts/manage_week5_dataset.py apply-dialogue-quality --input <dialogue-quality.jsonl>
-python scripts/manage_week5_dataset.py report
+python scripts/manage_week5_dataset.py report --dialogue-run-id <authoritative-run-id>
 python scripts/export_week5_localized_annotations.py
 ```
 

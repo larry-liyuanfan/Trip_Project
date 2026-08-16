@@ -359,9 +359,12 @@ as the current validated dataset or accepted baseline.
   完整，100 条 decision 均为 `pass`，人工验收 JSONL SHA-256 为
   `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
 - 只将抽样通过的 100 条计为人工 accepted，其余 9,900 条保持未人工验收候选。
-  Week 5 按批准的单人预算内口径完成；完整 unittest 329/329、Week 5
+  Week 5 按批准的单人预算内口径完成；完整 unittest 331/331、Week 5
   `validate-pools`（80,000 个唯一 sample/image，`status=ok`）和 `git diff --check`
   通过。本轮未执行 Week 6。
+- 修复最终汇总固定读取旧 `dialogues/` 目录的问题；`report` 现在必须显式指定权威
+  `--dialogue-run-id`，并从 run-scoped 目录读取 10,000 条候选和 100 条人工验收。
+  同时修复 v2 `turns` 的平均轮次统计，更新最终质量报告与机器可读当前状态。
 
 ## 2026-08-14：Week 5 最终闭环与 Week 6 数据锁定
 
