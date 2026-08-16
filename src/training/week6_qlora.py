@@ -161,6 +161,7 @@ def environment_report(*, require_cuda: bool = True) -> dict[str, Any]:
         "accelerate": "1.10.0",
         "peft": "0.17.0",
         "bitsandbytes": "0.47.0",
+        "kernels": "0.11.1",
     }
     versions: dict[str, str | None] = {}
     missing: list[str] = []
@@ -185,23 +186,39 @@ def environment_report(*, require_cuda: bool = True) -> dict[str, Any]:
     }
     if "torch" not in missing:
         torch = importlib.import_module("torch")
-        report.update(
-            {
-                "cuda_available": bool(torch.cuda.is_available()),
-                "bf16_supported": bool(
-                    torch.cuda.is_available() and torch.cuda.is_bf16_supported()
-                ),
-                "gpu_count": int(torch.cuda.device_count()),
-                "gpu_names": [
-                    torch.cuda.get_device_name(index)
-                    for index in range(torch.cuda.device_count())
-                ],
-            }
-        )
+        report["torch_cuda_version"] = torch.version.cuda
+        try:
+            cuda_available = bool(torch.cuda.is_available())
+            report.update(
+                {
+                    "cuda_available": cuda_available,
+                    "bf16_supported": bool(
+                        cuda_available and torch.cuda.is_bf16_supported()
+                    ),
+                    "gpu_count": int(torch.cuda.device_count()),
+                    "gpu_names": [
+                        torch.cuda.get_device_name(index)
+                        for index in range(torch.cuda.device_count())
+                    ],
+                    "cuda_initialization_error": None,
+                }
+            )
+        except RuntimeError as exc:
+            report.update(
+                {
+                    "cuda_available": False,
+                    "bf16_supported": False,
+                    "gpu_count": 0,
+                    "gpu_names": [],
+                    "cuda_initialization_error": str(exc),
+                }
+            )
     if missing:
         report["status"] = "missing_dependencies"
     elif incompatible:
         report["status"] = "incompatible_dependencies"
+    elif report.get("cuda_initialization_error"):
+        report["status"] = "cuda_initialization_error"
     elif require_cuda and not report.get("cuda_available"):
         report["status"] = "cuda_unavailable"
     elif require_cuda and not report.get("bf16_supported"):

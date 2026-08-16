@@ -22,6 +22,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Week6QLoRATests(unittest.TestCase):
+    def test_spartan_environment_is_pinned_to_cuda_128_stack(self) -> None:
+        requirements = (
+            ROOT / "requirements-training-spartan-cu128.txt"
+        ).read_text(encoding="utf-8")
+        setup = (
+            ROOT / "scripts/spartan/setup_week6_cuda128_venv.sbatch"
+        ).read_text(encoding="utf-8")
+        self.assertIn("transformers==4.57.1", requirements)
+        self.assertIn("bitsandbytes==0.47.0", requirements)
+        self.assertIn("kernels==0.11.7", requirements)
+        self.assertIn("torch==2.8.0+cu128", setup)
+        self.assertIn("refusing to mutate an existing environment", setup)
+
     def _pilot_summary(self, config: dict) -> dict:
         return {
             "status": "completed",

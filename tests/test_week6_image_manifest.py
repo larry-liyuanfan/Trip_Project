@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import json
+import gzip
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.week6_image_manifest import audit_shard, build_manifest, merge_audits
+from scripts.week6_image_manifest import (
+    audit_shard,
+    build_manifest,
+    merge_audits,
+    pack_failures,
+    split_file,
+)
 
 
 class Week6ImageManifestTests(unittest.TestCase):
@@ -89,6 +97,46 @@ class Week6ImageManifestTests(unittest.TestCase):
             )
             self.assertEqual(payload["status"], "ok")
             self.assertEqual(payload["checked"], 4)
+
+    def test_pack_failures_preserves_project_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "images" / "sample.bin"
+            source.parent.mkdir()
+            source.write_bytes(b"image")
+            failure_list = root / "failures.txt.gz"
+            with gzip.open(failure_list, "wt", encoding="utf-8") as handle:
+                handle.write("images/sample.bin\n")
+            archive = root / "recovery.tar.gz"
+            payload = pack_failures(
+                failure_list=failure_list,
+                project_root=root,
+                output=archive,
+                summary=root / "summary.json",
+            )
+            self.assertEqual(payload["records"], 1)
+            with tarfile.open(archive, "r:gz") as handle:
+                self.assertEqual(handle.getnames(), ["images/sample.bin"])
+
+    def test_split_file_records_ordered_hashes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.bin"
+            source.write_bytes(b"abcdefg")
+            payload = split_file(
+                source=source,
+                output_dir=root / "parts",
+                part_size_bytes=3,
+                summary=root / "split.json",
+            )
+            self.assertEqual(
+                [part["name"] for part in payload["parts"]],
+                ["part-0000", "part-0001", "part-0002"],
+            )
+            self.assertEqual(
+                b"".join((root / "parts" / part["name"]).read_bytes() for part in payload["parts"]),
+                b"abcdefg",
+            )
 
 
 if __name__ == "__main__":

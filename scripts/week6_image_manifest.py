@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
+import tarfile
 from pathlib import Path
 from typing import Iterator
 
@@ -156,6 +158,76 @@ def merge_audits(*, input_dir: Path, shard_count: int, output: Path) -> dict:
     return payload
 
 
+def pack_failures(
+    *, failure_list: Path, project_root: Path, output: Path, summary: Path
+) -> dict:
+    with gzip.open(failure_list, "rt", encoding="utf-8") as handle:
+        paths = sorted({line.strip() for line in handle if line.strip()})
+    if not paths:
+        raise ValueError("failure list is empty")
+    total_bytes = 0
+    resolved_paths: list[tuple[str, Path]] = []
+    for relative_path in paths:
+        resolved = resolve_scoped(project_root, relative_path)
+        if not resolved.is_file():
+            raise ValueError(f"local recovery image is missing: {relative_path}")
+        total_bytes += resolved.stat().st_size
+        resolved_paths.append((relative_path, resolved))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(output, "x:gz") as archive:
+        for relative_path, resolved in resolved_paths:
+            archive.add(resolved, arcname=relative_path, recursive=False)
+    payload = {
+        "status": "ok",
+        "records": len(resolved_paths),
+        "source_bytes": total_bytes,
+        "archive_bytes": output.stat().st_size,
+        "archive_sha256": sha256_file(output),
+    }
+    summary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return payload
+
+
+def split_file(*, source: Path, output_dir: Path, part_size_bytes: int, summary: Path) -> dict:
+    if part_size_bytes <= 0:
+        raise ValueError("part size must be positive")
+    output_dir.mkdir(parents=True, exist_ok=False)
+    parts: list[dict] = []
+    with source.open("rb") as handle:
+        index = 0
+        while block := handle.read(part_size_bytes):
+            part = output_dir / f"part-{index:04d}"
+            part.write_bytes(block)
+            parts.append(
+                {
+                    "name": part.name,
+                    "size_bytes": len(block),
+                    "sha256": sha256_file(part),
+                }
+            )
+            index += 1
+    if not parts:
+        raise ValueError("source file is empty")
+    payload = {
+        "status": "ok",
+        "source": str(source),
+        "source_size_bytes": source.stat().st_size,
+        "source_sha256": sha256_file(source),
+        "part_size_bytes": part_size_bytes,
+        "parts": parts,
+    }
+    summary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return payload
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     sub = result.add_subparsers(dest="command", required=True)
@@ -174,6 +246,16 @@ def parser() -> argparse.ArgumentParser:
     merge.add_argument("--input-dir", type=Path, required=True)
     merge.add_argument("--shard-count", type=int, required=True)
     merge.add_argument("--output", type=Path, required=True)
+    pack = sub.add_parser("pack-failures")
+    pack.add_argument("--failure-list", type=Path, required=True)
+    pack.add_argument("--project-root", type=Path, required=True)
+    pack.add_argument("--output", type=Path, required=True)
+    pack.add_argument("--summary", type=Path, required=True)
+    split = sub.add_parser("split-file")
+    split.add_argument("--source", type=Path, required=True)
+    split.add_argument("--output-dir", type=Path, required=True)
+    split.add_argument("--part-size-bytes", type=int, required=True)
+    split.add_argument("--summary", type=Path, required=True)
     return result
 
 
@@ -194,11 +276,25 @@ def main() -> None:
             shard_count=args.shard_count,
             output=args.output,
         )
-    else:
+    elif args.command == "merge-audits":
         payload = merge_audits(
             input_dir=args.input_dir,
             shard_count=args.shard_count,
             output=args.output,
+        )
+    elif args.command == "pack-failures":
+        payload = pack_failures(
+            failure_list=args.failure_list,
+            project_root=args.project_root,
+            output=args.output,
+            summary=args.summary,
+        )
+    else:
+        payload = split_file(
+            source=args.source,
+            output_dir=args.output_dir,
+            part_size_bytes=args.part_size_bytes,
+            summary=args.summary,
         )
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     if payload["status"] != "ok":

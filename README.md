@@ -482,11 +482,14 @@ sbatch --account=punim2936 \
 
 Week 6 当前活动配置为
 `configs/week6/qwen3_vl_8b_qlora_final300_v4.json`，绑定最终三场景各 100 条
-人工修订；旧 `qwen3_vl_8b_qlora.json` 与早期数据锁只保留为历史证据。训练依赖
-保持独立：
+人工修订；旧 `qwen3_vl_8b_qlora.json` 与早期数据锁只保留为历史证据。Spartan
+Week 6 不复用上述未固定的历史 venv；使用 CUDA 12.8 版本化环境
+`envs/trip-week6-py311-cu128-v1`：
 
 ```bash
-pip install -r requirements-training.txt
+sbatch --account=punim2936 --partition=sapphire \
+  --export=ALL,TRIP_DEPLOY_ROOT=<deploy-root>,TRIP_PROJECT_ROOT=<repo-root>,TRIP_VENV=<new-cu128-venv> \
+  scripts/spartan/setup_week6_cuda128_venv.sbatch
 python scripts/prepare_week6_data.py \
   --config configs/week6/qwen3_vl_8b_qlora_final300_v4.json
 python scripts/train_week6_qlora.py \

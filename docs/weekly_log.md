@@ -369,6 +369,15 @@ as the current validated dataset or accepted baseline.
   50,423 张，正式训练前仍须完成分片审计并只补齐实际缺失文件。
 - 更新后完整 `unittest` 343/343、Python 编译、五份 Slurm shell 语法及
   `git diff --check` 通过；尚无 pilot loss、显存或训练完成结果。
+- 图片首轮 CPU array `29297594`/merge `29297595` 完整检查 79,937 项，发现
+  15,129 缺失和 1 个大小不符。仅补传这 15,130 项；562,031,601-byte 归档 SHA-256
+  为 `62fe6e80ecc0bfa0cbd08a0b082fef193121248c8e0d32f71d884566ac5151e0`。大小不符的
+  few-shot 拼图先移到审计目录备份。复审 `29297871`/`29297872` 为 79,937/79,937、
+  failures=0、`status=ok`。
+- pilot `29296577` 于 02:00:30 获得 L40S，但在 11 秒环境检查阶段 `FAILED 1:0`：
+  原 venv 为 torch `2.13.0+cu130`，节点驱动仅支持 CUDA 12.8；同时 bnb 0.50.0
+  提示缺少 kernels。没有模型下载或训练 step。新增不可变 CUDA 12.8 venv 安装链，
+  成功后只重提一次 pilot。
 
 ## 2026-08-16：Week 5 多轮对话与人工验收最终完成
 

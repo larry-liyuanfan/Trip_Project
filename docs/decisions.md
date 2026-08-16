@@ -382,6 +382,19 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   SHA-256；未齐图片、磁盘余量不足或 gate 失败时依赖链关闭。该授权不包括商品 4B
   对照、冻结 Week 3 最终评测、多轮对话训练或变更固定超参数。
 
+## ADR-028：Spartan Week 6 使用版本化 CUDA 12.8 训练环境
+
+- **日期**：2026-08-17
+- **状态**：Accepted
+- **决策**：失败环境 `trip-week5-week6-py311` 保持为诊断证据，不原地升级。新建
+  `trip-week6-py311-cu128-v1`，固定 PyTorch `2.8.0+cu128`、Transformers `4.57.1`、
+  PEFT `0.17.1`、bitsandbytes `0.47.0`、accelerate `1.10.1` 和 kernels `0.11.7`。
+- **原因**：pilot `29296577` 在环境 gate 以 11 秒失败；节点驱动支持 CUDA 12.8，
+  原 venv 的 `torch 2.13.0+cu130` 要求 CUDA 13，且 bitsandbytes 0.50.0 报告缺少
+  kernels。作业没有加载模型或执行训练步，不能计为 pilot。
+- **影响**：只在新 venv 安装作业成功并通过 `pip check` 后重提一次 pilot；正式
+  `afterok` 链必须绑定新 pilot 和该 venv，不得绕过 CUDA 初始化 gate。
+
 ## Decision Template
 
 ```markdown

@@ -349,6 +349,17 @@ manifest.
   远端图片审计和缺失补传仍待执行，不能据此声明正式数据已就绪。
 - 工程验证：完整 `unittest` 343/343，`py_compile`、五份 Week 6 Slurm shell
   `bash -n` 与 `git diff --check` 通过。
+- 远端数据审计：首轮 array/merge `29297594`/`29297595` 检出 missing=15,129、
+  size_mismatch=1；补传归档 562,031,601 bytes，SHA-256
+  `62fe6e80ecc0bfa0cbd08a0b082fef193121248c8e0d32f71d884566ac5151e0`。复审
+  `29297871`/`29297872` 覆盖 79,937 项，failures=0、status=ok。
+- pilot 终态：`29296577`，02:00:30–02:00:41 AEST，`FAILED 1:0`。环境为 torch
+  `2.13.0+cu130`，L40S 节点驱动报告最高 CUDA 12.8；在 `torch.cuda.get_device_name`
+  前初始化失败。另有 bnb 0.50.0 缺少 kernels 提示。没有模型下载、loss、显存、
+  checkpoint 或 adapter 结果。
+- 修复：新增 `requirements-training-spartan-cu128.txt` 和不可覆盖的新 venv setup，
+  固定 torch `2.8.0+cu128`、Transformers/PEFT/bnb `4.57.1/0.17.1/0.47.0`、
+  kernels `0.11.7`；旧 venv 不修改，等待 CPU 安装和新 pilot 实测。
 
 ## 2026-08-16：Week 5 多轮对话并行生成、合并与人工抽样验收
 
