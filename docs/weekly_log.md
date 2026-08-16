@@ -359,6 +359,16 @@ as the current validated dataset or accepted baseline.
   adapter-only 重载验证、显存/耗时/Slurm 元数据记录及版本化 config/run ID 要求。
 - 本地完整 `unittest` 337/337、Week 5 五维隔离、Week 3 v2 验证、六份 v4 数据契约、
   Slurm shell 语法和 `git diff --check` 均通过；GPU pilot 尚未运行。
+- 提交 L40S pilot job `29296577`，32 条训练/32 条验证、最多 10 steps；截至
+  01:16 AEST 为 `PENDING(Resources)`，保留原作业和队列位置。用户随后批准成功后
+  通过确定性 gate 自动推进三场景正式训练，并要求任务级分片并行。
+- 新增 pilot gate、正式 `train-full`、三场景独立单卡模板、流式 JSONL offset dataset
+  和图片 manifest/audit array。全量锁归档已在 Spartan 逐分片重组并通过 SHA-256；
+  79,937 个唯一引用图片的本地 manifest SHA-256 为
+  `1afd768a1996a7ebd7004e1ef2fcdcff60ad7a54ce4161efe6673c4e0a27e5a7`。远端当前源图
+  50,423 张，正式训练前仍须完成分片审计并只补齐实际缺失文件。
+- 更新后完整 `unittest` 343/343、Python 编译、五份 Slurm shell 语法及
+  `git diff --check` 通过；尚无 pilot loss、显存或训练完成结果。
 
 ## 2026-08-16：Week 5 多轮对话与人工验收最终完成
 

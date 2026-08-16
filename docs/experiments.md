@@ -335,6 +335,20 @@ manifest.
   `git diff --check`。
 - 结果：完整 `unittest` 337/337；Week 5/Week 3 隔离验证 `status=ok`；GPU 环境、
   4bit 加载、反向传播、显存和 adapter checkpoint 仍为 `PENDING`，不得称为训练完成。
+- 运行提交：L40S job `29296577`，run ID
+  `week6_after_sales_8b_qlora_pilot_20260817_0b3f755_a`；32/32 样本、10 steps 上限、
+  Slurm time limit 2 小时。截至 01:16 AEST 状态为 `PENDING(Resources)`，未取消或
+  重提，暂无 GPU 指标。
+- 自动链准备：用户直接批准 pilot 成功后继续。新增有限 loss/显存/checkpoint/adapter
+  回载 gate，正式训练使用三场景任务级并行而非模型跨卡切分；全量 JSONL 使用 byte
+  offset dataset，避免加载整份文件到内存。
+- 数据传输：全量锁压缩包 14,293,390 bytes，SHA-256
+  `1b8dc1ca792f977dfe6b448b1f8604ab6c82020321bbba49d46e2d68da6c322e`，编号分片重组后
+  远端哈希一致并已展开。全量锁引用 79,937 个唯一图片，manifest SHA-256
+  `1afd768a1996a7ebd7004e1ef2fcdcff60ad7a54ce4161efe6673c4e0a27e5a7`，本地全部存在；
+  远端图片审计和缺失补传仍待执行，不能据此声明正式数据已就绪。
+- 工程验证：完整 `unittest` 343/343，`py_compile`、五份 Week 6 Slurm shell
+  `bash -n` 与 `git diff --check` 通过。
 
 ## 2026-08-16：Week 5 多轮对话并行生成、合并与人工抽样验收
 

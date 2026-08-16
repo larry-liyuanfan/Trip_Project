@@ -13,8 +13,10 @@ from src.training.week6_qlora import (
     SCENARIOS,
     Week6TrainingError,
     environment_report,
+    evaluate_pilot_gate,
     iter_training_rows,
     load_training_config,
+    run_full_training,
     run_small_sample_training,
 )
 
@@ -34,6 +36,19 @@ def parser() -> argparse.ArgumentParser:
     train.add_argument("--output-dir", type=Path, required=True)
     train.add_argument("--confirm-dataset-lock", action="store_true")
     train.add_argument("--resume-from-checkpoint", type=Path)
+    full = sub.add_parser("train-full")
+    full.add_argument("--scenario", choices=SCENARIOS, required=True)
+    full.add_argument("--train-input", type=Path, required=True)
+    full.add_argument("--eval-input", type=Path, required=True)
+    full.add_argument("--output-dir", type=Path, required=True)
+    full.add_argument("--confirm-dataset-lock", action="store_true")
+    full.add_argument("--resume-from-checkpoint", type=Path)
+    gate = sub.add_parser("gate-pilot")
+    gate.add_argument("--summary", type=Path, required=True)
+    gate.add_argument("--scenario", choices=SCENARIOS, required=True)
+    gate.add_argument("--expected-git-commit", required=True)
+    gate.add_argument("--gpu-total-memory-gb", type=float, required=True)
+    gate.add_argument("--output", type=Path, required=True)
     return result
 
 
@@ -46,7 +61,7 @@ def main() -> None:
         elif args.command == "validate-data":
             count = sum(1 for _ in iter_training_rows(args.input, scenario=args.scenario))
             payload = {"status": "ok", "scenario": args.scenario, "records": count}
-        else:
+        elif args.command == "train-pilot":
             payload = run_small_sample_training(
                 config,
                 scenario=args.scenario,
@@ -56,6 +71,34 @@ def main() -> None:
                 dataset_lock_confirmed=args.confirm_dataset_lock,
                 resume_from_checkpoint=args.resume_from_checkpoint,
             )
+        elif args.command == "train-full":
+            payload = run_full_training(
+                config,
+                scenario=args.scenario,
+                train_path=args.train_input,
+                eval_path=args.eval_input,
+                output_dir=args.output_dir,
+                dataset_lock_confirmed=args.confirm_dataset_lock,
+                resume_from_checkpoint=args.resume_from_checkpoint,
+            )
+        else:
+            payload = evaluate_pilot_gate(
+                config,
+                summary_path=args.summary,
+                expected_scenario=args.scenario,
+                expected_git_commit=args.expected_git_commit,
+                gpu_total_memory_gb=args.gpu_total_memory_gb,
+            )
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            if payload["status"] != "passed":
+                raise Week6TrainingError(
+                    "pilot gate failed: " + ", ".join(payload["reasons"])
+                )
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     except Week6TrainingError as exc:
         raise SystemExit(f"Week 6 training error: {exc}") from exc

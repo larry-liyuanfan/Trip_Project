@@ -7,8 +7,10 @@ from unittest.mock import patch
 from pathlib import Path
 
 from src.training.week6_qlora import (
+    IndexedMessageDataset,
     Week6TrainingError,
     _trainable_parameter_report,
+    evaluate_pilot_gate,
     iter_training_rows,
     load_training_config,
     resolve_lora_targets,
@@ -20,6 +22,62 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Week6QLoRATests(unittest.TestCase):
+    def _pilot_summary(self, config: dict) -> dict:
+        return {
+            "status": "completed",
+            "scenario": "after_sales",
+            "git_commit": "a" * 40,
+            "dataset_lock": {"dataset_version": config["dataset"]["dataset_version"]},
+            "global_step": config["pilot"]["max_steps"],
+            "checkpoints": ["checkpoint-10"],
+            "adapter_only": True,
+            "adapter_reload_verified": True,
+            "adapter_file_sha256": {"adapter_model.safetensors": "b" * 64},
+            "training_metrics": {"train_loss": 1.25},
+            "log_history": [{"eval_loss": 1.5}],
+            "peak_gpu_memory_reserved_bytes": 20 * 1024**3,
+        }
+
+    def test_pilot_gate_passes_complete_finite_run(self) -> None:
+        config = load_training_config(
+            ROOT / "configs/week6/qwen3_vl_8b_qlora_final300_v4.json"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            summary_path = Path(directory) / "run_summary.json"
+            summary_path.write_text(
+                json.dumps(self._pilot_summary(config)), encoding="utf-8"
+            )
+            gate = evaluate_pilot_gate(
+                config,
+                summary_path=summary_path,
+                expected_scenario="after_sales",
+                expected_git_commit="a" * 40,
+                gpu_total_memory_gb=48,
+            )
+        self.assertEqual(gate["status"], "passed")
+        self.assertEqual(gate["reasons"], [])
+
+    def test_pilot_gate_rejects_nonfinite_loss_and_missing_reload(self) -> None:
+        config = load_training_config(
+            ROOT / "configs/week6/qwen3_vl_8b_qlora_final300_v4.json"
+        )
+        summary = self._pilot_summary(config)
+        summary["training_metrics"]["train_loss"] = float("nan")
+        summary["adapter_reload_verified"] = False
+        with tempfile.TemporaryDirectory() as directory:
+            summary_path = Path(directory) / "run_summary.json"
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            gate = evaluate_pilot_gate(
+                config,
+                summary_path=summary_path,
+                expected_scenario="after_sales",
+                expected_git_commit="a" * 40,
+                gpu_total_memory_gb=48,
+            )
+        self.assertEqual(gate["status"], "failed")
+        self.assertIn("train_loss_not_finite", gate["reasons"])
+        self.assertIn("adapter_reload_not_verified", gate["reasons"])
+
     def test_config_locks_8b_nf4_and_effective_batch(self) -> None:
         config = load_training_config(ROOT / "configs/week6/qwen3_vl_8b_qlora.json")
         self.assertEqual(config["base_model"], "Qwen/Qwen3-VL-8B-Instruct")
@@ -36,6 +94,10 @@ class Week6QLoRATests(unittest.TestCase):
         self.assertEqual(training["warmup_ratio"], 0.03)
         self.assertEqual(training["weight_decay"], 0.01)
         self.assertEqual(training["attn_implementation"], "sdpa")
+        self.assertEqual(
+            config["scenarios"]["itinerary_planning"]["format_constraint_loss_weight"],
+            0.1,
+        )
 
     def test_runtime_targets_include_language_and_visual_merger(self) -> None:
         class Model:
@@ -130,6 +192,37 @@ class Week6QLoRATests(unittest.TestCase):
                 },
             }) + "\n", encoding="utf-8")
             self.assertEqual(len(list(iter_training_rows(path, scenario="itinerary_planning"))), 1)
+
+    def test_indexed_dataset_keeps_offsets_and_reads_rows_on_demand(self) -> None:
+        lock = {
+            "dataset_version": "v1",
+            "manifest_sha256": "a" * 64,
+            "split_sha256": "b" * 64,
+        }
+        rows = [
+            {
+                "sample_id": f"sample-{index}",
+                "scenario": "after_sales",
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": "check"}]},
+                    {"role": "assistant", "content": "{}"},
+                ],
+                "label_source": "human_revised",
+                "sample_weight": 1.0,
+                "dataset_lock": lock,
+            }
+            for index in range(3)
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "train.jsonl"
+            path.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+            )
+            dataset = IndexedMessageDataset(path, scenario="after_sales")
+            self.assertEqual(len(dataset), 3)
+            self.assertEqual(dataset.offsets[0], 0)
+            self.assertEqual(dataset[2]["sample_id"], "sample-2")
+            self.assertEqual(dataset.dataset_lock, lock)
 
     def test_pilot_reads_only_configured_sample_cap(self) -> None:
         from src.training.week6_qlora import run_small_sample_training

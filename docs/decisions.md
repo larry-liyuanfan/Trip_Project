@@ -366,6 +366,22 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **原因**：最终 300 条人工修订晚于旧锁；Windows 绝对 `file://` 和 OpenAI
   `image_url` 结构均不能作为 Transformers 4.57.1 自动加载本地图片的可靠输入。
 
+## ADR-027：Week 6 pilot 后确定性放行与三场景任务级并行
+
+- **日期**：2026-08-17
+- **状态**：Accepted；用户最新直接指令授权 pilot 成功后自动执行下一步，细化并
+  supersede ADR-026 的“pilot 后停止”条款，其他 Week 6 边界不变。
+- **决策**：保留已排队 pilot，不取消或重复提交。pilot 后由 CPU gate 确定性检查
+  step、有限 train/eval loss、显存、checkpoint、adapter-only 磁盘回载、数据锁和
+  Git 身份；仅 gate 成功时允许 Slurm `afterok` 链进入正式训练。
+- **并行**：三个场景使用独立单 GPU job、run ID、输出、checkpoint、日志和 LoRA
+  adapter 并行排队。8B NF4 可在 L40S 单卡运行，因此不做低收益的模型跨卡切分；
+  单场景失败只恢复该场景。每个 allocation 内连续完成训练、best checkpoint、adapter
+  回载和 summary，避免额外占卡。
+- **数据门禁**：正式 job 前按不可变图片清单使用 CPU array 分片校验远端文件大小和
+  SHA-256；未齐图片、磁盘余量不足或 gate 失败时依赖链关闭。该授权不包括商品 4B
+  对照、冻结 Week 3 最终评测、多轮对话训练或变更固定超参数。
+
 ## Decision Template
 
 ```markdown

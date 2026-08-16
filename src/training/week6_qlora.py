@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import importlib.metadata
 import json
+import math
 import os
 import time
 from itertools import islice
@@ -80,6 +81,48 @@ def iter_training_rows(path: Path, *, scenario: str | None = None) -> Iterator[d
                 raise Week6TrainingError(f"invalid training JSONL at line {line_number}") from exc
             validate_training_row(row, scenario=scenario)
             yield row
+
+
+class IndexedMessageDataset:
+    """Validate JSONL once and retain only byte offsets for bounded host memory."""
+
+    def __init__(self, path: Path, *, scenario: str) -> None:
+        self.path = path
+        self.scenario = scenario
+        self.offsets: list[int] = []
+        locks: set[str] = set()
+        with path.open("rb") as handle:
+            while True:
+                offset = handle.tell()
+                line = handle.readline()
+                if not line:
+                    break
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise Week6TrainingError(
+                        f"invalid training JSONL at byte offset {offset}"
+                    ) from exc
+                validate_training_row(row, scenario=scenario)
+                self.offsets.append(offset)
+                locks.add(
+                    json.dumps(row["dataset_lock"], sort_keys=True, separators=(",", ":"))
+                )
+        if not self.offsets:
+            raise Week6TrainingError("training dataset must be non-empty")
+        if len(locks) != 1:
+            raise Week6TrainingError("a training file contains mixed dataset locks")
+        self.dataset_lock = json.loads(next(iter(locks)))
+
+    def __len__(self) -> int:
+        return len(self.offsets)
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        with self.path.open("rb") as handle:
+            handle.seek(self.offsets[index])
+            return json.loads(handle.readline().decode("utf-8"))
 
 
 def validate_training_row(row: dict[str, Any], *, scenario: str | None = None) -> None:
@@ -218,6 +261,76 @@ def _trainable_parameter_report(model: Any) -> dict[str, Any]:
     }
 
 
+def evaluate_pilot_gate(
+    config: dict[str, Any],
+    *,
+    summary_path: Path,
+    expected_scenario: str,
+    expected_git_commit: str,
+    gpu_total_memory_gb: float,
+) -> dict[str, Any]:
+    """Apply deterministic release gates before any full-data job can run."""
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise Week6TrainingError(f"cannot read pilot summary: {summary_path}") from exc
+
+    reasons: list[str] = []
+    if summary.get("status") != "completed":
+        reasons.append("pilot_status_not_completed")
+    if summary.get("scenario") != expected_scenario:
+        reasons.append("scenario_mismatch")
+    if summary.get("git_commit") != expected_git_commit:
+        reasons.append("git_commit_mismatch")
+    lock = summary.get("dataset_lock") or {}
+    if lock.get("dataset_version") != config["dataset"]["dataset_version"]:
+        reasons.append("dataset_version_mismatch")
+    if int(summary.get("global_step", -1)) != int(config["pilot"]["max_steps"]):
+        reasons.append("pilot_step_count_mismatch")
+    if not summary.get("checkpoints"):
+        reasons.append("checkpoint_missing")
+    if not summary.get("adapter_only") or not summary.get("adapter_reload_verified"):
+        reasons.append("adapter_reload_not_verified")
+    if not summary.get("adapter_file_sha256"):
+        reasons.append("adapter_hashes_missing")
+
+    train_loss = (summary.get("training_metrics") or {}).get("train_loss")
+    if not isinstance(train_loss, (int, float)) or not math.isfinite(float(train_loss)):
+        reasons.append("train_loss_not_finite")
+    eval_losses = [
+        item.get("eval_loss")
+        for item in summary.get("log_history", [])
+        if isinstance(item, dict) and "eval_loss" in item
+    ]
+    if not eval_losses or any(
+        not isinstance(value, (int, float)) or not math.isfinite(float(value))
+        for value in eval_losses
+    ):
+        reasons.append("eval_loss_not_finite")
+
+    peak_reserved = summary.get("peak_gpu_memory_reserved_bytes")
+    capacity_bytes = int(gpu_total_memory_gb * 1024**3)
+    if (
+        not isinstance(peak_reserved, int)
+        or peak_reserved <= 0
+        or peak_reserved >= capacity_bytes
+    ):
+        reasons.append("gpu_memory_gate_failed")
+
+    return {
+        "status": "passed" if not reasons else "failed",
+        "summary_path": str(summary_path),
+        "scenario": expected_scenario,
+        "expected_git_commit": expected_git_commit,
+        "dataset_version": config["dataset"]["dataset_version"],
+        "gpu_total_memory_gb": gpu_total_memory_gb,
+        "peak_gpu_memory_reserved_bytes": peak_reserved,
+        "train_loss": train_loss,
+        "eval_losses": eval_losses,
+        "reasons": reasons,
+    }
+
+
 def run_small_sample_training(
     config: dict[str, Any],
     *,
@@ -227,8 +340,11 @@ def run_small_sample_training(
     output_dir: Path,
     dataset_lock_confirmed: bool,
     resume_from_checkpoint: Path | None = None,
+    _run_mode: str = "pilot",
 ) -> dict[str, Any]:
-    """Run the explicit GPU pilot; never called during import or validation."""
+    """Run a guarded QLoRA job; full mode is exposed only through its wrapper."""
+    if _run_mode not in {"pilot", "full"}:
+        raise Week6TrainingError("unsupported Week 6 training mode")
     if not dataset_lock_confirmed:
         raise Week6TrainingError("formal training requires an explicit locked Week 5 dataset")
     if output_dir.exists() and resume_from_checkpoint is None:
@@ -239,20 +355,32 @@ def run_small_sample_training(
         try:
             resume_from_checkpoint.resolve().relative_to(output_dir.resolve())
         except ValueError as exc:
-            raise Week6TrainingError("resume checkpoint must belong to the pilot output") from exc
-    max_samples = int(config["pilot"]["max_samples"])
-    rows = list(islice(iter_training_rows(train_path, scenario=scenario), max_samples))
-    eval_rows = list(islice(iter_training_rows(eval_path, scenario=scenario), max_samples))
-    if not rows or not eval_rows:
-        raise Week6TrainingError("training and evaluation inputs must be non-empty")
-    locks = {
-        json.dumps(row["dataset_lock"], sort_keys=True, separators=(",", ":"))
-        for row in [*rows, *eval_rows]
-    }
-    if len(locks) != 1:
-        raise Week6TrainingError("training and validation inputs use different dataset locks")
+            raise Week6TrainingError("resume checkpoint must belong to the training output") from exc
+    if _run_mode == "pilot":
+        max_samples = int(config["pilot"]["max_samples"])
+        rows = list(islice(iter_training_rows(train_path, scenario=scenario), max_samples))
+        eval_rows = list(islice(iter_training_rows(eval_path, scenario=scenario), max_samples))
+        if not rows or not eval_rows:
+            raise Week6TrainingError("training and evaluation inputs must be non-empty")
+        locks = {
+            json.dumps(row["dataset_lock"], sort_keys=True, separators=(",", ":"))
+            for row in [*rows, *eval_rows]
+        }
+        if len(locks) != 1:
+            raise Week6TrainingError("training and validation inputs use different dataset locks")
+        dataset_lock = rows[0]["dataset_lock"]
+        train_sample_count = len(rows)
+        eval_sample_count = len(eval_rows)
+    else:
+        train_dataset = IndexedMessageDataset(train_path, scenario=scenario)
+        eval_dataset = IndexedMessageDataset(eval_path, scenario=scenario)
+        if train_dataset.dataset_lock != eval_dataset.dataset_lock:
+            raise Week6TrainingError("training and validation inputs use different dataset locks")
+        dataset_lock = train_dataset.dataset_lock
+        train_sample_count = len(train_dataset)
+        eval_sample_count = len(eval_dataset)
     expected_version = config.get("dataset", {}).get("dataset_version")
-    if expected_version and rows[0]["dataset_lock"]["dataset_version"] != expected_version:
+    if expected_version and dataset_lock["dataset_version"] != expected_version:
         raise Week6TrainingError("training inputs do not match the configured dataset version")
     report = environment_report(require_cuda=True)
     if report["status"] != "ok":
@@ -304,6 +432,10 @@ def run_small_sample_training(
     )
     parameter_report = _trainable_parameter_report(model)
     processor = AutoProcessor.from_pretrained(config["base_model"])
+    scenario_config = config["scenarios"][scenario]
+    format_loss_weight = float(scenario_config.get("format_constraint_loss_weight", 0.0))
+    if not 0.0 <= format_loss_weight <= 1.0:
+        raise Week6TrainingError("format constraint loss weight must be in [0, 1]")
 
     class MessageDataset:
         def __init__(self, values: list[dict[str, Any]]) -> None:
@@ -314,6 +446,10 @@ def run_small_sample_training(
 
         def __getitem__(self, index: int) -> dict[str, Any]:
             return self.values[index]
+
+    if _run_mode == "pilot":
+        train_dataset = MessageDataset(rows)
+        eval_dataset = MessageDataset(eval_rows)
 
     def collate(batch: list[dict[str, Any]]) -> dict[str, Any]:
         if len(batch) != 1:
@@ -343,23 +479,52 @@ def run_small_sample_training(
             raise Week6TrainingError("max_length truncation removed the assistant target")
         inputs["labels"] = labels
         inputs["_sample_weight"] = torch.tensor(float(batch[0]["sample_weight"]))
+        if format_loss_weight:
+            structural = torch.zeros_like(labels, dtype=torch.bool)
+            for token_id in set(labels[labels != -100].tolist()):
+                decoded = processor.tokenizer.decode([token_id], skip_special_tokens=False)
+                if any(character in decoded for character in '{}[]:,"'):
+                    structural |= labels == token_id
+            if not structural.any():
+                raise Week6TrainingError("itinerary target contains no JSON structural tokens")
+            inputs["_format_mask"] = structural
         return inputs
 
     class WeightedTrainer(Trainer):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self.format_loss_history: list[float] = []
+
         def compute_loss(
             self, model: Any, inputs: dict[str, Any], return_outputs: bool = False,
             num_items_in_batch: Any = None,
         ) -> Any:
             weight = inputs.pop("_sample_weight")
+            format_mask = inputs.pop("_format_mask", None)
             outputs = model(**inputs)
-            loss = outputs.loss * weight.to(outputs.loss.device)
+            loss = outputs.loss
+            if format_mask is not None:
+                import torch.nn.functional as functional
+
+                shifted_logits = outputs.logits[:, :-1, :].contiguous()
+                shifted_labels = inputs["labels"][:, 1:].contiguous()
+                shifted_mask = format_mask[:, 1:].to(shifted_logits.device)
+                token_loss = functional.cross_entropy(
+                    shifted_logits.view(-1, shifted_logits.shape[-1]),
+                    shifted_labels.view(-1),
+                    ignore_index=-100,
+                    reduction="none",
+                ).view_as(shifted_labels)
+                constraint_loss = token_loss[shifted_mask].mean()
+                self.format_loss_history.append(float(constraint_loss.detach().cpu()))
+                loss = loss + format_loss_weight * constraint_loss
+            loss = loss * weight.to(outputs.loss.device)
             return (loss, outputs) if return_outputs else loss
 
-    scenario_config = config["scenarios"][scenario]
     arguments = TrainingArguments(
         output_dir=str(output_dir),
         num_train_epochs=scenario_config["epochs"],
-        max_steps=int(config["pilot"]["max_steps"]),
+        max_steps=int(config["pilot"]["max_steps"]) if _run_mode == "pilot" else -1,
         per_device_train_batch_size=train["per_device_train_batch_size"],
         per_device_eval_batch_size=train["per_device_eval_batch_size"],
         gradient_accumulation_steps=train["gradient_accumulation_steps"],
@@ -370,11 +535,15 @@ def run_small_sample_training(
         optim=train["optimizer"],
         bf16=train["bf16"],
         gradient_checkpointing=train["gradient_checkpointing"],
-        logging_steps=1,
+        logging_steps=1 if _run_mode == "pilot" else train["logging_steps"],
         eval_strategy="steps",
-        eval_steps=1,
+        eval_steps=(
+            1 if _run_mode == "pilot" else train["evaluation_fraction_steps"]
+        ),
         save_strategy="steps",
-        save_steps=1,
+        save_steps=(
+            1 if _run_mode == "pilot" else train["evaluation_fraction_steps"]
+        ),
         save_total_limit=train["save_total_limit"],
         load_best_model_at_end=train["load_best_model_at_end"],
         metric_for_best_model=train["metric_for_best_model"],
@@ -384,8 +553,8 @@ def run_small_sample_training(
     trainer = WeightedTrainer(
         model=model,
         args=arguments,
-        train_dataset=MessageDataset(rows),
-        eval_dataset=MessageDataset(eval_rows),
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         data_collator=collate,
     )
     started_at = time.time()
@@ -414,10 +583,11 @@ def run_small_sample_training(
     }
     payload = {
         "status": "completed",
+        "run_mode": _run_mode,
         "scenario": scenario,
-        "train_samples": len(rows),
-        "eval_samples": len(eval_rows),
-        "dataset_lock": rows[0]["dataset_lock"],
+        "train_samples": train_sample_count,
+        "eval_samples": eval_sample_count,
+        "dataset_lock": dataset_lock,
         "lora_targets": targets,
         **parameter_report,
         "adapter_only": True,
@@ -426,6 +596,8 @@ def run_small_sample_training(
         "checkpoints": checkpoints,
         "global_step": int(trainer.state.global_step),
         "training_metrics": train_result.metrics,
+        "format_constraint_loss_weight": format_loss_weight,
+        "format_loss_observations": trainer.format_loss_history,
         "log_history": trainer.state.log_history,
         "peak_gpu_memory_allocated_bytes": int(torch.cuda.max_memory_allocated()),
         "peak_gpu_memory_reserved_bytes": int(torch.cuda.max_memory_reserved()),
@@ -443,3 +615,26 @@ def run_small_sample_training(
         newline="\n",
     )
     return payload
+
+
+def run_full_training(
+    config: dict[str, Any],
+    *,
+    scenario: str,
+    train_path: Path,
+    eval_path: Path,
+    output_dir: Path,
+    dataset_lock_confirmed: bool,
+    resume_from_checkpoint: Path | None = None,
+) -> dict[str, Any]:
+    """Run one formally approved scenario without materializing its JSONL in memory."""
+    return run_small_sample_training(
+        config,
+        scenario=scenario,
+        train_path=train_path,
+        eval_path=eval_path,
+        output_dir=output_dir,
+        dataset_lock_confirmed=dataset_lock_confirmed,
+        resume_from_checkpoint=resume_from_checkpoint,
+        _run_mode="full",
+    )
