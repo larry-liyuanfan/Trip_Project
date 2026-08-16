@@ -28,6 +28,7 @@ from src.data.week5_workflow import (
     export_quality_packet,
     generate_dialogue_candidates,
     merge_dialogue_runs,
+    snapshot_dialogue_run_prefix,
     run_itinerary_paired_prompt_pilot,
     run_full_preannotation,
     run_preannotation,
@@ -85,6 +86,10 @@ def parser() -> argparse.ArgumentParser:
     dialogue_merge = subparsers.add_parser("merge-dialogues")
     dialogue_merge.add_argument("--source-run-id", action="append", required=True)
     dialogue_merge.add_argument("--run-id", required=True)
+    dialogue_snapshot = subparsers.add_parser("snapshot-dialogues")
+    dialogue_snapshot.add_argument("--source-run-id", required=True)
+    dialogue_snapshot.add_argument("--run-id", required=True)
+    dialogue_snapshot.add_argument("--end-index", type=int, required=True)
     dialogue_qc = subparsers.add_parser("apply-dialogue-quality")
     dialogue_qc.add_argument("--input", type=Path, required=True)
     dialogue_qc.add_argument("--run-id", required=True)
@@ -140,6 +145,11 @@ def main() -> None:
             payload = merge_dialogue_runs(
                 root, config, source_run_ids=args.source_run_id,
                 merged_run_id=args.run_id,
+            )
+        elif args.command == "snapshot-dialogues":
+            payload = snapshot_dialogue_run_prefix(
+                root, config, source_run_id=args.source_run_id,
+                snapshot_run_id=args.run_id, end_index=args.end_index,
             )
         elif args.command == "apply-dialogue-quality":
             payload = apply_dialogue_validation(

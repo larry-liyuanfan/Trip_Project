@@ -9,10 +9,73 @@ from pathlib import Path
 from unittest.mock import patch
 
 from src.data.week5_dataset import SCENARIOS, Week5DataError
-from src.data.week5_workflow import generate_dialogue_candidates, merge_dialogue_runs
+from src.data.week5_workflow import (
+    generate_dialogue_candidates,
+    merge_dialogue_runs,
+    snapshot_dialogue_run_prefix,
+)
 
 
 class Week5DialogueTests(unittest.TestCase):
+    def test_snapshot_dialogue_run_prefix_filters_and_orders_active_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = {
+                "paths": {"output_dir": "outputs/week5"},
+                "targets": {"dialogues": 3},
+            }
+            qualified = {scenario: [f"{scenario}-1"] for scenario in SCENARIOS}
+            config_sha256 = hashlib.sha256(
+                json.dumps(config, ensure_ascii=False, sort_keys=True).encode()
+            ).hexdigest()
+            qualified_sha256 = {
+                scenario: hashlib.sha256(
+                    json.dumps(ids, ensure_ascii=False).encode()
+                ).hexdigest()
+                for scenario, ids in qualified.items()
+            }
+            rows = []
+            for index in (2, 0, 1):
+                scenario = SCENARIOS[index % 3]
+                sample_id = qualified[scenario][0]
+                rows.append({
+                    "dialogue_id": (
+                        f"week5-dialogue-{index:05d}-"
+                        f"{hashlib.sha256(sample_id.encode()).hexdigest()[:8]}"
+                    )
+                })
+            source_dir = root / "outputs/week5/runs/dialogue-active"
+            source_dir.mkdir(parents=True)
+            (source_dir / "run_manifest.json").write_text(json.dumps({
+                "target": 3,
+                "config_sha256": config_sha256,
+                "qualified_sample_ids_sha256": qualified_sha256,
+            }), encoding="utf-8")
+            (source_dir / "candidates.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+            )
+            with (
+                patch("src.data.week5_workflow._qualified_sample_ids", return_value=qualified),
+                patch("src.data.week5_workflow.validate_dialogue_v2"),
+            ):
+                manifest = snapshot_dialogue_run_prefix(
+                    root, config, source_run_id="active",
+                    snapshot_run_id="prefix", end_index=2,
+                )
+            snapshot_dir = root / "outputs/week5/runs/dialogue-prefix"
+            snapshot_rows = [
+                json.loads(line) for line in
+                (snapshot_dir / "candidates.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(
+                [row["dialogue_id"].split("-")[2] for row in snapshot_rows],
+                ["00000", "00001"],
+            )
+            self.assertEqual(manifest["snapshot"]["snapshot_candidate_count"], 2)
+            self.assertEqual(
+                manifest["selection"]["strategy"], "immutable_prefix_snapshot_v1"
+            )
+
     def test_merge_dialogue_runs_validates_complete_unique_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

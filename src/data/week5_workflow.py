@@ -1586,6 +1586,113 @@ def merge_dialogue_runs(
     return manifest
 
 
+def snapshot_dialogue_run_prefix(
+    root: Path, config: dict[str, Any], *, source_run_id: str,
+    snapshot_run_id: str, end_index: int,
+) -> dict[str, Any]:
+    """从仍在追加的主运行中冻结确定性索引前缀，供无冲突合并使用。"""
+    qualified = _qualified_sample_ids(root, config)
+    if not all(qualified.values()):
+        raise Week5DataError("dialogue snapshot requires qualified samples for every scenario")
+    target = int(config["targets"]["dialogues"])
+    if end_index < 1 or end_index > target:
+        raise Week5DataError("dialogue snapshot end index is invalid")
+    config_sha256 = hashlib.sha256(
+        json.dumps(config, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    qualified_sha256 = {
+        scenario: hashlib.sha256(
+            json.dumps(ids, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+        for scenario, ids in qualified.items()
+    }
+    source_dir = _safe_run_directory(root, config, f"dialogue-{source_run_id}")
+    source_manifest_path = source_dir / "run_manifest.json"
+    source_candidates_path = source_dir / "candidates.jsonl"
+    if not source_manifest_path.is_file() or not source_candidates_path.is_file():
+        raise Week5DataError("dialogue snapshot source run is incomplete")
+    source_manifest = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+    if (
+        source_manifest.get("target") != target
+        or source_manifest.get("config_sha256") != config_sha256
+        or source_manifest.get("qualified_sample_ids_sha256") != qualified_sha256
+    ):
+        raise Week5DataError("dialogue snapshot source identity mismatch")
+
+    # 单次读取并只解析最后一个完整换行以前的字节，避免捕获追加中的半行。
+    source_bytes = source_candidates_path.read_bytes()
+    complete_end = source_bytes.rfind(b"\n") + 1
+    complete_bytes = source_bytes[:complete_end]
+    selected: dict[str, dict[str, Any]] = {}
+    for raw_line in complete_bytes.decode("utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        row = json.loads(raw_line)
+        dialogue_id = row.get("dialogue_id", "")
+        match = re.fullmatch(r"week5-dialogue-(\d{5})-[0-9a-f]{8}", dialogue_id)
+        if match is None:
+            raise Week5DataError(f"invalid dialogue id in snapshot source: {dialogue_id}")
+        index = int(match.group(1))
+        if index >= end_index:
+            continue
+        validate_dialogue_v2(root, row)
+        if dialogue_id in selected:
+            raise Week5DataError(f"duplicate dialogue id in snapshot source: {dialogue_id}")
+        selected[dialogue_id] = row
+
+    expected_order = []
+    for index in range(end_index):
+        scenario = SCENARIOS[index % 3]
+        sample_id = qualified[scenario][(index // 3) % len(qualified[scenario])]
+        expected_order.append(
+            f"week5-dialogue-{index:05d}-{hashlib.sha256(sample_id.encode()).hexdigest()[:8]}"
+        )
+    missing = [dialogue_id for dialogue_id in expected_order if dialogue_id not in selected]
+    if missing:
+        raise Week5DataError(
+            f"dialogue snapshot prefix is incomplete: {len(missing)} missing"
+        )
+
+    snapshot_dir = _safe_run_directory(root, config, f"dialogue-{snapshot_run_id}")
+    if snapshot_dir.exists():
+        raise Week5DataError("dialogue snapshot run already exists")
+    snapshot_dir.mkdir(parents=True)
+    snapshot_candidates_path = snapshot_dir / "candidates.jsonl"
+    write_jsonl_new(
+        snapshot_candidates_path,
+        (selected[dialogue_id] for dialogue_id in expected_order),
+    )
+    manifest = {
+        "schema_version": "week5_dialogue_run_v1",
+        "run_id": snapshot_run_id,
+        "target": target,
+        "config_sha256": config_sha256,
+        "qualified_sample_ids_sha256": qualified_sha256,
+        "selection": {
+            "start_index": 0,
+            "end_index": end_index,
+            "shard_index": 0,
+            "shard_count": 1,
+            "strategy": "immutable_prefix_snapshot_v1",
+        },
+        "snapshot": {
+            "source_run_id": source_run_id,
+            "source_manifest_sha256": hashlib.sha256(
+                source_manifest_path.read_bytes()
+            ).hexdigest(),
+            "source_complete_bytes_sha256": hashlib.sha256(complete_bytes).hexdigest(),
+            "source_complete_byte_count": len(complete_bytes),
+            "source_complete_candidate_count": len(complete_bytes.splitlines()),
+            "snapshot_candidates_sha256": hashlib.sha256(
+                snapshot_candidates_path.read_bytes()
+            ).hexdigest(),
+            "snapshot_candidate_count": end_index,
+        },
+    }
+    _atomic_write_json(snapshot_dir / "run_manifest.json", manifest)
+    return manifest
+
+
 def apply_dialogue_validation(root: Path, config: dict[str, Any], input_path: Path, *, run_id: str) -> dict[str, int]:
     output_dir = _safe_run_directory(root, config, f"dialogue-{run_id}")
     candidates = {row["dialogue_id"]: row for row in read_jsonl(output_dir / "candidates.jsonl")}
