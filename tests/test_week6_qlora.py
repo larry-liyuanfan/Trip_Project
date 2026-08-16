@@ -8,8 +8,10 @@ from pathlib import Path
 
 from src.training.week6_qlora import (
     Week6TrainingError,
+    _trainable_parameter_report,
     iter_training_rows,
     load_training_config,
+    resolve_lora_targets,
     validate_training_row,
 )
 
@@ -22,6 +24,71 @@ class Week6QLoRATests(unittest.TestCase):
         config = load_training_config(ROOT / "configs/week6/qwen3_vl_8b_qlora.json")
         self.assertEqual(config["base_model"], "Qwen/Qwen3-VL-8B-Instruct")
         self.assertEqual(config["training"]["effective_global_batch_size_one_gpu"], 16)
+
+    def test_final_config_locks_approved_training_hyperparameters(self) -> None:
+        config = load_training_config(
+            ROOT / "configs/week6/qwen3_vl_8b_qlora_final300_v4.json"
+        )
+        training = config["training"]
+        self.assertEqual(training["optimizer"], "adamw_torch")
+        self.assertEqual(training["learning_rate"], 0.0002)
+        self.assertEqual(training["lr_scheduler_type"], "cosine")
+        self.assertEqual(training["warmup_ratio"], 0.03)
+        self.assertEqual(training["weight_decay"], 0.01)
+        self.assertEqual(training["attn_implementation"], "sdpa")
+
+    def test_runtime_targets_include_language_and_visual_merger(self) -> None:
+        class Model:
+            def named_modules(self):
+                names = [
+                    "model.language.layers.0.self_attn.q_proj",
+                    "model.language.layers.0.self_attn.k_proj",
+                    "model.language.layers.0.self_attn.v_proj",
+                    "model.language.layers.0.self_attn.o_proj",
+                    "model.visual.merger.linear_fc1",
+                    "model.visual.merger.linear_fc2",
+                ]
+                return [(name, object()) for name in names]
+
+        config = load_training_config(
+            ROOT / "configs/week6/qwen3_vl_8b_qlora_final300_v4.json"
+        )
+        self.assertEqual(
+            resolve_lora_targets(Model(), config),
+            [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "visual.merger.linear_fc1",
+                "visual.merger.linear_fc2",
+            ],
+        )
+
+    def test_freeze_report_rejects_non_lora_trainable_parameters(self) -> None:
+        class Parameter:
+            def __init__(self, count: int, requires_grad: bool) -> None:
+                self.count = count
+                self.requires_grad = requires_grad
+
+            def numel(self) -> int:
+                return self.count
+
+        class Model:
+            def __init__(self, base_trainable: bool) -> None:
+                self.base_trainable = base_trainable
+
+            def named_parameters(self):
+                return [
+                    ("base.weight", Parameter(100, self.base_trainable)),
+                    ("adapter.lora_A.weight", Parameter(10, True)),
+                ]
+
+        report = _trainable_parameter_report(Model(base_trainable=False))
+        self.assertEqual(report["trainable_parameters"], 10)
+        self.assertEqual(report["total_parameters"], 110)
+        with self.assertRaisesRegex(Week6TrainingError, "freeze check failed"):
+            _trainable_parameter_report(Model(base_trainable=True))
 
     def test_model_preannotation_weight_is_bounded(self) -> None:
         row = {

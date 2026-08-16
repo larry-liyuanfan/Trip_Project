@@ -349,6 +349,23 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   单人预算内口径完成；Week 6 仍须在独立执行阶段核验最终 Week 5 输入并建立新的
   不可变训练数据锁，不得把此前仅含 27 条真人修订的历史锁误称为最终锁。
 
+## ADR-026：Week 6 最终单轮数据锁与首个 8B pilot 门禁
+
+- **日期**：2026-08-17
+- **状态**：Accepted
+- **决策**：历史锁 `week6_week5_spartan_merge_20260814_8cbfd8d_v1` 保持只读，
+  不再作为正式训练输入。活动锁必须绑定 Week 5 最终三场景各 100 条人工修订，人工
+  权重为 1.0，silver 权重为 0.5；100 条人工验收多轮对话不自动混入本次单场景训练。
+- **决策**：锁内 OpenAI `image_url` 项统一转换为 Transformers 原生
+  `type=image/path=<project-relative-path>`，同时验证路径位于项目根目录且文件存在。
+  当前活动版本为 `week6_week5_final_human300_20260817_v4`；v2/v3 仅保留为路径与
+  processor 兼容性失败证据，不用于训练。
+- **执行门禁**：先提交唯一 `after_sales` Qwen3-VL-8B QLoRA 小样本 pilot；获得
+  4bit、LoRA 目标层、反向传播、显存、checkpoint 和 adapter 重载证据后停止并回报。
+  未经新的 Project Control 阶段批准，不自动进入三场景正式训练或 Week 3 最终评测。
+- **原因**：最终 300 条人工修订晚于旧锁；Windows 绝对 `file://` 和 OpenAI
+  `image_url` 结构均不能作为 Transformers 4.57.1 自动加载本地图片的可靠输入。
+
 ## Decision Template
 
 ```markdown

@@ -33,6 +33,7 @@ def parser() -> argparse.ArgumentParser:
     train.add_argument("--eval-input", type=Path, required=True)
     train.add_argument("--output-dir", type=Path, required=True)
     train.add_argument("--confirm-dataset-lock", action="store_true")
+    train.add_argument("--resume-from-checkpoint", type=Path)
     return result
 
 
@@ -53,6 +54,7 @@ def main() -> None:
                 eval_path=args.eval_input,
                 output_dir=args.output_dir,
                 dataset_lock_confirmed=args.confirm_dataset_lock,
+                resume_from_checkpoint=args.resume_from_checkpoint,
             )
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     except Week6TrainingError as exc:

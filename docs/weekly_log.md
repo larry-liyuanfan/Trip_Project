@@ -341,6 +341,25 @@ as the current validated dataset or accepted baseline.
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
 
+## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
+
+- 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订
+  各 100 条；权威 10,000 条对话及 100 条人工验收文件哈希与记录一致，但不自动
+  混入本次单场景训练。
+- 历史 Week 6 v1 锁仅含商品/售后/行程 10/8/9 条人工修订，保持不可变。v2 在错误
+  地将人工受控词表校验用于 silver 后停止；v3 发现仍使用 OpenAI `image_url`，不能
+  由 Transformers 4.57.1 自动加载为视觉输入，均保留为失败证据。
+- 活动数据锁 `week6_week5_final_human300_20260817_v4` 使用原生
+  `type=image/path=<project-relative-path>`。训练/验证数量为商品 47,428/2,529、
+  售后 19,026/965、行程 9,538/450；人工修订在训练/验证中分别为 94/6、97/3、
+  94/6。manifest SHA-256 为
+  `0b8d9f96b1237b16fc40f510916d6fb07178dfcbb13ab21647480de4cf7adf0e`，split
+  SHA-256 为 `450abbe7abd5d1c2dc4a585fc474378cf9771b738077fadfe0ebb603f0df0cc0`。
+- 增加固定训练超参数门禁、运行时 LoRA 目标层和基座冻结检查、断点恢复入口、
+  adapter-only 重载验证、显存/耗时/Slurm 元数据记录及版本化 config/run ID 要求。
+- 本地完整 `unittest` 337/337、Week 5 五维隔离、Week 3 v2 验证、六份 v4 数据契约、
+  Slurm shell 语法和 `git diff --check` 均通过；GPU pilot 尚未运行。
+
 ## 2026-08-16：Week 5 多轮对话与人工验收最终完成
 
 - 保留原 L40S 作业的同时，按 ADR-024 使用独立输出的四个确定性互斥分片；每片

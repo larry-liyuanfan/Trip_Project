@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.metadata
 import json
+import os
+import time
 from itertools import islice
 from pathlib import Path
 from typing import Any, Iterator
@@ -41,6 +44,17 @@ def load_training_config(path: Path) -> dict[str, Any]:
     ):
         raise Week6TrainingError("Week 6 LoRA parameters do not match the accepted standard")
     training = config.get("training", {})
+    expected_training = {
+        "optimizer": "adamw_torch",
+        "learning_rate": 0.0002,
+        "lr_scheduler_type": "cosine",
+        "warmup_ratio": 0.03,
+        "weight_decay": 0.01,
+        "gradient_checkpointing": True,
+        "bf16": True,
+    }
+    if any(training.get(key) != value for key, value in expected_training.items()):
+        raise Week6TrainingError("Week 6 training hyperparameters do not match the accepted standard")
     effective = (
         int(training.get("per_device_train_batch_size", 0))
         * int(training.get("gradient_accumulation_steps", 0))
@@ -49,6 +63,9 @@ def load_training_config(path: Path) -> dict[str, Any]:
         raise Week6TrainingError("single-GPU effective global batch size must be 16")
     if set(config.get("scenarios", {})) != set(SCENARIOS):
         raise Week6TrainingError("Week 6 config must define all three scenarios")
+    pilot = config.get("pilot", {})
+    if int(pilot.get("max_samples", 0)) > 32 or int(pilot.get("max_steps", 0)) > 10:
+        raise Week6TrainingError("Week 6 pilot exceeds the approved sample or step cap")
     return config
 
 
@@ -169,6 +186,38 @@ def resolve_lora_targets(model: Any, config: dict[str, Any]) -> list[str]:
     return [*targets, *visual]
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _trainable_parameter_report(model: Any) -> dict[str, Any]:
+    trainable_names: list[str] = []
+    trainable = 0
+    total = 0
+    for name, parameter in model.named_parameters():
+        count = int(parameter.numel())
+        total += count
+        if parameter.requires_grad:
+            trainable += count
+            trainable_names.append(name)
+    unexpected = [name for name in trainable_names if "lora_" not in name]
+    if not trainable or unexpected:
+        raise Week6TrainingError(
+            "base-model freeze check failed; trainable parameters must be LoRA-only: "
+            f"{unexpected[:10]}"
+        )
+    return {
+        "trainable_parameters": trainable,
+        "total_parameters": total,
+        "trainable_fraction": trainable / total,
+        "trainable_parameter_names": trainable_names,
+    }
+
+
 def run_small_sample_training(
     config: dict[str, Any],
     *,
@@ -177,12 +226,20 @@ def run_small_sample_training(
     eval_path: Path,
     output_dir: Path,
     dataset_lock_confirmed: bool,
+    resume_from_checkpoint: Path | None = None,
 ) -> dict[str, Any]:
     """Run the explicit GPU pilot; never called during import or validation."""
     if not dataset_lock_confirmed:
         raise Week6TrainingError("formal training requires an explicit locked Week 5 dataset")
-    if output_dir.exists():
+    if output_dir.exists() and resume_from_checkpoint is None:
         raise Week6TrainingError("refusing to overwrite an existing training output directory")
+    if resume_from_checkpoint is not None:
+        if not output_dir.is_dir() or not resume_from_checkpoint.is_dir():
+            raise Week6TrainingError("resume requires an existing output and checkpoint directory")
+        try:
+            resume_from_checkpoint.resolve().relative_to(output_dir.resolve())
+        except ValueError as exc:
+            raise Week6TrainingError("resume checkpoint must belong to the pilot output") from exc
     max_samples = int(config["pilot"]["max_samples"])
     rows = list(islice(iter_training_rows(train_path, scenario=scenario), max_samples))
     eval_rows = list(islice(iter_training_rows(eval_path, scenario=scenario), max_samples))
@@ -202,7 +259,8 @@ def run_small_sample_training(
         raise Week6TrainingError(f"training environment is not ready: {report['status']}")
 
     import torch
-    from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+    from peft import LoraConfig, PeftConfig, get_peft_model, prepare_model_for_kbit_training
+    from peft.utils.save_and_load import load_peft_weights
     from transformers import (
         AutoProcessor,
         BitsAndBytesConfig,
@@ -211,7 +269,9 @@ def run_small_sample_training(
         TrainingArguments,
     )
 
+    torch.cuda.reset_peak_memory_stats()
     quant = config["quantization"]
+    train = config["training"]
     quant_config = BitsAndBytesConfig(
         load_in_4bit=quant["load_in_4bit"],
         bnb_4bit_quant_type=quant["bnb_4bit_quant_type"],
@@ -222,9 +282,10 @@ def run_small_sample_training(
         config["base_model"],
         quantization_config=quant_config,
         torch_dtype=torch.bfloat16,
-        device_map="auto",
-        attn_implementation="flash_attention_2",
+        device_map={"": int(os.environ.get("LOCAL_RANK", "0"))},
+        attn_implementation=train.get("attn_implementation", "sdpa"),
     )
+    model.config.use_cache = False
     model = prepare_model_for_kbit_training(
         model, use_gradient_checkpointing=config["training"]["gradient_checkpointing"]
     )
@@ -241,6 +302,7 @@ def run_small_sample_training(
             task_type="CAUSAL_LM",
         ),
     )
+    parameter_report = _trainable_parameter_report(model)
     processor = AutoProcessor.from_pretrained(config["base_model"])
 
     class MessageDataset:
@@ -293,7 +355,6 @@ def run_small_sample_training(
             loss = outputs.loss * weight.to(outputs.loss.device)
             return (loss, outputs) if return_outputs else loss
 
-    train = config["training"]
     scenario_config = config["scenarios"][scenario]
     arguments = TrainingArguments(
         output_dir=str(output_dir),
@@ -327,14 +388,58 @@ def run_small_sample_training(
         eval_dataset=MessageDataset(eval_rows),
         data_collator=collate,
     )
-    trainer.train()
-    trainer.save_model(str(output_dir / "adapter"))
+    started_at = time.time()
+    train_result = trainer.train(
+        resume_from_checkpoint=(
+            str(resume_from_checkpoint) if resume_from_checkpoint is not None else None
+        )
+    )
+    adapter_dir = output_dir / "adapter"
+    trainer.save_model(str(adapter_dir))
+    trainer.save_state()
     processor.save_pretrained(str(output_dir / "processor"))
-    return {
+    peft_config = PeftConfig.from_pretrained(str(adapter_dir))
+    adapter_state = load_peft_weights(str(adapter_dir), device="cpu")
+    if not adapter_state or not all("lora_" in key for key in adapter_state):
+        raise Week6TrainingError("saved adapter weights could not be reloaded as LoRA-only")
+    if peft_config.base_model_name_or_path != config["base_model"]:
+        raise Week6TrainingError("saved adapter points to an unexpected base model")
+    checkpoints = sorted(
+        path.name for path in output_dir.glob("checkpoint-*") if path.is_dir()
+    )
+    adapter_hashes = {
+        path.name: _sha256_file(path)
+        for path in sorted(adapter_dir.iterdir())
+        if path.is_file()
+    }
+    payload = {
         "status": "completed",
         "scenario": scenario,
         "train_samples": len(rows),
         "eval_samples": len(eval_rows),
+        "dataset_lock": rows[0]["dataset_lock"],
         "lora_targets": targets,
+        **parameter_report,
         "adapter_only": True,
+        "adapter_reload_verified": True,
+        "adapter_file_sha256": adapter_hashes,
+        "checkpoints": checkpoints,
+        "global_step": int(trainer.state.global_step),
+        "training_metrics": train_result.metrics,
+        "log_history": trainer.state.log_history,
+        "peak_gpu_memory_allocated_bytes": int(torch.cuda.max_memory_allocated()),
+        "peak_gpu_memory_reserved_bytes": int(torch.cuda.max_memory_reserved()),
+        "duration_seconds": time.time() - started_at,
+        "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+        "run_id": os.environ.get("TRIP_RUN_ID"),
+        "git_commit": os.environ.get("TRIP_GIT_COMMIT"),
+        "resumed_from_checkpoint": (
+            str(resume_from_checkpoint) if resume_from_checkpoint is not None else None
+        ),
     }
+    (output_dir / "run_summary.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return payload

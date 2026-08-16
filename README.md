@@ -480,13 +480,20 @@ sbatch --account=punim2936 \
 
 ### Week 6：Qwen3-VL-8B QLoRA 小样本链路
 
-Week 6 使用 `configs/week6/qwen3_vl_8b_qlora.json`。训练依赖保持独立：
+Week 6 当前活动配置为
+`configs/week6/qwen3_vl_8b_qlora_final300_v4.json`，绑定最终三场景各 100 条
+人工修订；旧 `qwen3_vl_8b_qlora.json` 与早期数据锁只保留为历史证据。训练依赖
+保持独立：
 
 ```bash
 pip install -r requirements-training.txt
-python scripts/prepare_week6_data.py
-python scripts/train_week6_qlora.py check-environment
-python scripts/train_week6_qlora.py validate-data --scenario <scenario> \
+python scripts/prepare_week6_data.py \
+  --config configs/week6/qwen3_vl_8b_qlora_final300_v4.json
+python scripts/train_week6_qlora.py \
+  --config configs/week6/qwen3_vl_8b_qlora_final300_v4.json check-environment
+python scripts/train_week6_qlora.py \
+  --config configs/week6/qwen3_vl_8b_qlora_final300_v4.json validate-data \
+  --scenario <scenario> \
   --input outputs/week6/locked_data/<dataset-version>/<scenario>/train.jsonl
 ```
 

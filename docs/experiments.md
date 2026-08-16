@@ -313,6 +313,29 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
+## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
+
+- Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定
+  `Qwen/Qwen3-VL-8B-Instruct`，NF4 double quant、bf16、LoRA
+  r/alpha/dropout=`16/32/0.05`，单 GPU batch 1、梯度累积 16。
+- 数据源：Week 5 Spartan 最终 merge 79,936 成功、64 最终失败；三场景各 100 条
+  最新人工修订。100 条人工验收对话仅作为 Week 5 证据，不进入单场景训练锁。
+- 失败 v2：silver 商品标签含 Schema 允许但人工词表未允许的自由标签，错误复用人工
+  校验器导致锁定停止；修复为人工修订执行 Schema+受控词表、silver 仅执行 Schema。
+- 失败 v3：Windows 绝对路径虽已转为项目相对 `file://`，但 Transformers 4.57.1
+  `apply_chat_template` 只自动加载 `type=image`，且本地加载器不识别 `file://`。
+  该版本未用于训练。
+- 活动 v4：`week6_week5_final_human300_20260817_v4`，全部视觉项为
+  `type=image/path=<project-relative-path>`，路径均受项目根目录约束且文件存在。
+  manifest/split SHA-256 为 `0b8d9f96...adf0e`/`450abbe7...cc0`；六份 JSONL
+  计数与数据契约验证通过。
+- 命令：`python scripts/prepare_week6_data.py --config
+  configs/week6/qwen3_vl_8b_qlora_final300_v4.json`；验证使用完整 unittest、
+  `validate-pools`、Week 3 v2 validator、六份 `validate-data`、`bash -n` 和
+  `git diff --check`。
+- 结果：完整 `unittest` 337/337；Week 5/Week 3 隔离验证 `status=ok`；GPU 环境、
+  4bit 加载、反向传播、显存和 adapter checkpoint 仍为 `PENDING`，不得称为训练完成。
+
 ## 2026-08-16：Week 5 多轮对话并行生成、合并与人工抽样验收
 
 - 模型/后端：`Qwen/Qwen3-VL-4B-Instruct`、Spartan vLLM 0.11；活动主作业保留，

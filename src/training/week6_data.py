@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
 from typing import Any, Iterable
 
-from src.data.week5_dataset import SCENARIOS, iter_jsonl, load_week5_config
+from src.data.week5_dataset import (
+    SCENARIOS,
+    iter_jsonl,
+    load_week5_config,
+    validate_human_annotation,
+)
 from src.data.week5_workflow import _fewshot_context, _render_preannotation
+from src.evaluation.schema_validation import SchemaValidationError, validate_output
 from src.training.week6_qlora import Week6TrainingError, validate_training_row
 
 
@@ -56,6 +63,48 @@ def _write_jsonl_new(path: Path, rows: Iterable[dict[str, Any]]) -> int:
     return count
 
 
+def _validate_silver_label(root: Path, scenario: str, label: Any) -> None:
+    version = "v2" if scenario == "itinerary_planning" else "v1"
+    try:
+        validate_output(root, scenario, label, version)
+    except SchemaValidationError as exc:
+        raise Week6TrainingError(f"silver label Schema failure: {scenario}: {exc}") from exc
+
+
+def _normalize_training_messages(root: Path, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert OpenAI image items to portable Transformers-native image items."""
+    normalized = copy.deepcopy(messages)
+    resolved_root = root.resolve()
+    for message in normalized:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            if item.get("type") not in {"image_url", "image"}:
+                continue
+            image_url = item.get("image_url")
+            if isinstance(image_url, dict):
+                source = image_url.get("url")
+            else:
+                source = next(
+                    (item[key] for key in ("path", "url", "image") if key in item),
+                    None,
+                )
+            if not isinstance(source, str):
+                raise Week6TrainingError("training image requires a local path")
+            raw_path = Path(source.removeprefix("file://"))
+            resolved = (raw_path if raw_path.is_absolute() else root / raw_path).resolve()
+            try:
+                relative = resolved.relative_to(resolved_root)
+            except ValueError as exc:
+                raise Week6TrainingError("training image escapes the project root") from exc
+            if not resolved.is_file():
+                raise Week6TrainingError(f"training image is missing: {relative.as_posix()}")
+            item.clear()
+            item.update({"type": "image", "path": relative.as_posix()})
+    return normalized
+
+
 def lock_week6_data(root: Path, training_config: dict[str, Any]) -> dict[str, Any]:
     """Create immutable train/validation JSONL plus manifest and split hashes."""
     dataset = training_config.get("dataset", {})
@@ -72,6 +121,9 @@ def lock_week6_data(root: Path, training_config: dict[str, Any]) -> dict[str, An
     silver_weight = float(dataset["model_preannotation_weight"])
     if not 0 < silver_weight <= 0.5:
         raise Week6TrainingError("model preannotation weight must be in (0, 0.5]")
+    expected_human = dataset.get("expected_human_revised_per_scenario")
+    if expected_human is not None and int(expected_human) <= 0:
+        raise Week6TrainingError("expected human revision count must be positive")
 
     output_dir = root / dataset["output_root"] / dataset["dataset_version"]
     if output_dir.exists():
@@ -104,8 +156,23 @@ def lock_week6_data(root: Path, training_config: dict[str, Any]) -> dict[str, An
         annotations = _latest_human_annotations(
             week5_output / "annotations" / f"{scenario}.jsonl"
         )
+        for annotation in annotations.values():
+            if annotation.get("source") != "human_correction":
+                raise Week6TrainingError(f"unsupported human annotation source: {scenario}")
+            for field in ("annotator", "corrected_at", "review_session_id"):
+                if not str(annotation.get(field, "")).strip():
+                    raise Week6TrainingError(
+                        f"human annotation is missing {field}: {scenario}"
+                    )
+            validate_human_annotation(root, scenario, annotation.get("human_annotation"))
+        if expected_human is not None and len(annotations) != int(expected_human):
+            raise Week6TrainingError(
+                f"final human revision count mismatch for {scenario}: "
+                f"expected {int(expected_human)}, got {len(annotations)}"
+            )
         annotations_by_scenario[scenario] = annotations
         split_counts = {"train": 0, "validation": 0}
+        human_split_counts = {"train": 0, "validation": 0}
         for row in iter_jsonl(week5_output / "preannotations" / f"{scenario}.jsonl"):
             sample_id = str(row["sample_id"])
             split = _split_name(
@@ -115,12 +182,16 @@ def lock_week6_data(root: Path, training_config: dict[str, Any]) -> dict[str, An
             )
             assignments[scenario][sample_id] = split
             split_counts[split] += 1
+            if sample_id in annotations:
+                human_split_counts[split] += 1
             split_lines.append({"sample_id": sample_id, "scenario": scenario, "split": split})
         if not set(annotations) <= set(assignments[scenario]):
             raise Week6TrainingError(f"human annotation lacks a valid preannotation: {scenario}")
         counts[scenario] = {
             **split_counts,
             "human_revised": len(annotations),
+            "human_revised_train": human_split_counts["train"],
+            "human_revised_validation": human_split_counts["validation"],
             "model_preannotation": sum(split_counts.values()) - len(annotations),
         }
     split_lines.sort(key=lambda row: (row["scenario"], row["sample_id"]))
@@ -142,6 +213,7 @@ def lock_week6_data(root: Path, training_config: dict[str, Any]) -> dict[str, An
             "model_preannotation_weight": silver_weight,
             "human_revised_weight": 1.0,
         },
+        "excluded_final_failures": int(summary["unresolved_failures"]),
         "counts": counts,
     }
     manifest_sha256 = hashlib.sha256(_canonical_bytes(manifest_payload)).hexdigest()
@@ -184,19 +256,21 @@ def lock_week6_data(root: Path, training_config: dict[str, Any]) -> dict[str, An
                         label = preannotation["parsed_output"]
                         label_source = "model_preannotation"
                         sample_weight = silver_weight
+                        _validate_silver_label(root, scenario, label)
                     else:
                         label = human["human_annotation"]
                         label_source = "human_revised"
                         sample_weight = 1.0
+                        validate_human_annotation(root, scenario, label)
                     rendered = _render_preannotation(
                         root, week5, candidates[sample_id], selection, examples
                     )
-                    messages = [*rendered["messages"], {
+                    messages = _normalize_training_messages(root, [*rendered["messages"], {
                         "role": "assistant",
                         "content": json.dumps(
                             label, ensure_ascii=False, sort_keys=True, separators=(",", ":")
                         ),
-                    }]
+                    }])
                     row = {
                         "sample_id": sample_id,
                         "scenario": scenario,
