@@ -1587,7 +1587,7 @@ def merge_dialogue_runs(
 
 
 def snapshot_dialogue_run_prefix(
-    root: Path, config: dict[str, Any], *, source_run_id: str,
+    root: Path, config: dict[str, Any], *, source_run_ids: list[str],
     snapshot_run_id: str, end_index: int,
 ) -> dict[str, Any]:
     """从仍在追加的主运行中冻结确定性索引前缀，供无冲突合并使用。"""
@@ -1606,39 +1606,50 @@ def snapshot_dialogue_run_prefix(
         ).hexdigest()
         for scenario, ids in qualified.items()
     }
-    source_dir = _safe_run_directory(root, config, f"dialogue-{source_run_id}")
-    source_manifest_path = source_dir / "run_manifest.json"
-    source_candidates_path = source_dir / "candidates.jsonl"
-    if not source_manifest_path.is_file() or not source_candidates_path.is_file():
-        raise Week5DataError("dialogue snapshot source run is incomplete")
-    source_manifest = json.loads(source_manifest_path.read_text(encoding="utf-8"))
-    if (
-        source_manifest.get("target") != target
-        or source_manifest.get("config_sha256") != config_sha256
-        or source_manifest.get("qualified_sample_ids_sha256") != qualified_sha256
-    ):
-        raise Week5DataError("dialogue snapshot source identity mismatch")
-
-    # 单次读取并只解析最后一个完整换行以前的字节，避免捕获追加中的半行。
-    source_bytes = source_candidates_path.read_bytes()
-    complete_end = source_bytes.rfind(b"\n") + 1
-    complete_bytes = source_bytes[:complete_end]
+    if not source_run_ids or len(source_run_ids) != len(set(source_run_ids)):
+        raise Week5DataError("dialogue snapshot sources are empty or duplicated")
     selected: dict[str, dict[str, Any]] = {}
-    for raw_line in complete_bytes.decode("utf-8").splitlines():
-        if not raw_line.strip():
-            continue
-        row = json.loads(raw_line)
-        dialogue_id = row.get("dialogue_id", "")
-        match = re.fullmatch(r"week5-dialogue-(\d{5})-[0-9a-f]{8}", dialogue_id)
-        if match is None:
-            raise Week5DataError(f"invalid dialogue id in snapshot source: {dialogue_id}")
-        index = int(match.group(1))
-        if index >= end_index:
-            continue
-        validate_dialogue_v2(root, row)
-        if dialogue_id in selected:
-            raise Week5DataError(f"duplicate dialogue id in snapshot source: {dialogue_id}")
-        selected[dialogue_id] = row
+    source_records = []
+    for source_run_id in source_run_ids:
+        source_dir = _safe_run_directory(root, config, f"dialogue-{source_run_id}")
+        source_manifest_path = source_dir / "run_manifest.json"
+        source_candidates_path = source_dir / "candidates.jsonl"
+        if not source_manifest_path.is_file() or not source_candidates_path.is_file():
+            raise Week5DataError("dialogue snapshot source run is incomplete")
+        source_manifest = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+        if (
+            source_manifest.get("target") != target
+            or source_manifest.get("config_sha256") != config_sha256
+            or source_manifest.get("qualified_sample_ids_sha256") != qualified_sha256
+        ):
+            raise Week5DataError("dialogue snapshot source identity mismatch")
+
+        # 每个源只读一次，并忽略活动文件末尾可能尚未写完的半行。
+        source_bytes = source_candidates_path.read_bytes()
+        complete_end = source_bytes.rfind(b"\n") + 1
+        complete_bytes = source_bytes[:complete_end]
+        for raw_line in complete_bytes.decode("utf-8").splitlines():
+            if not raw_line.strip():
+                continue
+            row = json.loads(raw_line)
+            dialogue_id = row.get("dialogue_id", "")
+            match = re.fullmatch(r"week5-dialogue-(\d{5})-[0-9a-f]{8}", dialogue_id)
+            if match is None:
+                raise Week5DataError(f"invalid dialogue id in snapshot source: {dialogue_id}")
+            index = int(match.group(1))
+            if index >= end_index:
+                continue
+            validate_dialogue_v2(root, row)
+            if dialogue_id in selected:
+                raise Week5DataError(f"duplicate dialogue id in snapshot sources: {dialogue_id}")
+            selected[dialogue_id] = row
+        source_records.append({
+            "run_id": source_run_id,
+            "manifest_sha256": hashlib.sha256(source_manifest_path.read_bytes()).hexdigest(),
+            "complete_bytes_sha256": hashlib.sha256(complete_bytes).hexdigest(),
+            "complete_byte_count": len(complete_bytes),
+            "complete_candidate_count": len(complete_bytes.splitlines()),
+        })
 
     expected_order = []
     for index in range(end_index):
@@ -1673,16 +1684,10 @@ def snapshot_dialogue_run_prefix(
             "end_index": end_index,
             "shard_index": 0,
             "shard_count": 1,
-            "strategy": "immutable_prefix_snapshot_v1",
+            "strategy": "immutable_prefix_snapshot_v2",
         },
         "snapshot": {
-            "source_run_id": source_run_id,
-            "source_manifest_sha256": hashlib.sha256(
-                source_manifest_path.read_bytes()
-            ).hexdigest(),
-            "source_complete_bytes_sha256": hashlib.sha256(complete_bytes).hexdigest(),
-            "source_complete_byte_count": len(complete_bytes),
-            "source_complete_candidate_count": len(complete_bytes.splitlines()),
+            "sources": source_records,
             "snapshot_candidates_sha256": hashlib.sha256(
                 snapshot_candidates_path.read_bytes()
             ).hexdigest(),

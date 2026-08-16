@@ -44,22 +44,26 @@ class Week5DialogueTests(unittest.TestCase):
                         f"{hashlib.sha256(sample_id.encode()).hexdigest()[:8]}"
                     )
                 })
-            source_dir = root / "outputs/week5/runs/dialogue-active"
-            source_dir.mkdir(parents=True)
-            (source_dir / "run_manifest.json").write_text(json.dumps({
-                "target": 3,
-                "config_sha256": config_sha256,
-                "qualified_sample_ids_sha256": qualified_sha256,
-            }), encoding="utf-8")
-            (source_dir / "candidates.jsonl").write_text(
-                "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
-            )
+            for source_run_id, source_rows in (
+                ("active", rows[:2]), ("recovery", rows[2:]),
+            ):
+                source_dir = root / f"outputs/week5/runs/dialogue-{source_run_id}"
+                source_dir.mkdir(parents=True)
+                (source_dir / "run_manifest.json").write_text(json.dumps({
+                    "target": 3,
+                    "config_sha256": config_sha256,
+                    "qualified_sample_ids_sha256": qualified_sha256,
+                }), encoding="utf-8")
+                (source_dir / "candidates.jsonl").write_text(
+                    "".join(json.dumps(row) + "\n" for row in source_rows),
+                    encoding="utf-8",
+                )
             with (
                 patch("src.data.week5_workflow._qualified_sample_ids", return_value=qualified),
                 patch("src.data.week5_workflow.validate_dialogue_v2"),
             ):
                 manifest = snapshot_dialogue_run_prefix(
-                    root, config, source_run_id="active",
+                    root, config, source_run_ids=["active", "recovery"],
                     snapshot_run_id="prefix", end_index=2,
                 )
             snapshot_dir = root / "outputs/week5/runs/dialogue-prefix"
@@ -73,7 +77,11 @@ class Week5DialogueTests(unittest.TestCase):
             )
             self.assertEqual(manifest["snapshot"]["snapshot_candidate_count"], 2)
             self.assertEqual(
-                manifest["selection"]["strategy"], "immutable_prefix_snapshot_v1"
+                manifest["selection"]["strategy"], "immutable_prefix_snapshot_v2"
+            )
+            self.assertEqual(
+                [source["run_id"] for source in manifest["snapshot"]["sources"]],
+                ["active", "recovery"],
             )
 
     def test_merge_dialogue_runs_validates_complete_unique_coverage(self) -> None:

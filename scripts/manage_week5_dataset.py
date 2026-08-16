@@ -87,7 +87,7 @@ def parser() -> argparse.ArgumentParser:
     dialogue_merge.add_argument("--source-run-id", action="append", required=True)
     dialogue_merge.add_argument("--run-id", required=True)
     dialogue_snapshot = subparsers.add_parser("snapshot-dialogues")
-    dialogue_snapshot.add_argument("--source-run-id", required=True)
+    dialogue_snapshot.add_argument("--source-run-id", action="append", required=True)
     dialogue_snapshot.add_argument("--run-id", required=True)
     dialogue_snapshot.add_argument("--end-index", type=int, required=True)
     dialogue_qc = subparsers.add_parser("apply-dialogue-quality")
@@ -148,7 +148,7 @@ def main() -> None:
             )
         elif args.command == "snapshot-dialogues":
             payload = snapshot_dialogue_run_prefix(
-                root, config, source_run_id=args.source_run_id,
+                root, config, source_run_ids=args.source_run_id,
                 snapshot_run_id=args.run_id, end_index=args.end_index,
             )
         elif args.command == "apply-dialogue-quality":
