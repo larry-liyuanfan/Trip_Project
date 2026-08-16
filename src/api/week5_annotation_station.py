@@ -25,7 +25,12 @@ from src.data.week5_dataset import (
     qc_cross_review_selected,
     read_jsonl,
 )
-from src.data.week5_workflow import apply_human_corrections, apply_quality_records
+from src.data.week5_workflow import (
+    apply_dialogue_validation,
+    apply_human_corrections,
+    apply_quality_records,
+    validate_dialogue_v2,
+)
 
 
 Stage = Literal["human", "cross_review", "core_audit"]
@@ -52,6 +57,14 @@ class QualitySubmission(BaseModel):
     review_session_id: str = Field(min_length=1)
 
 
+class DialogueSubmission(BaseModel):
+    dialogue_id: str
+    decision: Literal["pass", "rework", "reject"]
+    reviewer: str = Field(min_length=1)
+    checks: dict[str, Literal["pass", "fail"]]
+    notes: str | None = None
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -59,11 +72,12 @@ def _now() -> str:
 class Week5AnnotationStore:
     """Build deterministic queues and route writes through audited workflow APIs."""
 
-    def __init__(self, root: Path, config: dict[str, Any]) -> None:
+    def __init__(self, root: Path, config: dict[str, Any], dialogue_run_id: str | None = None) -> None:
         self.root = root.resolve()
         self.config = config
         self.output_dir = self.root / config["paths"]["output_dir"]
         self._lock = threading.RLock()
+        self.dialogue_run_id = dialogue_run_id
         self.refresh()
 
     def refresh(self) -> None:
@@ -101,6 +115,23 @@ class Week5AnnotationStore:
                 scenario: self._compute_human_cohort_ids(scenario)
                 for scenario in SCENARIOS
             }
+            self.dialogue_candidates: dict[str, dict[str, Any]] = {}
+            self.dialogue_queue: list[str] = []
+            self.dialogue_validated: set[str] = set()
+            if self.dialogue_run_id:
+                run_dir = self.output_dir / "runs" / f"dialogue-{self.dialogue_run_id}"
+                self.dialogue_candidates = {
+                    row["dialogue_id"]: row
+                    for row in read_jsonl(run_dir / "candidates.jsonl")
+                }
+                self.dialogue_queue = [
+                    row["dialogue_id"]
+                    for row in read_jsonl(run_dir / "human_review_queue.jsonl")
+                ]
+                self.dialogue_validated = {
+                    row["dialogue_id"]
+                    for row in read_jsonl(run_dir / "human_validation.jsonl")
+                }
 
     def _refresh_records(self, scenario: str) -> None:
         """提交后仅刷新小型人工记录，避免重复扫描 80,000 条候选池。"""
@@ -368,16 +399,45 @@ class Week5AnnotationStore:
             self._refresh_records(submission.scenario)
             return result
 
+    def dialogue_queue_ids(self) -> list[str]:
+        return [item for item in self.dialogue_queue if item not in self.dialogue_validated]
+
+    def dialogue_task(self, dialogue_id: str) -> dict[str, Any]:
+        if dialogue_id not in self.dialogue_queue_ids():
+            raise Week5DataError("dialogue is not awaiting human review")
+        row = deepcopy(self.dialogue_candidates[dialogue_id])
+        validate_dialogue_v2(self.root, row)
+        return row
+
+    def save_dialogue(self, submission: DialogueSubmission) -> dict[str, int]:
+        required = {"logic", "context", "image_reference", "business_compliance", "ota_tone"}
+        if set(submission.checks) != required:
+            raise Week5DataError("dialogue validation checks are incomplete")
+        with self._lock:
+            if submission.dialogue_id not in self.dialogue_queue_ids():
+                raise Week5DataError("dialogue is not awaiting human review")
+            path = self._submission_path("dialogue")
+            path.write_text(
+                json.dumps(submission.model_dump(), ensure_ascii=False, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            result = apply_dialogue_validation(
+                self.root, self.config, path, run_id=str(self.dialogue_run_id)
+            )
+            self.dialogue_validated.add(submission.dialogue_id)
+            return result
+
 
 def create_annotation_station(
     root: Path | None = None,
     config_path: str = "configs/week5_dataset_qwen3_vl_4b_single_operator.json",
     *,
     config: dict[str, Any] | None = None,
+    dialogue_run_id: str | None = None,
 ) -> FastAPI:
     project_root = (root or Path(__file__).resolve().parents[2]).resolve()
     active_config = config or load_week5_config(project_root, config_path)
-    store = Week5AnnotationStore(project_root, active_config)
+    store = Week5AnnotationStore(project_root, active_config, dialogue_run_id)
     app = FastAPI(title="Trip Week 5 人工标注与质检台", version="1.0")
     app.state.store = store
 
@@ -392,7 +452,30 @@ def create_annotation_station(
     def status() -> dict[str, Any]:
         # 服务启动时已加载全量只读候选；提交路径只增量刷新小型人工文件。
         # 避免每次状态查询重新扫描 80,000 条记录导致页面等待。
-        return store.summary()
+        payload = store.summary()
+        payload["dialogues"] = {
+            "target": len(store.dialogue_queue),
+            "completed": len(store.dialogue_validated & set(store.dialogue_queue)),
+            "remaining": len(store.dialogue_queue_ids()),
+        }
+        return payload
+
+    @app.get("/dialogues", response_class=HTMLResponse)
+    def dialogues_index() -> HTMLResponse:
+        return HTMLResponse((project_root / "src/api/templates/week5_dialogue_review.html").read_text(encoding="utf-8"))
+
+    @app.get("/api/dialogue/tasks")
+    def dialogue_tasks(offset: int = Query(0, ge=0)) -> dict[str, Any]:
+        ids = store.dialogue_queue_ids()
+        selected = ids[offset : offset + 1]
+        return {"total": len(ids), "offset": offset, "tasks": [store.dialogue_task(item) for item in selected]}
+
+    @app.post("/api/dialogue/quality")
+    def dialogue_quality(submission: DialogueSubmission) -> dict[str, int]:
+        try:
+            return store.save_dialogue(submission)
+        except Week5DataError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/tasks")
     def tasks(

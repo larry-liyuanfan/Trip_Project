@@ -22,6 +22,7 @@ from src.data.week5_dataset import (
 )
 from src.data.week5_workflow import (
     apply_dialogue_validation,
+    build_dialogue_review_queue,
     apply_human_corrections,
     apply_quality_records,
     export_audited_pilot_annotation_packet,
@@ -93,6 +94,8 @@ def parser() -> argparse.ArgumentParser:
     dialogue_qc = subparsers.add_parser("apply-dialogue-quality")
     dialogue_qc.add_argument("--input", type=Path, required=True)
     dialogue_qc.add_argument("--run-id", required=True)
+    dialogue_queue = subparsers.add_parser("build-dialogue-review-queue")
+    dialogue_queue.add_argument("--run-id", required=True)
     subparsers.add_parser("report")
     return result
 
@@ -155,6 +158,8 @@ def main() -> None:
             payload = apply_dialogue_validation(
                 root, config, args.input, run_id=args.run_id
             )
+        elif args.command == "build-dialogue-review-queue":
+            payload = build_dialogue_review_queue(root, config, run_id=args.run_id)
         else:
             payload = workflow_summary(root, config)
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

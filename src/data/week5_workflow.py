@@ -1698,6 +1698,53 @@ def snapshot_dialogue_run_prefix(
     return manifest
 
 
+def build_dialogue_review_queue(
+    root: Path, config: dict[str, Any], *, run_id: str,
+) -> dict[str, Any]:
+    """为已完成对话运行生成固定、可审计的100条人工验收队列。"""
+    run_dir = _safe_run_directory(root, config, f"dialogue-{run_id}")
+    candidates_path = run_dir / "candidates.jsonl"
+    manifest_path = run_dir / "run_manifest.json"
+    if not candidates_path.is_file() or not manifest_path.is_file():
+        raise Week5DataError("dialogue review queue source is incomplete")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    target = int(config.get("quality", {}).get("dialogue_human_review_target", 100))
+    rows = read_jsonl(candidates_path)
+    if manifest.get("status") != "completed" or len(rows) != int(config["targets"]["dialogues"]):
+        raise Week5DataError("dialogue review queue requires a completed full run")
+    for row in rows:
+        validate_dialogue_v2(root, row)
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            hashlib.sha256(
+                f"week5-dialogue-human-review-v1:{row['dialogue_id']}".encode("utf-8")
+            ).hexdigest(),
+            row["dialogue_id"],
+        ),
+    )[:target]
+    queue_path = run_dir / "human_review_queue.jsonl"
+    queue_manifest_path = run_dir / "human_review_queue_manifest.json"
+    if queue_path.exists() or queue_manifest_path.exists():
+        raise Week5DataError("dialogue review queue already exists")
+    queue_rows = [
+        {"dialogue_id": row["dialogue_id"], "scenario": row["scenario"]}
+        for row in ranked
+    ]
+    write_jsonl_new(queue_path, queue_rows)
+    payload = {
+        "schema_version": "week5_dialogue_review_queue_v1",
+        "run_id": run_id,
+        "target": target,
+        "candidate_count": len(rows),
+        "candidates_sha256": hashlib.sha256(candidates_path.read_bytes()).hexdigest(),
+        "queue_sha256": hashlib.sha256(queue_path.read_bytes()).hexdigest(),
+        "queue_count": len(queue_rows),
+    }
+    _atomic_write_json(queue_manifest_path, payload)
+    return payload
+
+
 def apply_dialogue_validation(root: Path, config: dict[str, Any], input_path: Path, *, run_id: str) -> dict[str, int]:
     output_dir = _safe_run_directory(root, config, f"dialogue-{run_id}")
     candidates = {row["dialogue_id"]: row for row in read_jsonl(output_dir / "candidates.jsonl")}

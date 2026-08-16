@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from src.data.week5_dataset import SCENARIOS, Week5DataError
 from src.data.week5_workflow import (
+    build_dialogue_review_queue,
     generate_dialogue_candidates,
     merge_dialogue_runs,
     snapshot_dialogue_run_prefix,
@@ -17,6 +18,36 @@ from src.data.week5_workflow import (
 
 
 class Week5DialogueTests(unittest.TestCase):
+    def test_build_dialogue_review_queue_is_fixed_and_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = {
+                "paths": {"output_dir": "outputs/week5"},
+                "targets": {"dialogues": 3},
+                "quality": {"dialogue_human_review_target": 2},
+            }
+            run_dir = root / "outputs/week5/runs/dialogue-merged"
+            run_dir.mkdir(parents=True)
+            rows = [
+                {"dialogue_id": f"week5-dialogue-{index:05d}-00000000", "scenario": SCENARIOS[index % 3]}
+                for index in range(3)
+            ]
+            (run_dir / "candidates.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+            )
+            (run_dir / "run_manifest.json").write_text(
+                json.dumps({"status": "completed"}), encoding="utf-8"
+            )
+            with patch("src.data.week5_workflow.validate_dialogue_v2"):
+                manifest = build_dialogue_review_queue(root, config, run_id="merged")
+            queue = [
+                json.loads(line) for line in
+                (run_dir / "human_review_queue.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(len(queue), 2)
+            self.assertEqual(manifest["queue_count"], 2)
+            self.assertEqual({row["scenario"] for row in queue}, {row["scenario"] for row in rows if row["dialogue_id"] in {item["dialogue_id"] for item in queue}})
+
     def test_snapshot_dialogue_run_prefix_filters_and_orders_active_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

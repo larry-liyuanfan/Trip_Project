@@ -21,12 +21,13 @@ def main() -> None:
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8095)
+    parser.add_argument("--dialogue-run-id")
     args = parser.parse_args()
     if args.host not in {"127.0.0.1", "localhost"}:
         raise SystemExit("annotation station must remain local-only")
     root = Path(__file__).resolve().parents[1]
     uvicorn.run(
-        create_annotation_station(root, args.config),
+        create_annotation_station(root, args.config, dialogue_run_id=args.dialogue_run_id),
         host=args.host,
         port=args.port,
     )
