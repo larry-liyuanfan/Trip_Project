@@ -24,6 +24,14 @@ class Week5AnnotationStationTests(unittest.TestCase):
         self.assertIn('business_category:"商家类别"', html)
         self.assertIn("newSessionId()", html)
 
+    def test_dialogue_station_renders_referenced_images_through_safe_endpoint(self) -> None:
+        html = (ROOT / "src/api/templates/week5_dialogue_review.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('id="gallery"', html)
+        self.assertIn('/api/image?path=${encodeURIComponent(image.path)}', html)
+        self.assertIn("current?.image_resources", html)
+
     def fixture(self, directory: str) -> tuple[Week5AnnotationStore, str]:
         root = Path(directory)
         (root / "configs/evaluation/schemas").mkdir(parents=True)
