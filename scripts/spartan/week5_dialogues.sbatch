@@ -24,7 +24,7 @@ export HF_HOME="${TRIP_HF_HOME}"
 export WEEK5_MODEL_BASE_URL_OVERRIDE="http://127.0.0.1:8001/v1"
 export PYTHONUNBUFFERED=1
 export APPTAINER_CACHEDIR="${TRIP_CONTAINER_CACHE}"
-export APPTAINER_TMPDIR="${TRIP_CONTAINER_CACHE}/tmp"
+export APPTAINER_TMPDIR="${TRIP_CONTAINER_CACHE}/tmp/${SLURM_JOB_ID:-manual}"
 export TRIP_VLLM_IMAGE="${TRIP_VLLM_IMAGE:-docker://vllm/vllm-openai:v0.11.0}"
 export TRIP_RUNTIME_HOME="${TRIP_RUNTIME_HOME:-${TRIP_HF_HOME}/runtime-home}"
 export TRIP_RUNTIME_CACHE="${TRIP_RUNTIME_CACHE:-${TRIP_RUNTIME_HOME}/.cache}"
@@ -34,7 +34,14 @@ export APPTAINERENV_XDG_CACHE_HOME="${TRIP_RUNTIME_CACHE}"
 export APPTAINERENV_FLASHINFER_WORKSPACE_DIR="${TRIP_RUNTIME_CACHE}/flashinfer"
 export APPTAINERENV_PYTHONUNBUFFERED=1
 export APPTAINERENV_WEEK5_MODEL_BASE_URL_OVERRIDE="${WEEK5_MODEL_BASE_URL_OVERRIDE}"
+export APPTAINERENV_TRIP_DIALOGUE_CONCURRENCY="${TRIP_DIALOGUE_CONCURRENCY:-1}"
 mkdir -p "${APPTAINER_TMPDIR}" "${TRIP_RUNTIME_CACHE}/flashinfer"
+
+dialogue_run_id="${TRIP_DIALOGUE_RUN_ID}"
+dialogue_shard_index="${TRIP_DIALOGUE_SHARD_INDEX:-${SLURM_ARRAY_TASK_ID:-0}}"
+if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+  dialogue_run_id="${TRIP_DIALOGUE_RUN_ID}-s${SLURM_ARRAY_TASK_ID}"
+fi
 
 module purge
 module load GCCcore/11.3.0
@@ -64,7 +71,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-vllm_log="dialogue-${TRIP_DIALOGUE_RUN_ID}.${SLURM_JOB_ID:-manual}.vllm.log"
+vllm_log="dialogue-${dialogue_run_id}.${SLURM_JOB_ID:-manual}.vllm.log"
 [[ ! -e "${vllm_log}" ]] || { echo "vLLM log already exists: ${vllm_log}" >&2; exit 3; }
 structured_outputs_config='{"backend":"xgrammar","disable_any_whitespace":true}'
 apptainer "${container_args[@]}" "${container_python}" -m vllm.entrypoints.openai.api_server \
@@ -92,8 +99,14 @@ done
 
 dialogue_args=(
   --config "${TRIP_CONFIG}" generate-dialogues
-  --run-id "${TRIP_DIALOGUE_RUN_ID}" --limit "${TRIP_DIALOGUE_LIMIT:-10000}"
+  --run-id "${dialogue_run_id}" --limit "${TRIP_DIALOGUE_LIMIT:-10000}"
+  --start-index "${TRIP_DIALOGUE_START_INDEX:-0}"
+  --shard-index "${dialogue_shard_index}"
+  --shard-count "${TRIP_DIALOGUE_SHARD_COUNT:-1}"
 )
+if [[ -n "${TRIP_DIALOGUE_END_INDEX:-}" ]]; then
+  dialogue_args+=(--end-index "${TRIP_DIALOGUE_END_INDEX}")
+fi
 if [[ "${TRIP_DIALOGUE_RESUME:-0}" == "1" ]]; then
   dialogue_args+=(--resume)
 fi

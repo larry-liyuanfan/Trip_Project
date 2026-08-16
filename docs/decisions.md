@@ -315,6 +315,21 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   报告 300 条单轮抽样队列和 100 条对话抽样队列的完成率、问题分布及质检证据，
   不再声称达到原全量人工合格数量目标。
 
+## ADR-024：Week 5 多轮对话保留原作业并独立并行分片
+
+- **日期**：2026-08-16
+- **状态**：Accepted；来自用户最新直接指令，仅适用于 Week 5 多轮对话。
+- **决策**：保持活动串行作业 `29259879` 不变；新增对话生成的 bounded range、
+  modulo shard 和有界客户端并发。每个 Slurm array task 使用独立 run ID、运行目录、
+  candidates/failures 和 vLLM 日志，禁止多个进程写同一 JSONL。分片绑定相同配置与
+  qualified sample 集合哈希，最终使用显式 merge 以源顺序去重，并验证确定性
+  10,000 ID 全集、Schema 和图片引用。
+- **原因**：活动链路 HTTP 500 为 0，但生成循环实际串行，配置中的并发未用于对话；
+  单个 24 小时 L40S 配额按实测吞吐不足以一次完成 10,000 条。
+- **影响**：ADR-022 的“不提交竞争作业”仍约束单轮预标注迁移，但不再禁止本次
+  独立输出的多轮对话分片。现有作业不取消、不修改；额外 GPU 只处理版本化分片，
+  未经 merge 完整校验的分片不能单独计为最终候选，也不授权任何 Week 6 工作。
+
 ## Decision Template
 
 ```markdown

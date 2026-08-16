@@ -30,6 +30,14 @@ class SpartanMigrationTests(unittest.TestCase):
         )
         self.assertIn('generate-dialogues', script)
         self.assertIn('--limit "${TRIP_DIALOGUE_LIMIT:-10000}"', script)
+        self.assertIn('dialogue_run_id="${TRIP_DIALOGUE_RUN_ID}-s${SLURM_ARRAY_TASK_ID}"', script)
+        self.assertIn('--start-index "${TRIP_DIALOGUE_START_INDEX:-0}"', script)
+        self.assertIn('--shard-index "${dialogue_shard_index}"', script)
+        self.assertIn('--shard-count "${TRIP_DIALOGUE_SHARD_COUNT:-1}"', script)
+        self.assertIn(
+            'APPTAINERENV_TRIP_DIALOGUE_CONCURRENCY="${TRIP_DIALOGUE_CONCURRENCY:-1}"',
+            script,
+        )
         self.assertIn('dialogue_args+=(--resume)', script)
         self.assertIn('APPTAINERENV_HOME="${TRIP_RUNTIME_HOME}"', script)
         self.assertIn('TRIP_APPTAINER_DISABLE_CACHE:-0', script)

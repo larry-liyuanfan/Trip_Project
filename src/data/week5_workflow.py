@@ -1305,7 +1305,8 @@ def _dialogue_failure_record(
 
 def generate_dialogue_candidates(
     root: Path, config: dict[str, Any], *, run_id: str, limit: int | None = None,
-    resume: bool = False,
+    resume: bool = False, start_index: int = 0, end_index: int | None = None,
+    shard_index: int = 0, shard_count: int = 1,
 ) -> dict[str, int]:
     """Generate resumable model-assisted dialogues only from qualified single-turn data."""
     _require_model_access(config)
@@ -1315,6 +1316,25 @@ def generate_dialogue_candidates(
     pools = {scenario: {row["sample_id"]: row for row in rows} for scenario, rows in load_pools(root, config).items()}
     run_dir = _safe_run_directory(root, config, f"dialogue-{run_id}")
     target = config["targets"]["dialogues"] if limit is None else min(limit, config["targets"]["dialogues"])
+    stop_index = target if end_index is None else min(end_index, target)
+    if (
+        start_index < 0 or stop_index < start_index or shard_count < 1
+        or shard_index < 0 or shard_index >= shard_count
+    ):
+        raise Week5DataError("dialogue index range or shard selection is invalid")
+    concurrency = int(os.getenv(
+        "TRIP_DIALOGUE_CONCURRENCY",
+        str(config["runtime"].get("dialogue_concurrency", 1)),
+    ))
+    if concurrency < 1:
+        raise Week5DataError("dialogue concurrency must be positive")
+    selection = {
+        "start_index": start_index,
+        "end_index": stop_index,
+        "shard_index": shard_index,
+        "shard_count": shard_count,
+        "strategy": "bounded_modulo_v1",
+    }
     identity = {
         "schema_version": "week5_dialogue_run_v1",
         "run_id": run_id,
@@ -1329,6 +1349,16 @@ def generate_dialogue_candidates(
             for scenario, ids in qualified.items()
         },
     }
+    # 默认选择保持历史 manifest 完全不变；只有新分片写入显式选择身份。
+    if selection != {
+        "start_index": 0,
+        "end_index": target,
+        "shard_index": 0,
+        "shard_count": 1,
+        "strategy": "bounded_modulo_v1",
+    }:
+        identity["selection"] = selection
+        identity["execution"] = {"dialogue_concurrency": concurrency}
     manifest_path = run_dir / "run_manifest.json"
     if run_dir.exists():
         if not resume:
@@ -1351,12 +1381,17 @@ def generate_dialogue_candidates(
         "after_sales": "after_sales",
         "itinerary_planning": "itinerary",
     }
-    for index in range(target):
+    selected_indices = [
+        index for index in range(start_index, stop_index)
+        if (index - start_index) % shard_count == shard_index
+    ]
+
+    def generate_one(index: int) -> tuple[int, dict[str, Any] | None, str, str | None, Exception | None]:
         source_scenario = SCENARIOS[index % 3]
         sample_id = qualified[source_scenario][(index // 3) % len(qualified[source_scenario])]
         dialogue_id = f"week5-dialogue-{index:05d}-{hashlib.sha256(sample_id.encode()).hexdigest()[:8]}"
         if dialogue_id in existing_ids:
-            continue
+            return index, None, sample_id, None, None
         candidate = pools[source_scenario][sample_id]
         turns = 4 + (index % 3)
         normalized_images = [
@@ -1418,11 +1453,33 @@ def generate_dialogue_candidates(
                 raise Week5DataError("generated dialogue scenario changed")
             if len(dialogue["turns"]) != turns * 2:
                 raise Week5DataError("generated dialogue did not preserve requested turn count")
-            append_jsonl(output, dialogue)
-            existing_ids.add(dialogue_id)
-            generated += 1
-            consecutive_failures = 0
+            return index, dialogue, sample_id, raw, None
         except Exception as exc:
+            return index, None, sample_id, raw, exc
+
+    pending_indices = []
+    for index in selected_indices:
+        source_scenario = SCENARIOS[index % 3]
+        sample_id = qualified[source_scenario][(index // 3) % len(qualified[source_scenario])]
+        dialogue_id = f"week5-dialogue-{index:05d}-{hashlib.sha256(sample_id.encode()).hexdigest()[:8]}"
+        if dialogue_id not in existing_ids:
+            pending_indices.append(index)
+
+    # 有界窗口避免熔断后仍在执行器队列中保留大量未开始请求。
+    for offset in range(0, len(pending_indices), concurrency):
+        window = pending_indices[offset:offset + concurrency]
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            results = list(executor.map(generate_one, window))
+        for index, dialogue, sample_id, raw, exc in results:
+            dialogue_id = f"week5-dialogue-{index:05d}-{hashlib.sha256(sample_id.encode()).hexdigest()[:8]}"
+            if exc is None and dialogue is not None:
+                append_jsonl(output, dialogue)
+                existing_ids.add(dialogue_id)
+                generated += 1
+                consecutive_failures = 0
+                continue
+            if exc is None:
+                continue
             append_jsonl(output.with_name("failures.jsonl"), _dialogue_failure_record(
                 dialogue_id=dialogue_id,
                 sample_id=sample_id,
@@ -1437,6 +1494,96 @@ def generate_dialogue_candidates(
                     "dialogue generation stopped after 8 consecutive failures"
                 ) from exc
     return {"generated": generated, "failed": failed, "existing": len(existing)}
+
+
+def merge_dialogue_runs(
+    root: Path, config: dict[str, Any], *, source_run_ids: list[str],
+    merged_run_id: str,
+) -> dict[str, Any]:
+    """按源顺序去重合并独立对话分片，并验证确定性目标全集。"""
+    if not source_run_ids:
+        raise Week5DataError("dialogue merge requires at least one source run")
+    qualified = _qualified_sample_ids(root, config)
+    if not all(qualified.values()):
+        raise Week5DataError("dialogue merge requires qualified samples for every scenario")
+    target = int(config["targets"]["dialogues"])
+    config_sha256 = hashlib.sha256(
+        json.dumps(config, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    qualified_sha256 = {
+        scenario: hashlib.sha256(
+            json.dumps(ids, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+        for scenario, ids in qualified.items()
+    }
+    expected_order = []
+    for index in range(target):
+        scenario = SCENARIOS[index % 3]
+        sample_id = qualified[scenario][(index // 3) % len(qualified[scenario])]
+        expected_order.append(
+            f"week5-dialogue-{index:05d}-{hashlib.sha256(sample_id.encode()).hexdigest()[:8]}"
+        )
+    expected_ids = set(expected_order)
+    selected: dict[str, dict[str, Any]] = {}
+    duplicate_count = conflict_count = 0
+    sources = []
+    for source_run_id in source_run_ids:
+        source_dir = _safe_run_directory(root, config, f"dialogue-{source_run_id}")
+        manifest_path = source_dir / "run_manifest.json"
+        candidates_path = source_dir / "candidates.jsonl"
+        if not manifest_path.is_file() or not candidates_path.is_file():
+            raise Week5DataError(f"dialogue source run is incomplete: {source_run_id}")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (
+            manifest.get("target") != target
+            or manifest.get("config_sha256") != config_sha256
+            or manifest.get("qualified_sample_ids_sha256") != qualified_sha256
+        ):
+            raise Week5DataError(f"dialogue source identity mismatch: {source_run_id}")
+        source_count = 0
+        for row in iter_jsonl(candidates_path):
+            validate_dialogue_v2(root, row)
+            dialogue_id = row.get("dialogue_id")
+            if dialogue_id not in expected_ids:
+                raise Week5DataError(f"unexpected dialogue id in source: {dialogue_id}")
+            source_count += 1
+            if dialogue_id in selected:
+                duplicate_count += 1
+                if _canonical_sha256(selected[dialogue_id]) != _canonical_sha256(row):
+                    conflict_count += 1
+                continue
+            selected[dialogue_id] = row
+        sources.append({
+            "run_id": source_run_id,
+            "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            "candidates_sha256": hashlib.sha256(candidates_path.read_bytes()).hexdigest(),
+            "candidate_count": source_count,
+        })
+    merged_dir = _safe_run_directory(root, config, f"dialogue-{merged_run_id}")
+    if merged_dir.exists():
+        raise Week5DataError("merged dialogue run already exists")
+    merged_dir.mkdir(parents=True)
+    write_jsonl_new(
+        merged_dir / "candidates.jsonl",
+        (selected[dialogue_id] for dialogue_id in expected_order if dialogue_id in selected),
+    )
+    missing = [dialogue_id for dialogue_id in expected_order if dialogue_id not in selected]
+    manifest = {
+        "schema_version": "week5_dialogue_merge_v1",
+        "run_id": merged_run_id,
+        "target": target,
+        "status": "completed" if not missing else "partial",
+        "config_sha256": config_sha256,
+        "qualified_sample_ids_sha256": qualified_sha256,
+        "sources": sources,
+        "unique_candidates": len(selected),
+        "duplicate_candidates": duplicate_count,
+        "conflicting_duplicates": conflict_count,
+        "missing_count": len(missing),
+        "missing_dialogue_ids_sha256": _canonical_sha256(missing),
+    }
+    _atomic_write_json(merged_dir / "run_manifest.json", manifest)
+    return manifest
 
 
 def apply_dialogue_validation(root: Path, config: dict[str, Any], input_path: Path, *, run_id: str) -> dict[str, int]:

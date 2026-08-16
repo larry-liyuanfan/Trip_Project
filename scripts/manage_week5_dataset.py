@@ -27,6 +27,7 @@ from src.data.week5_workflow import (
     export_audited_pilot_annotation_packet,
     export_quality_packet,
     generate_dialogue_candidates,
+    merge_dialogue_runs,
     run_itinerary_paired_prompt_pilot,
     run_full_preannotation,
     run_preannotation,
@@ -77,6 +78,13 @@ def parser() -> argparse.ArgumentParser:
     dialogues.add_argument("--limit", type=int)
     dialogues.add_argument("--run-id", required=True)
     dialogues.add_argument("--resume", action="store_true")
+    dialogues.add_argument("--start-index", type=int, default=0)
+    dialogues.add_argument("--end-index", type=int)
+    dialogues.add_argument("--shard-index", type=int, default=0)
+    dialogues.add_argument("--shard-count", type=int, default=1)
+    dialogue_merge = subparsers.add_parser("merge-dialogues")
+    dialogue_merge.add_argument("--source-run-id", action="append", required=True)
+    dialogue_merge.add_argument("--run-id", required=True)
     dialogue_qc = subparsers.add_parser("apply-dialogue-quality")
     dialogue_qc.add_argument("--input", type=Path, required=True)
     dialogue_qc.add_argument("--run-id", required=True)
@@ -124,7 +132,14 @@ def main() -> None:
             payload = apply_quality_records(root, config, args.scenario, args.input)
         elif args.command == "generate-dialogues":
             payload = generate_dialogue_candidates(
-                root, config, run_id=args.run_id, limit=args.limit, resume=args.resume
+                root, config, run_id=args.run_id, limit=args.limit, resume=args.resume,
+                start_index=args.start_index, end_index=args.end_index,
+                shard_index=args.shard_index, shard_count=args.shard_count,
+            )
+        elif args.command == "merge-dialogues":
+            payload = merge_dialogue_runs(
+                root, config, source_run_ids=args.source_run_id,
+                merged_run_id=args.run_id,
             )
         elif args.command == "apply-dialogue-quality":
             payload = apply_dialogue_validation(

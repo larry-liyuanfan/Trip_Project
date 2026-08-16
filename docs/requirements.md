@@ -387,6 +387,11 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   分片；禁止盲目重试、成功样本重复请求、跨 run 双写或多分区竞争提交。
 - 全量自动执行的完成条件是 80,000 个唯一候选均有成功结果或经安全恢复后仍明确保留的
   最终失败记录，并通过 merge、去重、隔离、配置/候选哈希和 JSONL 完整性验证。
+- 2026-08-16 用户直接要求保留活动对话作业不变，同时对 10,000 条多轮对话使用
+  独立运行目录的确定性互斥分片申请额外 GPU。分片必须绑定相同配置与 qualified
+  sample 集合哈希，按 index 范围和 modulo 互斥，每个作业写独立 JSONL；最终只能
+  通过显式 merge、Schema、图片引用、唯一 ID 和 10,000 条完整覆盖校验形成权威候选。
+  该授权仅放宽多轮对话的“唯一活动作业”限制，不允许分片共同写文件或执行 Week 6。
 
 ## Week 6：单场景 QLoRA 小样本链路与专项训练
 
