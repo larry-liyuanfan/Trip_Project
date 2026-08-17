@@ -9,6 +9,7 @@ from pathlib import Path
 from src.training.week6_qlora import (
     IndexedMessageDataset,
     Week6TrainingError,
+    _normalize_processor_messages,
     _trainable_parameter_report,
     evaluate_pilot_gate,
     iter_training_rows,
@@ -22,6 +23,32 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Week6QLoRATests(unittest.TestCase):
+    def test_processor_messages_wrap_plain_text_without_mutating_images(self) -> None:
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "path": "data/example.jpg"},
+                    {"type": "text", "text": "identify"},
+                ],
+            },
+            {"role": "assistant", "content": '{"severity":"high"}'},
+        ]
+
+        normalized = _normalize_processor_messages(messages)
+
+        self.assertEqual(normalized[0]["content"], messages[0]["content"])
+        self.assertIsNot(normalized[0]["content"], messages[0]["content"])
+        self.assertEqual(
+            normalized[1]["content"],
+            [{"type": "text", "text": '{"severity":"high"}'}],
+        )
+        self.assertIsInstance(messages[1]["content"], str)
+
+    def test_processor_messages_reject_invalid_content_shape(self) -> None:
+        with self.assertRaisesRegex(Week6TrainingError, "multimodal content list"):
+            _normalize_processor_messages([{"role": "assistant", "content": []}])
+
     def test_spartan_environment_is_pinned_to_cuda_128_stack(self) -> None:
         requirements = (
             ROOT / "requirements-training-spartan-cu128.txt"

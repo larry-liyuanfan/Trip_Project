@@ -154,6 +154,30 @@ def validate_training_row(row: dict[str, Any], *, scenario: str | None = None) -
         raise Week6TrainingError("training row requires a user message")
 
 
+def _normalize_processor_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """将纯文本消息转换为 Qwen3-VL processor 要求的多模态内容列表。"""
+    normalized: list[dict[str, Any]] = []
+    for index, message in enumerate(messages):
+        if not isinstance(message, dict):
+            raise Week6TrainingError(f"training message {index} must be an object")
+        content = message.get("content")
+        if isinstance(content, str):
+            normalized_content = [{"type": "text", "text": content}]
+        elif isinstance(content, list) and content and all(
+            isinstance(item, dict) and isinstance(item.get("type"), str)
+            for item in content
+        ):
+            normalized_content = [dict(item) for item in content]
+        else:
+            raise Week6TrainingError(
+                f"training message {index} content must be text or a multimodal content list"
+            )
+        normalized.append({**message, "content": normalized_content})
+    return normalized
+
+
 def environment_report(*, require_cuda: bool = True) -> dict[str, Any]:
     minimums = {
         "torch": "2.6.0",
@@ -472,7 +496,7 @@ def run_small_sample_training(
     def collate(batch: list[dict[str, Any]]) -> dict[str, Any]:
         if len(batch) != 1:
             raise Week6TrainingError("multimodal pilot collator requires per-device batch size 1")
-        messages = batch[0]["messages"]
+        messages = _normalize_processor_messages(batch[0]["messages"])
         inputs = processor.apply_chat_template(
             messages,
             tokenize=True,
