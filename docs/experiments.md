@@ -359,7 +359,14 @@ manifest.
   checkpoint 或 adapter 结果。
 - 修复：新增 `requirements-training-spartan-cu128.txt` 和不可覆盖的新 venv setup，
   固定 torch `2.8.0+cu128`、Transformers/PEFT/bnb `4.57.1/0.17.1/0.47.0`、
-  kernels `0.11.7`；旧 venv 不修改，等待 CPU 安装和新 pilot 实测。
+  kernels `0.11.7`。首次环境作业 `29297982` 因 GPFS 配额失败；清理容量缓存后的
+  恢复作业 `29305189` 再次失败，明确定位为共享 project inode `489K/489K`，失败点
+  是写入训练无关的 `pandas/tests` 文件。
+- 用户明确授权后仅删除可重建缓存和两个失败/过期 venv；GPFS 可用容量由约 36 GiB
+  增至 76 GiB，inode 由 223 个可用恢复为约 68K，4B hub 模型、数据、代码、日志和
+  训练结果均保留。setup 改为只安装 `requirements-training-spartan-cu128.txt` 并设置
+  `PIP_NO_CACHE_DIR=1`；定向测试 12/12、完整 unittest 346/346、`bash -n` 和
+  `git diff --check` 通过。新的环境安装尚未提交，不能称为环境修复已验证。
 
 ## 2026-08-16：Week 5 多轮对话并行生成、合并与人工抽样验收
 

@@ -378,6 +378,13 @@ as the current validated dataset or accepted baseline.
   原 venv 为 torch `2.13.0+cu130`，节点驱动仅支持 CUDA 12.8；同时 bnb 0.50.0
   提示缺少 kernels。没有模型下载或训练 step。新增不可变 CUDA 12.8 venv 安装链，
   成功后只重提一次 pilot。
+- 环境作业 `29297982` 与 `29305189` 均因共享 GPFS 配额失败；第二次失败已将根因
+  从容量收窄到 project inode `489K/489K`。经用户逐项确认，只清理可重建缓存以及
+  失败/过期 venv；清理后文件系统约余 76 GiB、68K inode，项目数据、代码、日志、
+  训练结果和 4B hub 模型未删除。
+- CUDA 12.8 setup 收窄为训练专用依赖并关闭 pip 下载缓存，不再安装 API/data 聚合
+  依赖。当前本地验证为定向 12/12、完整 unittest 346/346、`bash -n` 与
+  `git diff --check` 通过；新环境和 GPU pilot 仍待远端实测。
 
 ## 2026-08-16：Week 5 多轮对话与人工验收最终完成
 

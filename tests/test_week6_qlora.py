@@ -34,6 +34,11 @@ class Week6QLoRATests(unittest.TestCase):
         self.assertIn("kernels==0.11.7", requirements)
         self.assertIn("torch==2.8.0+cu128", setup)
         self.assertIn("refusing to mutate an existing environment", setup)
+        self.assertIn("PIP_NO_CACHE_DIR=1", setup)
+        self.assertNotIn(
+            '-r "${TRIP_PROJECT_ROOT}/requirements.txt"',
+            setup,
+        )
 
     def _pilot_summary(self, config: dict) -> dict:
         return {

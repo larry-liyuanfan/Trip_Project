@@ -30,6 +30,7 @@ module purge
 module load GCCcore/11.3.0
 module load Python/3.11.3
 export PIP_CACHE_DIR="${TRIP_DEPLOY_ROOT}/pip-cache"
+export PIP_NO_CACHE_DIR=1
 export XDG_CACHE_HOME="${TRIP_DEPLOY_ROOT}/xdg-cache"
 export HF_HOME="${TRIP_DEPLOY_ROOT}/huggingface"
 export TMPDIR="${TRIP_DEPLOY_ROOT}/tmp"
@@ -41,7 +42,6 @@ python -m venv "${TRIP_VENV}"
 "${TRIP_VENV}/bin/python" -m pip install \
   'torch==2.8.0+cu128' --index-url https://download.pytorch.org/whl/cu128
 "${TRIP_VENV}/bin/python" -m pip install \
-  -r "${TRIP_PROJECT_ROOT}/requirements.txt" \
   -r "${TRIP_PROJECT_ROOT}/requirements-training-spartan-cu128.txt"
 "${TRIP_VENV}/bin/python" -m pip check
 "${TRIP_VENV}/bin/python" -c \

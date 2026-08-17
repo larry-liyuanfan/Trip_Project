@@ -484,7 +484,9 @@ Week 6 当前活动配置为
 `configs/week6/qwen3_vl_8b_qlora_final300_v4.json`，绑定最终三场景各 100 条
 人工修订；旧 `qwen3_vl_8b_qlora.json` 与早期数据锁只保留为历史证据。Spartan
 Week 6 不复用上述未固定的历史 venv；使用 CUDA 12.8 版本化环境
-`envs/trip-week6-py311-cu128-v1`：
+`envs/trip-week6-py311-cu128-v1`。该环境仅安装
+`requirements-training-spartan-cu128.txt`，不安装 API/data 聚合依赖，并关闭 pip
+下载缓存，避免共享 GPFS inode 被 Pandas/PyArrow 等训练无关文件占满：
 
 ```bash
 sbatch --account=punim2936 --partition=sapphire \
