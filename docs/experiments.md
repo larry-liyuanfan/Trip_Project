@@ -366,7 +366,13 @@ manifest.
   增至 76 GiB，inode 由 223 个可用恢复为约 68K，4B hub 模型、数据、代码、日志和
   训练结果均保留。setup 改为只安装 `requirements-training-spartan-cu128.txt` 并设置
   `PIP_NO_CACHE_DIR=1`；定向测试 12/12、完整 unittest 346/346、`bash -n` 和
-  `git diff --check` 通过。新的环境安装尚未提交，不能称为环境修复已验证。
+  `git diff --check` 通过。
+- 精简环境作业 `29305905` 在 `spartan-bm178` 用时 1:55，`COMPLETED 0:0`；
+  `pip check` 无破损依赖，版本为 torch `2.8.0+cu128`/CUDA `12.8`、Transformers
+  `4.57.1`、PEFT `0.17.1`、bnb `0.47.0`、kernels `0.11.7`，结束时约余 37K inode。
+  新 pilot `29305985` 依赖 gate `29306001`，正式商品/售后/行程作业分别为
+  `29306002`/`29306003`/`29306004`，仅在前序成功时放行。四个错误完整提交哈希的
+  依赖作业 `29305986`–`29305989` 已在运行前取消，未取消或重复提交 pilot。
 
 ## 2026-08-16：Week 5 多轮对话并行生成、合并与人工抽样验收
 

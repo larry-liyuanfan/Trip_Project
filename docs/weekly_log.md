@@ -384,7 +384,12 @@ as the current validated dataset or accepted baseline.
   训练结果和 4B hub 模型未删除。
 - CUDA 12.8 setup 收窄为训练专用依赖并关闭 pip 下载缓存，不再安装 API/data 聚合
   依赖。当前本地验证为定向 12/12、完整 unittest 346/346、`bash -n` 与
-  `git diff --check` 通过；新环境和 GPU pilot 仍待远端实测。
+  `git diff --check` 通过。
+- 精简环境作业 `29305905` 已 `COMPLETED 0:0`，`pip check` 和固定版本导入通过。
+  新 pilot `29305985`、gate `29306001`、正式商品/售后/行程
+  `29306002`/`29306003`/`29306004` 已构成严格 `afterok` 链；截至 12:20 AEST，
+  pilot 为 `PENDING(Priority)`，Slurm 预计 22:40 启动。错误哈希依赖
+  `29305986`–`29305989` 已在运行前取消，pilot 没有重复提交。
 
 ## 2026-08-16：Week 5 多轮对话与人工验收最终完成
 
