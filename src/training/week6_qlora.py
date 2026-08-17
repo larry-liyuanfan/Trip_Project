@@ -157,6 +157,7 @@ def validate_training_row(row: dict[str, Any], *, scenario: str | None = None) -
 def environment_report(*, require_cuda: bool = True) -> dict[str, Any]:
     minimums = {
         "torch": "2.6.0",
+        "torchvision": "0.23.0",
         "transformers": "4.57.0",
         "accelerate": "1.10.0",
         "peft": "0.17.0",

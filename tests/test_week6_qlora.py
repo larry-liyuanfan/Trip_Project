@@ -29,16 +29,22 @@ class Week6QLoRATests(unittest.TestCase):
         setup = (
             ROOT / "scripts/spartan/setup_week6_cuda128_venv.sbatch"
         ).read_text(encoding="utf-8")
+        repair = (
+            ROOT / "scripts/spartan/repair_week6_torchvision.sbatch"
+        ).read_text(encoding="utf-8")
         self.assertIn("transformers==4.57.1", requirements)
         self.assertIn("bitsandbytes==0.47.0", requirements)
         self.assertIn("kernels==0.11.7", requirements)
         self.assertIn("torch==2.8.0+cu128", setup)
+        self.assertIn("torchvision==0.23.0+cu128", setup)
         self.assertIn("refusing to mutate an existing environment", setup)
         self.assertIn("PIP_NO_CACHE_DIR=1", setup)
         self.assertNotIn(
             '-r "${TRIP_PROJECT_ROOT}/requirements.txt"',
             setup,
         )
+        self.assertIn("torchvision==0.23.0+cu128", repair)
+        self.assertIn("refusing to repair an unexpected torch/CUDA environment", repair)
 
     def _pilot_summary(self, config: dict) -> dict:
         return {

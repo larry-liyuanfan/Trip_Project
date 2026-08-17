@@ -40,10 +40,11 @@ mkdir -p "${TRIP_DEPLOY_ROOT}/envs" "${PIP_CACHE_DIR}" "${XDG_CACHE_HOME}" \
 python -m venv "${TRIP_VENV}"
 "${TRIP_VENV}/bin/python" -m pip install --upgrade pip setuptools wheel
 "${TRIP_VENV}/bin/python" -m pip install \
-  'torch==2.8.0+cu128' --index-url https://download.pytorch.org/whl/cu128
+  'torch==2.8.0+cu128' 'torchvision==0.23.0+cu128' \
+  --index-url https://download.pytorch.org/whl/cu128
 "${TRIP_VENV}/bin/python" -m pip install \
   -r "${TRIP_PROJECT_ROOT}/requirements-training-spartan-cu128.txt"
 "${TRIP_VENV}/bin/python" -m pip check
 "${TRIP_VENV}/bin/python" -c \
-  'import importlib.metadata, accelerate, bitsandbytes, kernels, peft, torch, transformers; print(torch.__version__, torch.version.cuda, transformers.__version__, peft.__version__, bitsandbytes.__version__, importlib.metadata.version("kernels"))'
+  'import importlib.metadata, accelerate, bitsandbytes, kernels, peft, torch, torchvision, transformers; print(torch.__version__, torch.version.cuda, torchvision.__version__, transformers.__version__, peft.__version__, bitsandbytes.__version__, importlib.metadata.version("kernels"))'
 sync

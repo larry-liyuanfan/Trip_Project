@@ -390,6 +390,11 @@ as the current validated dataset or accepted baseline.
   `29306002`/`29306003`/`29306004` 已构成严格 `afterok` 链；截至 12:20 AEST，
   pilot 为 `PENDING(Priority)`，Slurm 预计 22:40 启动。错误哈希依赖
   `29305986`–`29305989` 已在运行前取消，pilot 没有重复提交。
+- pilot `29305985` 后续实际运行 1:20 并 `FAILED 1:0`：环境 gate、32/32 数据验证和
+  8B 权重加载均成功，但 `AutoProcessor` 缺少 torchvision；没有训练 step、loss、
+  checkpoint 或 adapter。下游 `29306001`–`29306004` 自动取消。修复将官方匹配的
+  torchvision `0.23.0+cu128` 加入 setup、环境门禁及受控 venv 修复脚本；本地定向
+  12/12、完整 unittest 346/346、Python 编译、两份 shell 语法和差异检查通过。
 
 ## 2026-08-16：Week 5 多轮对话与人工验收最终完成
 
