@@ -395,6 +395,10 @@ as the current validated dataset or accepted baseline.
   checkpoint 或 adapter。下游 `29306001`–`29306004` 自动取消。修复将官方匹配的
   torchvision `0.23.0+cu128` 加入 setup、环境门禁及受控 venv 修复脚本；本地定向
   12/12、完整 unittest 346/346、Python 编译、两份 shell 语法和差异检查通过。
+- 修复作业 `29309546` 已 `COMPLETED 0:0`，torchvision 导入和 `pip check` 通过。
+  修复后 pilot/gate/正式三场景为 `29309556`/`29309557`/
+  `29309558`–`29309560`；截至 14:50 AEST，pilot 为 `PENDING(Priority)`，Slurm
+  预计 2026-08-18 06:00 启动，其他作业保持依赖关闭。
 
 ## 2026-08-16：Week 5 多轮对话与人工验收最终完成
 

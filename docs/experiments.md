@@ -378,6 +378,12 @@ manifest.
   torchvision 在训练 step 前失败。下游 `29306001`–`29306004` 全部自动取消，未执行
   正式训练。按 PyTorch 官方 CUDA 12.8 组合补充 torchvision `0.23.0+cu128`，并将其
   加入环境门禁；受控现有 venv 修复和新 pilot 仍待远端验证。
+- torchvision 修复作业 `29309546` 在 23 秒内 `COMPLETED 0:0`，安装
+  `0.23.0+cu128` 后 `pip check` 和 torch/CUDA/torchvision 导入通过，约余 37K inode。
+  修复后链为 pilot `29309556`、gate `29309557`、正式商品/售后/行程
+  `29309558`/`29309559`/`29309560`，绑定提交
+  `fd7b806ae6e064454a5dcd91a07e3ea9b002e92c`；截至 14:50 AEST，pilot 为
+  `PENDING(Priority)`，预计 2026-08-18 06:00 启动。
 
 ## 2026-08-16：Week 5 多轮对话并行生成、合并与人工抽样验收
 
