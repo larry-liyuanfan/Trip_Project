@@ -2,6 +2,14 @@
 
 VLM-based OTA multimodal intelligent search and travel planning system.
 
+## Portfolio Role
+
+Trip is the flagship project in a single **Multimodal Search, RAG and Agentic AI Applications** portfolio. It demonstrates multimodal perception, structured generation, retrieval, evaluation, and deployment; three focused repositories deepen adjacent parts of the same system rather than representing separate career tracks:
+
+- [Australian Housing Intelligence Agent](https://github.com/larry-liyuanfan/australian-housing-intelligence-agent): typed tool calling, Agentic Search, evidence verification, online traces, and Agent Eval;
+- [Climate Claim Verification RAG](https://github.com/larry-liyuanfan/climate-claim-verification-rag): multi-stage recall, fusion, learning-to-rank, reranking, and retrieval evaluation;
+- [Wildfire Burn-window Decision Support](https://github.com/larry-liyuanfan/wildfire-burn-window-decision-support): deterministic, explainable tools over complex spatiotemporal data.
+
 This repository is not a generic chatbot demo. It is structured as an AI Search / Multimodal Search application for OTA scenarios:
 
 ```text
