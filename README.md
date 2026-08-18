@@ -488,6 +488,13 @@ Week 6 不复用上述未固定的历史 venv；使用 CUDA 12.8 版本化环境
 `requirements-training-spartan-cu128.txt`，不安装 API/data 聚合依赖，并关闭 pip
 下载缓存，避免共享 GPFS inode 被 Pandas/PyArrow 等训练无关文件占满：
 
+固定训练链 `29312210`、`29312212`、`29312214`、`29312215`、`29312217`
+均已 `COMPLETED 0:0`，并绑定提交 `3d6bc81df8c4afd496e1e78d41c6b4bfa07c7bf4`。
+三场景 adapter-only 保存和磁盘回载均通过。行程的低 `eval_loss` 后续经业务结构审计
+发现不能代表约束遵循；专项优化必须先在派生锁的同一固定 validation 子集上评估现有
+adapter，候选只有在全通过样本增加且各核心检查不回退时才能晋级，禁止只凭 loss 继续加
+epoch。
+
 ```bash
 sbatch --account=punim2936 --partition=sapphire \
   --export=ALL,TRIP_DEPLOY_ROOT=<deploy-root>,TRIP_PROJECT_ROOT=<repo-root>,TRIP_VENV=<new-cu128-venv> \
@@ -500,6 +507,15 @@ python scripts/train_week6_qlora.py \
   --config configs/week6/qwen3_vl_8b_qlora_final300_v4.json validate-data \
   --scenario <scenario> \
   --input outputs/week6/locked_data/<dataset-version>/<scenario>/train.jsonl
+python scripts/evaluate_week6_adapter.py run \
+  --config configs/week6/qwen3_vl_8b_qlora_itinerary_refinement_v1.json \
+  --eval-input <refinement-validation-jsonl> \
+  --adapter-dir <verified-adapter-dir> \
+  --output-dir <new-evaluation-output-dir>
+python scripts/evaluate_week6_adapter.py compare \
+  --baseline-summary <baseline-summary.json> \
+  --candidate-summary <candidate-summary.json> \
+  --output <new-comparison.json>
 ```
 
 正式 `train-pilot` 必须显式提供锁定的数据版本、manifest/split 哈希和

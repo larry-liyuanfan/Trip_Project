@@ -15,6 +15,7 @@ from src.training.week6_qlora import (
     iter_training_rows,
     load_training_config,
     resolve_lora_targets,
+    run_small_sample_training,
     validate_training_row,
 )
 
@@ -72,6 +73,17 @@ class Week6QLoRATests(unittest.TestCase):
         )
         self.assertIn("torchvision==0.23.0+cu128", repair)
         self.assertIn("refusing to repair an unexpected torch/CUDA environment", repair)
+        supervised = (
+            ROOT / "scripts/spartan/week6_qlora_supervised.sbatch"
+        ).read_text(encoding="utf-8")
+        evaluation = (
+            ROOT / "scripts/spartan/week6_adapter_evaluation.sbatch"
+        ).read_text(encoding="utf-8")
+        self.assertIn("#SBATCH --time=08:00:00", supervised)
+        self.assertIn("waiting_for_versioned_resume", supervised)
+        self.assertIn("--init-adapter", supervised)
+        self.assertIn("#SBATCH --time=02:00:00", evaluation)
+        self.assertIn("--resume", evaluation)
 
     def _pilot_summary(self, config: dict) -> dict:
         return {
@@ -149,6 +161,38 @@ class Week6QLoRATests(unittest.TestCase):
             config["scenarios"]["itinerary_planning"]["format_constraint_loss_weight"],
             0.1,
         )
+
+    def test_refinement_config_binds_completed_itinerary_adapter(self) -> None:
+        config = load_training_config(
+            ROOT / "configs/week6/qwen3_vl_8b_qlora_itinerary_refinement_v1.json"
+        )
+        refinement = config["refinement"]
+        self.assertTrue(refinement["initial_adapter_required"])
+        self.assertEqual(
+            refinement["expected_initial_adapter_file_sha256"][
+                "adapter_model.safetensors"
+            ],
+            "18c5dfad0a423945f19b0d1ea863e82bda3934634aa4b5922023c3421ba114ac",
+        )
+
+    def test_refinement_training_requires_completed_adapter_or_checkpoint(self) -> None:
+        config = load_training_config(
+            ROOT / "configs/week6/qwen3_vl_8b_qlora_itinerary_refinement_v1.json"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with self.assertRaisesRegex(
+                Week6TrainingError,
+                "requires an initial adapter",
+            ):
+                run_small_sample_training(
+                    config,
+                    scenario="itinerary_planning",
+                    train_path=root / "train.jsonl",
+                    eval_path=root / "validation.jsonl",
+                    output_dir=root / "output",
+                    dataset_lock_confirmed=True,
+                )
 
     def test_runtime_targets_include_language_and_visual_merger(self) -> None:
         class Model:
@@ -339,6 +383,50 @@ class Week6QLoRATests(unittest.TestCase):
                     eval_path=Path(directory) / "eval.jsonl",
                     output_dir=Path(directory) / "output",
                     dataset_lock_confirmed=True,
+                )
+
+    def test_initial_adapter_must_be_complete(self) -> None:
+        from src.training.week6_qlora import run_small_sample_training
+
+        config = load_training_config(ROOT / "configs/week6/qwen3_vl_8b_qlora.json")
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            adapter = temp / "adapter"
+            adapter.mkdir()
+            (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(Week6TrainingError, "incomplete"):
+                run_small_sample_training(
+                    config,
+                    scenario="after_sales",
+                    train_path=temp / "train.jsonl",
+                    eval_path=temp / "eval.jsonl",
+                    output_dir=temp / "output",
+                    dataset_lock_confirmed=True,
+                    init_adapter=adapter,
+                )
+
+    def test_initial_adapter_and_resume_are_mutually_exclusive(self) -> None:
+        from src.training.week6_qlora import run_small_sample_training
+
+        config = load_training_config(ROOT / "configs/week6/qwen3_vl_8b_qlora.json")
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            adapter = temp / "adapter"
+            checkpoint = temp / "output/checkpoint-1"
+            adapter.mkdir()
+            checkpoint.mkdir(parents=True)
+            (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+            (adapter / "adapter_model.safetensors").write_bytes(b"adapter")
+            with self.assertRaisesRegex(Week6TrainingError, "mutually exclusive"):
+                run_small_sample_training(
+                    config,
+                    scenario="after_sales",
+                    train_path=temp / "train.jsonl",
+                    eval_path=temp / "eval.jsonl",
+                    output_dir=temp / "output",
+                    dataset_lock_confirmed=True,
+                    resume_from_checkpoint=checkpoint,
+                    init_adapter=adapter,
                 )
 
 

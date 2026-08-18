@@ -67,6 +67,32 @@ def load_training_config(path: Path) -> dict[str, Any]:
     pilot = config.get("pilot", {})
     if int(pilot.get("max_samples", 0)) > 32 or int(pilot.get("max_steps", 0)) > 10:
         raise Week6TrainingError("Week 6 pilot exceeds the approved sample or step cap")
+    refinement = config.get("refinement")
+    if refinement is not None:
+        if not isinstance(refinement, dict):
+            raise Week6TrainingError("Week 6 refinement config must be an object")
+        if refinement.get("scenario") not in SCENARIOS:
+            raise Week6TrainingError("Week 6 refinement scenario is invalid")
+        if not isinstance(refinement.get("repair_version"), str) or not refinement["repair_version"]:
+            raise Week6TrainingError("Week 6 refinement repair_version is required")
+        expected_hashes = refinement.get("expected_initial_adapter_file_sha256")
+        required_adapter_hashes = {
+            "adapter_config.json",
+            "adapter_model.safetensors",
+        }
+        if (
+            not isinstance(expected_hashes, dict)
+            or set(expected_hashes) != required_adapter_hashes
+        ):
+            raise Week6TrainingError("Week 6 refinement requires initial adapter hashes")
+        if any(
+            not isinstance(name, str)
+            or not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+            for name, value in expected_hashes.items()
+        ):
+            raise Week6TrainingError("Week 6 refinement adapter hashes are invalid")
     return config
 
 
@@ -382,15 +408,37 @@ def run_small_sample_training(
     output_dir: Path,
     dataset_lock_confirmed: bool,
     resume_from_checkpoint: Path | None = None,
+    init_adapter: Path | None = None,
     _run_mode: str = "pilot",
 ) -> dict[str, Any]:
     """Run a guarded QLoRA job; full mode is exposed only through its wrapper."""
     if _run_mode not in {"pilot", "full"}:
         raise Week6TrainingError("unsupported Week 6 training mode")
+    refinement = config.get("refinement")
+    if refinement is not None and scenario != refinement["scenario"]:
+        raise Week6TrainingError("refinement config cannot train another scenario")
+    if (
+        refinement is not None
+        and refinement.get("initial_adapter_required") is True
+        and init_adapter is None
+        and resume_from_checkpoint is None
+    ):
+        raise Week6TrainingError("refinement training requires an initial adapter")
     if not dataset_lock_confirmed:
         raise Week6TrainingError("formal training requires an explicit locked Week 5 dataset")
     if output_dir.exists() and resume_from_checkpoint is None:
         raise Week6TrainingError("refusing to overwrite an existing training output directory")
+    if resume_from_checkpoint is not None and init_adapter is not None:
+        raise Week6TrainingError("resume checkpoint and initial adapter are mutually exclusive")
+    if init_adapter is not None:
+        if not init_adapter.is_dir():
+            raise Week6TrainingError("initial adapter directory does not exist")
+        required_adapter_files = {
+            "adapter_config.json",
+            "adapter_model.safetensors",
+        }
+        if not required_adapter_files <= {path.name for path in init_adapter.iterdir()}:
+            raise Week6TrainingError("initial adapter is incomplete")
     if resume_from_checkpoint is not None:
         if not output_dir.is_dir() or not resume_from_checkpoint.is_dir():
             raise Week6TrainingError("resume requires an existing output and checkpoint directory")
@@ -429,7 +477,13 @@ def run_small_sample_training(
         raise Week6TrainingError(f"training environment is not ready: {report['status']}")
 
     import torch
-    from peft import LoraConfig, PeftConfig, get_peft_model, prepare_model_for_kbit_training
+    from peft import (
+        LoraConfig,
+        PeftConfig,
+        PeftModel,
+        get_peft_model,
+        prepare_model_for_kbit_training,
+    )
     from peft.utils.save_and_load import load_peft_weights
     from transformers import (
         AutoProcessor,
@@ -461,17 +515,45 @@ def run_small_sample_training(
     )
     targets = resolve_lora_targets(model, config)
     lora = config["lora"]
-    model = get_peft_model(
-        model,
-        LoraConfig(
-            r=lora["r"],
-            lora_alpha=lora["lora_alpha"],
-            lora_dropout=lora["lora_dropout"],
-            bias=lora["bias"],
-            target_modules=targets,
-            task_type="CAUSAL_LM",
-        ),
-    )
+    initial_adapter_hashes: dict[str, str] | None = None
+    if init_adapter is None:
+        model = get_peft_model(
+            model,
+            LoraConfig(
+                r=lora["r"],
+                lora_alpha=lora["lora_alpha"],
+                lora_dropout=lora["lora_dropout"],
+                bias=lora["bias"],
+                target_modules=targets,
+                task_type="CAUSAL_LM",
+            ),
+        )
+    else:
+        initial_peft_config = PeftConfig.from_pretrained(str(init_adapter))
+        if initial_peft_config.base_model_name_or_path != config["base_model"]:
+            raise Week6TrainingError("initial adapter points to an unexpected base model")
+        if (
+            int(initial_peft_config.r) != int(lora["r"])
+            or int(initial_peft_config.lora_alpha) != int(lora["lora_alpha"])
+            or float(initial_peft_config.lora_dropout) != float(lora["lora_dropout"])
+        ):
+            raise Week6TrainingError("initial adapter LoRA parameters do not match the config")
+        model = PeftModel.from_pretrained(
+            model, str(init_adapter), is_trainable=True
+        )
+        initial_adapter_hashes = {
+            path.name: _sha256_file(path)
+            for path in sorted(init_adapter.iterdir())
+            if path.is_file()
+        }
+        expected_hashes = (refinement or {}).get(
+            "expected_initial_adapter_file_sha256", {}
+        )
+        if expected_hashes and any(
+            initial_adapter_hashes.get(name) != expected
+            for name, expected in expected_hashes.items()
+        ):
+            raise Week6TrainingError("initial adapter hashes do not match the config")
     parameter_report = _trainable_parameter_report(model)
     processor = AutoProcessor.from_pretrained(config["base_model"])
     scenario_config = config["scenarios"][scenario]
@@ -650,6 +732,10 @@ def run_small_sample_training(
         "resumed_from_checkpoint": (
             str(resume_from_checkpoint) if resume_from_checkpoint is not None else None
         ),
+        "initialized_from_adapter": (
+            str(init_adapter) if init_adapter is not None else None
+        ),
+        "initial_adapter_file_sha256": initial_adapter_hashes,
     }
     (output_dir / "run_summary.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -668,6 +754,7 @@ def run_full_training(
     output_dir: Path,
     dataset_lock_confirmed: bool,
     resume_from_checkpoint: Path | None = None,
+    init_adapter: Path | None = None,
 ) -> dict[str, Any]:
     """Run one formally approved scenario without materializing its JSONL in memory."""
     return run_small_sample_training(
@@ -678,5 +765,6 @@ def run_full_training(
         output_dir=output_dir,
         dataset_lock_confirmed=dataset_lock_confirmed,
         resume_from_checkpoint=resume_from_checkpoint,
+        init_adapter=init_adapter,
         _run_mode="full",
     )

@@ -407,6 +407,23 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [x] 六份锁定 JSONL 通过流式数据契约校验；完整 unittest 312/312、Week 5 候选池与
   隔离验证通过。
 - [ ] Week 6 GPU pilot、正式训练和参数锁定后的 Week 3 最终评估尚未完成。
+
+### 2026-08-18 Week 6 固定训练链终态与专项优化增量
+
+- [x] `29312210`、`29312212`、`29312214`、`29312215`、`29312217` 均
+  `COMPLETED 0:0`，代码和 Spartan checkout 固定为
+  `3d6bc81df8c4afd496e1e78d41c6b4bfa07c7bf4`。
+- [x] 三场景 `run_summary` 均为 completed、adapter-only、磁盘回载已验证；最佳
+  checkpoint 为商品 5930、售后 2856、行程 1620，并完成 Spartan、本地 E 盘和
+  `trip-api-sg` 三处 SHA-256 归档核验。
+- [x] 对行程锁完成确定性业务结构审计；原 validation 全通过率 `0/450`，因此没有把
+  `eval_loss=0.005681941285729408` 误报为业务效果优秀。
+- [x] 构建不可覆盖派生 silver 锁 `week6_itinerary_structural_repair_20260818_v1`；
+  train/validation 为 `9538/450`，结构审计全部通过，未改写原锁、外部事实或人工身份。
+- [x] 增加现有 adapter 基线评估、候选 provenance 校验和同集非回退比较门禁；本地
+  定向测试 31/31、Python 编译、Slurm shell 语法及差异检查通过。
+- [ ] 派生 validation 的 Spartan GPU 基线和可能的候选训练尚未取得终态；在同集业务
+  指标实测前不声明专项效果提升。冻结 Week 3 最终评测仍只可在参数锁定后执行。
 - [x] 依据 2026-08-14 最新单人预算决策，将人工验收限制为三场景各 100 条，并在每个
   队列内固定包含 10 条盲复核候选与 3 条核心抽检候选；另预留 100 次自动对话候选
   人工验收，总预算 439 次，未把其余 silver 记录改写为人工完成。

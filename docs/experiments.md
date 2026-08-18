@@ -1,5 +1,40 @@
 # Experiment Notes
 
+## 2026-08-18：Week 6 行程专项误差切片与结构修复准备
+
+- Git 基线：`3d6bc81df8c4afd496e1e78d41c6b4bfa07c7bf4` 加本次未提交工作区；已完成的
+  行程训练 job `29312217` 为 `COMPLETED 0:0`，best eval loss
+  `0.005681941285729408`、best checkpoint `checkpoint-1620`，adapter 已通过磁盘回载。
+- 原始锁 `week6_week5_final_human300_20260817_v4` 的行程目标虽然全部 JSON/Schema
+  合规，但业务结构审计仅 train `3/9538`、validation `0/450` 全项通过。train 中
+  行程天数匹配 `1681/9538`、约束原文精确覆盖 `1661/9538`、必需行程要素完整
+  `8/9538`；validation 分别为 `61/450`、`82/450`、`0/450`。因此低 validation
+  loss 只说明模型拟合了原目标，不能证明行程业务效果优秀，也不应继续在同一错误目标上
+  增加 epoch。
+- 新建不可覆盖的派生 silver 锁
+  `week6_itinerary_structural_repair_20260818_v1`：保留图片证据字段，只按输入中明确的
+  天数、约束原文和模板规则修复结构，不推断外部地点；所有派生行均标记
+  `model_preannotation`、权重 `0.5`，不继承真人身份。train `9538/9538`、validation
+  `450/450` 通过同一确定性审计。
+- 新锁内部 manifest SHA-256 为
+  `c492148d0127fb0c557985fab8aefad80f2e8dd9ac787ef5f84b4d0355a0e31c`，split
+  SHA-256 为
+  `561580d06215e026c0e24ade8d349c3b4ba950dfc8d9dc50754b1f399bdca5b6`；原 v4 锁未修改。
+- 第二阶段配置要求从已完成行程 adapter 继续训练，并绑定
+  `adapter_model.safetensors` SHA-256
+  `18c5dfad0a423945f19b0d1ea863e82bda3934634aa4b5922023c3421ba114ac`，禁止意外从基座
+  重训或混用 adapter。新增 supervisor 将 allocation 与训练子进程分离，支持在同一
+  allocation 内从最新有效 checkpoint 恢复；walltime 为基于本轮 `04:26:45` 实测的
+  紧凑 `08:00:00`，不是默认 72 小时。
+- 本地验证：行程原锁和修复锁四次审计均完成；Week 6 定向测试 31/31、完整 unittest
+  362/362、`py_compile`、3 份 Slurm 脚本 `bash -n` 和 `git diff --check` 通过。
+- 新增同集 comparison gate：绑定 evaluation input、sample ID、dataset lock 与生成参数；
+  候选必须增加全通过样本且九项结构计数不回退。候选 adapter 还必须由完成的 refinement
+  `run_summary` 证明来自固定初始 adapter、相同数据版本且 adapter-only 可回载。
+- 状态：`PREPARED`，尚未提交新的 GPU 作业。下一步先在新锁 validation 的固定子集上
+  评估现有 adapter，取得真实业务基线后才决定是否启动第二阶段训练；冻结 Week 3 评测
+  不用于调参。
+
 ## 2026-08-02：Week 5 候选池与隔离验证
 
 - Git 基线：`72be7ce` 加本次未提交工作区；数据版本

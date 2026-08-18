@@ -398,6 +398,22 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   只在安装作业成功并通过 `pip check` 后重提一次 pilot；正式
   `afterok` 链必须绑定新 pilot 和该 venv，不得绕过 CUDA 初始化 gate。
 
+## ADR-029：Week 6 行程专项以同集业务门禁裁决
+
+- **日期**：2026-08-18
+- **状态**：Accepted；用户要求 Week 6 单场景持续优化并以最佳效果为目标。
+- **决策**：保留已完成三场景 adapter 和原始数据锁不可变。行程专项先在结构修复锁的
+  固定 validation 子集上评估当前最佳 adapter；只有当前基线不足时才允许从已验证
+  adapter 继续训练，不从基座重训。
+- **裁决门禁**：基线与候选必须具有相同 evaluation input SHA-256、样本 ID SHA-256、
+  数据锁、样本数量和确定性生成参数。候选须增加全项通过样本，且 JSON/Schema、天数、
+  顺序、原约束覆盖、constraint check 和必需元素均不得回退。
+- **原因**：原行程 validation 目标的结构全通过为 `0/450`；极低 loss 只证明模型拟合
+  了这些目标，不能独立证明业务约束遵循。以确定性业务指标先评估、再决定训练，可避免
+  在错误目标上盲目追加 epoch。
+- **影响**：派生规则生成的目标统一保持 silver/0.5，不继承人工身份；冻结 Week 3
+  evaluation 不用于调参，只能在参数锁定后进行一次最终评估。
+
 ## Decision Template
 
 ```markdown

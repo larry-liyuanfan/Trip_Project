@@ -400,6 +400,23 @@ as the current validated dataset or accepted baseline.
   `29309558`–`29309560`；截至 14:50 AEST，pilot 为 `PENDING(Priority)`，Slurm
   预计 2026-08-18 06:00 启动，其他作业保持依赖关闭。
 
+## 2026-08-18：Week 6 固定链终态与行程专项质量门禁
+
+- 消息规范化修复提交 `3d6bc81df8c4afd496e1e78d41c6b4bfa07c7bf4` 对应唯一固定链
+  pilot/gate/商品/售后/行程 `29312210`/`29312212`/`29312214`/`29312215`/
+  `29312217` 均为 `COMPLETED 0:0`；三场景 `run_summary` 均完成 adapter-only
+  保存和磁盘回载。
+- 最佳 validation loss/checkpoint 分别为商品 `0.2234927862882614`/
+  `checkpoint-5930`、售后 `0.008334202691912651`/`checkpoint-2856`、行程
+  `0.005681941285729408`/`checkpoint-1620`。三个最佳 checkpoint adapter 已以
+  SHA-256 覆盖清单备份到 Spartan 专属 GPFS、本地 E 盘和 `trip-api-sg`。
+- 行程原锁结构审计显示 validation 全项通过 `0/450`，因此上述 loss 只作为目标拟合
+  指标，不作为业务优秀结论。派生 silver 修复锁保持原锁不可变，train/validation
+  `9538/450` 条均通过确定性结构审计，派生目标统一权重 `0.5` 且不继承人工身份。
+- 增加同一输入 SHA、样本 ID、生成参数和数据锁身份的 adapter 对照门禁。候选必须增加
+  全项通过样本，且 JSON/Schema、天数、约束覆盖和必需元素等检查均不回退，才允许
+  作为更优结果；当前状态仍是 `BASELINE EVALUATION PENDING`，未把准备工作写成效果提升。
+
 ## 2026-08-16：Week 5 多轮对话与人工验收最终完成
 
 - 保留原 L40S 作业的同时，按 ADR-024 使用独立输出的四个确定性互斥分片；每片

@@ -36,6 +36,7 @@ def parser() -> argparse.ArgumentParser:
     train.add_argument("--output-dir", type=Path, required=True)
     train.add_argument("--confirm-dataset-lock", action="store_true")
     train.add_argument("--resume-from-checkpoint", type=Path)
+    train.add_argument("--init-adapter", type=Path)
     full = sub.add_parser("train-full")
     full.add_argument("--scenario", choices=SCENARIOS, required=True)
     full.add_argument("--train-input", type=Path, required=True)
@@ -43,6 +44,7 @@ def parser() -> argparse.ArgumentParser:
     full.add_argument("--output-dir", type=Path, required=True)
     full.add_argument("--confirm-dataset-lock", action="store_true")
     full.add_argument("--resume-from-checkpoint", type=Path)
+    full.add_argument("--init-adapter", type=Path)
     gate = sub.add_parser("gate-pilot")
     gate.add_argument("--summary", type=Path, required=True)
     gate.add_argument("--scenario", choices=SCENARIOS, required=True)
@@ -70,6 +72,7 @@ def main() -> None:
                 output_dir=args.output_dir,
                 dataset_lock_confirmed=args.confirm_dataset_lock,
                 resume_from_checkpoint=args.resume_from_checkpoint,
+                init_adapter=args.init_adapter,
             )
         elif args.command == "train-full":
             payload = run_full_training(
@@ -80,6 +83,7 @@ def main() -> None:
                 output_dir=args.output_dir,
                 dataset_lock_confirmed=args.confirm_dataset_lock,
                 resume_from_checkpoint=args.resume_from_checkpoint,
+                init_adapter=args.init_adapter,
             )
         else:
             payload = evaluate_pilot_gate(

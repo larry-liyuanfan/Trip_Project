@@ -47,5 +47,8 @@ train_args=(
 if [[ -n "${TRIP_RESUME_FROM_CHECKPOINT:-}" ]]; then
   train_args+=(--resume-from-checkpoint "${TRIP_RESUME_FROM_CHECKPOINT}")
 fi
+if [[ -n "${TRIP_INIT_ADAPTER:-}" ]]; then
+  train_args+=(--init-adapter "${TRIP_INIT_ADAPTER}")
+fi
 "${train_args[@]}"
 sync
