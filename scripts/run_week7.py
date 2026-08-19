@@ -21,6 +21,7 @@ from src.training.week7_inference import (
 )
 from src.training.week7_final_evaluation import create_parameter_lock, run_final_test_suite
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
+from src.training.week7_selection import select_development_checkpoint
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,6 +50,10 @@ def build_parser() -> argparse.ArgumentParser:
     combine.add_argument("--after-sales-metrics", type=Path, required=True)
     combine.add_argument("--itinerary-metrics", type=Path, required=True)
     combine.add_argument("--output", type=Path, required=True)
+    select = commands.add_parser("select-checkpoint")
+    select.add_argument("--training-dir", type=Path, required=True)
+    select.add_argument("--week6-baseline", type=Path, required=True)
+    select.add_argument("--output", type=Path, required=True)
     lock = commands.add_parser("lock-parameters")
     lock.add_argument("--output", type=Path, required=True)
     lock.add_argument("--training-summary", type=Path, required=True)
@@ -103,6 +108,10 @@ def main() -> int:
                     "itinerary_planning": args.itinerary_metrics,
                 },
                 args.output,
+            )
+        elif args.command == "select-checkpoint":
+            payload = select_development_checkpoint(
+                args.config, args.training_dir, args.week6_baseline, args.output,
             )
         elif args.command == "lock-parameters":
             payload = create_parameter_lock(
