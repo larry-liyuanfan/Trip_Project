@@ -1,20 +1,12 @@
 {
-  "status": "SUPERSEDED_BEFORE_GPU",
-  "superseded_by": "week7_fresh_multitask_context_20260819_v2",
-  "superseded_reasons": [
-    "product targets included business metadata that was not present in the model input",
-    "after-sales severity was not independently varied or explicitly supported by image evidence",
-    "train dialogue tool-call ratio was 0.022222222222222223 instead of the preregistered 0.10",
-    "dialogue targets and automatic metrics did not bind the updated requirement and retained context"
-  ],
-  "gpu_consumed": false,
-  "test_consumed": false,
-  "recorded_by_git_commit": "31f7174ef7874da7084223aa71af0c59bad03983",
+  "status": "PASS",
+  "recorded_by_git_commit": "c79fb86f731d3b670dca72348624cf7092071fad",
   "generation_worktree_head": "132779b0f6d2929ce1cdbed18e62adf3ef9edd18",
   "baseline_commit": "132779b0f6d2929ce1cdbed18e62adf3ef9edd18",
-  "dataset_version": "week7_fresh_multitask_context_20260819_v1",
-  "dataset_lock_sha256": "a0e39f56da3385f71353987f3053f23a46e95b5da28ead80d6ceda0bfbfa3916",
-  "config_sha256": "0473660a84a4a66668a3227c25f73666f8cdd214fb818d592a2bb9fae42725e8",
+  "dataset_version": "week7_fresh_multitask_context_20260819_v2",
+  "dataset_lock_sha256": "daabf6d225f52408f38097c379077a5b09fe94090e6ed897ba631c2f3e85e014",
+  "config_sha256": "f08f31066a35f216f3294782b1dea23d321bff321193ecfef6d241a4467e07f6",
+  "transfer_archive_sha256": "7a91880a7863dc3eff0958474e6aeebb576e978935fadbca9f148dcda4248ea8",
   "seed": 20260819,
   "counts": {
     "train": {
@@ -42,8 +34,11 @@
   },
   "actual_train_ratios": {
     "general_multimodal": 0.09,
-    "dialogue": 0.15
+    "dialogue": 0.15,
+    "dialogue_tool_call": 0.10
   },
+  "development_tool_call_ratio": 0.125,
+  "test_tool_call_ratio": 0.125,
   "isolation": {
     "status": "PASS",
     "dimensions": [
@@ -56,13 +51,13 @@
     "cross_split_collision_count": 0,
     "week6_consumed_sample_count": 79936
   },
-  "week5_dialogue_audit": {
-    "candidate_count": 10000,
-    "human_accepted_count": 100,
-    "source_collision_count": 10000,
-    "eligible_count": 0,
-    "human_accepted_eligible_count": 0,
-    "disposition": "excluded_from_week7_due_to_week6_source_collision"
+  "evidence_audit": {
+    "product_hidden_price_target_count": 0,
+    "product_unknown_field_conflict_count": 0,
+    "after_sales_issue_severity_pair_count": 16,
+    "after_sales_explicit_severity_evidence_count": 760,
+    "train_dialogue_tool_call_count": 45,
+    "train_dialogue_context_expectation_count": 450
   },
   "label_status": {
     "week7_human_accepted": 0,
@@ -73,6 +68,8 @@
   "validation": {
     "validated_train": 3000,
     "validated_development": 114,
-    "test_consumed": false
+    "test_consumed": false,
+    "local_status": "PASS",
+    "spartan_status": "PASS"
   }
 }
