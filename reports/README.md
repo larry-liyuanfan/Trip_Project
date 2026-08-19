@@ -21,5 +21,7 @@
 | Week 4 | `week4_prompt_optimization_report.md` | 原 Prompt 候选比较与共同评分口径 |
 | Week 4 | `week4_bad_cases.md` | 真实错误案例分类 |
 | Week 4 | `week4_milvus_deployment_performance_report.md` | Milvus CRUD 与小规模性能基线 |
+| Week 5 | `week5_dataset_quality_report.md` | 全量预标注、单人预算内人工验收与多轮候选质量证据 |
+| Week 6 | `week6_qlora_quality_report.md` | 三场景 QLoRA 终态、行程业务门禁与专项优化结论 |
 
 `week3_v2_recuration_status.md` 是历史过程状态，不代表当前最终结论。

@@ -432,12 +432,6 @@ powershell -ExecutionPolicy Bypass -File scripts/supervise_week5_preannotation.p
 不修改已冻结配置或 run identity。服务器模式启用后不得同时启动 Windows supervisor；
 具体实例路径和服务名只记录在忽略的 `.agents/server.local.md`。
 
-当候选、引用图片和同一 run 的断点已通过哈希校验同步到 GPU ECS 后，可由服务器
-本机 systemd 服务运行，并设置
-`WEEK5_MODEL_BASE_URL_OVERRIDE=http://127.0.0.1:8001/v1`。该变量只覆盖部署端点，
-不修改已冻结配置或 run identity。服务器模式启用后不得同时启动 Windows supervisor；
-具体实例路径和服务名只记录在忽略的 `.agents/server.local.md`。
-
 真实候选池为商品 50,000、售后 20,000、行程 10,000，隔离验证通过。预算内人工
 验收已完成三场景各 100 条修订与内联自审、各 10 条盲二次复核及各 3 条核心抽检。
 权威多轮对话 run `week5_dialogues_merged_10000_20260816_522b4af` 已合并并严格验证
@@ -494,6 +488,12 @@ Week 6 不复用上述未固定的历史 venv；使用 CUDA 12.8 版本化环境
 发现不能代表约束遵循；专项优化必须先在派生锁的同一固定 validation 子集上评估现有
 adapter，候选只有在全通过样本增加且各核心检查不回退时才能晋级，禁止只凭 loss 继续加
 epoch。
+
+行程专项候选已通过固定 64 条同集非回退门禁，获胜 adapter SHA-256 为
+`7ab168a0f7073f2fad3369c028f744585362a0668f77c024098d9b27d92c9a6a`。参数锁定后，
+冻结 `week3_evaluation_v2` 的一次性最终评测完成 200/150/100 条：商品 JSON/Schema
+100%/100%，售后 100%/96.67%，行程 95%/85%。该结果不用于继续调参；业务指标、
+支持数和局限见 `reports/week6_qlora_quality_report.md`。
 
 ```bash
 sbatch --account=punim2936 --partition=sapphire \

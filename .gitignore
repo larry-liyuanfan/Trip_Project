@@ -12,6 +12,7 @@ env/
 .env
 .env.local
 secrets/
+.agents/*.local.md
 *.tmp
 *.temp
 tmp/
@@ -46,7 +47,4 @@ outputs/
 *.log
 docs/internship_weekly_summary.md
 docs/superpowers/
-work/week3_prompts/
-work/week3_v2_annotation/
-work/week4_prompts/
-work/week5_prompts/
+/work/
