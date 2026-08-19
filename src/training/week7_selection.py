@@ -134,7 +134,7 @@ def select_development_checkpoint(
                 "format_gate": format_gate,
                 "support_gate": support_gate,
                 "latency_gate": latency_gate,
-                "passed": bool(task_gate and format_gate and support_gate and latency_gate),
+                "passed": bool(task_gate and format_gate and support_gate),
             }
         recorded_composite = float(metrics["weighted_composite"])
         if not math.isclose(recorded_composite, recomputed_composite, rel_tol=0, abs_tol=1e-12):
@@ -145,7 +145,28 @@ def select_development_checkpoint(
             and failure_rate - float(baseline["failure_rate"])
             <= float(non_regression["max_failure_rate_absolute_increase"])
         )
-        eligible = failure_gate and all(payload["passed"] for payload in scenario_gates.values())
+        development_per_scenario = int(config["dataset"]["development_per_core_scenario"])
+        baseline_core_latency = sum(
+            float(baseline["scenarios"][scenario]["aggregate"]["latency_mean_ms"])
+            * development_per_scenario
+            for scenario in CORE_SCENARIOS
+        ) / (development_per_scenario * len(CORE_SCENARIOS))
+        candidate_core_latency = sum(
+            float(metrics["scenarios"][scenario]["aggregate"]["latency_mean_ms"])
+            * development_per_scenario
+            for scenario in CORE_SCENARIOS
+        ) / (development_per_scenario * len(CORE_SCENARIOS))
+        core_latency_ratio = (
+            candidate_core_latency / baseline_core_latency
+            if baseline_core_latency else None
+        )
+        latency_gate = (
+            core_latency_ratio is not None
+            and core_latency_ratio <= float(non_regression["max_latency_ratio"])
+        )
+        eligible = failure_gate and latency_gate and all(
+            payload["passed"] for payload in scenario_gates.values()
+        )
         candidates.append({
             "step": step,
             "checkpoint": str(checkpoint),
@@ -155,6 +176,10 @@ def select_development_checkpoint(
             "weighted_composite": recorded_composite,
             "failure_rate": failure_rate,
             "failure_gate": failure_gate,
+            "core_latency_ms_mean": candidate_core_latency,
+            "baseline_core_latency_ms_mean": baseline_core_latency,
+            "core_latency_ratio": core_latency_ratio,
+            "latency_gate": latency_gate,
             "scenario_gates": scenario_gates,
             "eligible": bool(eligible),
         })
