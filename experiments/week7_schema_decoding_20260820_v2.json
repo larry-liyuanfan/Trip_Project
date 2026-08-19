@@ -1,0 +1,57 @@
+{
+  "status": "COMPLETED",
+  "scope": "format_only",
+  "semantic_claims": "FORBIDDEN",
+  "git_commit": "f47772df609e5a2be4d6367aaac1a05432f41b27",
+  "config_sha256": "f08f31066a35f216f3294782b1dea23d321bff321193ecfef6d241a4467e07f6",
+  "dataset_lock_sha256": "daabf6d225f52408f38097c379077a5b09fe94090e6ed897ba631c2f3e85e014",
+  "test_consumed": false,
+  "attempts": [
+    {
+      "job_id": 29431875,
+      "state": "FAILED",
+      "exit_code": "255:0",
+      "elapsed": "00:00:39",
+      "failure": "Apptainer temporary unpack failed with project-cache disk quota exceeded before the endpoint or experiment started",
+      "data_rows_consumed": 0
+    },
+    {
+      "job_id": 29431991,
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "00:17:32",
+      "repair": "reuse the same cached image blobs and move only Apptainer temporary unpacking to node-local storage"
+    }
+  ],
+  "paired_order": "sample_interleaved_free_then_constrained",
+  "sample_count": 90,
+  "selected_mode": "free",
+  "free": {
+    "json_compliance": 0.9888888888888889,
+    "schema_coverage": 0.0,
+    "primary_failure_rate": 0.0,
+    "fallback_failure_rate": 0.0,
+    "latency_ms_mean": 3282.630092391951
+  },
+  "constrained": {
+    "json_compliance": 0.0,
+    "schema_coverage": 0.0,
+    "primary_failure_rate": 1.0,
+    "fallback_used_count": 90,
+    "fallback_failure_rate": 0.0,
+    "latency_ms_mean": 3202.4572321938144
+  },
+  "deltas": {
+    "json_compliance_absolute": -0.9888888888888889,
+    "schema_coverage_absolute": 0.0,
+    "latency_ratio": 0.9755766388713882,
+    "fallback_failure_absolute": 0.0
+  },
+  "gate": {"latency": true, "fallback": true},
+  "interpretation": "The constrained primary requests were rejected by the serving backend. Free fallback succeeded operationally, but fallback output was excluded from constrained JSON and Schema coverage. No semantic improvement is claimed.",
+  "artifact_sha256": {
+    "free_raw_outputs": "ac121ffad77d0c62d7e9d3b4822e1043a2371cb70a679cf1861585fa3ba5fd7b",
+    "constrained_raw_outputs": "83210f9b0a62be673b7535d459b87b9486466dafe3c493f50ee7fd648959b917",
+    "comparison": "aa8bf367c3e5457c1bf3bf2dcab588c8ee36c48a8903fb5307ebc0bce2d9211c"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "status": "SKIPPED",
+  "config_version": "week7_multitask_context_v2",
+  "real_quality_and_visual_evidence_reviewed_preference_pairs": 0,
+  "required_condition_met": false,
+  "reason": "No chosen/rejected pair has passed real human quality and visual-evidence review; agent- or model-generated preference acceptance is forbidden.",
+  "test_consumed": false
+}
