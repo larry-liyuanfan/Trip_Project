@@ -1,0 +1,47 @@
+{
+  "status": "COMPLETED",
+  "git_commit": "cbc4055dede90170b1f9f4a7d789ea9ced77af35",
+  "config_sha256": "f08f31066a35f216f3294782b1dea23d321bff321193ecfef6d241a4467e07f6",
+  "dataset_lock_sha256": "daabf6d225f52408f38097c379077a5b09fe94090e6ed897ba631c2f3e85e014",
+  "test_consumed": false,
+  "slurm_jobs": {
+    "image_product_search": {"job_id": 29431678, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:07:43"},
+    "after_sales": {"job_id": 29431679, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:01:36"},
+    "itinerary_planning": {"job_id": 29431680, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:01:25"},
+    "zero_shot": {"job_id": 29431681, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:03:14"}
+  },
+  "week6_single_task_adapters": {
+    "sample_count": 90,
+    "weighted_composite": 0.06426960784313725,
+    "failure_rate": 0.0,
+    "latency_ms_mean": 5796.282922083305,
+    "scenarios": {
+      "image_product_search": {"support": 30, "composite": 0.04117647058823529, "json_compliance": 0.7, "schema_pass": 0.0, "latency_ms_mean": 14095.894680234293},
+      "after_sales": {"support": 30, "composite": 0.1, "json_compliance": 1.0, "schema_pass": 0.0, "latency_ms_mean": 1797.81684561943},
+      "itinerary_planning": {"support": 30, "composite": 0.04833333333333334, "json_compliance": 0.9666666666666667, "schema_pass": 0.0, "latency_ms_mean": 1495.1372403961916}
+    }
+  },
+  "zero_shot": {
+    "sample_count": 114,
+    "weighted_composite": 0.07014705882352942,
+    "failure_rate": 0.0,
+    "latency_ms_mean": 1460.3424720188375,
+    "dialogue": {"support": 24, "format_compliance": 0.4583333333333333, "context_recall": 0.4583333333333333, "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT"},
+    "scenarios": {
+      "image_product_search": {"support": 30, "composite": 0.058823529411764705, "json_compliance": 1.0, "schema_pass": 0.0},
+      "after_sales": {"support": 30, "composite": 0.1, "json_compliance": 1.0, "schema_pass": 0.0},
+      "itinerary_planning": {"support": 30, "composite": 0.05, "json_compliance": 1.0, "schema_pass": 0.0}
+    }
+  },
+  "artifact_sha256": {
+    "week6_combined_metrics": "d0c899451d105fbb518334c5485df4865b1db5ab46842d782eca8e511bb1b1a9",
+    "product_raw": "4c64c6012bb8d85572dc0cd7b16d176269de14d19ec8ba2b71027b43dffaa9a0",
+    "product_metrics": "6d4bdf20f38b7cf9201334399f23c4c215572835f751af31581d835835cefe93",
+    "after_sales_raw": "d43448aca468689ed5425042a4d668e60a3edc94a2a4c159c3bca24b299b0278",
+    "after_sales_metrics": "ffd0612f63ff21647185a71683f004b8bde6e07301153f9e30d4d0f99da5098a",
+    "itinerary_raw": "567d21bd14bd58516c49b97b90457bb71b2a84a2746481131a319e451525714b",
+    "itinerary_metrics": "e2f540ce8e93c368f7ff6eb7577e9359a3d732be2cbe6b70d29c9639dc49018a",
+    "zero_shot_raw": "8b30848bf4170f065a801768f6c1aeb926976d707825cea8d856f32ac8655515",
+    "zero_shot_metrics": "a310a966d4487f5986dabb7d8945c6d9f840f6255930a2339f58f5bf481521f9"
+  }
+}
