@@ -225,6 +225,12 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
     comparison.update({
         "status": "COMPLETED", "served_model": served_model,
         "endpoint_recorded": endpoint, "config_sha256": sha256_file(config_path),
+        "dataset_lock_sha256": dataset_lock["lock_sha256"],
+        "model_role": "schema_format_only_experiment", "split": "development",
+        "run_ids": {
+            "free": config["experiment_identity"]["schema_free_run_id"],
+            "constrained": config["experiment_identity"]["schema_constrained_run_id"],
+        },
         "paired_order": "sample_interleaved_free_then_constrained",
         "fallback_used_count": sum(bool(record["fallback_used"]) for record in by_mode["constrained"]),
     })
@@ -246,6 +252,8 @@ def combine_week6_development_baseline(
     failure_count = 0
     latency_weighted = 0.0
     inputs = {}
+    config_hash = sha256_file(config_path)
+    dataset_lock_sha256 = None
     for scenario, path in sorted(scenario_metrics.items()):
         resolved = Path(path).resolve()
         payload = json.loads(resolved.read_text(encoding="utf-8"))
@@ -257,8 +265,14 @@ def combine_week6_development_baseline(
             or payload.get("scenario_filter") != scenario
             or payload.get("adapter_hashes", {}).get("adapter_model.safetensors") != expected_hash
             or set(payload.get("scenarios", {})) != {scenario}
+            or payload.get("config_sha256") != config_hash
+            or not payload.get("dataset_lock_sha256")
         ):
             raise Week7TrainingError(f"Week 6 development evidence mismatch: {scenario}")
+        if dataset_lock_sha256 is None:
+            dataset_lock_sha256 = payload["dataset_lock_sha256"]
+        elif payload["dataset_lock_sha256"] != dataset_lock_sha256:
+            raise Week7TrainingError("Week 6 development dataset lock mismatch")
         count = int(payload["sample_count"])
         scenarios[scenario] = payload["scenarios"][scenario]
         sample_count += count
@@ -280,7 +294,8 @@ def combine_week6_development_baseline(
         "failure_count": failure_count,
         "failure_rate": failure_count / sample_count,
         "inputs": inputs,
-        "config_sha256": sha256_file(config_path),
+        "config_sha256": config_hash,
+        "dataset_lock_sha256": dataset_lock_sha256,
     }
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+import socket
 import time
+import uuid
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -21,6 +24,7 @@ REQUIRED_DEVELOPMENT_EVIDENCE = {
     "multitask_development",
     "schema_decoding",
 }
+FINAL_ROLES = ("week6_single_task_adapters", "multitask", "zero_shot")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -66,6 +70,176 @@ def _adapter_spec(
     }
 
 
+def _require_evidence_identity(
+    name: str,
+    evidence: dict[str, Any],
+    *,
+    config_sha256: str,
+    dataset_lock_sha256: str,
+    model_role: str,
+) -> None:
+    expected = {
+        "status": "COMPLETED",
+        "config_sha256": config_sha256,
+        "dataset_lock_sha256": dataset_lock_sha256,
+        "model_role": model_role,
+        "split": "development",
+    }
+    for field, value in expected.items():
+        if evidence.get(field) != value:
+            raise Week7EvaluationError(
+                f"development evidence identity mismatch ({name}.{field})"
+            )
+
+
+def _validate_development_evidence(
+    name: str,
+    evidence: dict[str, Any],
+    *,
+    config: dict[str, Any],
+    config_sha256: str,
+    dataset_lock_sha256: str,
+    selected_checkpoint_sha256: str,
+) -> dict[str, Any]:
+    """Validate evidence semantics, not merely its completion flag."""
+    identity = config["experiment_identity"]
+    development_core = int(config["dataset"]["development_per_core_scenario"])
+    development_dialogue = int(config["dataset"]["development_dialogue_count"])
+    core_total = development_core * len(CORE_SCENARIOS)
+    full_total = core_total + development_dialogue
+
+    if name == "week6_development_baseline":
+        _require_evidence_identity(
+            name, evidence, config_sha256=config_sha256,
+            dataset_lock_sha256=dataset_lock_sha256,
+            model_role="week6_single_task_adapters",
+        )
+        if set(evidence.get("scenarios", {})) != set(CORE_SCENARIOS):
+            raise Week7EvaluationError("Week 6 development scenario coverage mismatch")
+        if int(evidence.get("sample_count", -1)) != core_total:
+            raise Week7EvaluationError("Week 6 development support count mismatch")
+        inputs = evidence.get("inputs", {})
+        if set(inputs) != set(CORE_SCENARIOS):
+            raise Week7EvaluationError("Week 6 development input evidence is incomplete")
+        for scenario in CORE_SCENARIOS:
+            input_spec = inputs[scenario]
+            path = Path(str(input_spec.get("path", "")))
+            if not path.is_file() or sha256_file(path) != input_spec.get("sha256"):
+                raise Week7EvaluationError(f"Week 6 scenario evidence hash mismatch: {scenario}")
+            scenario_evidence = _read_json(path)
+            _require_evidence_identity(
+                f"{name}.{scenario}", scenario_evidence,
+                config_sha256=config_sha256,
+                dataset_lock_sha256=dataset_lock_sha256,
+                model_role="week6_single_task_adapter",
+            )
+            if (
+                scenario_evidence.get("run_id") != identity["development_baseline_run_ids"][scenario]
+                or scenario_evidence.get("scenario_filter") != scenario
+                or set(scenario_evidence.get("scenarios", {})) != {scenario}
+                or int(scenario_evidence.get("sample_count", -1)) != development_core
+                or scenario_evidence.get("adapter_hashes", {}).get("adapter_model.safetensors")
+                != config["evaluation"]["week6_adapter_sha256"][scenario]
+            ):
+                raise Week7EvaluationError(f"Week 6 scenario evidence mismatch: {scenario}")
+        return {
+            "run_id": evidence.get("run_id"),
+            "model_role": evidence["model_role"],
+            "scenario_coverage": sorted(evidence["scenarios"]),
+            "sample_count": core_total,
+        }
+
+    if name in {"zero_shot_development", "multitask_development"}:
+        is_zero = name == "zero_shot_development"
+        role = "zero_shot" if is_zero else "multitask"
+        expected_run = (
+            identity["zero_shot_development_run_id"]
+            if is_zero else f"{identity['multitask_sft_run_id']}_development"
+        )
+        _require_evidence_identity(
+            name, evidence, config_sha256=config_sha256,
+            dataset_lock_sha256=dataset_lock_sha256, model_role=role,
+        )
+        if (
+            evidence.get("run_id") != expected_run
+            or evidence.get("scenario_filter") is not None
+            or set(evidence.get("scenarios", {})) != set(CORE_SCENARIOS)
+            or int(evidence.get("sample_count", -1)) != full_total
+            or not isinstance(evidence.get("dialogue"), dict)
+            or int(evidence["dialogue"].get("sample_count", -1)) != development_dialogue
+        ):
+            raise Week7EvaluationError(f"development evidence coverage mismatch: {name}")
+        adapter_hash = (evidence.get("adapter_hashes") or {}).get("adapter_model.safetensors")
+        if is_zero and evidence.get("adapter_hashes") is not None:
+            raise Week7EvaluationError("zero-shot development evidence unexpectedly used an adapter")
+        if not is_zero and adapter_hash != selected_checkpoint_sha256:
+            raise Week7EvaluationError("multitask development adapter identity mismatch")
+        return {
+            "run_id": evidence["run_id"], "model_role": role,
+            "scenario_coverage": sorted(evidence["scenarios"]),
+            "dialogue_sample_count": development_dialogue,
+            "sample_count": full_total,
+        }
+
+    if name != "schema_decoding":
+        raise Week7EvaluationError(f"unexpected development evidence: {name}")
+    _require_evidence_identity(
+        name, evidence, config_sha256=config_sha256,
+        dataset_lock_sha256=dataset_lock_sha256,
+        model_role="schema_format_only_experiment",
+    )
+    expected_runs = {
+        "free": identity["schema_free_run_id"],
+        "constrained": identity["schema_constrained_run_id"],
+    }
+    gate = evidence.get("gate")
+    modes = evidence.get("modes")
+    if (
+        evidence.get("scope") != "format_only"
+        or evidence.get("semantic_claims") != "FORBIDDEN"
+        or evidence.get("run_ids") != expected_runs
+        or int(evidence.get("sample_count", -1)) != core_total
+        or not isinstance(gate, dict)
+        or set(gate) != {"latency", "fallback"}
+        or not all(isinstance(value, bool) for value in gate.values())
+        or not isinstance(modes, dict)
+        or set(modes) != {"free", "constrained"}
+    ):
+        raise Week7EvaluationError("Schema development evidence identity/gate mismatch")
+    required_mode_metrics = {
+        "json_compliance", "schema_coverage", "fallback_failure_rate", "latency_ms_mean",
+    }
+    if any(not required_mode_metrics <= set(payload) for payload in modes.values()):
+        raise Week7EvaluationError("Schema development mode metrics are incomplete")
+    for mode, mode_metrics in modes.items():
+        for metric in required_mode_metrics:
+            value = mode_metrics[metric]
+            if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                raise Week7EvaluationError(f"Schema development metric is invalid: {mode}.{metric}")
+        if any(
+            not 0.0 <= float(mode_metrics[metric]) <= 1.0
+            for metric in ("json_compliance", "schema_coverage", "fallback_failure_rate")
+        ) or float(mode_metrics["latency_ms_mean"]) < 0:
+            raise Week7EvaluationError(f"Schema development metric is out of range: {mode}")
+    free_latency = float(modes["free"]["latency_ms_mean"])
+    constrained_latency = float(modes["constrained"]["latency_ms_mean"])
+    computed_gate = {
+        "latency": free_latency > 0 and constrained_latency / free_latency
+        <= float(config["evaluation"]["schema_decoding"]["max_latency_ratio"]),
+        "fallback": float(modes["constrained"]["fallback_failure_rate"])
+        <= float(config["evaluation"]["schema_decoding"]["max_fallback_failure_rate"]),
+    }
+    if gate != computed_gate:
+        raise Week7EvaluationError("Schema development gate is inconsistent with measured modes")
+    return {
+        "run_ids": expected_runs,
+        "model_role": evidence["model_role"],
+        "sample_count": core_total,
+        "gate": gate,
+        "selected_mode": "free",
+    }
+
+
 def create_parameter_lock(
     root: Path,
     config_path: Path,
@@ -82,8 +256,10 @@ def create_parameter_lock(
     root = Path(root).resolve()
     config_path = Path(config_path).resolve()
     config = load_week7_config(config_path)
-    if schema_decoding_mode not in {"free", "constrained"}:
-        raise Week7EvaluationError("schema_decoding_mode must be free or constrained")
+    if schema_decoding_mode != "free":
+        raise Week7EvaluationError(
+            "parameter locking currently permits only the production-supported free mode"
+        )
     if set(week6_adapters) != set(CORE_SCENARIOS):
         raise Week7EvaluationError("exactly three scenario-specific Week 6 adapters are required")
     if set(development_evidence) != REQUIRED_DEVELOPMENT_EVIDENCE:
@@ -92,6 +268,10 @@ def create_parameter_lock(
     lock_root = root / config["dataset"]["output_root"] / config["dataset"]["dataset_version"]
     dataset_lock_path = lock_root / "dataset_lock.json"
     dataset_lock = _read_json(dataset_lock_path)
+    dataset_claim = dataset_lock.pop("lock_sha256", None)
+    if dataset_claim != canonical_sha256(dataset_lock):
+        raise Week7EvaluationError("dataset lock canonical SHA-256 mismatch")
+    dataset_lock["lock_sha256"] = dataset_claim
     config_hash = sha256_file(config_path)
     if dataset_lock.get("config_sha256") != config_hash:
         raise Week7EvaluationError("dataset lock is bound to a different Week 7 config")
@@ -120,9 +300,15 @@ def create_parameter_lock(
     for name, evidence_path in sorted(development_evidence.items()):
         resolved = Path(evidence_path).resolve()
         evidence = _read_json(resolved)
-        if evidence.get("status") != "COMPLETED":
-            raise Week7EvaluationError(f"development evidence is incomplete: {name}")
-        evidence_payload[name] = {"path": str(resolved), "sha256": sha256_file(resolved)}
+        identity_summary = _validate_development_evidence(
+            name, evidence, config=config, config_sha256=config_hash,
+            dataset_lock_sha256=dataset_lock["lock_sha256"],
+            selected_checkpoint_sha256=selected_spec["adapter_model_sha256"],
+        )
+        evidence_payload[name] = {
+            "path": str(resolved), "sha256": sha256_file(resolved),
+            "identity": identity_summary,
+        }
 
     week6_specs = {
         scenario: _adapter_spec(path, expected, config["base_model"])
@@ -185,7 +371,7 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
     generation = payload["generation"]
     if (
         generation.get("do_sample") is not False
-        or generation.get("schema_decoding_mode") not in {"free", "constrained"}
+        or generation.get("schema_decoding_mode") != "free"
         or int(generation.get("max_input_tokens", 0)) != int(config["training"]["max_length"])
         or int(generation.get("max_new_tokens", 0)) <= 0
     ):
@@ -223,8 +409,17 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
     if set(payload.get("development_evidence", {})) != REQUIRED_DEVELOPMENT_EVIDENCE:
         raise Week7EvaluationError("parameter lock development evidence is incomplete")
     for name, evidence in payload["development_evidence"].items():
-        if sha256_file(Path(evidence.get("path", ""))) != evidence.get("sha256"):
+        evidence_path = Path(evidence.get("path", ""))
+        if sha256_file(evidence_path) != evidence.get("sha256"):
             raise Week7EvaluationError(f"development evidence changed after locking: {name}")
+        identity = _validate_development_evidence(
+            name, _read_json(evidence_path), config=config,
+            config_sha256=payload["config_sha256"],
+            dataset_lock_sha256=payload["dataset_lock_sha256"],
+            selected_checkpoint_sha256=payload["selected_checkpoint_sha256"],
+        )
+        if evidence.get("identity") != identity:
+            raise Week7EvaluationError(f"development evidence lock identity mismatch: {name}")
     return payload, dataset_lock, lock_root
 
 
@@ -237,6 +432,66 @@ def _atomic_json_replace(path: Path, value: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def _new_owner() -> dict[str, Any]:
+    return {
+        "token": uuid.uuid4().hex,
+        "host": socket.gethostname(),
+        "pid": os.getpid(),
+        "started_unix": time.time(),
+    }
+
+
+def _acquire_lease(marker: Path, owner: dict[str, Any]) -> Path:
+    lease = marker.with_suffix(marker.suffix + ".lease")
+    try:
+        descriptor = os.open(lease, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+    except FileExistsError as exc:
+        active = _read_json(lease)
+        raise Week7EvaluationError(
+            "final-test gate has an active owner lease "
+            f"({active.get('host')}:{active.get('pid')})"
+        ) from exc
+    with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+        json.dump(owner, handle, ensure_ascii=False, indent=2, sort_keys=True)
+        handle.write("\n")
+    return lease
+
+
+def _release_lease(lease: Path | None, owner: dict[str, Any] | None) -> None:
+    if lease is None or owner is None or not lease.exists():
+        return
+    active = _read_json(lease)
+    if active.get("token") != owner.get("token"):
+        raise Week7EvaluationError("refusing to release another final-test owner lease")
+    lease.unlink()
+
+
+def _mark_test_failed(
+    marker: Path,
+    owner: dict[str, Any],
+    error: BaseException,
+) -> None:
+    current = _read_json(marker)
+    if (
+        current.get("status") != "IN_PROGRESS"
+        or current.get("owner", {}).get("token") != owner.get("token")
+    ):
+        raise Week7EvaluationError("cannot fail a final-test marker owned by another process")
+    failure = {
+        "type": type(error).__name__,
+        "message": str(error),
+        "failed_unix": time.time(),
+        "owner": owner,
+    }
+    failed = {
+        **current,
+        "status": "FAILED",
+        "failure": failure,
+        "failure_history": list(current.get("failure_history", [])) + [failure],
+    }
+    _atomic_json_replace(marker, failed)
+
+
 def _claim_test_run(
     marker: Path,
     *,
@@ -246,34 +501,69 @@ def _claim_test_run(
     output_dir: Path,
     declared_test_sha256: str,
     resume: bool,
-) -> tuple[dict[str, Any], bool]:
+) -> tuple[dict[str, Any], bool, Path | None, dict[str, Any] | None]:
     marker.parent.mkdir(parents=True, exist_ok=True)
+    expected_identity = (run_id, parameter_lock_sha256, str(output_dir.resolve()))
+    if marker.exists():
+        current = _read_json(marker)
+        identity = (current.get("run_id"), current.get("parameter_lock_sha256"), current.get("output_dir"))
+        if identity != expected_identity:
+            raise Week7EvaluationError("Week 7 test allowance belongs to another run identity")
+        if current.get("status") == "COMPLETED":
+            return current, True, None, None
+        if current.get("status") == "IN_PROGRESS":
+            active = current.get("owner", {})
+            raise Week7EvaluationError(
+                "final-test run is IN_PROGRESS under active owner "
+                f"{active.get('host')}:{active.get('pid')}; concurrent resume is forbidden"
+            )
+        if current.get("status") != "FAILED" or not resume:
+            raise Week7EvaluationError("same-run recovery is allowed only from explicit FAILED state")
+        owner = _new_owner()
+        lease = _acquire_lease(marker, owner)
+        try:
+            latest = _read_json(marker)
+            latest_identity = (
+                latest.get("run_id"), latest.get("parameter_lock_sha256"), latest.get("output_dir"),
+            )
+            if latest.get("status") != "FAILED" or latest_identity != expected_identity:
+                raise Week7EvaluationError("final-test state changed while acquiring recovery lease")
+            resumed = {
+                **latest,
+                "status": "IN_PROGRESS",
+                "owner": owner,
+                "resume_count": int(latest.get("resume_count", 0)) + 1,
+            }
+            _atomic_json_replace(marker, resumed)
+            return resumed, False, lease, owner
+        except BaseException:
+            _release_lease(lease, owner)
+            raise
+
+    if resume:
+        raise Week7EvaluationError("cannot resume before an explicit FAILED final-test run exists")
+    owner = _new_owner()
+    lease = _acquire_lease(marker, owner)
     initial = {
-        "schema_version": "week7_test_consumption_v1",
+        "schema_version": "week7_test_consumption_v2",
         "status": "IN_PROGRESS",
         "run_id": run_id,
         "parameter_lock_path": str(parameter_lock_path.resolve()),
         "parameter_lock_sha256": parameter_lock_sha256,
         "output_dir": str(output_dir.resolve()),
         "test_file_sha256": declared_test_sha256,
+        "owner": owner,
+        "resume_count": 0,
+        "failure_history": [],
     }
     try:
-        descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
-    except FileExistsError:
-        current = _read_json(marker)
-        identity = (current.get("run_id"), current.get("parameter_lock_sha256"), current.get("output_dir"))
-        expected = (run_id, parameter_lock_sha256, str(output_dir.resolve()))
-        if identity != expected:
-            raise Week7EvaluationError("Week 7 test allowance belongs to another run identity")
-        if current.get("status") == "COMPLETED":
-            return current, True
-        if current.get("status") != "IN_PROGRESS" or not resume:
-            raise Week7EvaluationError("same-run test recovery requires --resume")
-        return current, False
-    with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-        json.dump(initial, handle, ensure_ascii=False, indent=2, sort_keys=True)
-        handle.write("\n")
-    return initial, False
+        with marker.open("x", encoding="utf-8", newline="\n") as handle:
+            json.dump(initial, handle, ensure_ascii=False, indent=2, sort_keys=True)
+            handle.write("\n")
+    except BaseException:
+        _release_lease(lease, owner)
+        raise
+    return initial, False, lease, owner
 
 
 def _row_task(row: dict[str, Any]) -> str:
@@ -509,49 +799,54 @@ def build_final_comparison(config: dict[str, Any], summaries: dict[str, dict[str
     }
 
 
-def run_final_test_suite(
+def _final_artifact_paths(output_dir: Path) -> dict[str, Path]:
+    paths = {
+        f"raw_outputs/{role}.jsonl": output_dir / "raw_outputs" / f"{role}.jsonl"
+        for role in FINAL_ROLES
+    }
+    paths.update({
+        f"metrics/{role}.json": output_dir / "metrics" / f"{role}.json"
+        for role in FINAL_ROLES
+    })
+    paths["final_comparison.json"] = output_dir / "final_comparison.json"
+    return paths
+
+
+def _hash_final_artifacts(output_dir: Path) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for name, path in _final_artifact_paths(output_dir).items():
+        if not path.is_file():
+            raise Week7EvaluationError(f"completed final-test artifact is missing: {name}")
+        hashes[name] = sha256_file(path)
+    return hashes
+
+
+def _verify_completed_artifacts(state: dict[str, Any], output_dir: Path) -> dict[str, Any]:
+    expected = state.get("artifact_hashes")
+    if not isinstance(expected, dict) or set(expected) != set(_final_artifact_paths(output_dir)):
+        raise Week7EvaluationError("completed marker artifact manifest is incomplete")
+    actual = _hash_final_artifacts(output_dir)
+    if actual != expected:
+        raise Week7EvaluationError("completed final-test artifact hash mismatch")
+    summary_path = output_dir / "final_comparison.json"
+    if state.get("summary_path") != str(summary_path) or state.get("summary_sha256") != actual["final_comparison.json"]:
+        raise Week7EvaluationError("completed final-test summary identity mismatch")
+    return _read_json(summary_path)
+
+
+def _execute_final_test_suite(
     root: Path,
     config_path: Path,
     parameter_lock_path: Path,
+    parameter_lock: dict[str, Any],
+    dataset_lock: dict[str, Any],
+    lock_root: Path,
     output_dir: Path,
+    inference_runner: Runner | None,
     *,
-    resume: bool = False,
-    inference_runner: Runner | None = None,
+    resume: bool,
 ) -> dict[str, Any]:
-    """Consume the unseen test once; only the same exact run may resume."""
-    root = Path(root).resolve()
-    config_path = Path(config_path).resolve()
-    parameter_lock_path = Path(parameter_lock_path).resolve()
-    output_dir = Path(output_dir).resolve()
-    parameter_lock, dataset_lock, lock_root = _validate_parameter_lock(root, config_path, parameter_lock_path)
-    run_id = parameter_lock["test_run_id"]
-    if output_dir.exists() and not resume:
-        raise Week7EvaluationError("final-test output directory already exists")
-    if inference_runner is None and parameter_lock["generation"]["schema_decoding_mode"] != "free":
-        raise Week7EvaluationError(
-            "the local Transformers final runner supports only a locked free-decoding mode"
-        )
-    declared = dataset_lock.get("files", {}).get("test.jsonl", {})
-    if not declared.get("sha256") or not declared.get("count"):
-        raise Week7EvaluationError("dataset lock does not bind the final test file")
-    marker = lock_root.parent.parent / "test_consumption" / f"{parameter_lock['dataset_version']}.json"
-    if resume and not marker.exists():
-        raise Week7EvaluationError("cannot resume before the exact final-test run has started")
-    state, already_completed = _claim_test_run(
-        marker,
-        run_id=run_id,
-        parameter_lock_path=parameter_lock_path,
-        parameter_lock_sha256=sha256_file(parameter_lock_path),
-        output_dir=output_dir,
-        declared_test_sha256=declared["sha256"],
-        resume=resume,
-    )
-    if already_completed:
-        summary_path = Path(state["summary_path"])
-        if sha256_file(summary_path) != state.get("summary_sha256"):
-            raise Week7EvaluationError("completed final-test summary hash mismatch")
-        return _read_json(summary_path)
-
+    declared = dataset_lock["files"]["test.jsonl"]
     output_dir.mkdir(parents=True, exist_ok=resume)
     test_path = lock_root / "test.jsonl"
     if sha256_file(test_path) != declared["sha256"]:
@@ -582,10 +877,14 @@ def run_final_test_suite(
     for row in rows:
         routed[_row_task(row)].append(row)
     for scenario in CORE_SCENARIOS:
-        roles["week6_single_task_adapters"].append((Path(parameter_lock["week6_adapters"][scenario]["adapter_dir"]), routed[scenario]))
+        roles["week6_single_task_adapters"].append((
+            Path(parameter_lock["week6_adapters"][scenario]["adapter_dir"]),
+            routed[scenario],
+        ))
 
     summaries: dict[str, dict[str, Any]] = {}
-    for role in ("week6_single_task_adapters", "multitask", "zero_shot"):
+    run_id = parameter_lock["test_run_id"]
+    for role in FINAL_ROLES:
         records = _run_role_resumable(
             role, rows, output_dir / "raw_outputs" / f"{role}.jsonl", run_id,
             inference_runner, roles[role],
@@ -618,11 +917,64 @@ def run_final_test_suite(
         _write_json_new(summary_path, comparison)
     elif canonical_sha256(_read_json(summary_path)) != canonical_sha256(comparison):
         raise Week7EvaluationError("resumed final comparison mismatch")
-    completed = {
-        **state,
-        "status": "COMPLETED",
-        "summary_path": str(summary_path),
-        "summary_sha256": sha256_file(summary_path),
-    }
-    _atomic_json_replace(marker, completed)
     return comparison
+
+
+def run_final_test_suite(
+    root: Path,
+    config_path: Path,
+    parameter_lock_path: Path,
+    output_dir: Path,
+    *,
+    resume: bool = False,
+    inference_runner: Runner | None = None,
+) -> dict[str, Any]:
+    """Consume the unseen test once; only the same exact run may resume."""
+    root = Path(root).resolve()
+    config_path = Path(config_path).resolve()
+    parameter_lock_path = Path(parameter_lock_path).resolve()
+    output_dir = Path(output_dir).resolve()
+    parameter_lock, dataset_lock, lock_root = _validate_parameter_lock(root, config_path, parameter_lock_path)
+    run_id = parameter_lock["test_run_id"]
+    if output_dir.exists() and not resume:
+        raise Week7EvaluationError("final-test output directory already exists")
+    declared = dataset_lock.get("files", {}).get("test.jsonl", {})
+    if not declared.get("sha256") or not declared.get("count"):
+        raise Week7EvaluationError("dataset lock does not bind the final test file")
+    marker = lock_root.parent.parent / "test_consumption" / f"{parameter_lock['dataset_version']}.json"
+    state, already_completed, lease, owner = _claim_test_run(
+        marker,
+        run_id=run_id,
+        parameter_lock_path=parameter_lock_path,
+        parameter_lock_sha256=sha256_file(parameter_lock_path),
+        output_dir=output_dir,
+        declared_test_sha256=declared["sha256"],
+        resume=resume,
+    )
+    if already_completed:
+        return _verify_completed_artifacts(state, output_dir)
+
+    if owner is None:
+        raise Week7EvaluationError("claimed final-test run is missing owner identity")
+    try:
+        comparison = _execute_final_test_suite(
+            root, config_path, parameter_lock_path, parameter_lock, dataset_lock,
+            lock_root, output_dir, inference_runner, resume=resume,
+        )
+        artifact_hashes = _hash_final_artifacts(output_dir)
+        summary_path = output_dir / "final_comparison.json"
+        completed = {
+            **state,
+            "status": "COMPLETED",
+            "completed_unix": time.time(),
+            "summary_path": str(summary_path),
+            "summary_sha256": artifact_hashes["final_comparison.json"],
+            "artifact_hashes": artifact_hashes,
+        }
+        _atomic_json_replace(marker, completed)
+        return comparison
+    except BaseException as exc:
+        _mark_test_failed(marker, owner, exc)
+        raise
+    finally:
+        _release_lease(lease, owner)

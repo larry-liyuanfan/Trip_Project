@@ -11,7 +11,7 @@ from src.training.week7_final_evaluation import create_parameter_lock, run_final
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CONFIG = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v1.json"
+SOURCE_CONFIG = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v2.json"
 
 
 TARGETS = {
@@ -45,9 +45,19 @@ class Week7FinalEvaluationTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
+        self.selected = self._adapter("checkpoint-10", b"multitask")
+        self.week6 = {
+            scenario: self._adapter(f"week6-{scenario}", scenario.encode())
+            for scenario in TARGETS
+        }
         config = json.loads(SOURCE_CONFIG.read_text(encoding="utf-8"))
         config["dataset"]["dataset_version"] = "week7_unit_test_lock_v1"
         config["experiment_identity"]["test_run_id"] = "week7-unit-test-once"
+        config["evaluation"]["week6_adapter_sha256"] = {
+            scenario: sha256_file(path / "adapter_model.safetensors")
+            for scenario, path in self.week6.items()
+        }
+        self.config = config
         self.config_path = self.root / "configs/week7/config.json"
         self.config_path.parent.mkdir(parents=True)
         self.config_path.write_text(json.dumps(config), encoding="utf-8")
@@ -86,11 +96,6 @@ class Week7FinalEvaluationTests(unittest.TestCase):
         (self.lock_root / "dataset_lock.json").write_text(json.dumps(dataset_lock), encoding="utf-8")
         self.dataset_lock = dataset_lock
 
-        self.selected = self._adapter("checkpoint-10", b"multitask")
-        self.week6 = {
-            scenario: self._adapter(f"week6-{scenario}", scenario.encode())
-            for scenario in TARGETS
-        }
         summary = {
             "status": "COMPLETED", "config_sha256": sha256_file(self.config_path),
             "dataset_lock_sha256": dataset_lock["lock_sha256"],
@@ -99,14 +104,7 @@ class Week7FinalEvaluationTests(unittest.TestCase):
         }
         self.training_summary = self.root / "training-summary.json"
         self.training_summary.write_text(json.dumps(summary), encoding="utf-8")
-        self.evidence = {}
-        for name in (
-            "week6_development_baseline", "zero_shot_development",
-            "multitask_development", "schema_decoding",
-        ):
-            path = self.root / f"{name}.json"
-            path.write_text(json.dumps({"status": "COMPLETED", "name": name}), encoding="utf-8")
-            self.evidence[name] = path
+        self.evidence = self._development_evidence()
         self.parameter_lock = self.root / "parameter-lock.json"
         create_parameter_lock(
             self.root, self.config_path, self.parameter_lock,
@@ -117,7 +115,7 @@ class Week7FinalEvaluationTests(unittest.TestCase):
                 for scenario, path in self.week6.items()
             },
             development_evidence=self.evidence,
-            schema_decoding_mode="constrained",
+            schema_decoding_mode="free",
         )
 
     def tearDown(self):
@@ -132,6 +130,91 @@ class Week7FinalEvaluationTests(unittest.TestCase):
             encoding="utf-8",
         )
         return path
+
+    def _development_evidence(self):
+        config_hash = sha256_file(self.config_path)
+        dataset_hash = self.dataset_lock["lock_sha256"]
+        scenario_summaries = {
+            scenario: {
+                "composite": 0.5,
+                "aggregate": {"json_compliance": 1.0, "schema_pass": 1.0},
+                "metric_support": {"metric": 30},
+            }
+            for scenario in TARGETS
+        }
+        inputs = {}
+        for scenario in TARGETS:
+            payload = {
+                "status": "COMPLETED",
+                "run_id": self.config["experiment_identity"]["development_baseline_run_ids"][scenario],
+                "model_role": "week6_single_task_adapter",
+                "split": "development",
+                "scenario_filter": scenario,
+                "config_sha256": config_hash,
+                "dataset_lock_sha256": dataset_hash,
+                "sample_count": 30,
+                "scenarios": {scenario: scenario_summaries[scenario]},
+                "adapter_hashes": {
+                    "adapter_model.safetensors": self.config["evaluation"]["week6_adapter_sha256"][scenario],
+                },
+            }
+            path = self.root / f"week6-{scenario}-development.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            inputs[scenario] = {"path": str(path), "sha256": sha256_file(path)}
+
+        week6 = {
+            "status": "COMPLETED", "run_id": "week7-dev-week6-combined-test",
+            "model_role": "week6_single_task_adapters", "split": "development",
+            "config_sha256": config_hash, "dataset_lock_sha256": dataset_hash,
+            "sample_count": 90, "scenarios": scenario_summaries, "inputs": inputs,
+        }
+        zero = {
+            "status": "COMPLETED",
+            "run_id": self.config["experiment_identity"]["zero_shot_development_run_id"],
+            "model_role": "zero_shot", "split": "development", "scenario_filter": None,
+            "config_sha256": config_hash, "dataset_lock_sha256": dataset_hash,
+            "sample_count": 114, "scenarios": scenario_summaries,
+            "dialogue": {"sample_count": 24}, "adapter_hashes": None,
+        }
+        multitask = {
+            "status": "COMPLETED",
+            "run_id": f"{self.config['experiment_identity']['multitask_sft_run_id']}_development",
+            "model_role": "multitask", "split": "development", "scenario_filter": None,
+            "config_sha256": config_hash, "dataset_lock_sha256": dataset_hash,
+            "sample_count": 114, "scenarios": scenario_summaries,
+            "dialogue": {"sample_count": 24},
+            "adapter_hashes": {"adapter_model.safetensors": sha256_file(self.selected / "adapter_model.safetensors")},
+        }
+        schema = {
+            "status": "COMPLETED", "model_role": "schema_format_only_experiment",
+            "split": "development", "config_sha256": config_hash,
+            "dataset_lock_sha256": dataset_hash, "scope": "format_only",
+            "semantic_claims": "FORBIDDEN", "sample_count": 90,
+            "run_ids": {
+                "free": self.config["experiment_identity"]["schema_free_run_id"],
+                "constrained": self.config["experiment_identity"]["schema_constrained_run_id"],
+            },
+            "gate": {"latency": True, "fallback": True},
+            "modes": {
+                mode: {
+                    "json_compliance": 1.0, "schema_coverage": 1.0,
+                    "fallback_failure_rate": 0.0, "latency_ms_mean": 10.0,
+                }
+                for mode in ("free", "constrained")
+            },
+        }
+        payloads = {
+            "week6_development_baseline": week6,
+            "zero_shot_development": zero,
+            "multitask_development": multitask,
+            "schema_decoding": schema,
+        }
+        result = {}
+        for name, payload in payloads.items():
+            path = self.root / f"{name}.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            result[name] = path
+        return result
 
     @staticmethod
     def _successful_runner(role, rows, adapter, record_sink):
@@ -161,6 +244,56 @@ class Week7FinalEvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(Week7EvaluationError, "dataset identity"):
             run_final_test_suite(self.root, self.config_path, bad, self.root / "bad-output", inference_runner=self._successful_runner)
 
+    def test_parameter_lock_rejects_weak_evidence_and_constrained_mode(self):
+        bad_evidence = dict(self.evidence)
+        invalid = self.root / "invalid-zero.json"
+        payload = json.loads(self.evidence["zero_shot_development"].read_text(encoding="utf-8"))
+        payload["run_id"] = "wrong-run"
+        invalid.write_text(json.dumps(payload), encoding="utf-8")
+        bad_evidence["zero_shot_development"] = invalid
+        with self.assertRaisesRegex(Week7EvaluationError, "coverage mismatch"):
+            create_parameter_lock(
+                self.root, self.config_path, self.root / "bad-evidence-lock.json",
+                training_summary_path=self.training_summary,
+                selected_checkpoint=self.selected,
+                week6_adapters={
+                    scenario: (path, sha256_file(path / "adapter_model.safetensors"))
+                    for scenario, path in self.week6.items()
+                },
+                development_evidence=bad_evidence,
+                schema_decoding_mode="free",
+            )
+        bad_schema_evidence = dict(self.evidence)
+        invalid_schema = self.root / "invalid-schema.json"
+        schema_payload = json.loads(self.evidence["schema_decoding"].read_text(encoding="utf-8"))
+        schema_payload["gate"]["latency"] = False
+        invalid_schema.write_text(json.dumps(schema_payload), encoding="utf-8")
+        bad_schema_evidence["schema_decoding"] = invalid_schema
+        with self.assertRaisesRegex(Week7EvaluationError, "gate is inconsistent"):
+            create_parameter_lock(
+                self.root, self.config_path, self.root / "bad-schema-lock.json",
+                training_summary_path=self.training_summary,
+                selected_checkpoint=self.selected,
+                week6_adapters={
+                    scenario: (path, sha256_file(path / "adapter_model.safetensors"))
+                    for scenario, path in self.week6.items()
+                },
+                development_evidence=bad_schema_evidence,
+                schema_decoding_mode="free",
+            )
+        with self.assertRaisesRegex(Week7EvaluationError, "only.*free"):
+            create_parameter_lock(
+                self.root, self.config_path, self.root / "constrained-lock.json",
+                training_summary_path=self.training_summary,
+                selected_checkpoint=self.selected,
+                week6_adapters={
+                    scenario: (path, sha256_file(path / "adapter_model.safetensors"))
+                    for scenario, path in self.week6.items()
+                },
+                development_evidence=self.evidence,
+                schema_decoding_mode="constrained",
+            )
+
     def test_same_run_resumes_but_second_output_is_rejected(self):
         output = self.root / "final-output"
         calls = []
@@ -177,6 +310,8 @@ class Week7FinalEvaluationTests(unittest.TestCase):
                 inference_runner=interrupted,
             )
         self.assertEqual(calls.count("week6_single_task_adapters"), 3)
+        marker = self.root / "outputs/week7/test_consumption/week7_unit_test_lock_v1.json"
+        self.assertEqual(json.loads(marker.read_text(encoding="utf-8"))["status"], "FAILED")
         result = run_final_test_suite(
             self.root, self.config_path, self.parameter_lock, output,
             resume=True, inference_runner=self._successful_runner,
@@ -190,11 +325,42 @@ class Week7FinalEvaluationTests(unittest.TestCase):
             resume=True, inference_runner=lambda *_: self.fail("completed run must not infer again"),
         )
         self.assertEqual(completed["run_id"], "week7-unit-test-once")
+        marker_payload = json.loads(marker.read_text(encoding="utf-8"))
+        self.assertEqual(marker_payload["status"], "COMPLETED")
+        self.assertEqual(len(marker_payload["artifact_hashes"]), 7)
         with self.assertRaisesRegex(Week7EvaluationError, "another run identity"):
             run_final_test_suite(
                 self.root, self.config_path, self.parameter_lock, self.root / "second-output",
                 resume=True, inference_runner=self._successful_runner,
             )
+        raw = output / "raw_outputs/multitask.jsonl"
+        raw.write_text(raw.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(Week7EvaluationError, "artifact hash mismatch"):
+            run_final_test_suite(
+                self.root, self.config_path, self.parameter_lock, output,
+                resume=True, inference_runner=self._successful_runner,
+            )
+
+    def test_concurrent_resume_is_rejected_while_owner_is_in_progress(self):
+        output = self.root / "concurrent-output"
+        observed = []
+
+        def runner(role, rows, adapter, record_sink):
+            if not observed:
+                with self.assertRaisesRegex(Week7EvaluationError, "IN_PROGRESS"):
+                    run_final_test_suite(
+                        self.root, self.config_path, self.parameter_lock, output,
+                        resume=True, inference_runner=self._successful_runner,
+                    )
+                observed.append("rejected")
+            return self._successful_runner(role, rows, adapter, record_sink)
+
+        result = run_final_test_suite(
+            self.root, self.config_path, self.parameter_lock, output,
+            inference_runner=runner,
+        )
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertEqual(observed, ["rejected"])
 
 
 if __name__ == "__main__":
