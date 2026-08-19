@@ -3,18 +3,24 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.training.week7_data import load_week7_config
+from src.training.week7_data import (
+    _after_sales_identity,
+    _dialogue_row,
+    _product_target,
+    load_week7_config,
+)
 from src.training.week7_evaluation import (
     Week7EvaluationError,
     compare_schema_decoding,
     enforce_test_once,
     strict_parse_output,
 )
-from src.training.week7_qlora import structure_aware_messages, training_messages
+from src.training.week7_qlora import decile_evaluation_steps, structure_aware_messages, training_messages
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v1.json"
+CONFIG_V2 = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v2.json"
 
 
 class FakeProcessor:
@@ -30,11 +36,40 @@ class FakeTensor:
 
 class Week7ExecutionTests(unittest.TestCase):
     def test_locked_config_has_exact_ratios_and_parameters(self):
-        config = load_week7_config(CONFIG)
+        config = load_week7_config(CONFIG_V2)
         self.assertEqual(config["dataset"]["general_regularization_fraction"], 0.09)
         self.assertEqual(config["dataset"]["dialogue_fraction"], 0.15)
         self.assertEqual(config["lora"]["r"], 16)
         self.assertEqual(config["training"]["early_stopping_patience"], 2)
+
+    def test_v2_visual_targets_and_dialogue_ratios_are_evidence_bound(self):
+        source = {"caption": "A modern hotel lobby with an accessible front desk"}
+        product = _product_target(source)
+        self.assertEqual(product["business_category"], "hotel")
+        self.assertEqual(product["price_range"], "unknown")
+        self.assertEqual(product["inferred_attributes"], [])
+        self.assertNotIn("style_tags", product["unknown_fields"])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "lock"
+            outputs = [_after_sales_identity(root, output, "train", index)[1] for index in range(16)]
+        self.assertEqual(len({(item["issue_type"], item["severity"]) for item in outputs}), 16)
+        self.assertTrue(all(any(text.startswith("SEVERITY:") for text in item["ocr_text"]) for item in outputs))
+        parent = {
+            "sample_id": "parent", "source_id": "source", "group_id": "group",
+            "constraint_template_id": None, "image_sha256": "a" * 64,
+            "image_path": "image.png", "messages": [
+                {"role": "system", "content": "system"},
+                {"role": "user", "content": [{"type": "image", "path": "image.png"}, {"type": "text", "text": "task"}]},
+            ],
+            "target": product,
+        }
+        dialogues = [_dialogue_row(parent, "train", index, 0.1, 0.5) for index in range(450)]
+        self.assertEqual(sum(row["contains_tool_call"] for row in dialogues), 45)
+        self.assertTrue(all(row["target"]["context_state"]["updated_requirement"] == "预算优先" for row in dialogues))
+
+    def test_decile_schedule_includes_exact_final_step(self):
+        self.assertEqual(decile_evaluation_steps(376), [38, 76, 113, 151, 188, 226, 264, 301, 339, 376])
 
     def test_strict_parser_does_not_extract_or_repair_json(self):
         valid = {
@@ -102,10 +137,8 @@ class Week7ExecutionTests(unittest.TestCase):
                 "status": "LOCKED", "config_sha256": "a", "dataset_lock_sha256": "b",
                 "selected_checkpoint": "checkpoint-1", "selected_checkpoint_sha256": "c",
             }), encoding="utf-8")
-            first = enforce_test_once(root, parameter_lock, "run-1")
-            self.assertEqual(first["status"], "CONSUMED")
-            with self.assertRaises(Week7EvaluationError):
-                enforce_test_once(root, parameter_lock, "run-2")
+            with self.assertRaisesRegex(Week7EvaluationError, "final suite"):
+                enforce_test_once(root, parameter_lock, "run-1")
 
 
 if __name__ == "__main__":

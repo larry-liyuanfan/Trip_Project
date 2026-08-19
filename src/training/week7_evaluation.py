@@ -71,7 +71,13 @@ def _dialogue_terms(value: Any) -> set[str]:
 
 
 def score_dialogue_record(row: dict[str, Any], raw_output: str, latency_ms: float, failed: bool) -> dict[str, Any]:
-    expected = _dialogue_terms(row["target"])
+    expectations = row.get("context_expectations")
+    if not isinstance(expectations, dict):
+        raise Week7EvaluationError(f"dialogue context expectations are missing: {row.get('sample_id')}")
+    expected = _dialogue_terms(expectations)
+    image_terms = _dialogue_terms(expectations.get("historical_image_reference"))
+    retained_terms = _dialogue_terms(expectations.get("retained_hard_constraints"))
+    updated_requirement = str(expectations.get("updated_requirement") or "").casefold()
     normalized = raw_output.casefold()
     recalled = sum(term in normalized for term in expected)
     parsed = None
@@ -85,9 +91,9 @@ def score_dialogue_record(row: dict[str, Any], raw_output: str, latency_ms: floa
         "sample_id": row["sample_id"], "scenario": "dialogue", "latency_ms": latency_ms,
         "failed": failed, "format_compliance": float(json_valid),
         "context_recall": recalled / len(expected) if expected else 1.0,
-        "historical_image_reference": float(any(term in normalized for term in expected)),
-        "requirement_update": float("预算" in normalized or "budget" in normalized),
-        "context_carryover": float(recalled >= min(2, len(expected))),
+        "historical_image_reference": float(bool(image_terms) and any(term in normalized for term in image_terms)),
+        "requirement_update": float(bool(updated_requirement) and updated_requirement in normalized),
+        "context_carryover": float(not retained_terms or all(term in normalized for term in retained_terms)),
         "logical_consistency": None,
         "parsed_output": parsed,
         "human_required": True,
@@ -124,14 +130,18 @@ def summarize_raw_records(root: Path, config: dict[str, Any], rows: Iterable[dic
             "schema_valid": schema_valid, "parse_or_schema_error": error, "latency_ms": latency,
         }
         sample_scores[row["scenario"]].append(score_sample(result, _annotation(row), aliases))
+    present_scenarios = [scenario for scenario in CORE_SCENARIOS if sample_scores[scenario]]
+    if not present_scenarios:
+        raise Week7EvaluationError("at least one core scenario is required for a business summary")
     scenario_results = {}
     scenario_composites = {}
-    for scenario in CORE_SCENARIOS:
+    for scenario in present_scenarios:
         aggregate = aggregate_scenario_scores(sample_scores[scenario])
         composite, support = _weighted_metric(aggregate, config["evaluation"]["metric_weights"][scenario])
         scenario_results[scenario] = {"aggregate": aggregate, "composite": composite, "metric_support": support}
         scenario_composites[scenario] = composite
-    weighted = sum(float(config["evaluation"]["scenario_weights"][scenario]) * scenario_composites[scenario] for scenario in CORE_SCENARIOS)
+    selected_weight = sum(float(config["evaluation"]["scenario_weights"][scenario]) for scenario in present_scenarios)
+    weighted = sum(float(config["evaluation"]["scenario_weights"][scenario]) * scenario_composites[scenario] for scenario in present_scenarios) / selected_weight
     dialogue_summary = None
     if dialogue_scores:
         dialogue_summary = {
@@ -188,19 +198,7 @@ def compare_schema_decoding(root: Path, config: dict[str, Any], rows: list[dict[
 
 
 def enforce_test_once(lock_root: Path, parameter_lock: Path, run_id: str) -> dict[str, Any]:
-    """Atomically consume the final-test allowance after a complete parameter lock exists."""
-    lock_root, parameter_lock = Path(lock_root), Path(parameter_lock)
-    marker = lock_root / "test_consumed.json"
-    if marker.exists():
-        raise Week7EvaluationError("Week 7 test has already been consumed")
-    payload = json.loads(parameter_lock.read_text(encoding="utf-8"))
-    required = {"status", "config_sha256", "dataset_lock_sha256", "selected_checkpoint", "selected_checkpoint_sha256"}
-    if payload.get("status") != "LOCKED" or not required <= set(payload):
-        raise Week7EvaluationError("complete parameter lock is required before test")
-    marker_payload = {
-        "status": "CONSUMED", "run_id": run_id,
-        "parameter_lock_sha256": sha256_file(parameter_lock),
-        "test_file_sha256": sha256_file(lock_root / "test.jsonl"),
-    }
-    marker.write_text(json.dumps(marker_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-    return marker_payload
+    """Reject the obsolete marker-only path, which could bypass the final suite."""
+    raise Week7EvaluationError(
+        "marker-only test consumption is disabled; use the final suite"
+    )

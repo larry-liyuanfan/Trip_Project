@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import ast
 import hashlib
 import json
-import re
 import shutil
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -72,7 +70,7 @@ def write_jsonl_new(path: Path, rows: Iterable[dict[str, Any]]) -> int:
 
 def load_week7_config(path: Path) -> dict[str, Any]:
     config = json.loads(Path(path).read_text(encoding="utf-8"))
-    if config.get("schema_version") != "week7_multitask_context_v1":
+    if config.get("schema_version") not in {"week7_multitask_context_v1", "week7_multitask_context_v2"}:
         raise Week7DataError("unsupported Week 7 config")
     if config.get("base_model") != "Qwen/Qwen3-VL-8B-Instruct":
         raise Week7DataError("Week 7 base model changed")
@@ -182,34 +180,6 @@ def _parquet_rows(path: Path, columns: list[str]) -> Iterator[dict[str, Any]]:
         yield from batch.to_pylist()
 
 
-def _business_fields(description: str) -> dict[str, Any]:
-    parts = [part.strip() for part in description.split(" | ")]
-    categories = parts[1].casefold() if len(parts) > 1 else ""
-    category = "other"
-    if any(term in categories for term in ("hotel", "resort", "hostel")):
-        category = "hotel"
-    elif any(term in categories for term in ("museum", "landmark", "attraction", "parks", "tours", "arts & entertainment", "historic")):
-        category = "attraction"
-    elif any(term in categories for term in ("restaurant", "food", "cafe", "bar", "bakery")):
-        category = "restaurant"
-    match = re.search(r"RestaurantsPriceRange2:\s*(?:u)?['\"]?(\d)", description)
-    price = {"1": "budget", "2": "mid_range", "3": "premium", "4": "luxury"}.get(match.group(1) if match else "", "unknown")
-    ambience: list[str] = []
-    match = re.search(r"Ambience:\s*(\{.*?\})(?:,\s*[A-Z]|\s*\|)", description)
-    if match:
-        try:
-            ambience = sorted(str(key) for key, value in ast.literal_eval(match.group(1)).items() if value is True)
-        except (SyntaxError, ValueError, AttributeError):
-            pass
-    return {
-        "name": (parts[0] if parts else "OTA POI")[:120],
-        "city": (parts[2] if len(parts) > 2 else "unknown city")[:80],
-        "category": category,
-        "price_range": price,
-        "ambience": ambience[:8],
-    }
-
-
 def _caption_tags(caption: str) -> tuple[list[str], list[str]]:
     text = caption.casefold()
     styles = [term for term in ("casual", "classy", "cozy", "historic", "modern", "romantic", "rustic", "trendy", "upscale", "vintage") if term in text]
@@ -228,7 +198,7 @@ def _collect_public_sources(source_root: Path, config: dict[str, Any], consumed:
     candidates = []
     seen_businesses: set[str] = set()
     seed = int(config["dataset"]["seed"])
-    for row in _parquet_rows(source_root / paths["medium_pairs"], ["photo_id", "business_id", "image_path", "business_description"]):
+    for row in _parquet_rows(source_root / paths["medium_pairs"], ["photo_id", "business_id", "image_path"]):
         photo_id, business_id = str(row.get("photo_id") or ""), str(row.get("business_id") or "")
         if photo_id not in captions or not business_id or business_id in seen_businesses:
             continue
@@ -242,7 +212,6 @@ def _collect_public_sources(source_root: Path, config: dict[str, Any], consumed:
         candidates.append((hashlib.sha256(f"{seed}\0{photo_id}".encode()).hexdigest(), {
             "photo_id": photo_id, "business_id": business_id, "source_id": source_id,
             "group_id": group_id, "source_image": image, "caption": captions[photo_id]["caption"],
-            "business_description": str(row.get("business_description") or ""),
         }))
     selected = []
     for _, row in sorted(candidates, key=lambda item: item[0]):
@@ -287,42 +256,36 @@ def _row(sample_id: str, scenario: str, split: str, identity: dict[str, Any], me
     }
 
 
-def _category(attributes: dict[str, Any], label: str) -> str:
-    categories = " ".join(attributes.get("categories", [])).casefold()
-    text = f"{categories} {label.casefold()}"
-    if any(term in text for term in ("hotel", "resort", "lodging")):
-        return "hotel"
-    if any(term in text for term in ("restaurant", "food", "cafe", "bar")):
-        return "restaurant"
-    if any(term in text for term in ("museum", "park", "attraction", "landmark")):
-        return "attraction"
-    return "other"
-
-
 def _product_target(source: dict[str, Any]) -> dict[str, Any]:
-    attrs = _business_fields(source["business_description"])
     styles, facilities = _caption_tags(source["caption"])
-    unknown = []
+    text = source["caption"].casefold()
+    category = "unknown"
+    if any(term in text for term in ("hotel", "resort", "room", "lobby")):
+        category = "hotel"
+    elif any(term in text for term in ("restaurant", "cafe", "bar", "dining")):
+        category = "restaurant"
+    elif any(term in text for term in ("museum", "park", "attraction", "landmark")):
+        category = "attraction"
+    unknown = ["price_range"]
+    if category == "unknown":
+        unknown.append("business_category")
     if not styles:
         unknown.append("style_tags")
     if not facilities:
         unknown.append("visible_facilities")
-    if attrs["price_range"] == "unknown":
-        unknown.append("price_range")
     return {
-        "business_category": attrs["category"],
-        "style_tags": sorted(set(styles + attrs["ambience"])),
+        "business_category": category,
+        "style_tags": styles,
         "visible_facilities": facilities,
-        "price_range": attrs["price_range"],
+        "price_range": "unknown",
         "observed_evidence": [source["caption"]],
-        "inferred_attributes": [f"business_name:{attrs['name']}", f"city:{attrs['city']}"],
-        "unknown_fields": unknown,
-        "confidence": 0.65,
+        "inferred_attributes": [],
+        "unknown_fields": sorted(unknown),
+        "confidence": 0.55,
     }
 
 
 def _itinerary_target(source: dict[str, Any], template_index: int) -> tuple[str, dict[str, Any]]:
-    attrs = _business_fields(source["business_description"])
     days = 2 + template_index % 2
     hard = [f"行程共{days}天", "每日活动在19:00前结束", "使用公共交通"]
     soft = ["偏好图片所示风格", "每日包含一处用餐地点"]
@@ -349,7 +312,7 @@ def _itinerary_target(source: dict[str, Any], template_index: int) -> tuple[str,
             {"constraint": item, "constraint_type": "hard" if item in hard else "soft", "status": "satisfied", "evidence": "行程结构已覆盖"}
             for item in hard + soft
         ],
-        "observed_evidence": [source["caption"], f"category:{attrs['category']}"],
+        "observed_evidence": [source["caption"]],
         "unknown_fields": ["exact_place_name", "exact_date"],
         "confidence": 0.60,
     }
@@ -366,7 +329,7 @@ def _font(size: int) -> ImageFont.ImageFont:
 def _after_sales_identity(root: Path, output: Path, split: str, index: int) -> tuple[dict[str, Any], dict[str, Any]]:
     issue_types = ("transport_delay", "attraction_closure", "facility_damage", "hygiene_stain")
     issue = issue_types[index % len(issue_types)]
-    severity = ("medium", "high", "low", "critical")[index % 4]
+    severity = ("low", "medium", "high", "critical")[(index // len(issue_types)) % 4]
     reference = f"W7-{split.upper()}-{index:04d}"
     lines = {
         "transport_delay": ["SERVICE DELAY", reference, "Departure delayed 95 minutes"],
@@ -374,6 +337,7 @@ def _after_sales_identity(root: Path, output: Path, split: str, index: int) -> t
         "facility_damage": ["ROOM NOTICE", reference, "Broken bathroom fixture"],
         "hygiene_stain": ["GUEST EVIDENCE", reference, "Visible stain on bed linen"],
     }[issue]
+    lines.append(f"SEVERITY: {severity.upper()}")
     image = Image.new("RGB", (1024, 640), (244, 246, 249))
     draw = ImageDraw.Draw(image)
     draw.rectangle((55, 55, 969, 585), outline=(40, 75, 115), width=6)
@@ -392,7 +356,7 @@ def _after_sales_identity(root: Path, output: Path, split: str, index: int) -> t
     }
     target = {
         "issue_type": issue, "severity": severity, "issue_location": "evidence card",
-        "key_information": [reference, lines[2]], "ocr_text": lines,
+        "key_information": [reference, lines[2], lines[3]], "ocr_text": lines,
         "observed_evidence": lines, "unknown_fields": [], "confidence": 1.0,
     }
     return identity, target
@@ -435,14 +399,27 @@ def _after_sales_row(root: Path, output: Path, split: str, ordinal: int, weight:
 
 def _dialogue_row(parent: dict[str, Any], split: str, ordinal: int, tool_fraction: float, weight: float) -> dict[str, Any]:
     rounds = 5 + ordinal % 4
-    target = parent["target"]
+    base_target = parent["target"]
+    evidence_terms = list(base_target.get("observed_evidence") or []) if isinstance(base_target, dict) else []
+    retained_constraints = []
+    if isinstance(base_target, dict):
+        retained_constraints = list(base_target.get("hard_constraints") or [])
+    target = {
+        "task_result": base_target,
+        "context_state": {
+            "historical_image_reference": evidence_terms[:2],
+            "updated_requirement": "预算优先",
+            "retained_hard_constraints": retained_constraints,
+            "evidence_policy": "仅使用首次用户轮图片和对话中明确提供的信息",
+        },
+    }
     messages = list(parent["messages"])
     followups = [
         ("请明确引用刚才那张图片中的证据。", "我会继续只引用首次用户轮的图片证据。"),
         ("把偏好调整为更重视预算，但保留硬约束。", "已更新当前需求，历史硬约束保持不变。"),
         ("总结目前累计的限制，不要遗漏。", "已承接图片证据、预算调整和原有硬约束。"),
         ("检查前后回答是否存在逻辑冲突。", "上下文逻辑一致；不确定信息仍标记 unknown。"),
-        ("给出最终结构化结果。", json.dumps(target, ensure_ascii=False, sort_keys=True)),
+        ("给出包含当前上下文状态的最终结构化结果。", json.dumps(target, ensure_ascii=False, sort_keys=True)),
         ("再次确认没有引入图片外事实。", "确认：回答仅使用首次图片及对话内明确提供的信息。"),
         ("说明本轮相对最初需求的变化。", "新增预算优先级，未删除原有硬约束。"),
     ]
@@ -450,7 +427,8 @@ def _dialogue_row(parent: dict[str, Any], split: str, ordinal: int, tool_fractio
         messages.append({"role": "assistant", "content": assistant_text})
         messages.append({"role": "user", "content": [{"type": "text", "text": user_text}]})
     messages.append({"role": "assistant", "content": json.dumps(target, ensure_ascii=False, sort_keys=True)})
-    tool_call = ordinal < round(tool_fraction * 1000) and ordinal % 10 == 0
+    stride = round(1.0 / tool_fraction)
+    tool_call = ordinal % stride == 0
     if tool_call:
         messages.insert(-1, {"role": "assistant", "content": "<tool_call>{\"name\":\"check_constraints\",\"arguments\":{\"scope\":\"conversation\"}}</tool_call>"})
         messages.insert(-1, {"role": "tool", "content": "{\"status\":\"ok\"}"})
@@ -460,7 +438,11 @@ def _dialogue_row(parent: dict[str, Any], split: str, ordinal: int, tool_fractio
         "image_sha256": parent["image_sha256"], "image_path": parent["image_path"],
     }
     row = _row(f"week7-{split}-dialogue-{ordinal:04d}", "dialogue", split, identity, messages, target, "programmatic_silver", weight)
-    row.update({"parent_sample_id": parent["sample_id"], "dialogue_rounds": rounds, "evaluation_dimensions": list(DIALOGUE_DIMENSIONS), "contains_tool_call": tool_call})
+    row.update({
+        "parent_sample_id": parent["sample_id"], "dialogue_rounds": rounds,
+        "evaluation_dimensions": list(DIALOGUE_DIMENSIONS), "contains_tool_call": tool_call,
+        "context_expectations": target["context_state"],
+    })
     return row
 
 
@@ -550,6 +532,12 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
     for split, count in dialogue_counts.items():
         parents = core[split]
         dialogues[split] = [_dialogue_row(parents[index % len(parents)], split, index, float(config["sampling"]["tool_call_dialogue_fraction"]), silver_weight) for index in range(count)]
+    tool_call_ratios = {
+        split: sum(bool(row["contains_tool_call"]) for row in rows) / len(rows)
+        for split, rows in dialogues.items()
+    }
+    if tool_call_ratios["train"] != float(config["sampling"]["tool_call_dialogue_fraction"]):
+        raise Week7DataError("training dialogue tool-call ratio differs from the locked config")
     rows_by_split = {
         "train": core["train"] + general + dialogues["train"],
         "development": core["development"] + dialogues["development"],
@@ -573,12 +561,13 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
     files["dialogue_human_review_queue.jsonl"] = {"count": len(queue), "sha256": sha256_file(output / "dialogue_human_review_queue.jsonl")}
     counts = {split: dict(Counter(row["scenario"] for row in rows)) for split, rows in rows_by_split.items()}
     lock = {
-        "schema_version": "week7_dataset_lock_v1", "dataset_version": dataset["dataset_version"],
+        "schema_version": "week7_dataset_lock_v2" if config["schema_version"].endswith("v2") else "week7_dataset_lock_v1",
+        "dataset_version": dataset["dataset_version"],
         "seed": dataset["seed"], "config_sha256": sha256_file(config_path),
         "source_project_root_recorded": str(source_root), "exclusion_evidence": exclusion_evidence,
         "week5_dialogue_audit": dialogue_audit, "counts": counts,
         "actual_train_ratios": {"general_multimodal": len(general) / len(rows_by_split["train"]), "dialogue": len(dialogues["train"]) / len(rows_by_split["train"])},
-        "isolation": isolation, "files": files,
+        "isolation": isolation, "files": files, "actual_tool_call_ratios": tool_call_ratios,
         "test_policy": {"status": "LOCKED_UNCONSUMED", "may_read_only_after_parameter_lock": True, "maximum_evaluations": 1},
         "label_policy": {"week7_rows": "programmatic_silver", "human_accepted_rows": 0, "human_queue_status": "PENDING_REAL_HUMAN_INPUT"},
     }
@@ -588,15 +577,21 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
 
 
 def validate_week7_lock(root: Path, config_path: Path, *, include_test: bool = False) -> dict[str, Any]:
+    if include_test:
+        raise Week7DataError(
+            "test validation is only permitted inside the parameter-locked one-shot final suite"
+        )
     root = Path(root).resolve()
     config = load_week7_config(config_path)
     output = root / config["dataset"]["output_root"] / config["dataset"]["dataset_version"]
     lock = json.loads((output / "dataset_lock.json").read_text(encoding="utf-8"))
+    if sha256_file(config_path) != lock.get("config_sha256"):
+        raise Week7DataError("current config SHA-256 does not match the dataset lock")
     lock_hash = lock.pop("lock_sha256")
     if canonical_sha256(lock) != lock_hash:
         raise Week7DataError("dataset_lock.json canonical hash mismatch")
     lock["lock_sha256"] = lock_hash
-    splits = ["train", "development"] + (["test"] if include_test else [])
+    splits = ["train", "development"]
     validated = Counter()
     for split in splits:
         path = output / f"{split}.jsonl"
@@ -608,9 +603,16 @@ def validate_week7_lock(root: Path, config_path: Path, *, include_test: bool = F
                 raise Week7DataError(f"image hash mismatch: {row['sample_id']}")
             if row["scenario"] in CORE_SCENARIOS:
                 validate_output(root, row["scenario"], row["target"], "v1")
+                if row["scenario"] == "image_product_search":
+                    for field, unknown_name in (("style_tags", "style_tags"), ("visible_facilities", "visible_facilities")):
+                        if row["target"][field] and unknown_name in row["target"]["unknown_fields"]:
+                            raise Week7DataError(f"contradictory product unknown field: {row['sample_id']}")
             if row["scenario"] == "dialogue":
                 image_blocks = [item for message in row["messages"] for item in (message.get("content") if isinstance(message.get("content"), list) else []) if isinstance(item, dict) and item.get("type") == "image"]
                 if len(image_blocks) != 1 or row["dialogue_rounds"] not in range(5, 9):
                     raise Week7DataError(f"dialogue template violation: {row['sample_id']}")
+                expected = row.get("context_expectations")
+                if not isinstance(expected, dict) or expected.get("updated_requirement") != "预算优先":
+                    raise Week7DataError(f"dialogue context expectation missing: {row['sample_id']}")
             validated[split] += 1
     return {"status": "PASS", "dataset_version": lock["dataset_version"], "lock_sha256": lock_hash, "validated_splits": dict(validated), "test_consumed": include_test, "isolation": lock["isolation"], "actual_train_ratios": lock["actual_train_ratios"]}

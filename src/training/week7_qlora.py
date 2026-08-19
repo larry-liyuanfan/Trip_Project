@@ -16,12 +16,18 @@ from src.training.week6_qlora import (
     environment_report,
     resolve_lora_targets,
 )
-from src.training.week7_data import Week7DataError, iter_jsonl, load_week7_config, sha256_file
+from src.training.week7_data import canonical_sha256, iter_jsonl, load_week7_config, sha256_file
 from src.training.week7_evaluation import summarize_raw_records
 
 
 class Week7TrainingError(ValueError):
     """Raised when Week 7 training violates a locked contract."""
+
+
+def decile_evaluation_steps(max_steps: int) -> list[int]:
+    if max_steps <= 0:
+        raise Week7TrainingError("max_steps must be positive")
+    return sorted({math.ceil(max_steps * index / 10) for index in range(1, 11)})
 
 
 def _git_commit(root: Path) -> str:
@@ -99,8 +105,7 @@ class IndexedWeek7Dataset:
 def _generate_record(root: Path, model: Any, processor: Any, row: dict[str, Any], run_id: str, max_new_tokens: int) -> dict[str, Any]:
     import torch
 
-    messages = training_messages(row)[:-1]
-    normalized = _normalize_processor_messages(messages)
+    normalized = structure_aware_messages(processor, training_messages(row), 8192)[:-1]
     started = time.perf_counter()
     failed = False
     error = None
@@ -132,6 +137,17 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
     config = load_week7_config(config_path)
     lock_root = root / config["dataset"]["output_root"] / config["dataset"]["dataset_version"]
     lock = json.loads((lock_root / "dataset_lock.json").read_text(encoding="utf-8"))
+    config_sha256 = sha256_file(config_path)
+    if lock.get("config_sha256") != config_sha256:
+        raise Week7TrainingError("training config SHA-256 does not match the dataset lock")
+    run_id = config["experiment_identity"]["multitask_sft_run_id"]
+    run_identity = {
+        "run_id": run_id,
+        "config_sha256": config_sha256,
+        "dataset_config_sha256": canonical_sha256(config["dataset"]),
+        "dataset_lock_sha256": lock["lock_sha256"],
+        "git_commit": _git_commit(root),
+    }
     if output_dir.exists() and resume_from_checkpoint is None:
         raise Week7TrainingError("refusing to overwrite an existing run")
     if resume_from_checkpoint is not None:
@@ -139,6 +155,15 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
             resume_from_checkpoint.resolve().relative_to(output_dir)
         except ValueError as exc:
             raise Week7TrainingError("resume checkpoint must be inside output_dir") from exc
+        identity_path = output_dir / "run_identity.json"
+        if not identity_path.is_file() or json.loads(identity_path.read_text(encoding="utf-8")) != run_identity:
+            raise Week7TrainingError("resume identity differs from the locked config, data, run, or commit")
+    else:
+        output_dir.mkdir(parents=True, exist_ok=False)
+        (output_dir / "run_identity.json").write_text(
+            json.dumps(run_identity, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8", newline="\n",
+        )
     report = environment_report(require_cuda=True)
     if report["status"] != "ok":
         raise Week7TrainingError(f"training environment is not ready: {report['status']}")
@@ -148,7 +173,7 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
     from peft.utils.save_and_load import load_peft_weights
     from transformers import (
         AutoProcessor, BitsAndBytesConfig, EarlyStoppingCallback,
-        Qwen3VLForConditionalGeneration, Trainer, TrainingArguments,
+        Qwen3VLForConditionalGeneration, Trainer, TrainerCallback, TrainingArguments,
     )
 
     train_config = config["training"]
@@ -198,8 +223,18 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
         return inputs
 
     total_updates = math.ceil(len(train_dataset) / int(train_config["gradient_accumulation_steps"])) * int(train_config["epochs"])
-    eval_steps = math.ceil(total_updates * float(train_config["evaluation_fraction_steps"]))
-    run_id = config["experiment_identity"]["multitask_sft_run_id"]
+    decile_steps: list[int] = []
+
+    class DecileEvaluationCallback(TrainerCallback):
+        def on_train_begin(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
+            decile_steps[:] = decile_evaluation_steps(int(state.max_steps))
+            return control
+
+        def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
+            if int(state.global_step) in decile_steps:
+                control.should_evaluate = True
+                control.should_save = True
+            return control
 
     class Week7Trainer(Trainer):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -254,7 +289,8 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
         warmup_ratio=train_config["warmup_ratio"], weight_decay=train_config["weight_decay"],
         max_grad_norm=train_config["max_grad_norm"], optim=train_config["optimizer"],
         bf16=True, gradient_checkpointing=True, logging_steps=train_config["logging_steps"],
-        eval_strategy="steps", eval_steps=eval_steps, save_strategy="steps", save_steps=eval_steps,
+        eval_strategy="steps", eval_steps=1_000_000_000,
+        save_strategy="steps", save_steps=1_000_000_000,
         save_total_limit=train_config["save_total_limit"], load_best_model_at_end=True,
         metric_for_best_model="eval_weighted_composite", greater_is_better=True,
         report_to=[], remove_unused_columns=False,
@@ -262,7 +298,10 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
     trainer = Week7Trainer(
         model=model, args=arguments, train_dataset=train_dataset, eval_dataset=eval_dataset,
         data_collator=collate,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=int(train_config["early_stopping_patience"]))],
+        callbacks=[
+            DecileEvaluationCallback(),
+            EarlyStoppingCallback(early_stopping_patience=int(train_config["early_stopping_patience"])),
+        ],
     )
     started = time.time()
     result = trainer.train(resume_from_checkpoint=str(resume_from_checkpoint) if resume_from_checkpoint else None)
@@ -277,9 +316,9 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
     checkpoints = sorted(path for path in output_dir.glob("checkpoint-*") if path.is_dir())
     summary = {
         "status": "COMPLETED", "run_id": run_id, "git_commit": _git_commit(root),
-        "config_sha256": sha256_file(config_path), "dataset_lock_sha256": lock["lock_sha256"],
+        "config_sha256": config_sha256, "dataset_lock_sha256": lock["lock_sha256"],
         "train_samples": len(train_dataset), "development_samples": len(eval_dataset),
-        "total_update_steps_planned": total_updates, "evaluation_every_steps": eval_steps,
+        "total_update_steps_planned": total_updates, "evaluation_steps": decile_steps,
         "global_step": int(trainer.state.global_step), "best_checkpoint": trainer.state.best_model_checkpoint,
         "best_metric": trainer.state.best_metric, "checkpoints": [path.name for path in checkpoints],
         "checkpoint_hashes": {path.name: sha256_file(path / "adapter_model.safetensors") for path in checkpoints if (path / "adapter_model.safetensors").is_file()},

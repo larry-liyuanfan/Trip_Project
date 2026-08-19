@@ -21,13 +21,12 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument(
         "--config",
         type=Path,
-        default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v1.json",
+        default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v2.json",
     )
     subcommands = command.add_subparsers(dest="command", required=True)
     build = subcommands.add_parser("build-lock")
     build.add_argument("--source-project-root", type=Path, required=True)
-    validate = subcommands.add_parser("validate-lock")
-    validate.add_argument("--include-test", action="store_true")
+    subcommands.add_parser("validate-lock")
     return command
 
 
@@ -38,7 +37,7 @@ def main() -> int:
         output = build_week7_lock(ROOT, args.source_project_root, config)
         print(json.dumps({"status": "PASS", "lock_root": str(output)}, ensure_ascii=False))
     else:
-        result = validate_week7_lock(ROOT, config, include_test=args.include_test)
+        result = validate_week7_lock(ROOT, config)
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

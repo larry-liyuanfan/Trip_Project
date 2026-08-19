@@ -14,13 +14,18 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.training.week6_qlora import environment_report
-from src.training.week7_inference import run_schema_experiment, run_transformers_development
+from src.training.week7_inference import (
+    combine_week6_development_baseline,
+    run_schema_experiment,
+    run_transformers_development,
+)
+from src.training.week7_final_evaluation import create_parameter_lock, run_final_test_suite
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
 
 
 def build_parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("--config", type=Path, default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v1.json")
+    result.add_argument("--config", type=Path, default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v2.json")
     commands = result.add_subparsers(dest="command", required=True)
     commands.add_parser("check-environment")
     train = commands.add_parser("train-multitask")
@@ -32,12 +37,38 @@ def build_parser() -> argparse.ArgumentParser:
     infer.add_argument("--run-id", required=True)
     infer.add_argument("--adapter-dir", type=Path)
     infer.add_argument("--model-role", default="zero_shot")
+    infer.add_argument("--scenario", choices=("image_product_search", "after_sales", "itinerary_planning"))
     infer.add_argument("--max-new-tokens", type=int, default=2048)
     schema = commands.add_parser("schema-experiment")
     schema.add_argument("--output-dir", type=Path, required=True)
     schema.add_argument("--endpoint", required=True)
     schema.add_argument("--served-model", required=True)
     schema.add_argument("--timeout", type=int, default=300)
+    combine = commands.add_parser("combine-week6-development")
+    combine.add_argument("--product-metrics", type=Path, required=True)
+    combine.add_argument("--after-sales-metrics", type=Path, required=True)
+    combine.add_argument("--itinerary-metrics", type=Path, required=True)
+    combine.add_argument("--output", type=Path, required=True)
+    lock = commands.add_parser("lock-parameters")
+    lock.add_argument("--output", type=Path, required=True)
+    lock.add_argument("--training-summary", type=Path, required=True)
+    lock.add_argument("--selected-checkpoint", type=Path, required=True)
+    lock.add_argument("--week6-product-adapter", type=Path, required=True)
+    lock.add_argument("--week6-product-sha256", required=True)
+    lock.add_argument("--week6-after-sales-adapter", type=Path, required=True)
+    lock.add_argument("--week6-after-sales-sha256", required=True)
+    lock.add_argument("--week6-itinerary-adapter", type=Path, required=True)
+    lock.add_argument("--week6-itinerary-sha256", required=True)
+    lock.add_argument("--development-week6-baseline", type=Path, required=True)
+    lock.add_argument("--development-zero-shot", type=Path, required=True)
+    lock.add_argument("--development-multitask", type=Path, required=True)
+    lock.add_argument("--schema-comparison", type=Path, required=True)
+    lock.add_argument("--schema-decoding-mode", choices=("free", "constrained"), required=True)
+    lock.add_argument("--max-new-tokens", type=int, default=2048)
+    final_test = commands.add_parser("final-test")
+    final_test.add_argument("--parameter-lock", type=Path, required=True)
+    final_test.add_argument("--output-dir", type=Path, required=True)
+    final_test.add_argument("--resume", action="store_true")
     return result
 
 
@@ -56,12 +87,46 @@ def main() -> int:
             payload = run_transformers_development(
                 ROOT, args.config, args.output_dir, run_id=args.run_id,
                 adapter_dir=args.adapter_dir, model_role=args.model_role,
-                max_new_tokens=args.max_new_tokens,
+                max_new_tokens=args.max_new_tokens, scenario=args.scenario,
             )
-        else:
+        elif args.command == "schema-experiment":
             payload = run_schema_experiment(
                 ROOT, args.config, args.output_dir, endpoint=args.endpoint,
                 served_model=args.served_model, timeout=args.timeout,
+            )
+        elif args.command == "combine-week6-development":
+            payload = combine_week6_development_baseline(
+                args.config,
+                {
+                    "image_product_search": args.product_metrics,
+                    "after_sales": args.after_sales_metrics,
+                    "itinerary_planning": args.itinerary_metrics,
+                },
+                args.output,
+            )
+        elif args.command == "lock-parameters":
+            payload = create_parameter_lock(
+                ROOT, args.config, args.output,
+                training_summary_path=args.training_summary,
+                selected_checkpoint=args.selected_checkpoint,
+                week6_adapters={
+                    "image_product_search": (args.week6_product_adapter, args.week6_product_sha256),
+                    "after_sales": (args.week6_after_sales_adapter, args.week6_after_sales_sha256),
+                    "itinerary_planning": (args.week6_itinerary_adapter, args.week6_itinerary_sha256),
+                },
+                development_evidence={
+                    "week6_development_baseline": args.development_week6_baseline,
+                    "zero_shot_development": args.development_zero_shot,
+                    "multitask_development": args.development_multitask,
+                    "schema_decoding": args.schema_comparison,
+                },
+                schema_decoding_mode=args.schema_decoding_mode,
+                max_new_tokens=args.max_new_tokens,
+            )
+        else:
+            payload = run_final_test_suite(
+                ROOT, args.config, args.parameter_lock, args.output_dir,
+                resume=args.resume,
             )
     except (OSError, ValueError, Week7TrainingError) as exc:
         raise SystemExit(f"Week 7 execution error: {exc}") from exc
