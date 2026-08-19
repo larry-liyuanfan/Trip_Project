@@ -413,6 +413,11 @@ as the current validated dataset or accepted baseline.
   `COMPLETED 0:0`，冻结结果未用于新一轮调参。
 - 结论：训练、专项门禁和独立评测闭环完成；格式质量总体稳定，但商品多标签、售后
   严重度/关键信息、行程约束泛化仍是已记录局限，不能笼统声称业务效果优秀。
+- 收尾提交 `524a30c` 的完整 unittest 370/370 与差异检查通过，并已推广到 `dev`、
+  `stg`。adapter-only、配置、训练摘要、专项门禁、最终评测、日志、报告和源代码快照
+  已写入版本化归档 `week6_quality_closeout_20260819_524a30c`；Spartan、本地 E 盘及
+  `trip-api-sg` 三处均按 `SHA256SUMS.final` 校验通过，清单 SHA-256 为
+  `8c1ac916409d2446bd0b80f2a70ebec92747ca25df93b00a5ebf997b75856b7c`。
 
 ## 2026-08-18：Week 6 固定链终态与行程专项质量门禁
 

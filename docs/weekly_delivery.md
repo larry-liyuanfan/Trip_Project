@@ -436,8 +436,11 @@ Few-Shot 证据来自独立 development 人工金标池。旧 test-gold 运行�
 - [x] JSON/Schema 分别为商品 100%/100%、售后 100%/96.67%、行程 95%/85%；
   业务指标和已知局限已写入 `reports/week6_qlora_quality_report.md`，没有用冻结结果
   继续调参。
-- [ ] 最终代码完整测试、`dev -> stg` 推广和 Spartan/本地 E 盘/`trip-api-sg`
-  增量归档仍待本次收尾完成后勾选。
+- [x] 最终代码完整测试 370/370 通过，`dev` 与 `stg` 已同步收尾提交。版本化增量归档
+  `week6_quality_closeout_20260819_524a30c` 已在 Spartan、本地 E 盘和
+  `trip-api-sg` 三处保存；三处均按 `SHA256SUMS.final` 校验 69 个交付文件通过，
+  清单本身 SHA-256 为
+  `8c1ac916409d2446bd0b80f2a70ebec92747ca25df93b00a5ebf997b75856b7c`。
 - [x] 依据 2026-08-14 最新单人预算决策，将人工验收限制为三场景各 100 条，并在每个
   队列内固定包含 10 条盲复核候选与 3 条核心抽检候选；另预留 100 次自动对话候选
   人工验收，总预算 439 次，未把其余 silver 记录改写为人工完成。
