@@ -1,0 +1,62 @@
+{
+  "status": "COMPLETED",
+  "git_commit": "bb6ecfeb2f31fdb0fb3d07bfcdde8efcb1ba443d",
+  "config_sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa",
+  "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+  "scope": "format_only",
+  "semantic_claims": "FORBIDDEN",
+  "served_model": "Qwen/Qwen3-VL-8B-Instruct",
+  "selected_production_mode": "free",
+  "slurm_attempts": [
+    {
+      "job_id": 29433885,
+      "state": "FAILED",
+      "exit_code": "255:0",
+      "elapsed": "00:00:15",
+      "reason": "Incorrect nested Apptainer cache path caused a duplicate-blob quota failure before any experiment request."
+    },
+    {
+      "job_id": 29433991,
+      "state": "CANCELLED",
+      "elapsed": "00:00:00",
+      "reason": "Cancelled before start when the final evidence audit required stronger model/raw bindings."
+    },
+    {
+      "job_id": 29434316,
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "00:11:51"
+    }
+  ],
+  "sample_count_per_mode": 90,
+  "free": {
+    "json_compliance": 0.9888888888888889,
+    "schema_coverage": 0.0,
+    "primary_failure_rate": 0.0,
+    "latency_ms_mean": 3300.724616501894
+  },
+  "constrained_primary": {
+    "json_compliance": 0.0,
+    "schema_coverage": 0.0,
+    "primary_failure_rate": 1.0,
+    "latency_ms_mean_including_fallback": 3360.3405932378437
+  },
+  "fallback": {
+    "request_count": 90,
+    "failure_count": 0,
+    "failure_rate": 0.0
+  },
+  "gates": {
+    "latency": true,
+    "free_request": true,
+    "constrained_request": false,
+    "fallback": true
+  },
+  "latency_ratio": 1.018061481541932,
+  "artifact_sha256": {
+    "comparison": "a3990057627138344e91ecd5e10df80506bd77a5e2bbe0f7591f8ab5f2b536ed",
+    "free_raw": "f961f46282e94d36c56519bc890a42d78f86c22c7cfd2b7154c4d4e2a86adcf4",
+    "constrained_raw": "84da4e92e1b7eb52979e6a24d01cb3a3fed26180aa9bd40de9c1a27020be0520"
+  },
+  "test_consumed": false
+}

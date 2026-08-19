@@ -1,0 +1,86 @@
+{
+  "status": "COMPLETED_TRAINING_BLOCKED_SELECTION",
+  "git_commit": "bb6ecfeb2f31fdb0fb3d07bfcdde8efcb1ba443d",
+  "config_sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa",
+  "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+  "run_id": "week7_multitask_context_sft_20260820_v3",
+  "slurm": {
+    "job_id": 29434317,
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "01:30:17"
+  },
+  "training": {
+    "planned_update_steps": 376,
+    "completed_global_step": 151,
+    "early_stopping_patience": 2,
+    "early_stopped": true,
+    "trainer_best_checkpoint": "checkpoint-76",
+    "trainer_best_metric": 0.8694117647058823,
+    "adapter_reload_verified": true,
+    "peak_gpu_memory_allocated_bytes": 14821381632,
+    "peak_gpu_memory_reserved_bytes": 21520973824
+  },
+  "checkpoints": [
+    {
+      "step": 38,
+      "adapter_sha256": "bc2eb3abc721f256bc45097f5b174e98e419b1afd0723d49f9f25cd86f96ebe7",
+      "metrics_sha256": "c23e3324a6f3d7a7f1a0505cff4b965fee111758e9f3e5c9867219042379f59d",
+      "raw_sha256": "ffa69483fd8f816efe39f88f1485ee16b198edf59e427f8aa0e730e39537722e",
+      "weighted_composite": 0.38753431372549024,
+      "latency_ms_mean": 11172.438284651818,
+      "failure_rate": 0.0,
+      "scenario_composite": {"image_product_search": 0.5470588235294117, "after_sales": 0.61, "itinerary_planning": 0.028333333333333335},
+      "dialogue": {"format_compliance": 0.8333333333333334, "context_recall": 0.7916666666666666}
+    },
+    {
+      "step": 76,
+      "adapter_sha256": "8a6842374dd41b5b8f820bee0983f70431f5bded25a3316644fbd26afa3c3596",
+      "metrics_sha256": "a1caa1ea30ead939386f4b7ebbce5f2bca2c9b2e16bd5448b67e02ff2185c22a",
+      "raw_sha256": "8a6872bfaf7eb63036bcebf1f661f3713d6fcf3f111afaabeef3698dcf9749ac",
+      "weighted_composite": 0.8694117647058823,
+      "latency_ms_mean": 8324.262059457078,
+      "failure_rate": 0.0,
+      "scenario_composite": {"image_product_search": 0.5647058823529411, "after_sales": 1.0, "itinerary_planning": 1.0},
+      "dialogue": {"format_compliance": 0.9583333333333334, "context_recall": 0.9652777777777778}
+    },
+    {
+      "step": 113,
+      "adapter_sha256": "58c97be24b1847f0030be19b69e05a4de6ed8c097b3622004849bafb3e19c9e5",
+      "metrics_sha256": "cc20a001005712c1a4e26986bea955bfcf3328410a297430187a33c10b68cf36",
+      "raw_sha256": "8c74ddaedad30e3171501efec19e3bd62a8ed4c02a0f737b2fc7743b5caca15b",
+      "weighted_composite": 0.8694117647058823,
+      "latency_ms_mean": 8458.606772394362,
+      "failure_rate": 0.0,
+      "scenario_composite": {"image_product_search": 0.5647058823529411, "after_sales": 1.0, "itinerary_planning": 1.0},
+      "dialogue": {"format_compliance": 1.0, "context_recall": 0.9652777777777778}
+    },
+    {
+      "step": 151,
+      "adapter_sha256": "612af9b79b63f2652e0cd5e9d0d1d9259b5fab08a69eaddbe0d186e9c8f7540b",
+      "metrics_sha256": "6f9d7c59344a45959dede687fc537adacaaefd80bcb8ddc289075ef1b922d154",
+      "raw_sha256": "1cdbcd1646716fd1f33e856744959e11304b4d7d7b9e18ce0bed2f6d5bef4f3d",
+      "weighted_composite": 0.8387863562091503,
+      "latency_ms_mean": 10354.965891280588,
+      "failure_rate": 0.0,
+      "scenario_composite": {"image_product_search": 0.5450980392156862, "after_sales": 0.9959722222222223, "itinerary_planning": 0.9333333333333332},
+      "dialogue": {"format_compliance": 1.0, "context_recall": 0.9652777777777778}
+    }
+  ],
+  "selection": {
+    "status": "BLOCKED_NO_ELIGIBLE_CHECKPOINT",
+    "candidate_count": 4,
+    "eligible_count": 0,
+    "selection_sha256": "8470b3d8107047e1da8936d021560c9000026657a09285c5b543fd962851e98d",
+    "training_summary_sha256": "b76991f45265ab44a7b7a9ab22aaaa233798e5aee8b00dec78b94a776d881294",
+    "blocking_gates": [
+      "all checkpoints exceeded the preregistered 1.25x full-development latency limit",
+      "all checkpoints had image_product_search label_completeness support below the Week 6 baseline",
+      "step 38 additionally failed itinerary task/format gates",
+      "step 151 additionally failed itinerary format gate"
+    ]
+  },
+  "parameter_lock_status": "NOT_CREATED",
+  "final_test_status": "NOT_RUN_TEST_UNCONSUMED",
+  "human_dialogue_status": "PENDING_REAL_HUMAN_INPUT"
+}

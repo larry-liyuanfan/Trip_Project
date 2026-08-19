@@ -560,20 +560,25 @@ for mentor review, and promoted from `stg` to `main` only after approval. A
 completed checklist is updated on `dev` before promotion so all downstream
 branches inherit the same delivery state.
 
-## Week 7 Delivery Status（2026-08-19）
+## Week 7 Delivery Status（2026-08-20）
 
 - [x] 从指定 Week 6 终态提交创建隔离分支，旧工作树保持不变。
-- [x] 新 train/development/test 锁通过 sample/source/image/group/template 五维隔离；
-  test 未运行。
-- [x] 固定实际混合比例：核心场景各 760、通用正则 9%、多轮对话 15%。
+- [x] v3 train/development/test 锁通过 sample/source/image/group/template 五维隔离；
+  test 未运行，对话父任务在三场景间为 150/150/150、8/8/8、8/8/8。
+- [x] 固定实际混合比例：核心场景各 760、通用正则 9%、多轮对话 15%，工具调用占
+  对话 10%。
 - [x] 固定 QLoRA/SFT、结构感知截断、完整 development 生成评估、checkpoint 和早停实现。
 - [x] 固定 Schema constrained decoding 的 format-only 对照实现，禁止语义提升结论。
 - [x] 对话 24 条人工队列保持空白，未由 Agent 代填。
 - [x] DPO 门禁为 `SKIPPED`：0 条偏好对通过真实质量与视觉证据审核。
-- [x] 本地定向 5/5、完整 unittest 375/375、锁验证、shell 语法和 diff 检查通过。
-- [ ] Week 6 adapter development 基线：`PENDING_EXTERNAL_GPU_ACCESS`。
-- [ ] Schema 自由/受约束实际结果：`PENDING_EXTERNAL_GPU_ACCESS`。
-- [ ] 多任务训练、checkpoint 和三场景/对话自动指标：`PENDING_EXTERNAL_GPU_ACCESS`。
-- [ ] 参数锁与一次性 test：前置训练未完成，因此未消费 test。
+- [x] 完整 unittest 401/401、compileall、锁验证、五份 shell 语法和 diff 检查通过。
+- [x] Week 6 adapters 与零样本的完整 114 条 development 基线已生成并哈希绑定。
+- [x] Schema 自由/受约束实际对照完成；constrained primary 90/90 请求失败，free
+  fallback 90/90 成功，生产模式锁定 free，未宣称语义提升。
+- [x] 多任务训练在 step 151 早停并正常完成，四个 checkpoint/raw/metrics 已保存和哈希
+  绑定；最高综合分 step 76 为 0.869412。
+- [ ] 参数锁与一次性 test：selector 因全部 checkpoint 的延迟和商品支持数门禁失败而
+  `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，故按规则未创建参数锁、未消费 test。
 - [ ] 对话人工四维评分：`PENDING_REAL_HUMAN_INPUT`。
-- [x] 分支已首次推送；最终文档提交后仍需再次推送。未进入 `dev`、`stg`，未打标签。
+- [x] 分支证据门禁提交 `bb6ecfe` 与最终 GPU 结果/文档收尾提交均已推送。因自动验收
+  未全部通过，未快进 `dev`；未进入 `stg`，未打标签。

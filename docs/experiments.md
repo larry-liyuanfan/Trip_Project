@@ -377,22 +377,31 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
-## 2026-08-19：Week 7 新锁与未启动 GPU 实验
+## 2026-08-20：Week 7 v3 development、Schema 与统一训练
 
-- 权威配置：`configs/week7/qwen3_vl_8b_multitask_context_v1.json`，SHA-256
-  `0473660a84a4a66668a3227c25f73666f8cdd214fb818d592a2bb9fae42725e8`；随机种子
-  `20260819`。数据锁和排除证据见 `experiments/week7_data_lock_20260819_v1.json`。
-- 数据锁生成命令：`python scripts/manage_week7.py build-lock --source-project-root
-  E:\\Project\\Trip_Project`；无 test 验证命令：`python scripts/manage_week7.py
-  validate-lock`，实际返回 train 3000、development 114、`test_consumed=false`。
-- 预注册运行：Week 6 adapters development baseline、free/constrained Schema、统一 SFT
-  和 final test 均有唯一 run ID；本次未产生 GPU job ID、原始模型输出、指标或 checkpoint。
-- 本机 `check-environment` 返回 `missing_dependencies`。Spartan 既有 Trip OOD 终端受另一
-  浏览器控制会话占用；遵守不新建重复终端和不提交竞争作业规则，本次未提交 Slurm。
-- DPO 门禁记录为 `experiments/week7_dpo_gate_20260819_v1.json`：真实审核通过偏好对 0，
-  因此按要求 `SKIPPED`，没有自举或伪造偏好对。
-- 失败记录：前三次锁构建分别因 `_business_attributes` 名称、`categories` 字段和
-  train/test synthetic 图片哈希碰撞失败；修复后成功锁独立生成，失败目录未冒充交付。
+- 权威配置：`configs/week7/qwen3_vl_8b_multitask_context_v3.json`，SHA-256
+  `d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa`；数据锁
+  `week7_fresh_multitask_context_20260820_v3`，SHA-256
+  `8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d`。详细计数与
+  隔离证据见 `experiments/week7_data_lock_20260820_v3.json`。
+- v2 对话 train/development/test 分别为商品父任务 450/24/24，售后和行程均为 0；GPU
+  作业 `29431992` 已取消并排除。该失败不修改既有锁，v3 以全新身份重建。
+- development 作业 `29433880`–`29433884` 完成，Week 6 adapters 与 zero-shot 的
+  raw/metrics SHA、支持数及重算值见
+  `experiments/week7_development_baselines_20260820_v3.json`。
+- Schema 最终作业 `29434316` 完成；free/constrained 各 90 条。free JSON 合规率
+  98.89%；constrained primary 失败率 100%，free fallback 失败率 0%，配对延迟比
+  1.0181。只选 free，且格式结果不得解释为语义提升。完整哈希与失败/取消尝试见
+  `experiments/week7_schema_decoding_20260820_v3.json`。
+- 统一训练作业 `29434317` 使用一张 L40S，运行身份
+  `week7_multitask_context_sft_20260820_v3`，step 151 早停并正常完成。step 76/113
+  综合分最高为 0.869412，但全局延迟比分别为 1.4276/1.4506，四个 checkpoint 还都
+  存在商品支持数不足；selector 返回 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`。详见
+  `experiments/week7_multitask_training_20260820_v3.json`；未创建 parameter-lock，
+  final-test 未运行。
+- DPO 门禁见 `experiments/week7_dpo_gate_20260820_v3.json`：真实审核偏好对为 0，
+  因此 `SKIPPED`。完整 unittest 401/401，compileall、五份 Slurm `bash -n`、锁验证和
+  diff 检查通过。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
