@@ -1,0 +1,4 @@
+model_name: Qwen/Qwen3-VL-8B-Instruct
+served_model_name: Qwen/Qwen3-VL-8B-Instruct
+backend: transformers_peft_nf4
+
