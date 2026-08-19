@@ -25,7 +25,7 @@ from src.evaluation.provenance import (
     canonical_sha256,
 )
 from src.evaluation.results import ImmutableRunWriter, parse_and_validate_output
-from src.inference.client import normalize_image_url
+from src.inference.transport_utils import normalize_image_url
 
 
 ModelTransport = Callable[[str, dict[str, Any], int], str]

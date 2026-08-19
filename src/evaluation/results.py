@@ -9,7 +9,7 @@ from typing import Any, TextIO
 from src.evaluation.scenarios import SCENARIOS
 from src.evaluation.provenance import SHA256_PATTERN
 from src.evaluation.schema_validation import SchemaValidationError, validate_output
-from src.inference.client import strip_json_fence
+from src.inference.transport_utils import strip_json_fence
 
 
 RESULT_FIELDS = {
