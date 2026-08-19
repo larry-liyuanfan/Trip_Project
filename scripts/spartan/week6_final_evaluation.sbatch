@@ -76,4 +76,3 @@ fi
 
 write_state "completed" 0
 sync
-

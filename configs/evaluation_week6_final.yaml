@@ -62,4 +62,3 @@ scenarios:
       stratum_field: coverage_group
       quotas:
         paired_reference_and_text: 100
-
