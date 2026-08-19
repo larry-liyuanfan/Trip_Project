@@ -27,7 +27,8 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export PYTHONUNBUFFERED=1
 export APPTAINER_CACHEDIR="${TRIP_CONTAINER_CACHE}"
-export APPTAINER_TMPDIR="${TRIP_CONTAINER_CACHE}/tmp/${SLURM_JOB_ID:-manual}"
+node_tmp_root="${SLURM_TMPDIR:-/tmp}"
+export APPTAINER_TMPDIR="${node_tmp_root}/trip-week7-schema-${SLURM_JOB_ID:-manual}"
 export TRIP_VLLM_IMAGE="${TRIP_VLLM_IMAGE:-docker://vllm/vllm-openai:v0.11.0}"
 export TRIP_RUNTIME_HOME="${TRIP_RUNTIME_HOME:-${TRIP_HF_HOME}/runtime-home}"
 export TRIP_RUNTIME_CACHE="${TRIP_RUNTIME_CACHE:-${TRIP_RUNTIME_HOME}/.cache}"
@@ -58,6 +59,7 @@ cleanup() {
     kill "${VLLM_PID}" || true
     wait "${VLLM_PID}" || true
   fi
+  rmdir "${APPTAINER_TMPDIR}" 2>/dev/null || true
   sync
 }
 trap cleanup EXIT INT TERM
