@@ -1,6 +1,6 @@
 """Configuration loading and validation for the Week 3 evaluation framework."""
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from src.data.yelp_paths import parse_simple_yaml
@@ -146,5 +146,10 @@ def _require_relative_path(value: Any, field: str) -> None:
     if not isinstance(value, str) or not value.strip():
         raise ManifestValidationError(f"{field} must be a non-empty repository-relative path")
     candidate = Path(value)
-    if candidate.is_absolute() or ".." in candidate.parts:
+    if (
+        candidate.is_absolute()
+        or PurePosixPath(value).is_absolute()
+        or PureWindowsPath(value).is_absolute()
+        or ".." in candidate.parts
+    ):
         raise ManifestValidationError(f"{field} must be repository-relative")
