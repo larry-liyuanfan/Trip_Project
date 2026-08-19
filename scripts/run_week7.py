@@ -18,6 +18,7 @@ from src.training.week7_inference import (
     combine_week6_development_baseline,
     run_schema_experiment,
     run_transformers_development,
+    run_week6_dialogue_development,
 )
 from src.training.week7_final_evaluation import create_parameter_lock, run_final_test_suite
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
@@ -26,7 +27,7 @@ from src.training.week7_selection import select_development_checkpoint
 
 def build_parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("--config", type=Path, default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v2.json")
+    result.add_argument("--config", type=Path, default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v3.json")
     commands = result.add_subparsers(dest="command", required=True)
     commands.add_parser("check-environment")
     train = commands.add_parser("train-multitask")
@@ -40,6 +41,12 @@ def build_parser() -> argparse.ArgumentParser:
     infer.add_argument("--model-role", default="zero_shot")
     infer.add_argument("--scenario", choices=("image_product_search", "after_sales", "itinerary_planning"))
     infer.add_argument("--max-new-tokens", type=int, default=2048)
+    dialogue = commands.add_parser("evaluate-week6-dialogue-development")
+    dialogue.add_argument("--output-dir", type=Path, required=True)
+    dialogue.add_argument("--product-adapter", type=Path, required=True)
+    dialogue.add_argument("--after-sales-adapter", type=Path, required=True)
+    dialogue.add_argument("--itinerary-adapter", type=Path, required=True)
+    dialogue.add_argument("--max-new-tokens", type=int, default=2048)
     schema = commands.add_parser("schema-experiment")
     schema.add_argument("--output-dir", type=Path, required=True)
     schema.add_argument("--endpoint", required=True)
@@ -49,14 +56,17 @@ def build_parser() -> argparse.ArgumentParser:
     combine.add_argument("--product-metrics", type=Path, required=True)
     combine.add_argument("--after-sales-metrics", type=Path, required=True)
     combine.add_argument("--itinerary-metrics", type=Path, required=True)
+    combine.add_argument("--dialogue-metrics", type=Path, required=True)
     combine.add_argument("--output", type=Path, required=True)
     select = commands.add_parser("select-checkpoint")
     select.add_argument("--training-dir", type=Path, required=True)
+    select.add_argument("--training-summary", type=Path, required=True)
     select.add_argument("--week6-baseline", type=Path, required=True)
     select.add_argument("--output", type=Path, required=True)
     lock = commands.add_parser("lock-parameters")
     lock.add_argument("--output", type=Path, required=True)
     lock.add_argument("--training-summary", type=Path, required=True)
+    lock.add_argument("--selection", type=Path, required=True)
     lock.add_argument("--selected-checkpoint", type=Path, required=True)
     lock.add_argument("--week6-product-adapter", type=Path, required=True)
     lock.add_argument("--week6-product-sha256", required=True)
@@ -99,6 +109,16 @@ def main() -> int:
                 ROOT, args.config, args.output_dir, endpoint=args.endpoint,
                 served_model=args.served_model, timeout=args.timeout,
             )
+        elif args.command == "evaluate-week6-dialogue-development":
+            payload = run_week6_dialogue_development(
+                ROOT, args.config, args.output_dir,
+                adapter_dirs={
+                    "image_product_search": args.product_adapter,
+                    "after_sales": args.after_sales_adapter,
+                    "itinerary_planning": args.itinerary_adapter,
+                },
+                max_new_tokens=args.max_new_tokens,
+            )
         elif args.command == "combine-week6-development":
             payload = combine_week6_development_baseline(
                 args.config,
@@ -107,16 +127,19 @@ def main() -> int:
                     "after_sales": args.after_sales_metrics,
                     "itinerary_planning": args.itinerary_metrics,
                 },
+                args.dialogue_metrics,
                 args.output,
             )
         elif args.command == "select-checkpoint":
             payload = select_development_checkpoint(
-                args.config, args.training_dir, args.week6_baseline, args.output,
+                args.config, args.training_dir, args.training_summary,
+                args.week6_baseline, args.output,
             )
         elif args.command == "lock-parameters":
             payload = create_parameter_lock(
                 ROOT, args.config, args.output,
                 training_summary_path=args.training_summary,
+                selection_path=args.selection,
                 selected_checkpoint=args.selected_checkpoint,
                 week6_adapters={
                     "image_product_search": (args.week6_product_adapter, args.week6_product_sha256),

@@ -70,7 +70,10 @@ def write_jsonl_new(path: Path, rows: Iterable[dict[str, Any]]) -> int:
 
 def load_week7_config(path: Path) -> dict[str, Any]:
     config = json.loads(Path(path).read_text(encoding="utf-8"))
-    if config.get("schema_version") not in {"week7_multitask_context_v1", "week7_multitask_context_v2"}:
+    if config.get("schema_version") not in {
+        "week7_multitask_context_v1", "week7_multitask_context_v2",
+        "week7_multitask_context_v3",
+    }:
         raise Week7DataError("unsupported Week 7 config")
     if config.get("base_model") != "Qwen/Qwen3-VL-8B-Instruct":
         raise Week7DataError("Week 7 base model changed")
@@ -91,6 +94,41 @@ def load_week7_config(path: Path) -> dict[str, Any]:
         raise Week7DataError("Week 7 evaluation cadence or patience changed")
     if config["dynamic_adjustment_policy"]["in_place_changes_allowed"] is not False:
         raise Week7DataError("in-place dynamic adjustment is forbidden")
+    if config["schema_version"].endswith("v3"):
+        expected_dialogue_counts = {
+            "train": int(dataset["dialogue_count"]),
+            "development": int(dataset["development_dialogue_count"]),
+            "test": int(dataset["test_dialogue_count"]),
+        }
+        declared = config["sampling"].get("dialogue_parent_scenario_counts")
+        if config["sampling"].get("dialogue_parent_strategy") != "balanced_round_robin_core_scenarios_v1":
+            raise Week7DataError("v3 dialogue parent strategy changed")
+        if not isinstance(declared, dict) or set(declared) != set(expected_dialogue_counts):
+            raise Week7DataError("v3 dialogue parent counts are incomplete")
+        for split, total_count in expected_dialogue_counts.items():
+            counts = declared[split]
+            if (
+                not isinstance(counts, dict)
+                or set(counts) != set(CORE_SCENARIOS)
+                or len(set(int(counts[name]) for name in CORE_SCENARIOS)) != 1
+                or sum(int(counts[name]) for name in CORE_SCENARIOS) != total_count
+            ):
+                raise Week7DataError(f"v3 dialogue parent counts are not balanced: {split}")
+        identity = config.get("experiment_identity", {})
+        required_run_ids = {
+            *identity.get("development_baseline_run_ids", {}).values(),
+            identity.get("week6_dialogue_development_run_id"),
+            identity.get("week6_combined_development_run_id"),
+            identity.get("zero_shot_development_run_id"),
+            identity.get("schema_free_run_id"),
+            identity.get("schema_constrained_run_id"),
+            identity.get("multitask_sft_run_id"),
+            identity.get("test_run_id"),
+        }
+        if None in required_run_ids or len(required_run_ids) != 10 or any(
+            not str(run_id).endswith("_v3") for run_id in required_run_ids
+        ):
+            raise Week7DataError("v3 experiment run IDs are incomplete, reused, or not v3")
     return config
 
 
@@ -440,10 +478,42 @@ def _dialogue_row(parent: dict[str, Any], split: str, ordinal: int, tool_fractio
     row = _row(f"week7-{split}-dialogue-{ordinal:04d}", "dialogue", split, identity, messages, target, "programmatic_silver", weight)
     row.update({
         "parent_sample_id": parent["sample_id"], "dialogue_rounds": rounds,
+        "parent_scenario": parent.get("scenario"),
         "evaluation_dimensions": list(DIALOGUE_DIMENSIONS), "contains_tool_call": tool_call,
         "context_expectations": target["context_state"],
     })
     return row
+
+
+def _balanced_dialogue_rows(
+    parents: list[dict[str, Any]], split: str, config: dict[str, Any], weight: float,
+) -> list[dict[str, Any]]:
+    """Select deterministic, exactly balanced dialogue parents across the three tasks."""
+    declared = config["sampling"]["dialogue_parent_scenario_counts"][split]
+    by_scenario = {
+        scenario: [row for row in parents if row.get("scenario") == scenario]
+        for scenario in CORE_SCENARIOS
+    }
+    if any(not by_scenario[scenario] for scenario in CORE_SCENARIOS):
+        raise Week7DataError(f"core parents do not cover all dialogue routes: {split}")
+    total = sum(int(declared[scenario]) for scenario in CORE_SCENARIOS)
+    rows = []
+    used = Counter()
+    for ordinal in range(total):
+        scenario = CORE_SCENARIOS[ordinal % len(CORE_SCENARIOS)]
+        route_index = used[scenario]
+        route_total = int(declared[scenario])
+        pool = by_scenario[scenario]
+        parent_index = route_index * len(pool) // route_total
+        rows.append(_dialogue_row(
+            pool[parent_index], split, ordinal,
+            float(config["sampling"]["tool_call_dialogue_fraction"]), weight,
+        ))
+        used[scenario] += 1
+    expected = {scenario: int(declared[scenario]) for scenario in CORE_SCENARIOS}
+    if dict(used) != expected:
+        raise Week7DataError(f"dialogue parent balancing failed: {split}")
+    return rows
 
 
 def _validate_partition_isolation(rows_by_split: dict[str, list[dict[str, Any]]], consumed: dict[str, set[str]]) -> dict[str, Any]:
@@ -530,8 +600,21 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
     dialogue_counts = {"train": int(dataset["dialogue_count"]), "development": int(dataset["development_dialogue_count"]), "test": int(dataset["test_dialogue_count"])}
     dialogues: dict[str, list[dict[str, Any]]] = {}
     for split, count in dialogue_counts.items():
-        parents = core[split]
-        dialogues[split] = [_dialogue_row(parents[index % len(parents)], split, index, float(config["sampling"]["tool_call_dialogue_fraction"]), silver_weight) for index in range(count)]
+        if config["schema_version"].endswith("v3"):
+            dialogues[split] = _balanced_dialogue_rows(
+                core[split], split, config, silver_weight,
+            )
+            if len(dialogues[split]) != count:
+                raise Week7DataError(f"dialogue support count changed: {split}")
+        else:
+            parents = core[split]
+            dialogues[split] = [
+                _dialogue_row(
+                    parents[index % len(parents)], split, index,
+                    float(config["sampling"]["tool_call_dialogue_fraction"]), silver_weight,
+                )
+                for index in range(count)
+            ]
     tool_call_ratios = {
         split: sum(bool(row["contains_tool_call"]) for row in rows) / len(rows)
         for split, rows in dialogues.items()
@@ -561,13 +644,21 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
     files["dialogue_human_review_queue.jsonl"] = {"count": len(queue), "sha256": sha256_file(output / "dialogue_human_review_queue.jsonl")}
     counts = {split: dict(Counter(row["scenario"] for row in rows)) for split, rows in rows_by_split.items()}
     lock = {
-        "schema_version": "week7_dataset_lock_v2" if config["schema_version"].endswith("v2") else "week7_dataset_lock_v1",
+        "schema_version": (
+            "week7_dataset_lock_v3" if config["schema_version"].endswith("v3")
+            else "week7_dataset_lock_v2" if config["schema_version"].endswith("v2")
+            else "week7_dataset_lock_v1"
+        ),
         "dataset_version": dataset["dataset_version"],
         "seed": dataset["seed"], "config_sha256": sha256_file(config_path),
         "source_project_root_recorded": str(source_root), "exclusion_evidence": exclusion_evidence,
         "week5_dialogue_audit": dialogue_audit, "counts": counts,
         "actual_train_ratios": {"general_multimodal": len(general) / len(rows_by_split["train"]), "dialogue": len(dialogues["train"]) / len(rows_by_split["train"])},
         "isolation": isolation, "files": files, "actual_tool_call_ratios": tool_call_ratios,
+        "dialogue_parent_scenario_counts": {
+            split: dict(Counter(row.get("parent_scenario") for row in rows))
+            for split, rows in dialogues.items()
+        },
         "test_policy": {"status": "LOCKED_UNCONSUMED", "may_read_only_after_parameter_lock": True, "maximum_evaluations": 1},
         "label_policy": {"week7_rows": "programmatic_silver", "human_accepted_rows": 0, "human_queue_status": "PENDING_REAL_HUMAN_INPUT"},
     }
@@ -593,6 +684,9 @@ def validate_week7_lock(root: Path, config_path: Path, *, include_test: bool = F
     lock["lock_sha256"] = lock_hash
     splits = ["train", "development"]
     validated = Counter()
+    dialogue_parent_counts: dict[str, Counter[str]] = {
+        split: Counter() for split in splits
+    }
     for split in splits:
         path = output / f"{split}.jsonl"
         if sha256_file(path) != lock["files"][path.name]["sha256"]:
@@ -608,6 +702,7 @@ def validate_week7_lock(root: Path, config_path: Path, *, include_test: bool = F
                         if row["target"][field] and unknown_name in row["target"]["unknown_fields"]:
                             raise Week7DataError(f"contradictory product unknown field: {row['sample_id']}")
             if row["scenario"] == "dialogue":
+                dialogue_parent_counts[split][str(row.get("parent_scenario"))] += 1
                 image_blocks = [item for message in row["messages"] for item in (message.get("content") if isinstance(message.get("content"), list) else []) if isinstance(item, dict) and item.get("type") == "image"]
                 if len(image_blocks) != 1 or row["dialogue_rounds"] not in range(5, 9):
                     raise Week7DataError(f"dialogue template violation: {row['sample_id']}")
@@ -615,4 +710,19 @@ def validate_week7_lock(root: Path, config_path: Path, *, include_test: bool = F
                 if not isinstance(expected, dict) or expected.get("updated_requirement") != "预算优先":
                     raise Week7DataError(f"dialogue context expectation missing: {row['sample_id']}")
             validated[split] += 1
+    if config["schema_version"].endswith("v3"):
+        declared = config["sampling"]["dialogue_parent_scenario_counts"]
+        for split in splits:
+            expected = {
+                scenario: int(declared[split][scenario]) for scenario in CORE_SCENARIOS
+            }
+            if dict(dialogue_parent_counts[split]) != expected:
+                raise Week7DataError(f"dialogue parent distribution changed: {split}")
+            if lock.get("dialogue_parent_scenario_counts", {}).get(split) != expected:
+                raise Week7DataError(f"locked dialogue parent distribution changed: {split}")
+        expected_test = {
+            scenario: int(declared["test"][scenario]) for scenario in CORE_SCENARIOS
+        }
+        if lock.get("dialogue_parent_scenario_counts", {}).get("test") != expected_test:
+            raise Week7DataError("locked test dialogue parent distribution changed")
     return {"status": "PASS", "dataset_version": lock["dataset_version"], "lock_sha256": lock_hash, "validated_splits": dict(validated), "test_consumed": include_test, "isolation": lock["isolation"], "actual_train_ratios": lock["actual_train_ratios"]}

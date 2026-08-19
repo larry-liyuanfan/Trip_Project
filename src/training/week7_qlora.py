@@ -256,6 +256,15 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
             self.model.eval()
             records = [_generate_record(root, self.model, processor, row, run_id, 2048) for row in development_rows]
             summary = summarize_raw_records(root, config, development_rows, records)
+            summary.update({
+                "status": "COMPLETED",
+                "model_role": "multitask_checkpoint",
+                "split": "development",
+                "run_id": f"{run_id}_development_step_{step:06d}",
+                "config_sha256": config_sha256,
+                "dataset_lock_sha256": lock["lock_sha256"],
+                "global_step": step,
+            })
             evaluation_dir = output_dir / "development_evaluations" / f"step-{step:06d}"
             evaluation_dir.mkdir(parents=True, exist_ok=False)
             with (evaluation_dir / "raw_outputs.jsonl").open("x", encoding="utf-8", newline="\n") as handle:

@@ -100,6 +100,50 @@ def score_dialogue_record(row: dict[str, Any], raw_output: str, latency_ms: floa
     }
 
 
+def summarize_dialogue_raw_records(
+    rows: Iterable[dict[str, Any]], records: Iterable[dict[str, Any]],
+) -> dict[str, Any]:
+    """Summarize an exact dialogue-only development run without fabricating task metrics."""
+    rows_by_id = {row["sample_id"]: row for row in rows}
+    if not rows_by_id or any(row.get("scenario") != "dialogue" for row in rows_by_id.values()):
+        raise Week7EvaluationError("dialogue summary requires dialogue-only rows")
+    records_list = list(records)
+    if (
+        len(records_list) != len(rows_by_id)
+        or {record.get("sample_id") for record in records_list} != set(rows_by_id)
+    ):
+        raise Week7EvaluationError("raw records do not exactly cover the dialogue rows")
+    scores = []
+    latencies = []
+    failures = 0
+    for record in records_list:
+        row = rows_by_id[record["sample_id"]]
+        raw = record.get("raw_output")
+        if not isinstance(raw, str):
+            raw = ""
+        latency = float(record.get("latency_ms", 0.0))
+        failed = bool(record.get("failed"))
+        scores.append(score_dialogue_record(row, raw, latency, failed))
+        latencies.append(latency)
+        failures += failed
+    return {
+        "sample_count": len(records_list),
+        "weighted_composite": None,
+        "scenarios": {},
+        "dialogue": {
+            "sample_count": len(scores),
+            "format_compliance": statistics.fmean(item["format_compliance"] for item in scores),
+            "context_recall": statistics.fmean(item["context_recall"] for item in scores),
+            "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT",
+            "scores": scores,
+        },
+        "latency_ms_mean": statistics.fmean(latencies),
+        "latency_ms_median": statistics.median(latencies),
+        "failure_count": failures,
+        "failure_rate": failures / len(records_list),
+    }
+
+
 def summarize_raw_records(root: Path, config: dict[str, Any], rows: Iterable[dict[str, Any]], records: Iterable[dict[str, Any]]) -> dict[str, Any]:
     rows_by_id = {row["sample_id"]: row for row in rows}
     records_list = list(records)

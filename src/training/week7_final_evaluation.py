@@ -16,6 +16,7 @@ from src.training.week6_qlora import environment_report
 from src.training.week7_data import CORE_SCENARIOS, canonical_sha256, iter_jsonl, load_week7_config, sha256_file
 from src.training.week7_evaluation import Week7EvaluationError, summarize_raw_records
 from src.training.week7_qlora import Week7TrainingError, structure_aware_messages, training_messages
+from src.training.week7_selection import evaluate_development_candidate
 
 
 REQUIRED_DEVELOPMENT_EVIDENCE = {
@@ -100,6 +101,7 @@ def _validate_development_evidence(
     config_sha256: str,
     dataset_lock_sha256: str,
     selected_checkpoint_sha256: str,
+    selected_step: int | None = None,
 ) -> dict[str, Any]:
     """Validate evidence semantics, not merely its completion flag."""
     identity = config["experiment_identity"]
@@ -116,11 +118,25 @@ def _validate_development_evidence(
         )
         if set(evidence.get("scenarios", {})) != set(CORE_SCENARIOS):
             raise Week7EvaluationError("Week 6 development scenario coverage mismatch")
-        if int(evidence.get("sample_count", -1)) != core_total:
+        expected_combined_run = identity.get(
+            "week6_combined_development_run_id",
+            "week7_dev_week6_adapters_baseline_20260819_v2",
+        )
+        if evidence.get("run_id") != expected_combined_run:
+            raise Week7EvaluationError("Week 6 combined development run identity mismatch")
+        if (
+            int(evidence.get("sample_count", -1)) != full_total
+            or not isinstance(evidence.get("dialogue"), dict)
+            or int(evidence["dialogue"].get("sample_count", -1)) != development_dialogue
+        ):
             raise Week7EvaluationError("Week 6 development support count mismatch")
         inputs = evidence.get("inputs", {})
-        if set(inputs) != set(CORE_SCENARIOS):
+        if set(inputs) != set(CORE_SCENARIOS) | {"dialogue"}:
             raise Week7EvaluationError("Week 6 development input evidence is incomplete")
+        input_sample_count = 0
+        input_failure_count = 0
+        input_latency_sum = 0.0
+        scenario_payloads: dict[str, Any] = {}
         for scenario in CORE_SCENARIOS:
             input_spec = inputs[scenario]
             path = Path(str(input_spec.get("path", "")))
@@ -142,19 +158,118 @@ def _validate_development_evidence(
                 != config["evaluation"]["week6_adapter_sha256"][scenario]
             ):
                 raise Week7EvaluationError(f"Week 6 scenario evidence mismatch: {scenario}")
+            scenario_payloads[scenario] = scenario_evidence["scenarios"][scenario]
+            if canonical_sha256(scenario_payloads[scenario]) != canonical_sha256(
+                evidence["scenarios"][scenario]
+            ):
+                raise Week7EvaluationError(
+                    f"Week 6 combined scenario differs from input: {scenario}"
+                )
+            input_sample_count += int(scenario_evidence["sample_count"])
+            input_failure_count += int(scenario_evidence["failure_count"])
+            input_latency_sum += (
+                float(scenario_evidence["latency_ms_mean"])
+                * int(scenario_evidence["sample_count"])
+            )
+        dialogue_spec = inputs["dialogue"]
+        dialogue_path = Path(str(dialogue_spec.get("path", "")))
+        if not dialogue_path.is_file() or sha256_file(dialogue_path) != dialogue_spec.get("sha256"):
+            raise Week7EvaluationError("Week 6 dialogue evidence hash mismatch")
+        dialogue_evidence = _read_json(dialogue_path)
+        _require_evidence_identity(
+            f"{name}.dialogue", dialogue_evidence,
+            config_sha256=config_sha256,
+            dataset_lock_sha256=dataset_lock_sha256,
+            model_role="week6_single_task_adapters",
+        )
+        dialogue_hashes = dialogue_evidence.get("adapter_hashes", {})
+        route_counts = dialogue_evidence.get("routing", {}).get("sample_counts", {})
+        expected_route_counts = config["sampling"].get(
+            "dialogue_parent_scenario_counts", {}
+        ).get(
+            "development",
+            {
+                scenario: development_dialogue // len(CORE_SCENARIOS)
+                for scenario in CORE_SCENARIOS
+            },
+        )
+        if (
+            dialogue_evidence.get("run_id") != identity.get(
+                "week6_dialogue_development_run_id",
+                "week7_dev_week6_dialogue_routed_20260819_v2",
+            )
+            or dialogue_evidence.get("scenario_filter") != "dialogue_routed"
+            or int(dialogue_evidence.get("sample_count", -1)) != development_dialogue
+            or set(dialogue_evidence.get("scenarios", {}))
+            or not isinstance(dialogue_evidence.get("dialogue"), dict)
+            or int(dialogue_evidence["dialogue"].get("sample_count", -1)) != development_dialogue
+            or set(dialogue_hashes) != set(CORE_SCENARIOS)
+            or any(
+                dialogue_hashes[scenario].get("adapter_model.safetensors")
+                != config["evaluation"]["week6_adapter_sha256"][scenario]
+                for scenario in CORE_SCENARIOS
+            )
+            or dialogue_evidence.get("routing", {}).get("method")
+            != "target_task_result_v1"
+            or route_counts != expected_route_counts
+        ):
+            raise Week7EvaluationError("Week 6 dialogue evidence mismatch")
+        if canonical_sha256(dialogue_evidence["dialogue"]) != canonical_sha256(
+            evidence["dialogue"]
+        ):
+            raise Week7EvaluationError("Week 6 combined dialogue differs from input")
+        input_sample_count += int(dialogue_evidence["sample_count"])
+        input_failure_count += int(dialogue_evidence["failure_count"])
+        input_latency_sum += (
+            float(dialogue_evidence["latency_ms_mean"])
+            * int(dialogue_evidence["sample_count"])
+        )
+        weights = config["evaluation"]["scenario_weights"]
+        weighted_composite = sum(
+            float(weights[scenario]) * float(scenario_payloads[scenario]["composite"])
+            for scenario in CORE_SCENARIOS
+        )
+        if (
+            input_sample_count != full_total
+            or int(evidence.get("failure_count", -1)) != input_failure_count
+            or not math.isclose(
+                float(evidence.get("failure_rate", -1.0)),
+                input_failure_count / input_sample_count,
+                rel_tol=0,
+                abs_tol=1e-12,
+            )
+            or not math.isclose(
+                float(evidence.get("latency_ms_mean", -1.0)),
+                input_latency_sum / input_sample_count,
+                rel_tol=0,
+                abs_tol=1e-9,
+            )
+            or evidence.get("latency_ms_median") is not None
+            or not math.isclose(
+                float(evidence.get("weighted_composite", -1.0)),
+                weighted_composite,
+                rel_tol=0,
+                abs_tol=1e-12,
+            )
+        ):
+            raise Week7EvaluationError("Week 6 combined development aggregate mismatch")
         return {
             "run_id": evidence.get("run_id"),
             "model_role": evidence["model_role"],
             "scenario_coverage": sorted(evidence["scenarios"]),
-            "sample_count": core_total,
+            "dialogue_sample_count": development_dialogue,
+            "sample_count": full_total,
         }
 
     if name in {"zero_shot_development", "multitask_development"}:
         is_zero = name == "zero_shot_development"
-        role = "zero_shot" if is_zero else "multitask"
+        role = "zero_shot" if is_zero else "multitask_checkpoint"
+        if not is_zero and (selected_step is None or selected_step <= 0):
+            raise Week7EvaluationError("selected checkpoint step is required")
         expected_run = (
             identity["zero_shot_development_run_id"]
-            if is_zero else f"{identity['multitask_sft_run_id']}_development"
+            if is_zero
+            else f"{identity['multitask_sft_run_id']}_development_step_{selected_step:06d}"
         )
         _require_evidence_identity(
             name, evidence, config_sha256=config_sha256,
@@ -167,18 +282,18 @@ def _validate_development_evidence(
             or int(evidence.get("sample_count", -1)) != full_total
             or not isinstance(evidence.get("dialogue"), dict)
             or int(evidence["dialogue"].get("sample_count", -1)) != development_dialogue
+            or (not is_zero and int(evidence.get("global_step", -1)) != selected_step)
         ):
             raise Week7EvaluationError(f"development evidence coverage mismatch: {name}")
         adapter_hash = (evidence.get("adapter_hashes") or {}).get("adapter_model.safetensors")
         if is_zero and evidence.get("adapter_hashes") is not None:
             raise Week7EvaluationError("zero-shot development evidence unexpectedly used an adapter")
-        if not is_zero and adapter_hash != selected_checkpoint_sha256:
-            raise Week7EvaluationError("multitask development adapter identity mismatch")
         return {
             "run_id": evidence["run_id"], "model_role": role,
             "scenario_coverage": sorted(evidence["scenarios"]),
             "dialogue_sample_count": development_dialogue,
             "sample_count": full_total,
+            **({"global_step": selected_step} if not is_zero else {}),
         }
 
     if name != "schema_decoding":
@@ -240,12 +355,187 @@ def _validate_development_evidence(
     }
 
 
+def _validate_training_summary(
+    summary_path: Path,
+    *,
+    config: dict[str, Any],
+    config_sha256: str,
+    dataset_lock_sha256: str,
+) -> dict[str, Any]:
+    summary_path = Path(summary_path).resolve()
+    summary = _read_json(summary_path)
+    if (
+        summary.get("status") != "COMPLETED"
+        or summary.get("run_id") != config["experiment_identity"]["multitask_sft_run_id"]
+        or summary.get("config_sha256") != config_sha256
+        or summary.get("dataset_lock_sha256") != dataset_lock_sha256
+        or not isinstance(summary.get("evaluation_steps"), list)
+        or not isinstance(summary.get("checkpoints"), list)
+        or not isinstance(summary.get("checkpoint_hashes"), dict)
+    ):
+        raise Week7EvaluationError("completed multitask training summary identity mismatch")
+    steps = [int(step) for step in summary["evaluation_steps"]]
+    global_step = int(summary.get("global_step", -1))
+    if not steps or steps != sorted(set(steps)) or global_step <= 0:
+        raise Week7EvaluationError("training summary evaluation steps are invalid")
+    return summary
+
+
+def _validate_selection_artifact(
+    selection_path: Path,
+    *,
+    config: dict[str, Any],
+    config_sha256: str,
+    dataset_lock_sha256: str,
+    training_summary_path: Path,
+    training_summary_sha256: str,
+    week6_baseline_path: Path,
+    week6_baseline_sha256: str,
+    selected_checkpoint: Path,
+    selected_checkpoint_sha256: str,
+    selected_metrics_path: Path,
+    selected_metrics_sha256: str,
+) -> dict[str, Any]:
+    selection_path = Path(selection_path).resolve()
+    selection = _read_json(selection_path)
+    selected = selection.get("selected")
+    selected_evidence = selection.get("selected_evidence")
+    if (
+        selection.get("status") != "SELECTED"
+        or selection.get("config_sha256") != config_sha256
+        or selection.get("dataset_lock_sha256") != dataset_lock_sha256
+        or selection.get("training_run_id")
+        != config["experiment_identity"]["multitask_sft_run_id"]
+        or not isinstance(selected, dict)
+        or selected.get("eligible") is not True
+        or not isinstance(selected_evidence, dict)
+    ):
+        raise Week7EvaluationError("selected checkpoint artifact identity mismatch")
+
+    expected_summary = {
+        "path": str(Path(training_summary_path).resolve()),
+        "sha256": training_summary_sha256,
+    }
+    expected_baseline = {
+        "path": str(Path(week6_baseline_path).resolve()),
+        "sha256": week6_baseline_sha256,
+    }
+    if selection.get("training_summary") != expected_summary:
+        raise Week7EvaluationError("selection training summary binding mismatch")
+    if selection.get("week6_baseline") != expected_baseline:
+        raise Week7EvaluationError("selection Week 6 baseline binding mismatch")
+
+    checkpoint_path = Path(selected_checkpoint).resolve()
+    metrics_path = Path(selected_metrics_path).resolve()
+    expected_evidence = {
+        "checkpoint_path": str(checkpoint_path),
+        "checkpoint_adapter_sha256": selected_checkpoint_sha256,
+        "metrics_path": str(metrics_path),
+        "metrics_sha256": selected_metrics_sha256,
+    }
+    if selected_evidence != expected_evidence:
+        raise Week7EvaluationError("selection evidence binding mismatch")
+    if (
+        Path(str(selected.get("checkpoint", ""))).resolve() != checkpoint_path
+        or selected.get("checkpoint_adapter_sha256") != selected_checkpoint_sha256
+        or Path(str(selected.get("metrics_path", ""))).resolve() != metrics_path
+        or selected.get("metrics_sha256") != selected_metrics_sha256
+    ):
+        raise Week7EvaluationError("selected candidate binding mismatch")
+    summary = _validate_training_summary(
+        training_summary_path, config=config, config_sha256=config_sha256,
+        dataset_lock_sha256=dataset_lock_sha256,
+    )
+    baseline = _read_json(week6_baseline_path)
+    _validate_development_evidence(
+        "week6_development_baseline", baseline, config=config,
+        config_sha256=config_sha256,
+        dataset_lock_sha256=dataset_lock_sha256,
+        selected_checkpoint_sha256=selected_checkpoint_sha256,
+    )
+    expected_steps = [
+        int(step) for step in summary["evaluation_steps"]
+        if int(step) <= int(summary["global_step"])
+    ]
+    candidates = selection.get("candidates")
+    if not isinstance(candidates, list) or len(candidates) != len(expected_steps):
+        raise Week7EvaluationError("selection candidate coverage mismatch")
+    recomputed_candidates = []
+    training_dir = Path(training_summary_path).resolve().parent
+    expected_samples = (
+        int(config["dataset"]["development_per_core_scenario"])
+        * len(CORE_SCENARIOS)
+        + int(config["dataset"]["development_dialogue_count"])
+    )
+    for recorded, step in zip(candidates, expected_steps):
+        checkpoint = training_dir / f"checkpoint-{step}"
+        metrics_path = (
+            training_dir / "development_evaluations" / f"step-{step:06d}"
+            / "metrics.json"
+        )
+        adapter_path = checkpoint / "adapter_model.safetensors"
+        if not adapter_path.is_file() or not metrics_path.is_file():
+            raise Week7EvaluationError("selection candidate artifacts are missing")
+        checkpoint_hash = sha256_file(adapter_path)
+        metrics_hash = sha256_file(metrics_path)
+        metrics = _read_json(metrics_path)
+        if (
+            checkpoint.name not in summary["checkpoints"]
+            or summary["checkpoint_hashes"].get(checkpoint.name) != checkpoint_hash
+            or metrics.get("status") != "COMPLETED"
+            or metrics.get("model_role") != "multitask_checkpoint"
+            or metrics.get("split") != "development"
+            or metrics.get("run_id")
+            != f"{summary['run_id']}_development_step_{step:06d}"
+            or metrics.get("config_sha256") != config_sha256
+            or metrics.get("dataset_lock_sha256") != dataset_lock_sha256
+            or int(metrics.get("global_step", -1)) != step
+            or int(metrics.get("sample_count", -1)) != expected_samples
+            or set(metrics.get("scenarios", {})) != set(CORE_SCENARIOS)
+            or not isinstance(metrics.get("dialogue"), dict)
+            or int(metrics["dialogue"].get("sample_count", -1))
+            != int(config["dataset"]["development_dialogue_count"])
+        ):
+            raise Week7EvaluationError("selection candidate metrics identity mismatch")
+        try:
+            recomputed = evaluate_development_candidate(
+                config, baseline, metrics, step=step, checkpoint=checkpoint,
+                checkpoint_hash=checkpoint_hash, metrics_path=metrics_path,
+            )
+        except (KeyError, TypeError, ValueError, Week7TrainingError) as exc:
+            raise Week7EvaluationError(
+                f"selection candidate gate recomputation failed: step {step}"
+            ) from exc
+        if not isinstance(recorded, dict) or canonical_sha256(recorded) != canonical_sha256(
+            recomputed
+        ):
+            raise Week7EvaluationError("selection candidate gates were not reproducible")
+        if recorded.get("metrics_sha256") != metrics_hash:
+            raise Week7EvaluationError("selection candidate metrics hash mismatch")
+        recomputed_candidates.append(recomputed)
+    eligible = [candidate for candidate in recomputed_candidates if candidate["eligible"]]
+    recomputed_selected = max(
+        eligible,
+        key=lambda candidate: (candidate["weighted_composite"], -candidate["step"]),
+        default=None,
+    )
+    if (
+        recomputed_selected is None
+        or canonical_sha256(selected) != canonical_sha256(recomputed_selected)
+        or int(selection.get("candidate_count", -1)) != len(recomputed_candidates)
+        or int(selection.get("eligible_count", -1)) != len(eligible)
+    ):
+        raise Week7EvaluationError("selection winner is not the highest eligible checkpoint")
+    return selection
+
+
 def create_parameter_lock(
     root: Path,
     config_path: Path,
     output_path: Path,
     *,
     training_summary_path: Path,
+    selection_path: Path,
     selected_checkpoint: Path,
     week6_adapters: dict[str, tuple[Path, str]],
     development_evidence: dict[str, Path],
@@ -279,31 +569,57 @@ def create_parameter_lock(
         raise Week7EvaluationError("dataset does not declare an unconsumed one-shot test")
 
     training_summary_path = Path(training_summary_path).resolve()
-    training_summary = _read_json(training_summary_path)
-    if training_summary.get("status") != "COMPLETED":
-        raise Week7EvaluationError("completed multitask training summary is required")
-    if training_summary.get("config_sha256") != config_hash:
-        raise Week7EvaluationError("training summary config identity mismatch")
-    if training_summary.get("dataset_lock_sha256") != dataset_lock.get("lock_sha256"):
-        raise Week7EvaluationError("training summary dataset identity mismatch")
+    training_summary = _validate_training_summary(
+        training_summary_path, config=config, config_sha256=config_hash,
+        dataset_lock_sha256=dataset_lock["lock_sha256"],
+    )
 
     selected = Path(selected_checkpoint).resolve()
     selected_spec = _adapter_spec(selected, expected_base_model=config["base_model"])
-    best_name = Path(str(training_summary.get("best_checkpoint") or "")).name
-    if not best_name or selected.name != best_name:
-        raise Week7EvaluationError("selected checkpoint must be the development-best checkpoint")
     recorded_hash = training_summary.get("checkpoint_hashes", {}).get(selected.name)
-    if recorded_hash != selected_spec["adapter_model_sha256"]:
+    if (
+        selected.parent != training_summary_path.parent
+        or selected.name not in training_summary["checkpoints"]
+        or recorded_hash != selected_spec["adapter_model_sha256"]
+    ):
         raise Week7EvaluationError("selected checkpoint does not match the training summary")
 
+    resolved_evidence = {
+        name: Path(path).resolve() for name, path in development_evidence.items()
+    }
+    selection_path = Path(selection_path).resolve()
+    selection = _validate_selection_artifact(
+        selection_path, config=config, config_sha256=config_hash,
+        dataset_lock_sha256=dataset_lock["lock_sha256"],
+        training_summary_path=training_summary_path,
+        training_summary_sha256=sha256_file(training_summary_path),
+        week6_baseline_path=resolved_evidence["week6_development_baseline"],
+        week6_baseline_sha256=sha256_file(
+            resolved_evidence["week6_development_baseline"]
+        ),
+        selected_checkpoint=selected,
+        selected_checkpoint_sha256=selected_spec["adapter_model_sha256"],
+        selected_metrics_path=resolved_evidence["multitask_development"],
+        selected_metrics_sha256=sha256_file(
+            resolved_evidence["multitask_development"]
+        ),
+    )
+    selected_step = int(selection["selected"].get("step", -1))
+    if (
+        selected.name != f"checkpoint-{selected_step}"
+        or selected_step not in [int(step) for step in training_summary["evaluation_steps"]]
+        or selected_step > int(training_summary["global_step"])
+    ):
+        raise Week7EvaluationError("selected checkpoint step is not a completed evaluation step")
+
     evidence_payload: dict[str, Any] = {}
-    for name, evidence_path in sorted(development_evidence.items()):
-        resolved = Path(evidence_path).resolve()
+    for name, resolved in sorted(resolved_evidence.items()):
         evidence = _read_json(resolved)
         identity_summary = _validate_development_evidence(
             name, evidence, config=config, config_sha256=config_hash,
             dataset_lock_sha256=dataset_lock["lock_sha256"],
             selected_checkpoint_sha256=selected_spec["adapter_model_sha256"],
+            selected_step=selected_step,
         )
         evidence_payload[name] = {
             "path": str(resolved), "sha256": sha256_file(resolved),
@@ -343,6 +659,10 @@ def create_parameter_lock(
             "path": str(training_summary_path),
             "sha256": sha256_file(training_summary_path),
         },
+        "selection": {
+            "path": str(selection_path),
+            "sha256": sha256_file(selection_path),
+        },
     }
     payload["lock_sha256"] = canonical_sha256(payload)
     _write_json_new(Path(output_path), payload)
@@ -360,7 +680,7 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
         "status", "config_sha256", "dataset_version", "dataset_lock_sha256",
         "base_model", "selected_checkpoint", "selected_checkpoint_sha256",
         "selected_checkpoint_config_sha256", "week6_adapters", "generation",
-        "test_run_id", "training_summary", "development_evidence",
+        "test_run_id", "training_summary", "selection", "development_evidence",
     }
     if payload.get("status") != "LOCKED" or not required <= set(payload):
         raise Week7EvaluationError("complete parameter lock is required before test")
@@ -404,19 +724,63 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
         if actual["adapter_config_sha256"] != spec.get("adapter_config_sha256"):
             raise Week7EvaluationError("Week 6 adapter config hash mismatch")
     training_summary = payload.get("training_summary", {})
-    if sha256_file(Path(training_summary.get("path", ""))) != training_summary.get("sha256"):
+    training_summary_path = Path(training_summary.get("path", "")).resolve()
+    if sha256_file(training_summary_path) != training_summary.get("sha256"):
         raise Week7EvaluationError("training summary changed after parameter locking")
+    summary_payload = _validate_training_summary(
+        training_summary_path, config=config,
+        config_sha256=payload["config_sha256"],
+        dataset_lock_sha256=payload["dataset_lock_sha256"],
+    )
     if set(payload.get("development_evidence", {})) != REQUIRED_DEVELOPMENT_EVIDENCE:
         raise Week7EvaluationError("parameter lock development evidence is incomplete")
+    evidence_paths: dict[str, Path] = {}
     for name, evidence in payload["development_evidence"].items():
-        evidence_path = Path(evidence.get("path", ""))
+        evidence_path = Path(evidence.get("path", "")).resolve()
         if sha256_file(evidence_path) != evidence.get("sha256"):
             raise Week7EvaluationError(f"development evidence changed after locking: {name}")
+        evidence_paths[name] = evidence_path
+
+    selection_spec = payload.get("selection", {})
+    selection_path = Path(selection_spec.get("path", "")).resolve()
+    if sha256_file(selection_path) != selection_spec.get("sha256"):
+        raise Week7EvaluationError("selection artifact changed after parameter locking")
+    selection = _validate_selection_artifact(
+        selection_path, config=config,
+        config_sha256=payload["config_sha256"],
+        dataset_lock_sha256=payload["dataset_lock_sha256"],
+        training_summary_path=training_summary_path,
+        training_summary_sha256=training_summary["sha256"],
+        week6_baseline_path=evidence_paths["week6_development_baseline"],
+        week6_baseline_sha256=payload["development_evidence"]
+        ["week6_development_baseline"]["sha256"],
+        selected_checkpoint=Path(payload["selected_checkpoint"]),
+        selected_checkpoint_sha256=payload["selected_checkpoint_sha256"],
+        selected_metrics_path=evidence_paths["multitask_development"],
+        selected_metrics_sha256=payload["development_evidence"]
+        ["multitask_development"]["sha256"],
+    )
+    selected_step = int(selection["selected"].get("step", -1))
+    selected_path = Path(payload["selected_checkpoint"]).resolve()
+    if (
+        selected_path.parent != training_summary_path.parent
+        or selected_path.name != f"checkpoint-{selected_step}"
+        or selected_path.name not in summary_payload["checkpoints"]
+        or summary_payload["checkpoint_hashes"].get(selected_path.name)
+        != payload["selected_checkpoint_sha256"]
+        or selected_step not in [int(step) for step in summary_payload["evaluation_steps"]]
+        or selected_step > int(summary_payload["global_step"])
+    ):
+        raise Week7EvaluationError("selection no longer matches the completed training summary")
+
+    for name, evidence in payload["development_evidence"].items():
+        evidence_path = evidence_paths[name]
         identity = _validate_development_evidence(
             name, _read_json(evidence_path), config=config,
             config_sha256=payload["config_sha256"],
             dataset_lock_sha256=payload["dataset_lock_sha256"],
             selected_checkpoint_sha256=payload["selected_checkpoint_sha256"],
+            selected_step=selected_step,
         )
         if evidence.get("identity") != identity:
             raise Week7EvaluationError(f"development evidence lock identity mismatch: {name}")

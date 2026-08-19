@@ -15,7 +15,11 @@ from typing import Any
 from src.evaluation.schema_validation import load_output_schema
 from src.training.week6_qlora import environment_report
 from src.training.week7_data import CORE_SCENARIOS, iter_jsonl, load_week7_config, sha256_file
-from src.training.week7_evaluation import compare_schema_decoding, summarize_raw_records
+from src.training.week7_evaluation import (
+    compare_schema_decoding,
+    summarize_dialogue_raw_records,
+    summarize_raw_records,
+)
 from src.training.week7_qlora import Week7TrainingError, structure_aware_messages, training_messages
 
 
@@ -113,6 +117,185 @@ def run_transformers_development(
     })
     _write_jsonl_new(output_dir / "raw_outputs.jsonl", records)
     (output_dir / "metrics.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    return summary
+
+
+WEEK6_DIALOGUE_DEVELOPMENT_RUN_ID = "week7_dev_week6_dialogue_routed_20260819_v2"
+WEEK6_COMBINED_DEVELOPMENT_RUN_ID = "week7_dev_week6_adapters_baseline_20260819_v2"
+
+
+def _week6_dialogue_development_run_id(config: dict[str, Any]) -> str:
+    return str(config["experiment_identity"].get(
+        "week6_dialogue_development_run_id", WEEK6_DIALOGUE_DEVELOPMENT_RUN_ID,
+    ))
+
+
+def _week6_combined_development_run_id(config: dict[str, Any]) -> str:
+    return str(config["experiment_identity"].get(
+        "week6_combined_development_run_id", WEEK6_COMBINED_DEVELOPMENT_RUN_ID,
+    ))
+
+
+def _dialogue_task(row: dict[str, Any]) -> str:
+    target = row.get("target", {})
+    if isinstance(target, dict) and isinstance(target.get("task_result"), dict):
+        target = target["task_result"]
+    if not isinstance(target, dict):
+        raise Week7TrainingError(f"dialogue target is not routable: {row.get('sample_id')}")
+    if "business_category" in target:
+        return "image_product_search"
+    if "issue_type" in target:
+        return "after_sales"
+    if "itinerary" in target or "hard_constraints" in target:
+        return "itinerary_planning"
+    raise Week7TrainingError(f"dialogue target is not routable: {row.get('sample_id')}")
+
+
+def _generate_transformers_records(
+    config: dict[str, Any], processor: Any, model: Any, rows: list[dict[str, Any]],
+    *, run_id: str, model_role: str, max_new_tokens: int,
+) -> list[dict[str, Any]]:
+    import torch
+
+    records = []
+    for row in rows:
+        messages = structure_aware_messages(
+            processor, training_messages(row), int(config["training"]["max_length"])
+        )[:-1]
+        started = time.perf_counter()
+        raw, error = "", None
+        try:
+            inputs = processor.apply_chat_template(
+                messages, tokenize=True, add_generation_prompt=True, return_dict=True,
+                return_tensors="pt", truncation=False,
+            )
+            device = next(model.parameters()).device
+            inputs = {
+                key: value.to(device) if hasattr(value, "to") else value
+                for key, value in inputs.items()
+            }
+            with torch.inference_mode():
+                generated = model.generate(
+                    **inputs, max_new_tokens=max_new_tokens, do_sample=False,
+                )
+            raw = processor.batch_decode(
+                generated[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True,
+            )[0].strip()
+        except (RuntimeError, ValueError) as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        records.append({
+            "run_id": run_id, "sample_id": row["sample_id"], "model_name": model_role,
+            "raw_output": raw, "latency_ms": (time.perf_counter() - started) * 1000,
+            "failed": error is not None, "error": error,
+        })
+    return records
+
+
+def run_week6_dialogue_development(
+    root: Path,
+    config_path: Path,
+    output_dir: Path,
+    *,
+    adapter_dirs: dict[str, Path],
+    max_new_tokens: int = 2048,
+) -> dict[str, Any]:
+    """Route the 24 locked development dialogues to their underlying Week 6 adapter."""
+    import gc
+
+    root, output_dir = Path(root).resolve(), Path(output_dir).resolve()
+    if output_dir.exists():
+        raise Week7TrainingError("refusing to overwrite an inference run")
+    if set(adapter_dirs) != set(CORE_SCENARIOS):
+        raise Week7TrainingError("exactly three Week 6 adapters are required")
+    config = load_week7_config(config_path)
+    lock_root = root / config["dataset"]["output_root"] / config["dataset"]["dataset_version"]
+    dataset_lock = json.loads((lock_root / "dataset_lock.json").read_text(encoding="utf-8"))
+    if dataset_lock.get("config_sha256") != sha256_file(config_path):
+        raise Week7TrainingError("development config SHA-256 does not match the dataset lock")
+    rows = [
+        row for row in iter_jsonl(lock_root / "development.jsonl")
+        if row.get("scenario") == "dialogue"
+    ]
+    expected_count = int(config["dataset"]["development_dialogue_count"])
+    if len(rows) != expected_count:
+        raise Week7TrainingError("development dialogue support count mismatch")
+    routed = {scenario: [] for scenario in CORE_SCENARIOS}
+    for row in rows:
+        routed[_dialogue_task(row)].append(row)
+    if any(not routed[scenario] for scenario in CORE_SCENARIOS):
+        raise Week7TrainingError("development dialogues do not cover all three adapter routes")
+
+    resolved_adapters: dict[str, Path] = {}
+    adapter_hashes: dict[str, dict[str, str]] = {}
+    for scenario in CORE_SCENARIOS:
+        adapter = Path(adapter_dirs[scenario]).resolve()
+        model_path = adapter / "adapter_model.safetensors"
+        if not model_path.is_file():
+            raise Week7TrainingError(f"Week 6 adapter directory is incomplete: {scenario}")
+        model_hash = sha256_file(model_path)
+        if model_hash != config["evaluation"]["week6_adapter_sha256"][scenario]:
+            raise Week7TrainingError(f"Week 6 adapter SHA-256 mismatch: {scenario}")
+        resolved_adapters[scenario] = adapter
+        adapter_hashes[scenario] = {
+            path.name: sha256_file(path) for path in adapter.iterdir() if path.is_file()
+        }
+
+    report = environment_report(require_cuda=True)
+    if report["status"] != "ok":
+        raise Week7TrainingError(f"inference environment is not ready: {report['status']}")
+    import torch
+    from peft import PeftModel
+    from transformers import AutoProcessor, BitsAndBytesConfig, Qwen3VLForConditionalGeneration
+
+    processor = AutoProcessor.from_pretrained(config["base_model"])
+    run_id = _week6_dialogue_development_run_id(config)
+    quant = config["quantization"]
+    records = []
+    for scenario in CORE_SCENARIOS:
+        model = Qwen3VLForConditionalGeneration.from_pretrained(
+            config["base_model"],
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True, bnb_4bit_quant_type=quant["bnb_4bit_quant_type"],
+                bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16,
+            ),
+            torch_dtype=torch.bfloat16,
+            device_map={"": int(os.environ.get("LOCAL_RANK", "0"))},
+            attn_implementation=config["training"]["attn_implementation"],
+        )
+        model = PeftModel.from_pretrained(
+            model, str(resolved_adapters[scenario]), is_trainable=False,
+        )
+        model.eval()
+        records.extend(_generate_transformers_records(
+            config, processor, model, routed[scenario],
+            run_id=run_id,
+            model_role="week6_single_task_adapters",
+            max_new_tokens=max_new_tokens,
+        ))
+        del model
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    summary = summarize_dialogue_raw_records(rows, records)
+    summary.update({
+        "status": "COMPLETED",
+        "run_id": run_id,
+        "model_role": "week6_single_task_adapters",
+        "config_sha256": sha256_file(config_path),
+        "dataset_lock_sha256": dataset_lock["lock_sha256"],
+        "adapter_hashes": adapter_hashes,
+        "split": "development",
+        "scenario_filter": "dialogue_routed",
+        "routing": {
+            "method": "target_task_result_v1",
+            "sample_counts": {scenario: len(routed[scenario]) for scenario in CORE_SCENARIOS},
+        },
+    })
+    _write_jsonl_new(output_dir / "raw_outputs.jsonl", records)
+    (output_dir / "metrics.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8", newline="\n",
+    )
     return summary
 
 
@@ -241,6 +424,7 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
 def combine_week6_development_baseline(
     config_path: Path,
     scenario_metrics: dict[str, Path],
+    dialogue_metrics: Path,
     output_path: Path,
 ) -> dict[str, Any]:
     """Combine three independently generated, preregistered Week 6 adapter baselines."""
@@ -262,11 +446,15 @@ def combine_week6_development_baseline(
         if (
             payload.get("status") != "COMPLETED"
             or payload.get("run_id") != expected_run
+            or payload.get("model_role") != "week6_single_task_adapter"
+            or payload.get("split") != "development"
             or payload.get("scenario_filter") != scenario
             or payload.get("adapter_hashes", {}).get("adapter_model.safetensors") != expected_hash
             or set(payload.get("scenarios", {})) != {scenario}
             or payload.get("config_sha256") != config_hash
             or not payload.get("dataset_lock_sha256")
+            or int(payload.get("sample_count", -1))
+            != int(config["dataset"]["development_per_core_scenario"])
         ):
             raise Week7TrainingError(f"Week 6 development evidence mismatch: {scenario}")
         if dataset_lock_sha256 is None:
@@ -279,16 +467,60 @@ def combine_week6_development_baseline(
         failure_count += int(payload["failure_count"])
         latency_weighted += float(payload["latency_ms_mean"]) * count
         inputs[scenario] = {"path": str(resolved), "sha256": sha256_file(resolved)}
+    dialogue_path = Path(dialogue_metrics).resolve()
+    dialogue_payload = json.loads(dialogue_path.read_text(encoding="utf-8"))
+    expected_dialogue_count = int(config["dataset"]["development_dialogue_count"])
+    dialogue_hashes = dialogue_payload.get("adapter_hashes", {})
+    if (
+        dialogue_payload.get("status") != "COMPLETED"
+        or dialogue_payload.get("run_id") != _week6_dialogue_development_run_id(config)
+        or dialogue_payload.get("model_role") != "week6_single_task_adapters"
+        or dialogue_payload.get("split") != "development"
+        or dialogue_payload.get("scenario_filter") != "dialogue_routed"
+        or dialogue_payload.get("config_sha256") != config_hash
+        or dialogue_payload.get("dataset_lock_sha256") != dataset_lock_sha256
+        or int(dialogue_payload.get("sample_count", -1)) != expected_dialogue_count
+        or set(dialogue_payload.get("scenarios", {}))
+        or not isinstance(dialogue_payload.get("dialogue"), dict)
+        or int(dialogue_payload["dialogue"].get("sample_count", -1)) != expected_dialogue_count
+        or set(dialogue_hashes) != set(CORE_SCENARIOS)
+        or any(
+            dialogue_hashes[scenario].get("adapter_model.safetensors")
+            != config["evaluation"]["week6_adapter_sha256"][scenario]
+            for scenario in CORE_SCENARIOS
+        )
+    ):
+        raise Week7TrainingError("Week 6 routed dialogue development evidence mismatch")
+    route_counts = dialogue_payload.get("routing", {}).get("sample_counts", {})
+    expected_route_counts = config["sampling"].get(
+        "dialogue_parent_scenario_counts", {}
+    ).get(
+        "development",
+        {
+            scenario: expected_dialogue_count // len(CORE_SCENARIOS)
+            for scenario in CORE_SCENARIOS
+        },
+    )
+    if (
+        dialogue_payload.get("routing", {}).get("method") != "target_task_result_v1"
+        or route_counts != expected_route_counts
+    ):
+        raise Week7TrainingError("Week 6 routed dialogue coverage mismatch")
+    dialogue_count = int(dialogue_payload["sample_count"])
+    sample_count += dialogue_count
+    failure_count += int(dialogue_payload["failure_count"])
+    latency_weighted += float(dialogue_payload["latency_ms_mean"]) * dialogue_count
+    inputs["dialogue"] = {"path": str(dialogue_path), "sha256": sha256_file(dialogue_path)}
     scenario_weights = config["evaluation"]["scenario_weights"]
     result = {
         "status": "COMPLETED",
-        "run_id": "week7_dev_week6_adapters_baseline_20260819_v2",
+        "run_id": _week6_combined_development_run_id(config),
         "model_role": "week6_single_task_adapters",
         "split": "development",
         "sample_count": sample_count,
         "weighted_composite": sum(float(scenario_weights[name]) * float(scenarios[name]["composite"]) for name in CORE_SCENARIOS),
         "scenarios": scenarios,
-        "dialogue": None,
+        "dialogue": dialogue_payload["dialogue"],
         "latency_ms_mean": latency_weighted / sample_count,
         "latency_ms_median": None,
         "failure_count": failure_count,
