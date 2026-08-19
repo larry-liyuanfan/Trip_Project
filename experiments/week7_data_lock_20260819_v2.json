@@ -1,5 +1,19 @@
 {
-  "status": "PASS",
+  "status": "SUPERSEDED_AFTER_GPU_AUDIT",
+  "superseded_by": "week7_fresh_multitask_context_20260820_v3",
+  "superseded_reason": "All 450 train and all 24 development/test dialogue rows inherited image_product_search parents; after_sales and itinerary dialogue support was zero.",
+  "gpu_run": {
+    "slurm_job_id": 29431992,
+    "state": "CANCELLED",
+    "elapsed": "01:15:23",
+    "completed_development_checkpoints": [38, 76, 113],
+    "disposition": "INELIGIBLE_AND_EXCLUDED_FROM_PARAMETER_LOCK"
+  },
+  "dialogue_parent_scenario_counts": {
+    "train": {"image_product_search": 450, "after_sales": 0, "itinerary_planning": 0},
+    "development": {"image_product_search": 24, "after_sales": 0, "itinerary_planning": 0},
+    "test": {"image_product_search": 24, "after_sales": 0, "itinerary_planning": 0}
+  },
   "recorded_by_git_commit": "c79fb86f731d3b670dca72348624cf7092071fad",
   "generation_worktree_head": "132779b0f6d2929ce1cdbed18e62adf3ef9edd18",
   "baseline_commit": "132779b0f6d2929ce1cdbed18e62adf3ef9edd18",

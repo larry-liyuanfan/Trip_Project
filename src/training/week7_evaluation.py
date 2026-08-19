@@ -222,13 +222,24 @@ def compare_schema_decoding(root: Path, config: dict[str, Any], rows: list[dict[
             counts["json_valid"] += json_valid
             counts["schema_valid"] += schema_valid
             counts["primary_failure"] += bool(record.get("constrained_error")) if name == "constrained" else bool(record.get("failed"))
-            counts["fallback_failure"] += bool(record.get("failed") or record.get("fallback_failed"))
+            counts["operational_failure"] += bool(record.get("failed"))
+            counts["fallback_used"] += bool(record.get("fallback_used"))
+            counts["fallback_failure"] += bool(record.get("fallback_failed"))
             latencies.append(float(record.get("latency_ms", 0.0)))
+        fallback_count = int(counts["fallback_used"])
         output["modes"][name] = {
             "json_compliance": counts["json_valid"] / len(selected),
             "schema_coverage": counts["schema_valid"] / len(selected),
+            "request_count": len(selected),
+            "primary_failure_count": int(counts["primary_failure"]),
             "primary_failure_rate": counts["primary_failure"] / len(selected),
-            "fallback_failure_rate": counts["fallback_failure"] / len(selected),
+            "operational_failure_count": int(counts["operational_failure"]),
+            "operational_failure_rate": counts["operational_failure"] / len(selected),
+            "fallback_request_count": fallback_count,
+            "fallback_failure_count": int(counts["fallback_failure"]),
+            "fallback_failure_rate": (
+                counts["fallback_failure"] / fallback_count if fallback_count else 0.0
+            ),
             "latency_ms_mean": statistics.fmean(latencies),
         }
     free = output["modes"]["free"]
@@ -241,6 +252,10 @@ def compare_schema_decoding(root: Path, config: dict[str, Any], rows: list[dict[
     }
     output["gate"] = {
         "latency": output["deltas"]["latency_ratio"] is not None and output["deltas"]["latency_ratio"] <= float(config["evaluation"]["schema_decoding"]["max_latency_ratio"]),
+        "free_request": free["primary_failure_rate"]
+        <= float(config["evaluation"]["non_regression"]["max_failure_rate"]),
+        "constrained_request": constrained["primary_failure_rate"]
+        <= float(config["evaluation"]["non_regression"]["max_failure_rate"]),
         "fallback": constrained["fallback_failure_rate"] <= float(config["evaluation"]["schema_decoding"]["max_fallback_failure_rate"]),
     }
     return output

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 import socket
@@ -14,9 +15,16 @@ from typing import Any, Callable, Iterable
 
 from src.training.week6_qlora import environment_report
 from src.training.week7_data import CORE_SCENARIOS, canonical_sha256, iter_jsonl, load_week7_config, sha256_file
-from src.training.week7_evaluation import Week7EvaluationError, summarize_raw_records
+from src.training.week7_evaluation import (
+    Week7EvaluationError,
+    compare_schema_decoding,
+    summarize_raw_records,
+)
 from src.training.week7_qlora import Week7TrainingError, structure_aware_messages, training_messages
-from src.training.week7_selection import evaluate_development_candidate
+from src.training.week7_selection import (
+    evaluate_development_candidate,
+    validate_development_raw_artifact,
+)
 
 
 REQUIRED_DEVELOPMENT_EVIDENCE = {
@@ -102,6 +110,7 @@ def _validate_development_evidence(
     dataset_lock_sha256: str,
     selected_checkpoint_sha256: str,
     selected_step: int | None = None,
+    root: Path | None = None,
 ) -> dict[str, Any]:
     """Validate evidence semantics, not merely its completion flag."""
     identity = config["experiment_identity"]
@@ -312,17 +321,48 @@ def _validate_development_evidence(
     if (
         evidence.get("scope") != "format_only"
         or evidence.get("semantic_claims") != "FORBIDDEN"
+        or evidence.get("paired_order")
+        != config["evaluation"]["schema_decoding"]["paired_order"]
+        or not isinstance(evidence.get("endpoint_recorded"), str)
+        or not evidence.get("endpoint_recorded")
         or evidence.get("run_ids") != expected_runs
         or int(evidence.get("sample_count", -1)) != core_total
+        or evidence.get("served_model") != config["base_model"]
         or not isinstance(gate, dict)
-        or set(gate) != {"latency", "fallback"}
+        or set(gate) != {"latency", "free_request", "constrained_request", "fallback"}
         or not all(isinstance(value, bool) for value in gate.values())
         or not isinstance(modes, dict)
         or set(modes) != {"free", "constrained"}
     ):
         raise Week7EvaluationError("Schema development evidence identity/gate mismatch")
+    model_identity = evidence.get("model_identity")
+    completion = evidence.get("completion_eligibility")
+    raw_artifacts = evidence.get("raw_artifacts")
+    if (
+        model_identity != {
+            "base_model": config["base_model"],
+            "requested_served_model": config["base_model"],
+            "registry_model_ids": [config["base_model"]],
+            "successful_response_model_ids": [config["base_model"]],
+            "verified": True,
+        }
+        or not isinstance(completion, dict)
+        or completion != {
+            "eligible": True,
+            "free_has_success": True,
+            "constrained_operational_has_success": True,
+            "served_model_verified": True,
+        }
+        or not isinstance(raw_artifacts, dict)
+        or set(raw_artifacts) != {"free", "constrained"}
+    ):
+        raise Week7EvaluationError("Schema served-model/completion identity mismatch")
     required_mode_metrics = {
-        "json_compliance", "schema_coverage", "fallback_failure_rate", "latency_ms_mean",
+        "json_compliance", "schema_coverage", "request_count",
+        "primary_failure_count", "primary_failure_rate",
+        "operational_failure_count", "operational_failure_rate",
+        "fallback_request_count", "fallback_failure_count",
+        "fallback_failure_rate", "latency_ms_mean",
     }
     if any(not required_mode_metrics <= set(payload) for payload in modes.values()):
         raise Week7EvaluationError("Schema development mode metrics are incomplete")
@@ -333,24 +373,148 @@ def _validate_development_evidence(
                 raise Week7EvaluationError(f"Schema development metric is invalid: {mode}.{metric}")
         if any(
             not 0.0 <= float(mode_metrics[metric]) <= 1.0
-            for metric in ("json_compliance", "schema_coverage", "fallback_failure_rate")
+            for metric in (
+                "json_compliance", "schema_coverage", "primary_failure_rate",
+                "operational_failure_rate", "fallback_failure_rate",
+            )
         ) or float(mode_metrics["latency_ms_mean"]) < 0:
             raise Week7EvaluationError(f"Schema development metric is out of range: {mode}")
+        request_count = int(mode_metrics["request_count"])
+        fallback_count = int(mode_metrics["fallback_request_count"])
+        if (
+            request_count != core_total
+            or int(mode_metrics["primary_failure_count"]) < 0
+            or int(mode_metrics["operational_failure_count"]) < 0
+            or not 0 <= fallback_count <= request_count
+            or not 0 <= int(mode_metrics["fallback_failure_count"]) <= fallback_count
+            or not math.isclose(
+                float(mode_metrics["primary_failure_rate"]),
+                int(mode_metrics["primary_failure_count"]) / request_count,
+                rel_tol=0, abs_tol=1e-12,
+            )
+            or not math.isclose(
+                float(mode_metrics["operational_failure_rate"]),
+                int(mode_metrics["operational_failure_count"]) / request_count,
+                rel_tol=0, abs_tol=1e-12,
+            )
+            or not math.isclose(
+                float(mode_metrics["fallback_failure_rate"]),
+                int(mode_metrics["fallback_failure_count"]) / fallback_count
+                if fallback_count else 0.0,
+                rel_tol=0, abs_tol=1e-12,
+            )
+        ):
+            raise Week7EvaluationError(f"Schema request/fallback counts are inconsistent: {mode}")
     free_latency = float(modes["free"]["latency_ms_mean"])
     constrained_latency = float(modes["constrained"]["latency_ms_mean"])
     computed_gate = {
         "latency": free_latency > 0 and constrained_latency / free_latency
         <= float(config["evaluation"]["schema_decoding"]["max_latency_ratio"]),
+        "free_request": float(modes["free"]["primary_failure_rate"])
+        <= float(config["evaluation"]["non_regression"]["max_failure_rate"]),
+        "constrained_request": float(modes["constrained"]["primary_failure_rate"])
+        <= float(config["evaluation"]["non_regression"]["max_failure_rate"]),
         "fallback": float(modes["constrained"]["fallback_failure_rate"])
         <= float(config["evaluation"]["schema_decoding"]["max_fallback_failure_rate"]),
     }
     if gate != computed_gate:
         raise Week7EvaluationError("Schema development gate is inconsistent with measured modes")
+    if not gate["free_request"] or not gate["fallback"]:
+        raise Week7EvaluationError("Schema production free/fallback request gate failed")
+    if root is None:
+        raise Week7EvaluationError("Schema raw evidence validation requires the repository root")
+    raw_records: dict[str, list[dict[str, Any]]] = {}
+    for mode in ("free", "constrained"):
+        spec = raw_artifacts[mode]
+        path = Path(str(spec.get("path", ""))).resolve()
+        if (
+            not path.is_file()
+            or sha256_file(path) != spec.get("sha256")
+            or int(spec.get("count", -1)) != core_total
+        ):
+            raise Week7EvaluationError(f"Schema raw artifact binding mismatch: {mode}")
+        records = list(iter_jsonl(path))
+        expected_run = expected_runs[mode]
+        if (
+            len(records) != core_total
+            or any(record.get("run_id") != expected_run for record in records)
+            or any(record.get("scenario") not in CORE_SCENARIOS for record in records)
+        ):
+            raise Week7EvaluationError(f"Schema raw record identity mismatch: {mode}")
+        if mode == "free":
+            record_semantics_mismatch = any(
+                bool(record.get("failed")) != bool(record.get("error"))
+                or bool(record.get("fallback_used"))
+                or bool(record.get("fallback_failed"))
+                for record in records
+            )
+            response_mismatch = any(
+                (record.get("response_model") != config["base_model"])
+                if not record.get("failed") else record.get("response_model") is not None
+                for record in records
+            )
+        else:
+            record_semantics_mismatch = any(
+                bool(record.get("constrained_error"))
+                != bool(record.get("fallback_used"))
+                or bool(record.get("fallback_error"))
+                != bool(record.get("fallback_failed"))
+                or bool(record.get("failed"))
+                != (bool(record.get("fallback_failed")) if record.get("fallback_used") else False)
+                or record.get("raw_output")
+                != record.get("primary_constrained_raw_output")
+                or record.get("operational_raw_output")
+                != (
+                    record.get("fallback_raw_output")
+                    if record.get("fallback_used") and not record.get("fallback_failed")
+                    else record.get("primary_constrained_raw_output")
+                )
+                for record in records
+            )
+            response_mismatch = any(
+                (
+                    record.get("primary_response_model") != config["base_model"]
+                    if not record.get("constrained_error")
+                    else record.get("primary_response_model") is not None
+                )
+                or (
+                    record.get("fallback_response_model") != config["base_model"]
+                    if record.get("fallback_used") and not record.get("fallback_failed")
+                    else record.get("fallback_response_model") is not None
+                    if not record.get("fallback_used") or record.get("fallback_failed")
+                    else False
+                )
+                for record in records
+            )
+        if record_semantics_mismatch:
+            raise Week7EvaluationError(f"Schema raw request/fallback semantics mismatch: {mode}")
+        if response_mismatch:
+            raise Week7EvaluationError(f"Schema raw served-model identity mismatch: {mode}")
+        raw_records[mode] = records
+    rows = [
+        {"sample_id": record["sample_id"], "scenario": record["scenario"]}
+        for record in raw_records["free"]
+    ]
+    recomputed = compare_schema_decoding(
+        Path(root).resolve(), config, rows,
+        raw_records["free"], raw_records["constrained"],
+    )
+    if int(evidence.get("fallback_used_count", -1)) != int(
+        recomputed["modes"]["constrained"]["fallback_request_count"]
+    ):
+        raise Week7EvaluationError("Schema fallback-used count differs from raw evidence")
+    for field in ("scope", "semantic_claims", "sample_count", "modes", "deltas", "gate"):
+        if canonical_sha256(recomputed[field]) != canonical_sha256(evidence[field]):
+            raise Week7EvaluationError(f"Schema comparison differs from raw evidence: {field}")
     return {
         "run_ids": expected_runs,
         "model_role": evidence["model_role"],
         "sample_count": core_total,
         "gate": gate,
+        "served_model": config["base_model"],
+        "raw_artifact_sha256": {
+            mode: raw_artifacts[mode]["sha256"] for mode in ("free", "constrained")
+        },
         "selected_mode": "free",
     }
 
@@ -372,6 +536,7 @@ def _validate_training_summary(
         or not isinstance(summary.get("evaluation_steps"), list)
         or not isinstance(summary.get("checkpoints"), list)
         or not isinstance(summary.get("checkpoint_hashes"), dict)
+        or not isinstance(summary.get("development_evaluation_artifacts"), dict)
     ):
         raise Week7EvaluationError("completed multitask training summary identity mismatch")
     steps = [int(step) for step in summary["evaluation_steps"]]
@@ -457,6 +622,10 @@ def _validate_selection_artifact(
         int(step) for step in summary["evaluation_steps"]
         if int(step) <= int(summary["global_step"])
     ]
+    if set(summary["development_evaluation_artifacts"]) != {
+        str(step) for step in expected_steps
+    }:
+        raise Week7EvaluationError("training summary development artifact coverage mismatch")
     candidates = selection.get("candidates")
     if not isinstance(candidates, list) or len(candidates) != len(expected_steps):
         raise Week7EvaluationError("selection candidate coverage mismatch")
@@ -498,6 +667,19 @@ def _validate_selection_artifact(
         ):
             raise Week7EvaluationError("selection candidate metrics identity mismatch")
         try:
+            raw_artifact = validate_development_raw_artifact(
+                metrics, metrics_path, expected_samples
+            )
+            expected_artifacts = {
+                "raw_outputs_path": str(Path(raw_artifact["path"]).resolve()),
+                "raw_outputs_sha256": raw_artifact["sha256"],
+                "metrics_path": str(metrics_path.resolve()),
+                "metrics_sha256": metrics_hash,
+            }
+            if summary["development_evaluation_artifacts"].get(str(step)) != expected_artifacts:
+                raise Week7TrainingError(
+                    f"training summary development artifact mismatch: step {step}"
+                )
             recomputed = evaluate_development_candidate(
                 config, baseline, metrics, step=step, checkpoint=checkpoint,
                 checkpoint_hash=checkpoint_hash, metrics_path=metrics_path,
@@ -620,6 +802,7 @@ def create_parameter_lock(
             dataset_lock_sha256=dataset_lock["lock_sha256"],
             selected_checkpoint_sha256=selected_spec["adapter_model_sha256"],
             selected_step=selected_step,
+            root=root,
         )
         evidence_payload[name] = {
             "path": str(resolved), "sha256": sha256_file(resolved),
@@ -781,6 +964,7 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
             dataset_lock_sha256=payload["dataset_lock_sha256"],
             selected_checkpoint_sha256=payload["selected_checkpoint_sha256"],
             selected_step=selected_step,
+            root=root,
         )
         if evidence.get("identity") != identity:
             raise Week7EvaluationError(f"development evidence lock identity mismatch: {name}")
@@ -802,21 +986,50 @@ def _new_owner() -> dict[str, Any]:
         "host": socket.gethostname(),
         "pid": os.getpid(),
         "started_unix": time.time(),
+        "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
     }
 
 
-def _acquire_lease(marker: Path, owner: dict[str, Any]) -> Path:
+def _lease_identity(
+    run_id: str,
+    parameter_lock_sha256: str,
+    output_dir: Path,
+    declared_test_sha256: str,
+) -> dict[str, str]:
+    return {
+        "run_id": run_id,
+        "parameter_lock_sha256": parameter_lock_sha256,
+        "output_dir": str(output_dir.resolve()),
+        "test_file_sha256": declared_test_sha256,
+    }
+
+
+def _acquire_lease(
+    marker: Path,
+    owner: dict[str, Any],
+    identity: dict[str, str],
+) -> Path:
     lease = marker.with_suffix(marker.suffix + ".lease")
     try:
         descriptor = os.open(lease, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
     except FileExistsError as exc:
-        active = _read_json(lease)
+        active = _read_json(lease).get("owner", {})
         raise Week7EvaluationError(
             "final-test gate has an active owner lease "
             f"({active.get('host')}:{active.get('pid')})"
         ) from exc
     with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-        json.dump(owner, handle, ensure_ascii=False, indent=2, sort_keys=True)
+        json.dump(
+            {
+                "schema_version": "week7_final_test_lease_v1",
+                "owner": owner,
+                "identity": identity,
+            },
+            handle,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
         handle.write("\n")
     return lease
 
@@ -824,10 +1037,67 @@ def _acquire_lease(marker: Path, owner: dict[str, Any]) -> Path:
 def _release_lease(lease: Path | None, owner: dict[str, Any] | None) -> None:
     if lease is None or owner is None or not lease.exists():
         return
-    active = _read_json(lease)
+    active = _read_json(lease).get("owner", {})
     if active.get("token") != owner.get("token"):
         raise Week7EvaluationError("refusing to release another final-test owner lease")
     lease.unlink()
+
+
+def _snapshot_partial_raw_outputs(
+    output_dir: Path,
+    prior: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    prior = prior or {}
+    if not isinstance(prior, dict) or not set(prior) <= set(FINAL_ROLES):
+        raise Week7EvaluationError("partial raw-output prefix manifest is invalid")
+    result: dict[str, Any] = {}
+    for role in FINAL_ROLES:
+        path = output_dir / "raw_outputs" / f"{role}.jsonl"
+        old = prior.get(role)
+        if not path.exists():
+            if old is not None:
+                raise Week7EvaluationError(f"partial raw-output prefix disappeared: {role}")
+            continue
+        data = path.read_bytes()
+        if old is not None:
+            if set(old) != {"path", "sha256", "byte_count", "record_count"}:
+                raise Week7EvaluationError(
+                    f"partial raw-output prefix manifest is invalid: {role}"
+                )
+            old_bytes = int(old.get("byte_count", -1))
+            old_count = int(old.get("record_count", -1))
+            prefix_count = sum(
+                1 for line in data[:old_bytes].splitlines() if line.strip()
+            )
+            if (
+                old.get("path") != str(path.resolve())
+                or old_bytes < 0
+                or old_count < 0
+                or len(data) < old_bytes
+                or hashlib.sha256(data[:old_bytes]).hexdigest()
+                != old.get("sha256")
+                or prefix_count != old_count
+            ):
+                raise Week7EvaluationError(
+                    f"partial raw-output append-only prefix mismatch: {role}"
+                )
+        count = sum(1 for line in data.splitlines() if line.strip())
+        result[role] = {
+            "path": str(path.resolve()),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "byte_count": len(data),
+            "record_count": count,
+        }
+    return result
+
+
+def _validate_failed_partial_outputs(state: dict[str, Any], output_dir: Path) -> None:
+    expected = state.get("partial_raw_outputs")
+    if not isinstance(expected, dict):
+        raise Week7EvaluationError("FAILED marker lacks partial raw-output evidence")
+    actual = _snapshot_partial_raw_outputs(output_dir, expected)
+    if actual != expected:
+        raise Week7EvaluationError("FAILED partial raw outputs changed before resume")
 
 
 def _mark_test_failed(
@@ -847,11 +1117,16 @@ def _mark_test_failed(
         "failed_unix": time.time(),
         "owner": owner,
     }
+    output_dir = Path(str(current.get("output_dir", ""))).resolve()
+    partial_raw_outputs = _snapshot_partial_raw_outputs(
+        output_dir, current.get("resume_prefix")
+    )
     failed = {
         **current,
         "status": "FAILED",
         "failure": failure,
         "failure_history": list(current.get("failure_history", [])) + [failure],
+        "partial_raw_outputs": partial_raw_outputs,
     }
     _atomic_json_replace(marker, failed)
 
@@ -868,6 +1143,9 @@ def _claim_test_run(
 ) -> tuple[dict[str, Any], bool, Path | None, dict[str, Any] | None]:
     marker.parent.mkdir(parents=True, exist_ok=True)
     expected_identity = (run_id, parameter_lock_sha256, str(output_dir.resolve()))
+    lease_identity = _lease_identity(
+        run_id, parameter_lock_sha256, output_dir, declared_test_sha256
+    )
     if marker.exists():
         current = _read_json(marker)
         identity = (current.get("run_id"), current.get("parameter_lock_sha256"), current.get("output_dir"))
@@ -883,8 +1161,9 @@ def _claim_test_run(
             )
         if current.get("status") != "FAILED" or not resume:
             raise Week7EvaluationError("same-run recovery is allowed only from explicit FAILED state")
+        _validate_failed_partial_outputs(current, output_dir)
         owner = _new_owner()
-        lease = _acquire_lease(marker, owner)
+        lease = _acquire_lease(marker, owner, lease_identity)
         try:
             latest = _read_json(marker)
             latest_identity = (
@@ -892,11 +1171,13 @@ def _claim_test_run(
             )
             if latest.get("status") != "FAILED" or latest_identity != expected_identity:
                 raise Week7EvaluationError("final-test state changed while acquiring recovery lease")
+            _validate_failed_partial_outputs(latest, output_dir)
             resumed = {
                 **latest,
                 "status": "IN_PROGRESS",
                 "owner": owner,
                 "resume_count": int(latest.get("resume_count", 0)) + 1,
+                "resume_prefix": latest["partial_raw_outputs"],
             }
             _atomic_json_replace(marker, resumed)
             return resumed, False, lease, owner
@@ -907,9 +1188,9 @@ def _claim_test_run(
     if resume:
         raise Week7EvaluationError("cannot resume before an explicit FAILED final-test run exists")
     owner = _new_owner()
-    lease = _acquire_lease(marker, owner)
+    lease = _acquire_lease(marker, owner, lease_identity)
     initial = {
-        "schema_version": "week7_test_consumption_v2",
+        "schema_version": "week7_test_consumption_v3",
         "status": "IN_PROGRESS",
         "run_id": run_id,
         "parameter_lock_path": str(parameter_lock_path.resolve()),
@@ -928,6 +1209,104 @@ def _claim_test_run(
         _release_lease(lease, owner)
         raise
     return initial, False, lease, owner
+
+
+def recover_interrupted_final_test(
+    root: Path,
+    config_path: Path,
+    parameter_lock_path: Path,
+    output_dir: Path,
+    *,
+    slurm_job_id: str,
+    slurm_job_state: str,
+) -> dict[str, Any]:
+    """Explicitly fail an orphaned Slurm owner after audited job-state proof."""
+    root = Path(root).resolve()
+    config_path = Path(config_path).resolve()
+    parameter_lock_path = Path(parameter_lock_path).resolve()
+    output_dir = Path(output_dir).resolve()
+    parameter_lock, dataset_lock, lock_root = _validate_parameter_lock(
+        root, config_path, parameter_lock_path
+    )
+    declared = dataset_lock.get("files", {}).get("test.jsonl", {})
+    if not declared.get("sha256"):
+        raise Week7EvaluationError("dataset lock does not bind the final test file")
+    marker = (
+        lock_root.parent.parent / "test_consumption"
+        / f"{parameter_lock['dataset_version']}.json"
+    )
+    if not marker.is_file():
+        raise Week7EvaluationError("no final-test marker exists to recover")
+    current = _read_json(marker)
+    expected_identity = _lease_identity(
+        parameter_lock["test_run_id"], sha256_file(parameter_lock_path),
+        output_dir, declared["sha256"],
+    )
+    marker_identity = {
+        key: current.get(key) for key in expected_identity
+    }
+    if (
+        marker_identity != expected_identity
+        or current.get("parameter_lock_path") != str(parameter_lock_path)
+    ):
+        raise Week7EvaluationError("interrupted final-test marker identity mismatch")
+    if current.get("status") not in {"IN_PROGRESS", "FAILED"}:
+        raise Week7EvaluationError(
+            "only an IN_PROGRESS or already FAILED final-test marker can be recovered"
+        )
+
+    owner = current.get("owner")
+    if not isinstance(owner, dict) or not owner.get("token"):
+        raise Week7EvaluationError("interrupted final-test owner identity is incomplete")
+    job_id = str(slurm_job_id).strip()
+    if not job_id or str(owner.get("slurm_job_id") or "") != job_id:
+        raise Week7EvaluationError("Slurm job does not own the interrupted final-test marker")
+    state = str(slurm_job_state).strip().upper().split("+")[0]
+    terminal_states = {
+        "BOOT_FAIL", "CANCELLED", "DEADLINE", "FAILED", "NODE_FAIL",
+        "OUT_OF_MEMORY", "PREEMPTED", "TIMEOUT",
+    }
+    if state == "SIGNAL_TERM":
+        if os.environ.get("SLURM_JOB_ID") != job_id:
+            raise Week7EvaluationError("SIGNAL_TERM recovery requires the current Slurm owner")
+    elif state not in terminal_states:
+        raise Week7EvaluationError("Slurm job state is not terminal; active lease is preserved")
+
+    if current.get("status") == "FAILED":
+        _validate_failed_partial_outputs(current, output_dir)
+        return current
+
+    lease = marker.with_suffix(marker.suffix + ".lease")
+    if not lease.is_file():
+        raise Week7EvaluationError("interrupted final-test owner lease is missing")
+    lease_payload = _read_json(lease)
+    if (
+        lease_payload.get("identity") != expected_identity
+        or lease_payload.get("owner") != owner
+    ):
+        raise Week7EvaluationError("interrupted final-test lease identity mismatch")
+    partial_raw_outputs = _snapshot_partial_raw_outputs(
+        output_dir, current.get("resume_prefix")
+    )
+    failure = {
+        "type": "ExternalJobTermination",
+        "message": f"Slurm job {job_id} ended with {state}",
+        "failed_unix": time.time(),
+        "owner": owner,
+        "slurm_job_id": job_id,
+        "slurm_job_state": state,
+        "lease_sha256": sha256_file(lease),
+    }
+    failed = {
+        **current,
+        "status": "FAILED",
+        "failure": failure,
+        "failure_history": list(current.get("failure_history", [])) + [failure],
+        "partial_raw_outputs": partial_raw_outputs,
+    }
+    _atomic_json_replace(marker, failed)
+    _release_lease(lease, owner)
+    return failed
 
 
 def _row_task(row: dict[str, Any]) -> str:

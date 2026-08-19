@@ -1,0 +1,47 @@
+{
+  "status": "PASS",
+  "recorded_by_git_commit": "67fd7825c82771b3fa732f62a7c6a14cd6705486",
+  "baseline_commit": "132779b0f6d2929ce1cdbed18e62adf3ef9edd18",
+  "dataset_version": "week7_fresh_multitask_context_20260820_v3",
+  "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+  "config_sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa",
+  "transfer_archive_sha256": "ceb1bab2c789fa2e072b9ef6e3eec0ad77ac4c360e4282c50e4dff6f68c73551",
+  "seed": 20260819,
+  "counts": {
+    "train": {"image_product_search": 760, "after_sales": 760, "itinerary_planning": 760, "general_multimodal": 270, "dialogue": 450, "total": 3000},
+    "development": {"image_product_search": 30, "after_sales": 30, "itinerary_planning": 30, "dialogue": 24, "total": 114},
+    "test": {"image_product_search": 30, "after_sales": 30, "itinerary_planning": 30, "dialogue": 24, "total": 114}
+  },
+  "actual_train_ratios": {"general_multimodal": 0.09, "dialogue": 0.15, "dialogue_tool_call": 0.10},
+  "development_tool_call_ratio": 0.125,
+  "test_tool_call_ratio": 0.125,
+  "dialogue_parent_scenario_counts": {
+    "train": {"image_product_search": 150, "after_sales": 150, "itinerary_planning": 150},
+    "development": {"image_product_search": 8, "after_sales": 8, "itinerary_planning": 8},
+    "test": {"image_product_search": 8, "after_sales": 8, "itinerary_planning": 8}
+  },
+  "isolation": {
+    "status": "PASS",
+    "dimensions": ["sample_id", "source_id", "image_sha256", "group_id", "constraint_template_id"],
+    "cross_split_collision_count": 0
+  },
+  "label_status": {
+    "week7_human_accepted": 0,
+    "programmatic_silver": 3000,
+    "dialogue_human_queue": 24,
+    "dialogue_human_queue_status": "PENDING_REAL_HUMAN_INPUT"
+  },
+  "spartan_transfer": {
+    "archive_sha256_verified": true,
+    "image_reuse": "read-only symlink to v2 image directory after exact local name/hash equality check",
+    "identical_image_file_count": 2730,
+    "partial_extract_failure": "project quota exceeded during duplicate-image extraction; the unusable partial directory was removed and rebuilt from the retained archive without duplicate image bytes"
+  },
+  "validation": {
+    "validated_train": 3000,
+    "validated_development": 114,
+    "test_consumed": false,
+    "local_status": "PASS",
+    "spartan_status": "PASS"
+  }
+}

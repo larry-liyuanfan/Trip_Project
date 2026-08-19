@@ -4,10 +4,16 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.training.week7_data import canonical_sha256, sha256_file, validate_week7_lock
-from src.training.week7_evaluation import Week7EvaluationError
-from src.training.week7_final_evaluation import create_parameter_lock, run_final_test_suite
+from src.training.week7_evaluation import Week7EvaluationError, compare_schema_decoding
+from src.training.week7_final_evaluation import (
+    _claim_test_run,
+    create_parameter_lock,
+    recover_interrupted_final_test,
+    run_final_test_suite,
+)
 from src.training.week7_selection import select_development_checkpoint
 
 
@@ -111,6 +117,17 @@ class Week7FinalEvaluationTests(unittest.TestCase):
         self.training_summary = self.selected.parent / "run_summary.json"
         self.training_summary.write_text(json.dumps(summary), encoding="utf-8")
         self.evidence = self._development_evidence()
+        multitask_metrics = self.evidence["multitask_development"]
+        multitask_raw = multitask_metrics.parent / "raw_outputs.jsonl"
+        summary["development_evaluation_artifacts"] = {
+            "10": {
+                "raw_outputs_path": str(multitask_raw.resolve()),
+                "raw_outputs_sha256": sha256_file(multitask_raw),
+                "metrics_path": str(multitask_metrics.resolve()),
+                "metrics_sha256": sha256_file(multitask_metrics),
+            },
+        }
+        self.training_summary.write_text(json.dumps(summary), encoding="utf-8")
         self.selection = self.root / "selection.json"
         select_development_checkpoint(
             self.config_path, self.selected.parent, self.training_summary,
@@ -236,22 +253,71 @@ class Week7FinalEvaluationTests(unittest.TestCase):
             "failure_rate": 0.0, "latency_ms_mean": 10.0,
             "weighted_composite": 0.5,
         }
-        schema = {
+        schema_rows = []
+        schema_free_records = []
+        schema_constrained_records = []
+        for scenario, target in TARGETS.items():
+            for index in range(30):
+                sample_id = f"schema-{scenario}-{index:02d}"
+                raw = json.dumps(target)
+                schema_rows.append({"sample_id": sample_id, "scenario": scenario})
+                schema_free_records.append({
+                    "run_id": self.config["experiment_identity"]["schema_free_run_id"],
+                    "sample_id": sample_id, "scenario": scenario, "raw_output": raw,
+                    "latency_ms": 10.0, "failed": False, "error": None,
+                    "fallback_used": False, "fallback_failed": False,
+                    "response_model": self.config["base_model"],
+                })
+                schema_constrained_records.append({
+                    "run_id": self.config["experiment_identity"]["schema_constrained_run_id"],
+                    "sample_id": sample_id, "scenario": scenario, "raw_output": raw,
+                    "primary_constrained_raw_output": raw,
+                    "fallback_raw_output": "", "operational_raw_output": raw,
+                    "latency_ms": 10.0, "failed": False,
+                    "fallback_used": False, "fallback_failed": False,
+                    "constrained_error": None, "fallback_error": None,
+                    "primary_response_model": self.config["base_model"],
+                    "fallback_response_model": None,
+                })
+        schema_raw_paths = {}
+        for mode, records in (
+            ("free", schema_free_records), ("constrained", schema_constrained_records),
+        ):
+            path = self.root / f"schema-{mode}-raw.jsonl"
+            with path.open("w", encoding="utf-8", newline="\n") as handle:
+                for record in records:
+                    handle.write(json.dumps(record, sort_keys=True) + "\n")
+            schema_raw_paths[mode] = path
+        schema = compare_schema_decoding(
+            self.root, self.config, schema_rows,
+            schema_free_records, schema_constrained_records,
+        ) | {
             "status": "COMPLETED", "model_role": "schema_format_only_experiment",
             "split": "development", "config_sha256": config_hash,
-            "dataset_lock_sha256": dataset_hash, "scope": "format_only",
-            "semantic_claims": "FORBIDDEN", "sample_count": 90,
+            "dataset_lock_sha256": dataset_hash,
+            "endpoint_recorded": "http://127.0.0.1:8001",
+            "paired_order": self.config["evaluation"]["schema_decoding"]["paired_order"],
+            "fallback_used_count": 0,
             "run_ids": {
                 "free": self.config["experiment_identity"]["schema_free_run_id"],
                 "constrained": self.config["experiment_identity"]["schema_constrained_run_id"],
             },
-            "gate": {"latency": True, "fallback": True},
-            "modes": {
-                mode: {
-                    "json_compliance": 1.0, "schema_coverage": 1.0,
-                    "fallback_failure_rate": 0.0, "latency_ms_mean": 10.0,
-                }
-                for mode in ("free", "constrained")
+            "served_model": self.config["base_model"],
+            "model_identity": {
+                "base_model": self.config["base_model"],
+                "requested_served_model": self.config["base_model"],
+                "registry_model_ids": [self.config["base_model"]],
+                "successful_response_model_ids": [self.config["base_model"]],
+                "verified": True,
+            },
+            "completion_eligibility": {
+                "eligible": True, "free_has_success": True,
+                "constrained_operational_has_success": True,
+                "served_model_verified": True,
+            },
+            "raw_artifacts": {
+                mode: {"path": str(path), "sha256": sha256_file(path), "count": 90}
+                for mode, path in schema_raw_paths.items()
             },
         }
         payloads = {
@@ -269,6 +335,16 @@ class Week7FinalEvaluationTests(unittest.TestCase):
                 else self.root / f"{name}.json"
             )
             path.parent.mkdir(parents=True, exist_ok=True)
+            if name == "multitask_development":
+                raw_path = path.parent / "raw_outputs.jsonl"
+                with raw_path.open("w", encoding="utf-8", newline="\n") as handle:
+                    for index in range(114):
+                        handle.write(json.dumps({"sample_id": f"development-{index:03d}"}) + "\n")
+                payload["raw_outputs"] = {
+                    "path": str(raw_path.resolve()),
+                    "sha256": sha256_file(raw_path),
+                    "count": 114,
+                }
             path.write_text(json.dumps(payload), encoding="utf-8")
             result[name] = path
         return result
@@ -400,6 +476,36 @@ class Week7FinalEvaluationTests(unittest.TestCase):
                 schema_decoding_mode="free",
             )
 
+    def test_parameter_lock_rejects_schema_raw_model_forgery(self):
+        schema = json.loads(self.evidence["schema_decoding"].read_text(encoding="utf-8"))
+        source = Path(schema["raw_artifacts"]["free"]["path"])
+        records = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
+        records[0]["response_model"] = "forged-model"
+        forged_raw = self.root / "forged-schema-free.jsonl"
+        with forged_raw.open("w", encoding="utf-8", newline="\n") as handle:
+            for record in records:
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
+        schema["raw_artifacts"]["free"] = {
+            "path": str(forged_raw), "sha256": sha256_file(forged_raw), "count": 90,
+        }
+        forged_schema = self.root / "forged-schema-comparison.json"
+        forged_schema.write_text(json.dumps(schema), encoding="utf-8")
+        evidence = dict(self.evidence)
+        evidence["schema_decoding"] = forged_schema
+        with self.assertRaisesRegex(Week7EvaluationError, "raw served-model identity"):
+            create_parameter_lock(
+                self.root, self.config_path, self.root / "forged-schema-lock.json",
+                training_summary_path=self.training_summary,
+                selection_path=self.selection,
+                selected_checkpoint=self.selected,
+                week6_adapters={
+                    scenario: (path, sha256_file(path / "adapter_model.safetensors"))
+                    for scenario, path in self.week6.items()
+                },
+                development_evidence=evidence,
+                schema_decoding_mode="free",
+            )
+
     def test_parameter_lock_recomputes_selection_gates(self):
         selection = json.loads(self.selection.read_text(encoding="utf-8"))
         selection["selected"]["failure_gate"] = False
@@ -437,7 +543,13 @@ class Week7FinalEvaluationTests(unittest.TestCase):
             )
         self.assertEqual(calls.count("week6_single_task_adapters"), 3)
         marker = self.root / "outputs/week7/test_consumption/week7_unit_test_lock_v1.json"
-        self.assertEqual(json.loads(marker.read_text(encoding="utf-8"))["status"], "FAILED")
+        failed_marker = json.loads(marker.read_text(encoding="utf-8"))
+        self.assertEqual(failed_marker["status"], "FAILED")
+        self.assertEqual(
+            failed_marker["partial_raw_outputs"]
+            ["week6_single_task_adapters"]["record_count"],
+            4,
+        )
         result = run_final_test_suite(
             self.root, self.config_path, self.parameter_lock, output,
             resume=True, inference_runner=self._successful_runner,
@@ -466,6 +578,112 @@ class Week7FinalEvaluationTests(unittest.TestCase):
                 self.root, self.config_path, self.parameter_lock, output,
                 resume=True, inference_runner=self._successful_runner,
             )
+
+    def test_failed_resume_rejects_partial_raw_append_or_prefix_change(self):
+        output = self.root / "partial-tamper-output"
+
+        def interrupted(role, rows, adapter, record_sink):
+            if role == "multitask":
+                raise RuntimeError("stop after first role")
+            return self._successful_runner(role, rows, adapter, record_sink)
+
+        with self.assertRaisesRegex(RuntimeError, "stop after first role"):
+            run_final_test_suite(
+                self.root, self.config_path, self.parameter_lock, output,
+                inference_runner=interrupted,
+            )
+        raw = output / "raw_outputs/week6_single_task_adapters.jsonl"
+        original = raw.read_bytes()
+        raw.write_bytes(original + b"{}\n")
+        with self.assertRaisesRegex(Week7EvaluationError, "changed before resume"):
+            run_final_test_suite(
+                self.root, self.config_path, self.parameter_lock, output,
+                resume=True, inference_runner=self._successful_runner,
+            )
+        raw.write_bytes(b"X" + original[1:])
+        with self.assertRaisesRegex(Week7EvaluationError, "append-only prefix mismatch"):
+            run_final_test_suite(
+                self.root, self.config_path, self.parameter_lock, output,
+                resume=True, inference_runner=self._successful_runner,
+            )
+        raw.write_bytes(original)
+        marker = (
+            self.root / "outputs/week7/test_consumption/week7_unit_test_lock_v1.json"
+        )
+        forged = json.loads(marker.read_text(encoding="utf-8"))
+        forged["partial_raw_outputs"]["week6_single_task_adapters"]["record_count"] += 1
+        marker.write_text(json.dumps(forged), encoding="utf-8")
+        with self.assertRaisesRegex(Week7EvaluationError, "append-only prefix mismatch"):
+            run_final_test_suite(
+                self.root, self.config_path, self.parameter_lock, output,
+                resume=True, inference_runner=self._successful_runner,
+            )
+
+    def test_stale_slurm_lease_requires_terminal_matching_job_then_resumes(self):
+        output = self.root / "stale-slurm-output"
+        marker = (
+            self.root / "outputs/week7/test_consumption/week7_unit_test_lock_v1.json"
+        )
+        declared = self.dataset_lock["files"]["test.jsonl"]
+        with patch.dict("os.environ", {"SLURM_JOB_ID": "9001"}):
+            _, completed, lease, owner = _claim_test_run(
+                marker,
+                run_id=self.config["experiment_identity"]["test_run_id"],
+                parameter_lock_path=self.parameter_lock,
+                parameter_lock_sha256=sha256_file(self.parameter_lock),
+                output_dir=output,
+                declared_test_sha256=declared["sha256"],
+                resume=False,
+            )
+        self.assertFalse(completed)
+        self.assertEqual(owner["slurm_job_id"], "9001")
+        self.assertTrue(lease.is_file())
+        partial = output / "raw_outputs/week6_single_task_adapters.jsonl"
+        partial.parent.mkdir(parents=True)
+        partial.write_text(json.dumps({
+            "sample_id": "test-image_product_search",
+            "model_name": "week6_single_task_adapters",
+            "raw_output": json.dumps(TARGETS["image_product_search"]),
+            "latency_ms": 10.0,
+            "failed": False,
+            "error": None,
+            "run_id": self.config["experiment_identity"]["test_run_id"],
+            "run_role": "week6_single_task_adapters",
+        }) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(Week7EvaluationError, "not terminal"):
+            recover_interrupted_final_test(
+                self.root, self.config_path, self.parameter_lock, output,
+                slurm_job_id="9001", slurm_job_state="RUNNING",
+            )
+        self.assertTrue(lease.is_file())
+        with self.assertRaisesRegex(Week7EvaluationError, "does not own"):
+            recover_interrupted_final_test(
+                self.root, self.config_path, self.parameter_lock, output,
+                slurm_job_id="9002", slurm_job_state="TIMEOUT",
+            )
+        self.assertTrue(lease.is_file())
+        failed = recover_interrupted_final_test(
+            self.root, self.config_path, self.parameter_lock, output,
+            slurm_job_id="9001", slurm_job_state="TIMEOUT",
+        )
+        self.assertEqual(failed["status"], "FAILED")
+        self.assertEqual(failed["failure"]["slurm_job_state"], "TIMEOUT")
+        self.assertEqual(
+            failed["partial_raw_outputs"]["week6_single_task_adapters"]
+            ["record_count"],
+            1,
+        )
+        self.assertFalse(lease.exists())
+        with self.assertRaisesRegex(Week7EvaluationError, "does not own"):
+            recover_interrupted_final_test(
+                self.root, self.config_path, self.parameter_lock, output,
+                slurm_job_id="9002", slurm_job_state="TIMEOUT",
+            )
+        completed_result = run_final_test_suite(
+            self.root, self.config_path, self.parameter_lock, output,
+            resume=True, inference_runner=self._successful_runner,
+        )
+        self.assertEqual(completed_result["status"], "COMPLETED")
 
     def test_concurrent_resume_is_rejected_while_owner_is_in_progress(self):
         output = self.root / "concurrent-output"

@@ -322,7 +322,9 @@ def _openai_messages(root: Path, row: dict[str, Any]) -> list[dict[str, Any]]:
     return converted
 
 
-def _request_completion(endpoint: str, payload: dict[str, Any], timeout: int) -> tuple[str, float, str | None]:
+def _request_completion(
+    endpoint: str, payload: dict[str, Any], timeout: int,
+) -> tuple[str, float, str | None, str | None]:
     request = urllib.request.Request(
         endpoint.rstrip("/") + "/v1/chat/completions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -332,9 +334,27 @@ def _request_completion(endpoint: str, payload: dict[str, Any], timeout: int) ->
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             result = json.loads(response.read().decode("utf-8"))
-        return str(result["choices"][0]["message"]["content"]), (time.perf_counter() - started) * 1000, None
+        return (
+            str(result["choices"][0]["message"]["content"]),
+            (time.perf_counter() - started) * 1000,
+            None,
+            str(result["model"]),
+        )
     except (urllib.error.URLError, TimeoutError, KeyError, json.JSONDecodeError) as exc:
-        return "", (time.perf_counter() - started) * 1000, f"{type(exc).__name__}: {exc}"
+        return "", (time.perf_counter() - started) * 1000, f"{type(exc).__name__}: {exc}", None
+
+
+def _request_model_registry(endpoint: str, timeout: int) -> list[str]:
+    request = urllib.request.Request(endpoint.rstrip("/") + "/v1/models", method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        model_ids = [str(item["id"]) for item in payload["data"]]
+    except (urllib.error.URLError, TimeoutError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise Week7TrainingError(f"cannot verify the served model registry: {exc}") from exc
+    if not model_ids or len(model_ids) != len(set(model_ids)):
+        raise Week7TrainingError("served model registry is empty or ambiguous")
+    return model_ids
 
 
 def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, endpoint: str, served_model: str, timeout: int = 300) -> dict[str, Any]:
@@ -342,6 +362,11 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
     if output_dir.exists():
         raise Week7TrainingError("refusing to overwrite the schema experiment")
     config = load_week7_config(config_path)
+    if served_model != config["base_model"]:
+        raise Week7TrainingError("served model must exactly match the locked Qwen3-VL-8B base model")
+    registry_model_ids = _request_model_registry(endpoint, timeout)
+    if registry_model_ids != [served_model]:
+        raise Week7TrainingError("served model registry does not exactly match the locked base model")
     lock_root = root / config["dataset"]["output_root"] / config["dataset"]["dataset_version"]
     dataset_lock = json.loads((lock_root / "dataset_lock.json").read_text(encoding="utf-8"))
     if dataset_lock.get("config_sha256") != sha256_file(config_path):
@@ -359,12 +384,15 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
                 "model": served_model, "messages": _openai_messages(root, row),
                 "temperature": 0, "max_tokens": 2048,
             }
-            free_raw, free_latency, free_error = _request_completion(endpoint, free_payload, timeout)
+            free_raw, free_latency, free_error, free_response_model = _request_completion(
+                endpoint, free_payload, timeout,
+            )
             free_record = {
                 "run_id": config["experiment_identity"]["schema_free_run_id"],
                 "sample_id": row["sample_id"], "raw_output": free_raw,
                 "latency_ms": free_latency, "failed": free_error is not None,
                 "fallback_used": False, "fallback_failed": False, "error": free_error,
+                "scenario": row["scenario"], "response_model": free_response_model,
             }
             by_mode["free"].append(free_record)
             handles["free"].write(json.dumps(free_record, ensure_ascii=False, sort_keys=True) + "\n")
@@ -378,14 +406,19 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
                 "type": "json_schema",
                 "json_schema": {"name": f"week7_{row['scenario']}_v1", "strict": True, "schema": load_output_schema(root, row["scenario"], "v1")},
             }
-            raw, latency, error = _request_completion(endpoint, payload, timeout)
+            raw, latency, error, primary_response_model = _request_completion(
+                endpoint, payload, timeout,
+            )
             primary_constrained_raw = raw
             constrained_error = error
             fallback_used = error is not None
             fallback_error = None
             fallback_raw = ""
+            fallback_response_model = None
             if fallback_used:
-                fallback_raw, fallback_latency, fallback_error = _request_completion(endpoint, free_payload, timeout)
+                fallback_raw, fallback_latency, fallback_error, fallback_response_model = (
+                    _request_completion(endpoint, free_payload, timeout)
+                )
                 latency += fallback_latency
             constrained_record = {
                 "run_id": config["experiment_identity"]["schema_constrained_run_id"],
@@ -397,6 +430,9 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
                 "failed": fallback_error is not None if fallback_used else False,
                 "fallback_used": fallback_used, "fallback_failed": fallback_error is not None,
                 "constrained_error": constrained_error, "fallback_error": fallback_error,
+                "scenario": row["scenario"],
+                "primary_response_model": primary_response_model,
+                "fallback_response_model": fallback_response_model,
             }
             by_mode["constrained"].append(constrained_record)
             handles["constrained"].write(json.dumps(constrained_record, ensure_ascii=False, sort_keys=True) + "\n")
@@ -405,8 +441,42 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
         for handle in handles.values():
             handle.close()
     comparison = compare_schema_decoding(root, config, rows, by_mode["free"], by_mode["constrained"])
+    response_models = {
+        str(model)
+        for record in by_mode["free"]
+        for model in (record.get("response_model"),)
+        if model is not None
+    } | {
+        str(model)
+        for record in by_mode["constrained"]
+        for model in (
+            record.get("primary_response_model"), record.get("fallback_response_model"),
+        )
+        if model is not None
+    }
+    raw_artifacts = {
+        mode: {
+            "path": str((output_dir / f"{mode}_raw_outputs.jsonl").resolve()),
+            "sha256": sha256_file(output_dir / f"{mode}_raw_outputs.jsonl"),
+            "count": len(records),
+        }
+        for mode, records in by_mode.items()
+    }
+    completion_eligible = (
+        comparison["modes"]["free"]["operational_failure_count"] < len(rows)
+        and comparison["modes"]["constrained"]["operational_failure_count"] < len(rows)
+        and response_models == {served_model}
+    )
     comparison.update({
-        "status": "COMPLETED", "served_model": served_model,
+        "status": "COMPLETED" if completion_eligible else "FAILED_REQUESTS",
+        "served_model": served_model,
+        "model_identity": {
+            "base_model": config["base_model"],
+            "requested_served_model": served_model,
+            "registry_model_ids": registry_model_ids,
+            "successful_response_model_ids": sorted(response_models),
+            "verified": response_models == {served_model},
+        },
         "endpoint_recorded": endpoint, "config_sha256": sha256_file(config_path),
         "dataset_lock_sha256": dataset_lock["lock_sha256"],
         "model_role": "schema_format_only_experiment", "split": "development",
@@ -416,8 +486,19 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
         },
         "paired_order": "sample_interleaved_free_then_constrained",
         "fallback_used_count": sum(bool(record["fallback_used"]) for record in by_mode["constrained"]),
+        "raw_artifacts": raw_artifacts,
+        "completion_eligibility": {
+            "eligible": completion_eligible,
+            "free_has_success": comparison["modes"]["free"]["operational_failure_count"] < len(rows),
+            "constrained_operational_has_success": comparison["modes"]["constrained"]["operational_failure_count"] < len(rows),
+            "served_model_verified": response_models == {served_model},
+        },
     })
     (output_dir / "comparison.json").write_text(json.dumps(comparison, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    if not completion_eligible:
+        raise Week7TrainingError(
+            "schema experiment requests/model identity are incomplete; comparison is not COMPLETED"
+        )
     return comparison
 
 

@@ -1,0 +1,14 @@
+{
+  "status": "SKIPPED",
+  "git_commit": "67fd7825c82771b3fa732f62a7c6a14cd6705486",
+  "config_sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa",
+  "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+  "reviewed_preference_pair_count": 0,
+  "required_evidence": [
+    "real_human_quality_review",
+    "visual_evidence_review"
+  ],
+  "reason": "No chosen/rejected preference pair has passed real human quality and visual-evidence review; the one permitted mDPO/HDPO-style ablation is therefore not eligible.",
+  "main_sft_blocked": false,
+  "test_consumed": false
+}

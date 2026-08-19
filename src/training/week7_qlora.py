@@ -267,9 +267,15 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
             })
             evaluation_dir = output_dir / "development_evaluations" / f"step-{step:06d}"
             evaluation_dir.mkdir(parents=True, exist_ok=False)
-            with (evaluation_dir / "raw_outputs.jsonl").open("x", encoding="utf-8", newline="\n") as handle:
+            raw_outputs_path = evaluation_dir / "raw_outputs.jsonl"
+            with raw_outputs_path.open("x", encoding="utf-8", newline="\n") as handle:
                 for record in records:
                     handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+            summary["raw_outputs"] = {
+                "path": str(raw_outputs_path.resolve()),
+                "sha256": sha256_file(raw_outputs_path),
+                "count": len(records),
+            }
             (evaluation_dir / "metrics.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
             if was_training:
                 self.model.train()
@@ -323,6 +329,20 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
     if not state or not all("lora_" in name for name in state) or peft_config.base_model_name_or_path != config["base_model"]:
         raise Week7TrainingError("saved adapter failed LoRA-only reload verification")
     checkpoints = sorted(path for path in output_dir.glob("checkpoint-*") if path.is_dir())
+    completed_evaluation_steps = [step for step in decile_steps if step <= int(trainer.state.global_step)]
+    development_evaluation_artifacts = {}
+    for step in completed_evaluation_steps:
+        evaluation_dir = output_dir / "development_evaluations" / f"step-{step:06d}"
+        raw_outputs_path = evaluation_dir / "raw_outputs.jsonl"
+        metrics_path = evaluation_dir / "metrics.json"
+        if not raw_outputs_path.is_file() or not metrics_path.is_file():
+            raise Week7TrainingError(f"missing completed development evaluation artifacts: step {step}")
+        development_evaluation_artifacts[str(step)] = {
+            "raw_outputs_path": str(raw_outputs_path.resolve()),
+            "raw_outputs_sha256": sha256_file(raw_outputs_path),
+            "metrics_path": str(metrics_path.resolve()),
+            "metrics_sha256": sha256_file(metrics_path),
+        }
     summary = {
         "status": "COMPLETED", "run_id": run_id, "git_commit": _git_commit(root),
         "config_sha256": config_sha256, "dataset_lock_sha256": lock["lock_sha256"],
@@ -331,6 +351,7 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
         "global_step": int(trainer.state.global_step), "best_checkpoint": trainer.state.best_model_checkpoint,
         "best_metric": trainer.state.best_metric, "checkpoints": [path.name for path in checkpoints],
         "checkpoint_hashes": {path.name: sha256_file(path / "adapter_model.safetensors") for path in checkpoints if (path / "adapter_model.safetensors").is_file()},
+        "development_evaluation_artifacts": development_evaluation_artifacts,
         "adapter_hashes": {path.name: sha256_file(path) for path in adapter_dir.iterdir() if path.is_file()},
         "adapter_only": True, "adapter_reload_verified": True, "lora_targets": targets,
         **parameter_report, "training_metrics": result.metrics, "log_history": trainer.state.log_history,

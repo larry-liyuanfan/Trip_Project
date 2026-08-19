@@ -125,6 +125,7 @@ class Week7SelectionTests(unittest.TestCase):
         weights = self.config["evaluation"]["scenario_weights"]
         checkpoint_hashes = {}
         checkpoints = []
+        development_evaluation_artifacts = {}
         for step, values, latency in rows:
             metrics_dir = self.training / "development_evaluations" / f"step-{step:06d}"
             checkpoint = self.training / f"checkpoint-{step}"
@@ -155,9 +156,29 @@ class Week7SelectionTests(unittest.TestCase):
                     weights[name] * scenarios[name]["composite"] for name in weights
                 ),
             }
-            (metrics_dir / "metrics.json").write_text(
+            raw_outputs = metrics_dir / "raw_outputs.jsonl"
+            raw_outputs.write_text(
+                "".join(
+                    json.dumps({"sample_id": f"development-{index}"}) + "\n"
+                    for index in range(114)
+                ),
+                encoding="utf-8",
+            )
+            metrics["raw_outputs"] = {
+                "path": str(raw_outputs.resolve()),
+                "sha256": sha256_file(raw_outputs),
+                "count": 114,
+            }
+            metrics_path = metrics_dir / "metrics.json"
+            metrics_path.write_text(
                 json.dumps(metrics), encoding="utf-8"
             )
+            development_evaluation_artifacts[str(step)] = {
+                "raw_outputs_path": str(raw_outputs.resolve()),
+                "raw_outputs_sha256": sha256_file(raw_outputs),
+                "metrics_path": str(metrics_path.resolve()),
+                "metrics_sha256": sha256_file(metrics_path),
+            }
         summary = {
             "status": "COMPLETED",
             "run_id": self.config["experiment_identity"]["multitask_sft_run_id"],
@@ -168,6 +189,7 @@ class Week7SelectionTests(unittest.TestCase):
             "global_step": rows[-1][0],
             "checkpoints": checkpoints,
             "checkpoint_hashes": checkpoint_hashes,
+            "development_evaluation_artifacts": development_evaluation_artifacts,
         }
         path = self.training / "run_summary.json"
         path.write_text(json.dumps(summary), encoding="utf-8")
@@ -225,6 +247,16 @@ class Week7SelectionTests(unittest.TestCase):
             select_development_checkpoint(
                 CONFIG, self.training, summary, self.baseline_path,
                 self.root / "bad-hash.json",
+            )
+
+    def test_rejects_modified_development_raw_outputs(self) -> None:
+        summary = self._write_training(((38, (0.6, 0.6, 0.6), 100.0),))
+        raw_path = self.training / "development_evaluations/step-000038/raw_outputs.jsonl"
+        raw_path.write_text(raw_path.read_text(encoding="utf-8") + "{}\n", encoding="utf-8")
+        with self.assertRaisesRegex(Week7TrainingError, "raw-output artifact"):
+            select_development_checkpoint(
+                CONFIG, self.training, summary, self.baseline_path,
+                self.root / "bad-raw.json",
             )
 
     def test_rejects_7_8_9_routed_dialogue_distribution(self) -> None:

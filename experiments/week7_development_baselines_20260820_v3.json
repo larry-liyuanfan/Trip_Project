@@ -1,0 +1,51 @@
+{
+  "status": "COMPLETED",
+  "git_commit": "67fd7825c82771b3fa732f62a7c6a14cd6705486",
+  "config_sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa",
+  "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+  "test_consumed": false,
+  "slurm_jobs": {
+    "image_product_search": {"job_id": 29433880, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:08:12"},
+    "after_sales": {"job_id": 29433881, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:01:59"},
+    "itinerary_planning": {"job_id": 29433882, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:01:52"},
+    "zero_shot": {"job_id": 29433883, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:04:14"},
+    "dialogue_routed": {"job_id": 29433884, "state": "COMPLETED", "exit_code": "0:0", "elapsed": "00:03:20"}
+  },
+  "week6_single_task_adapters": {
+    "sample_count": 114,
+    "weighted_composite": 0.06426960784313725,
+    "failure_rate": 0.0,
+    "latency_ms_mean": 5830.991142993106,
+    "dialogue": {"support": 24, "route_counts": {"image_product_search": 8, "after_sales": 8, "itinerary_planning": 8}, "format_compliance": 0.4583333333333333, "context_recall": 0.49652777777777773, "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT"},
+    "scenarios": {
+      "image_product_search": {"support": 30, "composite": 0.04117647058823529, "json_compliance": 0.7, "schema_pass": 0.0, "latency_ms_mean": 14193.844799821576},
+      "after_sales": {"support": 30, "composite": 0.1, "json_compliance": 1.0, "schema_pass": 0.0, "latency_ms_mean": 1738.3124661942322},
+      "itinerary_planning": {"support": 30, "composite": 0.04833333333333334, "json_compliance": 0.9666666666666667, "schema_pass": 0.0, "latency_ms_mean": 1510.8341289684176}
+    }
+  },
+  "zero_shot": {
+    "sample_count": 114,
+    "weighted_composite": 0.07014705882352942,
+    "failure_rate": 0.0,
+    "latency_ms_mean": 1961.0566449956152,
+    "dialogue": {"support": 24, "format_compliance": 0.5416666666666666, "context_recall": 0.53125, "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT"},
+    "scenarios": {
+      "image_product_search": {"support": 30, "composite": 0.058823529411764705, "json_compliance": 1.0, "schema_pass": 0.0},
+      "after_sales": {"support": 30, "composite": 0.1, "json_compliance": 1.0, "schema_pass": 0.0},
+      "itinerary_planning": {"support": 30, "composite": 0.05, "json_compliance": 1.0, "schema_pass": 0.0}
+    }
+  },
+  "artifact_sha256": {
+    "week6_combined_metrics": "9eecf042a4efb472698218341b8948d6e266c01bd4a51c81cdd721e0c9274084",
+    "product_raw": "fd6910244d2ec0d4dea340a8c88ebf19e408a39c69dc4f9edd946d3dfda50b41",
+    "product_metrics": "cecd8ca59c498f714646a5c6b99180f13fee5620b3a80be2f400925859e74faa",
+    "after_sales_raw": "52131a5cbe3de23b43f8786b01c0059bbbfea5031f17e7b320ad471ea183d669",
+    "after_sales_metrics": "77799d63bec7e4c13344f2044de4390fb01c9b95b46cc1c5e82c9f53d3820aaa",
+    "itinerary_raw": "5634553b34ddc57c414c1ded1177c391fa76953ecb2a539bc53db62f744f06cc",
+    "itinerary_metrics": "f82b78c84f74895f91bdedd13fc708a20ffc960bd07ea4bc09a9c03431756f6f",
+    "dialogue_raw": "62a2f383661a3cc2296f9a18cbc09ebf00db779a82ebc77707e69d4948510001",
+    "dialogue_metrics": "bdc5bd64f50912cd29f4ce76f12b734947026a13fef0b4fdf7a4a0812aae1d2e",
+    "zero_shot_raw": "1e5dc189538a9aa75e77af7274a0c024cac70dcdf7ffeea1e426956161d81807",
+    "zero_shot_metrics": "d2eedff7d42582a987649a0b117da7821a57a728a22398d8d4249c66870e202b"
+  }
+}

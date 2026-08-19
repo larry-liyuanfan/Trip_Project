@@ -27,6 +27,33 @@ def _relative_change(candidate: float, baseline: float) -> float | None:
     return (candidate - baseline) / baseline
 
 
+def validate_development_raw_artifact(
+    metrics: dict[str, Any], metrics_path: Path, expected_count: int,
+) -> dict[str, Any]:
+    """Validate the immutable raw-output evidence bound by checkpoint metrics."""
+    metrics_path = Path(metrics_path).resolve()
+    expected_path = (metrics_path.parent / "raw_outputs.jsonl").resolve()
+    artifact = metrics.get("raw_outputs")
+    if not isinstance(artifact, dict) or set(artifact) != {"path", "sha256", "count"}:
+        raise Week7TrainingError("development metrics raw-output binding is incomplete")
+    try:
+        artifact_path = Path(str(artifact["path"])).resolve()
+        artifact_count = int(artifact["count"])
+    except (TypeError, ValueError, OSError) as exc:
+        raise Week7TrainingError("development metrics raw-output binding is invalid") from exc
+    if artifact_path != expected_path or not artifact_path.is_file():
+        raise Week7TrainingError("development raw-output artifact path mismatch")
+    with artifact_path.open("r", encoding="utf-8") as handle:
+        actual_count = sum(1 for line in handle if line.strip())
+    if (
+        artifact_count != expected_count
+        or actual_count != expected_count
+        or artifact.get("sha256") != sha256_file(artifact_path)
+    ):
+        raise Week7TrainingError("development raw-output artifact hash or count mismatch")
+    return artifact
+
+
 def _validate_combined_baseline(
     config: dict[str, Any],
     config_hash: str,
@@ -282,6 +309,7 @@ def select_development_checkpoint(
         or not isinstance(training_summary.get("evaluation_steps"), list)
         or not isinstance(training_summary.get("checkpoint_hashes"), dict)
         or not isinstance(training_summary.get("checkpoints"), list)
+        or not isinstance(training_summary.get("development_evaluation_artifacts"), dict)
     ):
         raise Week7TrainingError("completed training summary identity mismatch")
     global_step = int(training_summary.get("global_step", -1))
@@ -327,11 +355,25 @@ def select_development_checkpoint(
             != int(config["dataset"]["development_dialogue_count"])
         ):
             raise Week7TrainingError(f"development evaluation coverage mismatch: step {step}")
+        raw_artifact = validate_development_raw_artifact(
+            metrics, metrics_path, expected_samples,
+        )
         if (
             checkpoint_name not in training_summary["checkpoints"]
             or training_summary["checkpoint_hashes"].get(checkpoint_name) != checkpoint_hash
         ):
             raise Week7TrainingError(f"checkpoint hash is not bound by training summary: step {step}")
+        recorded_artifacts = training_summary.get("development_evaluation_artifacts", {})
+        expected_artifacts = {
+            "raw_outputs_path": str(Path(raw_artifact["path"]).resolve()),
+            "raw_outputs_sha256": raw_artifact["sha256"],
+            "metrics_path": str(metrics_path.resolve()),
+            "metrics_sha256": sha256_file(metrics_path),
+        }
+        if recorded_artifacts.get(str(step)) != expected_artifacts:
+            raise Week7TrainingError(
+                f"development artifacts are not bound by training summary: step {step}"
+            )
 
         candidates.append(evaluate_development_candidate(
             config, baseline, metrics, step=step, checkpoint=checkpoint,

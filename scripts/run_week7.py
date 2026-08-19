@@ -20,7 +20,11 @@ from src.training.week7_inference import (
     run_transformers_development,
     run_week6_dialogue_development,
 )
-from src.training.week7_final_evaluation import create_parameter_lock, run_final_test_suite
+from src.training.week7_final_evaluation import (
+    create_parameter_lock,
+    recover_interrupted_final_test,
+    run_final_test_suite,
+)
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
 from src.training.week7_selection import select_development_checkpoint
 
@@ -84,6 +88,11 @@ def build_parser() -> argparse.ArgumentParser:
     final_test.add_argument("--parameter-lock", type=Path, required=True)
     final_test.add_argument("--output-dir", type=Path, required=True)
     final_test.add_argument("--resume", action="store_true")
+    recover_test = commands.add_parser("recover-final-test")
+    recover_test.add_argument("--parameter-lock", type=Path, required=True)
+    recover_test.add_argument("--output-dir", type=Path, required=True)
+    recover_test.add_argument("--slurm-job-id", required=True)
+    recover_test.add_argument("--slurm-job-state", required=True)
     return result
 
 
@@ -155,10 +164,16 @@ def main() -> int:
                 schema_decoding_mode=args.schema_decoding_mode,
                 max_new_tokens=args.max_new_tokens,
             )
-        else:
+        elif args.command == "final-test":
             payload = run_final_test_suite(
                 ROOT, args.config, args.parameter_lock, args.output_dir,
                 resume=args.resume,
+            )
+        else:
+            payload = recover_interrupted_final_test(
+                ROOT, args.config, args.parameter_lock, args.output_dir,
+                slurm_job_id=args.slurm_job_id,
+                slurm_job_state=args.slurm_job_state,
             )
     except (OSError, ValueError, Week7TrainingError) as exc:
         raise SystemExit(f"Week 7 execution error: {exc}") from exc
