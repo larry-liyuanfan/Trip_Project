@@ -62,7 +62,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-endpoint="${TRIP_SCHEMA_ENDPOINT:-http://127.0.0.1:8001}"
+endpoint="http://127.0.0.1:8001"
+mkdir -p "$(dirname "${TRIP_OUTPUT_DIR}")"
 vllm_log="${TRIP_OUTPUT_DIR}.vllm.${SLURM_JOB_ID:-manual}.log"
 [[ ! -e "${vllm_log}" ]] || { echo "vLLM log already exists: ${vllm_log}" >&2; exit 3; }
 structured_outputs_config='{"backend":"xgrammar","disable_any_whitespace":true}'

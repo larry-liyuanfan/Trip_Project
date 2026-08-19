@@ -171,14 +171,19 @@ def compare_schema_decoding(root: Path, config: dict[str, Any], rows: list[dict[
         latencies = []
         for record in records:
             row = next(item for item in selected if item["sample_id"] == record["sample_id"])
-            _, json_valid, schema_valid, _ = strict_parse_output(root, row["scenario"], str(record.get("raw_output") or ""))
+            raw_output = record.get("raw_output")
+            if name == "constrained":
+                raw_output = record.get("primary_constrained_raw_output", raw_output)
+            _, json_valid, schema_valid, _ = strict_parse_output(root, row["scenario"], str(raw_output or ""))
             counts["json_valid"] += json_valid
             counts["schema_valid"] += schema_valid
+            counts["primary_failure"] += bool(record.get("constrained_error")) if name == "constrained" else bool(record.get("failed"))
             counts["fallback_failure"] += bool(record.get("failed") or record.get("fallback_failed"))
             latencies.append(float(record.get("latency_ms", 0.0)))
         output["modes"][name] = {
             "json_compliance": counts["json_valid"] / len(selected),
             "schema_coverage": counts["schema_valid"] / len(selected),
+            "primary_failure_rate": counts["primary_failure"] / len(selected),
             "fallback_failure_rate": counts["fallback_failure"] / len(selected),
             "latency_ms_mean": statistics.fmean(latencies),
         }

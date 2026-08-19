@@ -128,6 +128,32 @@ class Week7ExecutionTests(unittest.TestCase):
         self.assertNotIn("semantic", result["deltas"])
         self.assertEqual(result["modes"]["constrained"]["schema_coverage"], 1.0)
 
+    def test_schema_fallback_cannot_inflate_constrained_coverage(self):
+        config = load_week7_config(CONFIG)
+        row = {"sample_id": "schema-primary-failed", "scenario": "after_sales"}
+        valid = json.dumps({
+            "issue_type": "other", "severity": "low", "issue_location": None,
+            "key_information": [], "ocr_text": None, "observed_evidence": [],
+            "unknown_fields": [], "confidence": None,
+        })
+        free = [{"sample_id": row["sample_id"], "raw_output": valid, "latency_ms": 1.0, "failed": False}]
+        constrained = [{
+            "sample_id": row["sample_id"],
+            "raw_output": valid,
+            "primary_constrained_raw_output": "",
+            "fallback_raw_output": valid,
+            "operational_raw_output": valid,
+            "constrained_error": "HTTPError: unsupported schema",
+            "fallback_used": True,
+            "fallback_failed": False,
+            "failed": False,
+            "latency_ms": 2.0,
+        }]
+        result = compare_schema_decoding(ROOT, config, [row], free, constrained)
+        self.assertEqual(result["modes"]["constrained"]["schema_coverage"], 0.0)
+        self.assertEqual(result["modes"]["constrained"]["primary_failure_rate"], 1.0)
+        self.assertEqual(result["modes"]["constrained"]["fallback_failure_rate"], 0.0)
+
     def test_test_gate_is_single_use(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

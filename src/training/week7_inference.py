@@ -196,17 +196,21 @@ def run_schema_experiment(root: Path, config_path: Path, output_dir: Path, *, en
                 "json_schema": {"name": f"week7_{row['scenario']}_v1", "strict": True, "schema": load_output_schema(root, row["scenario"], "v1")},
             }
             raw, latency, error = _request_completion(endpoint, payload, timeout)
+            primary_constrained_raw = raw
             constrained_error = error
             fallback_used = error is not None
             fallback_error = None
+            fallback_raw = ""
             if fallback_used:
                 fallback_raw, fallback_latency, fallback_error = _request_completion(endpoint, free_payload, timeout)
                 latency += fallback_latency
-                if fallback_error is None:
-                    raw = fallback_raw
             constrained_record = {
                 "run_id": config["experiment_identity"]["schema_constrained_run_id"],
-                "sample_id": row["sample_id"], "raw_output": raw, "latency_ms": latency,
+                "sample_id": row["sample_id"], "raw_output": primary_constrained_raw,
+                "primary_constrained_raw_output": primary_constrained_raw,
+                "fallback_raw_output": fallback_raw,
+                "operational_raw_output": fallback_raw if fallback_used and fallback_error is None else primary_constrained_raw,
+                "latency_ms": latency,
                 "failed": fallback_error is not None if fallback_used else False,
                 "fallback_used": fallback_used, "fallback_failed": fallback_error is not None,
                 "constrained_error": constrained_error, "fallback_error": fallback_error,
