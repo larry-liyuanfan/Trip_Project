@@ -82,8 +82,19 @@ class Week6QLoRATests(unittest.TestCase):
         self.assertIn("#SBATCH --time=08:00:00", supervised)
         self.assertIn("waiting_for_versioned_resume", supervised)
         self.assertIn("--init-adapter", supervised)
+        self.assertIn('export HOME="${runtime_cache}/home"', supervised)
+        self.assertIn('export XDG_CACHE_HOME="${runtime_cache}/xdg"', supervised)
+        self.assertIn(
+            'export PYTORCH_KERNEL_CACHE_PATH="${runtime_cache}/torch/kernels"',
+            supervised,
+        )
         self.assertIn("#SBATCH --time=02:00:00", evaluation)
         self.assertIn("--resume", evaluation)
+        self.assertIn('export HOME="${runtime_cache}/home"', evaluation)
+        self.assertIn(
+            'export PYTORCH_KERNEL_CACHE_PATH="${runtime_cache}/torch/kernels"',
+            evaluation,
+        )
 
     def _pilot_summary(self, config: dict) -> dict:
         return {

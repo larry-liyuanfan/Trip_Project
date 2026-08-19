@@ -24,6 +24,12 @@ module purge
 module load GCCcore/11.3.0
 module load Python/3.11.3
 export HF_HOME="${TRIP_HF_HOME}"
+runtime_cache="${TRIP_OUTPUT_DIR}.runtime-cache"
+mkdir -p "${runtime_cache}/home" "${runtime_cache}/xdg" "${runtime_cache}/torch/kernels"
+export HOME="${runtime_cache}/home"
+export XDG_CACHE_HOME="${runtime_cache}/xdg"
+export TORCH_HOME="${runtime_cache}/torch"
+export PYTORCH_KERNEL_CACHE_PATH="${runtime_cache}/torch/kernels"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_DISABLE_TELEMETRY=1

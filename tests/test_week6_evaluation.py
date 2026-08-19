@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from src.training.week6_evaluation import (
+    _validate_candidate_adapter_provenance,
     compare_itinerary_evaluations,
     run_itinerary_adapter_evaluation,
     summarize_itinerary_predictions,
@@ -168,6 +169,84 @@ class Week6EvaluationTests(unittest.TestCase):
                     adapter_dir=adapter,
                     output_dir=temp / "output",
                 )
+
+    def test_candidate_provenance_accepts_extra_initial_checkpoint_files(self):
+        config = {
+            "dataset": {"dataset_version": "repair-v1"},
+            "refinement": {
+                "expected_initial_adapter_file_sha256": {
+                    "adapter_config.json": "config-hash",
+                    "adapter_model.safetensors": "model-hash",
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            adapter = output / "adapter"
+            adapter.mkdir()
+            adapter_hashes = {
+                "adapter_config.json": "candidate-config",
+                "adapter_model.safetensors": "candidate-model",
+            }
+            summary = {
+                "status": "completed",
+                "scenario": "itinerary_planning",
+                "adapter_only": True,
+                "adapter_reload_verified": True,
+                "adapter_file_sha256": adapter_hashes,
+                "initial_adapter_file_sha256": {
+                    "adapter_config.json": "config-hash",
+                    "adapter_model.safetensors": "model-hash",
+                    "optimizer.pt": "optimizer-hash",
+                    "trainer_state.json": "trainer-state-hash",
+                },
+                "dataset_lock": {"dataset_version": "repair-v1"},
+            }
+            summary_path = output / "run_summary.json"
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+
+            self.assertEqual(
+                _validate_candidate_adapter_provenance(config, adapter, adapter_hashes),
+                _sha256(summary_path.read_bytes()),
+            )
+
+    def test_candidate_provenance_rejects_mismatched_required_initial_hash(self):
+        config = {
+            "dataset": {"dataset_version": "repair-v1"},
+            "refinement": {
+                "expected_initial_adapter_file_sha256": {
+                    "adapter_config.json": "expected-config",
+                    "adapter_model.safetensors": "expected-model",
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            adapter = output / "adapter"
+            adapter.mkdir()
+            adapter_hashes = {
+                "adapter_config.json": "candidate-config",
+                "adapter_model.safetensors": "candidate-model",
+            }
+            summary = {
+                "status": "completed",
+                "scenario": "itinerary_planning",
+                "adapter_only": True,
+                "adapter_reload_verified": True,
+                "adapter_file_sha256": adapter_hashes,
+                "initial_adapter_file_sha256": {
+                    "adapter_config.json": "wrong-config",
+                    "adapter_model.safetensors": "expected-model",
+                    "optimizer.pt": "optimizer-hash",
+                },
+                "dataset_lock": {"dataset_version": "repair-v1"},
+            }
+            (output / "run_summary.json").write_text(
+                json.dumps(summary), encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(Week6TrainingError, "provenance"):
+                _validate_candidate_adapter_provenance(config, adapter, adapter_hashes)
 
 
 if __name__ == "__main__":

@@ -122,6 +122,16 @@ def _validate_candidate_adapter_provenance(
     expected_initial = config.get("refinement", {}).get(
         "expected_initial_adapter_file_sha256", {}
     )
+    recorded_initial = summary.get("initial_adapter_file_sha256")
+    initial_adapter_matches = (
+        isinstance(recorded_initial, dict)
+        and isinstance(expected_initial, dict)
+        and bool(expected_initial)
+        and all(
+            recorded_initial.get(name) == expected
+            for name, expected in expected_initial.items()
+        )
+    )
     expected_dataset = config.get("dataset", {}).get("dataset_version")
     checks = (
         summary.get("status") == "completed",
@@ -129,7 +139,7 @@ def _validate_candidate_adapter_provenance(
         summary.get("adapter_only") is True,
         summary.get("adapter_reload_verified") is True,
         summary.get("adapter_file_sha256") == adapter_hashes,
-        summary.get("initial_adapter_file_sha256") == expected_initial,
+        initial_adapter_matches,
         summary.get("dataset_lock", {}).get("dataset_version") == expected_dataset,
     )
     if not all(checks):
