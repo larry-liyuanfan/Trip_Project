@@ -351,6 +351,28 @@ as the current validated dataset or accepted baseline.
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
 
+## 2026-08-19：Week 7 数据锁与执行链
+
+- 从 Week 6 终态提交 `132779b0f6d2929ce1cdbed18e62adf3ef9edd18` 建立
+  `codex/week7-multitask-context`，未带入旧 `agent/portfolio-positioning` 工作树改动。
+- 新锁 `week7_fresh_multitask_context_20260819_v1` 的 train/development/test 为
+  3000/114/114；五维跨分区碰撞为 0，锁 SHA-256 为
+  `a0e39f56da3385f71353987f3053f23a46e95b5da28ead80d6ceda0bfbfa3916`。
+- train 实际构成为三个核心场景各 760、通用正则 270（9%）、对话 450（15%）。所有
+  Week 7 标签均为 programmatic silver；24 条对话人工队列保持
+  `PENDING_REAL_HUMAN_INPUT`。
+- Week 5 10,000 条对话及 100 条真实 human accepted 均与 Week 6 已消费来源碰撞，
+  因此 Week 7 可用数为 0，只作为格式参考，没有继承人工身份。
+- 三次构建失败分别暴露字段名错误、业务字段映射错误和 synthetic train/test 图片哈希
+  碰撞；失败目录保留，修复后才生成成功锁，没有覆盖成功产物。
+- 新增统一 QLoRA、完整 development 生成评估、每约 10% step checkpoint、patience=2、
+  Schema format-only 对照和一次性 test 门禁。定向测试 5/5、完整 unittest 375/375、
+  数据锁无 test 验证、两份 Slurm `bash -n` 和 `git diff --check` 通过。
+- 本机环境实测缺少 torch/transformers/peft/bitsandbytes 等 GPU 依赖。既有 Spartan OOD
+  Trip 终端当前被另一浏览器控制会话占用，按终端保护规则未新建重复终端，故未提交作业；
+  development 基线、Schema 实跑、训练、checkpoint 和一次性 test 均保持 `PENDING`。
+- preference 审核通过数为 0，mDPO/HDPO 消融按门禁记为 `SKIPPED`，不阻塞 SFT 工程交付。
+
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
 - 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订

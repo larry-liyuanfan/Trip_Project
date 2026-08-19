@@ -377,6 +377,23 @@ manifest.
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 
+## 2026-08-19：Week 7 新锁与未启动 GPU 实验
+
+- 权威配置：`configs/week7/qwen3_vl_8b_multitask_context_v1.json`，SHA-256
+  `0473660a84a4a66668a3227c25f73666f8cdd214fb818d592a2bb9fae42725e8`；随机种子
+  `20260819`。数据锁和排除证据见 `experiments/week7_data_lock_20260819_v1.json`。
+- 数据锁生成命令：`python scripts/manage_week7.py build-lock --source-project-root
+  E:\\Project\\Trip_Project`；无 test 验证命令：`python scripts/manage_week7.py
+  validate-lock`，实际返回 train 3000、development 114、`test_consumed=false`。
+- 预注册运行：Week 6 adapters development baseline、free/constrained Schema、统一 SFT
+  和 final test 均有唯一 run ID；本次未产生 GPU job ID、原始模型输出、指标或 checkpoint。
+- 本机 `check-environment` 返回 `missing_dependencies`。Spartan 既有 Trip OOD 终端受另一
+  浏览器控制会话占用；遵守不新建重复终端和不提交竞争作业规则，本次未提交 Slurm。
+- DPO 门禁记录为 `experiments/week7_dpo_gate_20260819_v1.json`：真实审核通过偏好对 0，
+  因此按要求 `SKIPPED`，没有自举或伪造偏好对。
+- 失败记录：前三次锁构建分别因 `_business_attributes` 名称、`categories` 字段和
+  train/test synthetic 图片哈希碰撞失败；修复后成功锁独立生成，失败目录未冒充交付。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定

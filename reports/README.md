@@ -24,5 +24,6 @@
 | Week 5 | `week5_dataset_quality_report.md` | 全量预标注、单人预算内人工验收与多轮候选质量证据 |
 | Week 6 | `week6_qlora_quality_report.md` | 三场景 QLoRA 终态、行程业务门禁与专项优化结论 |
 | Week 6 后评审 | `week6_post_training_improvement_review.md` | 完成度判断、冻结指标短板、前沿方法映射与非污染改进门禁 |
+| Week 7 | `week7_multitask_context_report.md` | 新锁、混合训练执行链、真实完成状态与未完成门禁 |
 
 `week3_v2_recuration_status.md` 是历史过程状态，不代表当前最终结论。

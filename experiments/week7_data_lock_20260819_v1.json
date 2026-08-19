@@ -1,0 +1,69 @@
+{
+  "status": "PASS",
+  "recorded_by_git_commit": "31f7174ef7874da7084223aa71af0c59bad03983",
+  "generation_worktree_head": "132779b0f6d2929ce1cdbed18e62adf3ef9edd18",
+  "baseline_commit": "132779b0f6d2929ce1cdbed18e62adf3ef9edd18",
+  "dataset_version": "week7_fresh_multitask_context_20260819_v1",
+  "dataset_lock_sha256": "a0e39f56da3385f71353987f3053f23a46e95b5da28ead80d6ceda0bfbfa3916",
+  "config_sha256": "0473660a84a4a66668a3227c25f73666f8cdd214fb818d592a2bb9fae42725e8",
+  "seed": 20260819,
+  "counts": {
+    "train": {
+      "image_product_search": 760,
+      "after_sales": 760,
+      "itinerary_planning": 760,
+      "general_multimodal": 270,
+      "dialogue": 450,
+      "total": 3000
+    },
+    "development": {
+      "image_product_search": 30,
+      "after_sales": 30,
+      "itinerary_planning": 30,
+      "dialogue": 24,
+      "total": 114
+    },
+    "test": {
+      "image_product_search": 30,
+      "after_sales": 30,
+      "itinerary_planning": 30,
+      "dialogue": 24,
+      "total": 114
+    }
+  },
+  "actual_train_ratios": {
+    "general_multimodal": 0.09,
+    "dialogue": 0.15
+  },
+  "isolation": {
+    "status": "PASS",
+    "dimensions": [
+      "sample_id",
+      "source_id",
+      "image_sha256",
+      "group_id",
+      "constraint_template_id"
+    ],
+    "cross_split_collision_count": 0,
+    "week6_consumed_sample_count": 79936
+  },
+  "week5_dialogue_audit": {
+    "candidate_count": 10000,
+    "human_accepted_count": 100,
+    "source_collision_count": 10000,
+    "eligible_count": 0,
+    "human_accepted_eligible_count": 0,
+    "disposition": "excluded_from_week7_due_to_week6_source_collision"
+  },
+  "label_status": {
+    "week7_human_accepted": 0,
+    "programmatic_silver": 3000,
+    "dialogue_human_queue": 24,
+    "dialogue_human_queue_status": "PENDING_REAL_HUMAN_INPUT"
+  },
+  "validation": {
+    "validated_train": 3000,
+    "validated_development": 114,
+    "test_consumed": false
+  }
+}

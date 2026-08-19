@@ -527,6 +527,28 @@ python scripts/evaluate_week6_adapter.py compare \
 或调参数据。数据锁定采用 sample ID SHA-256 的确定性 95%/5% 训练/验证切分；模型
 预标注保持 `model_preannotation` 且权重为 0.5，只有真实人工修订使用 1.0。
 
+## Week 7 Multitask Context
+
+Week 7 固定使用 `configs/week7/qwen3_vl_8b_multitask_context_v1.json`。数据构建必须
+显式指向保留 Week 5/6 历史产物的只读来源项目；生成后默认验证只读取 train 和
+development，只有参数锁定后的最终命令才允许读取 test。当前本地锁摘要见
+`experiments/week7_data_lock_20260819_v1.json`。
+
+```bash
+python scripts/manage_week7.py build-lock --source-project-root <read-only-week5-week6-project>
+python scripts/manage_week7.py validate-lock
+python scripts/run_week7.py check-environment
+sbatch --account=punim2936 --partition=gpu-l40s \
+  --export=ALL,TRIP_PROJECT_ROOT=<isolated-week7-checkout>,TRIP_VENV=<cu128-venv>,TRIP_HF_HOME=<model-cache>,TRIP_OUTPUT_DIR=<new-run-dir>,TRIP_RUN_ID=week7_multitask_context_sft_20260819_v1 \
+  scripts/spartan/week7_multitask_train.sbatch
+```
+
+训练配置固定为 Qwen3-VL-8B、NF4 4bit、LoRA `r=16/alpha=32/dropout=0.08`、
+学习率 `1.5e-4`、weight decay `0.03`、gradient clipping `1.0` 和 gradient
+checkpointing。完整 development 每约 10% 更新步生成评测一次，按三场景加权综合分
+选择 checkpoint，连续两次无提升早停。Schema 对照必须使用独立 run，并只报告格式、
+Schema、延迟和失败回退；对话人工队列只能由真实用户填写。
+
 ## Aliyun Runtime
 
 The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the

@@ -1,0 +1,10 @@
+{
+  "status": "SKIPPED",
+  "decision": "DO_NOT_RUN_DPO",
+  "audited_chosen_rejected_pairs": 0,
+  "real_human_quality_approved_pairs": 0,
+  "visual_evidence_approved_pairs": 0,
+  "schema_valid_pairs": 0,
+  "reason": "No chosen/rejected preference pair passed a real human quality and visual-evidence audit. Self-bootstrap is forbidden, so the single allowed mDPO/HDPO-style ablation was not run.",
+  "main_sft_delivery_blocked": false
+}

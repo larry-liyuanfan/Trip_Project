@@ -559,3 +559,21 @@ Weekly work is implemented and verified on `dev`, promoted unchanged to `stg`
 for mentor review, and promoted from `stg` to `main` only after approval. A
 completed checklist is updated on `dev` before promotion so all downstream
 branches inherit the same delivery state.
+
+## Week 7 Delivery Status（2026-08-19）
+
+- [x] 从指定 Week 6 终态提交创建隔离分支，旧工作树保持不变。
+- [x] 新 train/development/test 锁通过 sample/source/image/group/template 五维隔离；
+  test 未运行。
+- [x] 固定实际混合比例：核心场景各 760、通用正则 9%、多轮对话 15%。
+- [x] 固定 QLoRA/SFT、结构感知截断、完整 development 生成评估、checkpoint 和早停实现。
+- [x] 固定 Schema constrained decoding 的 format-only 对照实现，禁止语义提升结论。
+- [x] 对话 24 条人工队列保持空白，未由 Agent 代填。
+- [x] DPO 门禁为 `SKIPPED`：0 条偏好对通过真实质量与视觉证据审核。
+- [x] 本地定向 5/5、完整 unittest 375/375、锁验证、shell 语法和 diff 检查通过。
+- [ ] Week 6 adapter development 基线：`PENDING_EXTERNAL_GPU_ACCESS`。
+- [ ] Schema 自由/受约束实际结果：`PENDING_EXTERNAL_GPU_ACCESS`。
+- [ ] 多任务训练、checkpoint 和三场景/对话自动指标：`PENDING_EXTERNAL_GPU_ACCESS`。
+- [ ] 参数锁与一次性 test：前置训练未完成，因此未消费 test。
+- [ ] 对话人工四维评分：`PENDING_REAL_HUMAN_INPUT`。
+- [x] 分支已首次推送；最终文档提交后仍需再次推送。未进入 `dev`、`stg`，未打标签。
