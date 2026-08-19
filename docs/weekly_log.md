@@ -1,5 +1,15 @@
 # Weekly Log
 
+## 2026-08-19: Week 6 训练后质量审计与项目收束
+
+- 区分“工程闭环完成”与“业务指标优秀”，保留三场冻结终态指标和已知局限不变。
+- 基于 Qwen2.5-VL/Qwen3-VL、JSONSchemaBench、mDPO、HDPO 和 JEST 一手资料，形成
+  与三个场景弱项对应的下一版本方案，并明确不直接外推论文收益。
+- 接受 ADR-030：后续提升必须使用新的非冻结 development/test 身份锁；现有 Week 3 v2
+  不再参与调参，未运行新训练时不声明指标上升。
+- 新增 `reports/week6_post_training_improvement_review.md`，并精简为报告索引、需求、
+  决策、实验记录和 README 各自承担单一职责。
+
 ## 2026-07-06: Week 1 OTA Multimodal VLM Foundation
 
 - Added the repository structure, FastAPI application, deterministic fallback, retrieval baseline, and planning baseline.

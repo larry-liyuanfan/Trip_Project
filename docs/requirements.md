@@ -424,3 +424,15 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   checkpoint 在 Spartan 小样本试跑中真实通过后，才能标记链路完成。
 - 正式三场景训练、最优 checkpoint 和效果评测必须按实际 Slurm 运行产物报告；
   只有配置和脚本时状态为 `READY FOR PILOT`，不是训练完成。
+
+### 2026-08-19 终态后质量改进授权
+
+- Week 6 已完成的 adapter、450 条冻结评测和归档保持不可覆盖；`week3_evaluation_v2`
+  已被消费为终态测试，不得再用于方法选择、超参数选择、early stopping 或数据筛选。
+- 后续提升先从未进入冻结集的来源建立新的 development/test 锁，按五维隔离、身份、
+  支持数和 SHA-256 进行版本化；没有新锁时只能完成研究和工程准备，不能声称指标上升。
+- 优先级固定为：错误切片数据质量与目标对齐、Schema 约束解码实验、场景平衡 SFT；
+  只有可验证偏好对通过审计后才允许一次多模态 DPO 消融。不得默认换大模型、增加 epoch
+  或使用高成本 RL。
+- 详细证据与论文映射见 `reports/week6_post_training_improvement_review.md`；任何新运行
+  必须在 `docs/experiments.md` 记录实际 commit、数据锁、命令、指标、失败和下一动作。

@@ -4,6 +4,15 @@ This is the canonical weekly delivery document. Each week keeps its original
 scope, acceptance checklist, measured results, and known limitations. New
 weeks append sections instead of replacing earlier delivery history.
 
+### 2026-08-19 Week 6 训练后质量审计与整理
+
+- [x] 核验 Week 6 训练、门禁、冻结评测、归档与 `stg` 证据完整。
+- [x] 如实区分工程完成度和业务效果，未把低支持或弱业务指标描述为优秀。
+- [x] 使用一手资料完成前沿方法评审，并把方法映射到商品、售后、行程的实际弱项。
+- [x] 接受 ADR-030 和非污染门禁；现有冻结集不再用于调参。
+- [x] 更新报告索引、requirements、decisions、experiments、weekly log、README。
+- [ ] 新 development/test 锁、后续 SFT/约束解码/DPO 消融尚未执行，因此没有新指标。
+
 ## Week 1: OTA Multimodal VLM Engineering Foundation
 
 ### Objective

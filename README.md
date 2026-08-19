@@ -494,6 +494,9 @@ epoch。
 冻结 `week3_evaluation_v2` 的一次性最终评测完成 200/150/100 条：商品 JSON/Schema
 100%/100%，售后 100%/96.67%，行程 95%/85%。该结果不用于继续调参；业务指标、
 支持数和局限见 `reports/week6_qlora_quality_report.md`。
+训练后完成度判断、前沿方法映射和下一版本的非污染实验门禁见
+`reports/week6_post_training_improvement_review.md`。现有冻结结果不得用于继续调参；
+没有新的 development/test 身份锁时，不得声称业务指标已经上升。
 
 ```bash
 sbatch --account=punim2936 --partition=sapphire \

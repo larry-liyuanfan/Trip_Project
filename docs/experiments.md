@@ -1,5 +1,16 @@
 # Experiment Notes
 
+## 2026-08-19：Week 6 训练后方法审计（未运行新训练）
+
+- 输入仅为已锁定的 Week 6 汇总指标、错误分类和一手技术资料；没有对冻结
+  `week3_evaluation_v2` 重新生成、筛选或计分，也没有提交 GPU 作业。
+- 审计结论：商品设施/风格/价位、售后严重度/关键信息、行程约束泛化是主要语义短板；
+  Schema 约束解码可单独改善格式，但不能替代语义学习。
+- 下一版本按 ADR-030 先建立新的非冻结 development/test 锁，再依次比较错误切片 SFT、
+  grammar-constrained decoding 和有质量门禁的多模态 DPO 小规模消融。
+- 论文依据、适用边界和预注册门禁见
+  `reports/week6_post_training_improvement_review.md`。本记录不包含新的效果声明。
+
 ## 2026-08-19：Week 6 行程专项晋级与冻结三场景最终评测
 
 - 行程基线 `29356991` 在固定 64 条派生 validation 上 JSON/Schema 64/64，但全项
