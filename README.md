@@ -554,6 +554,24 @@ Schema、延迟和失败回退；对话人工队列只能由真实用户填写�
 参数锁和最终 test 状态均以 SHA-256 逐级绑定；final-test 在 Slurm 中断后只能依据原
 job、锁和 test 身份执行受审计恢复。
 
+当前选择门禁使用独立的 `evaluation_protocol_v4`，它只修正 v3 development 的评估
+口径并绑定既有 v3 配置、数据锁、训练 checkpoint 与 raw evidence；它不是新的模型版本
+或数据锁。修复前，商品指标支持数会随输出是否合法而变化，且 `unknown_fields` 中的空
+style/facility 被误作可评估标签；训练内与基线延迟还使用了不同 cache/runtime 和
+allocation。协议现按 gold evaluability 固定支持集合，在聚合前排除 unsupported 指标，
+并在同一 Slurm allocation 中以相同 Transformers cache、同步和计时范围串行重测三套
+Week 6 adapters、四个多任务 checkpoint 与 zero-shot。
+
+首次协议作业 `29449140` 为 `CANCELLED`，只产生部分 Week 6 baseline 角色文件，未生成
+protocol summary，全部排除。第二次作业 `29449999` 在单张 L40S 上以 `COMPLETED 0:0`
+结束，用时 `01:19:44`；protocol summary SHA-256 为
+`6990bda69463d9d9df65082c39d9d53733e176d4988ea6342eb170fde7c960f3`。step
+38/76/113/151 的全 development 延迟比分别为 1.6312/1.3221/1.3155/1.4894，均超过
+1.25 门禁；对应 gold-support 综合分为 0.258513/0.723404/0.746154/0.733077。
+step 76/113/151 的三场景 task/format/support 门禁均通过，step 38 另有行程 task/format
+回退。selector 因而仍为 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`；未创建 parameter lock，
+test 保持未读取。当前完整 `unittest` 为 412/412。
+
 ## Aliyun Runtime
 
 The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the

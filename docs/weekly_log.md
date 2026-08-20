@@ -373,6 +373,23 @@ as the current validated dataset or accepted baseline.
   偏好对为 0 记为 `SKIPPED`。
 - 证据链与崩溃恢复修复后，完整 unittest 401/401、compileall、五份 Slurm `bash -n`、
   数据锁验证和 `git diff --check` 通过；提交 `bb6ecfe` 已推送。
+- 后续独立审查确认原 selector 的两个口径问题：商品 `label_completeness` 支持数会因
+  Schema-invalid 输出被置 0 而虚增，且被列入 `unknown_fields` 的空 style/facility
+  仍被误作可评估 gold；训练内候选与 Week 6 基线的 cache/runtime 及 GPU allocation
+  也不一致。新增的 `evaluation_protocol_v4` 仅修正评估，不创建 v4 模型或数据锁；它
+  继续绑定 v3 config、数据锁、四个既有 checkpoint 和原始 development evidence，按
+  gold evaluability 在聚合前固定支持集合，并在同一 allocation 中统一 cache、同步和
+  计时范围。
+- protocol-v4 首次作业 `29449140` 为 `CANCELLED`，仅写出部分 Week 6 baseline 角色
+  文件且没有 protocol summary，因此全部排除。attempt2 作业 `29449999` 在单张 L40S
+  上以 `COMPLETED 0:0` 结束，用时 `01:19:44`；protocol summary SHA-256 为
+  `6990bda69463d9d9df65082c39d9d53733e176d4988ea6342eb170fde7c960f3`。
+- 重算后 Week 6 路由基线全 development 平均延迟为 5727.70 ms。step
+  38/76/113/151 的延迟比分别为 1.6312/1.3221/1.3155/1.4894，gold-support 综合分
+  分别为 0.258513/0.723404/0.746154/0.733077；step 76/113/151 的三场景
+  task/format/support 门禁均通过，step 38 另有行程 task/format 回退，但四个候选均未
+  通过全局 1.25 延迟门禁。selector 仍返回 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，未创建
+  parameter lock，test 未读取；当前完整 `unittest` 为 412/412。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 

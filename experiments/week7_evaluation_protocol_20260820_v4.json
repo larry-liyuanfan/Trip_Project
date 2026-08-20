@@ -1,0 +1,137 @@
+{
+  "status": "BLOCKED_NO_ELIGIBLE_CHECKPOINT",
+  "git_commit": "833d41a75b4af71c50bd20b16aacd347c93e0cce",
+  "protocol": {
+    "schema_version": "week7_development_latency_protocol_v4",
+    "run_id": "week7_dev_fair_latency_support_20260820_v4",
+    "config_path": "configs/week7/evaluation_protocol_v4.json",
+    "config_sha256": "cd906097748243306d35b9fe79b08d5051123192249d7c1f998d03dfd13482a8",
+    "base_config_sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa",
+    "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+    "development_sha256": "3c775c1432912129f7eba8774978c0f1f4621d79e14e33e6c488d77b5c630e04",
+    "development_count": 114,
+    "max_new_tokens": 2048,
+    "warmup_max_new_tokens": 1,
+    "use_cache": true,
+    "latency_limit_ratio": 1.25
+  },
+  "reason": {
+    "support": "旧评分器把无 gold 可评证据且 Schema-invalid 的输出错误计入支持数；protocol-v4 只按 gold 与 unknown_fields 判定可评支持。",
+    "latency": "旧比较混用了训练态 use_cache=false 与独立 Week 6 推理；protocol-v4 在同一 allocation 中使用统一加载、生成、CUDA 同步和计时口径。",
+    "scope": "复用不可变 v3 数据锁、训练 checkpoint 和 development；没有重训、重采样或创建 v4 模型。"
+  },
+  "attempts": [
+    {
+      "job_id": 29449140,
+      "state": "CANCELLED",
+      "elapsed": "00:48:55",
+      "node": "spartan-gpgpu131",
+      "partition": "gpu-a100-preempt",
+      "output_dir": "/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a/work/week7_protocol_v4/run_833d41a",
+      "completed_roles": ["week6_single_task_adapters"],
+      "protocol_summary": "ABSENT",
+      "included_in_selection": false,
+      "reason": "90 分钟时限不足，显式取消；partial 产物保留但排除。"
+    },
+    {
+      "job_id": 29449999,
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "01:19:44",
+      "node": "spartan-gpgpu006",
+      "partition": "gpu-l40s",
+      "gpu": "NVIDIA L40S",
+      "output_dir": "/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a/work/week7_protocol_v4/run_833d41a_attempt2",
+      "protocol_summary_sha256": "6990bda69463d9d9df65082c39d9d53733e176d4988ea6342eb170fde7c960f3",
+      "included_in_selection": true
+    }
+  ],
+  "development_results": {
+    "week6_single_task_adapters": {
+      "weighted_composite": 0.06807051282051282,
+      "latency_ms_mean": 5727.695393800866,
+      "failure_rate": 0.0,
+      "dialogue": {
+        "sample_count": 24,
+        "format_compliance": 0.4583333333333333,
+        "context_recall": 0.49652777777777773,
+        "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT"
+      },
+      "product_metric_support": {
+        "business_category_accuracy": 4,
+        "facility_f1": 3,
+        "json_compliance": 30,
+        "label_completeness": 4,
+        "price_range_accuracy": 0,
+        "schema_pass": 30,
+        "style_f1": 0
+      },
+      "metrics_sha256": "f3fd8a855a7ff9f986376120918a9cfc378d474feb1d52af481a3bacf6581a0a"
+    },
+    "zero_shot": {
+      "weighted_composite": 0.07557692307692308,
+      "latency_ms_mean": 1979.364148863967,
+      "failure_rate": 0.0,
+      "dialogue": {
+        "sample_count": 24,
+        "format_compliance": 0.5416666666666666,
+        "context_recall": 0.53125,
+        "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT"
+      },
+      "metrics_sha256": "48daf9e6250f376503d6c49ba506c20a1ca41498428dc973142ff529b2534228"
+    },
+    "multitask_checkpoints": [
+      {
+        "step": 38,
+        "weighted_composite": 0.2585128205128206,
+        "latency_ms_mean": 9342.74636372401,
+        "latency_ratio": 1.6311527973075777,
+        "failure_rate": 0.0,
+        "eligible": false,
+        "blocking_gates": ["latency", "itinerary_task", "itinerary_format"],
+        "metrics_sha256": "91c7e3937d4f7f562fcf2b282a979ad5b06519e880a2365fd27a156d64f01f72"
+      },
+      {
+        "step": 76,
+        "weighted_composite": 0.7234038461538462,
+        "latency_ms_mean": 7572.3555947555915,
+        "latency_ratio": 1.3220597594891685,
+        "failure_rate": 0.0,
+        "eligible": false,
+        "blocking_gates": ["latency"],
+        "metrics_sha256": "40518d12a9da063ea94c77379178f4ee8a9cbb55227634750bb311bcab09a8b8"
+      },
+      {
+        "step": 113,
+        "weighted_composite": 0.7461538461538463,
+        "latency_ms_mean": 7534.812413981152,
+        "latency_ratio": 1.3155050846691574,
+        "failure_rate": 0.0,
+        "eligible": false,
+        "blocking_gates": ["latency"],
+        "metrics_sha256": "c5ef7838eed133075ce77c0c9632deb10e8975ee55ca51f6fe4739cbc4d87644"
+      },
+      {
+        "step": 151,
+        "weighted_composite": 0.7330774572649573,
+        "latency_ms_mean": 8530.805660901886,
+        "latency_ratio": 1.4893958345157199,
+        "failure_rate": 0.0,
+        "eligible": false,
+        "blocking_gates": ["latency"],
+        "metrics_sha256": "aafd1da3aba9c915649565b333792e4406d1a57bdb2d4370ee80fc37734899fd"
+      }
+    ]
+  },
+  "selection": {
+    "status": "BLOCKED_NO_ELIGIBLE_CHECKPOINT",
+    "candidate_count": 4,
+    "eligible_count": 0,
+    "selected": null,
+    "selection_sha256": "39f76e9992eb6cb88f095200b3378646c44a8dab18e64acde7e986813de4cb5b"
+  },
+  "parameter_lock_status": "NOT_CREATED",
+  "final_test_status": "NOT_RUN_TEST_UNCONSUMED",
+  "human_dialogue_status": "PENDING_REAL_HUMAN_INPUT",
+  "dpo_status": "SKIPPED_NO_REVIEWED_PREFERENCE_PAIRS"
+}

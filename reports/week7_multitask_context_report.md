@@ -1,5 +1,8 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
+终态：`BLOCKED_NO_ELIGIBLE_CHECKPOINT`。protocol-v4 公平重评已完成，但预注册延迟门禁下
+`eligible_count=0`。
+
 ## 数据锁和隔离结果
 
 执行分支从 Week 6 终态 `132779b0f6d2929ce1cdbed18e62adf3ef9edd18` 建立，旧
@@ -39,27 +42,47 @@ decay `0.03`、max grad norm `1.0`、gradient checkpointing、2 epochs、有效 
 计划更新步 376；实际完成 38/76/113/151 四个评估点后，综合分连续两次未提升并按
 patience=2 在 step 151 早停。四个 development raw/metrics/checkpoint 均已哈希绑定，
 adapter-only 回载验证通过，峰值 allocated/reserved 显存为 14.82/21.52 GB。Trainer 的
-最高综合分 checkpoint 为 step 76，但独立 selector 返回
-`BLOCKED_NO_ELIGIBLE_CHECKPOINT`，没有参数锁可用。
+v3 训练时历史最高综合分 checkpoint 为 step 76；该分数仅作历史训练证据，
+最终选择以独立 protocol-v4 公平重评为准。
+
+protocol-v4 没有重训，也没有新建或重切分数据；它绑定同一 v3 配置、数据锁、114 条
+development 和 step 38/76/113/151 checkpoints，在同一 L40S allocation 内按锁定顺序
+完整重跑 Week 6 路由 adapters、四个候选和零样本。attempt 1 作业 `29449140`
+被取消，其不完整产物未进入 selector；attempt 2 作业 `29449999` 于 01:19:44
+完成，状态为 `COMPLETED`。
 
 ## 三场景及对话指标
 
-新 development 上 Week 6 路由 adapters 的三场景 composite（支持数均 30）为：商品
-0.041176、售后 0.100000、行程 0.048333；全 114 条加权综合分 0.064270、失败率 0%、
-平均延迟 5830.99 ms。24 条对话按三场景 8/8/8 路由，格式合规率 45.83%、上下文召回率
-49.65%。统一模型最高综合分出现在 step 76：商品/售后/行程 composite 为
-0.564706/1.000000/1.000000（支持数各 30），全 114 条综合分 0.869412、失败率 0%、
-平均延迟 8324.26 ms；对话格式合规率 95.83%、上下文召回率 96.53%。对话人工四维
-评分仍为 `PENDING_REAL_HUMAN_INPUT`，Agent 未代填。
+protocol-v4 中 Week 6 路由 adapters 的商品/售后/行程 composite 为
+0.053846/0.100000/0.048333，全 114 条加权综合分 0.068071、失败率 0%。商品 gold
+可评支持数按 metric 分别为 category 4、facility 3、label completeness 4、price 0、
+style 0；JSON/Schema 支持各 30。售后与行程各业务指标支持数为 30。24 条对话按三场景
+8/8/8 路由，格式合规率 45.83%、上下文召回率 49.65%。
+
+公平重评中综合分最高的是 step 113：商品/售后/行程 composite 为
+0.153846/1.000000/1.000000；支持集合与同一 gold 口径的 Week 6 基线一致，全 114 条
+综合分 0.746154、失败率 0%、平均延迟 7534.81 ms；对话格式合规率 100%、上下文召回率
+96.53%。对话人工四维评分仍为 `PENDING_REAL_HUMAN_INPUT`，Agent 未代填。
+
+protocol-v4 对同一 114 条 development 重评后，候选结果如下：
+
+| v3 checkpoint | protocol-v4 加权综合分 | 全局平均延迟（ms） | 相对 Week 6 路由 adapters 延迟比 | 合格 |
+| --- | ---: | ---: | ---: | --- |
+| step 38 | 0.258513 | 9342.75 | 1.6312 | 否 |
+| step 76 | 0.723404 | 7572.36 | 1.3221 | 否 |
+| step 113 | 0.746154 | 7534.81 | 1.3155 | 否 |
+| step 151 | 0.733077 | 8530.81 | 1.4894 | 否 |
 
 ## Week 6 / 零样本对比
 
-development 零样本全 114 条加权综合分 0.070147、失败率 0%、平均延迟 1961.06 ms；
-商品/售后/行程 composite 分别为 0.058824/0.100000/0.050000，对话格式合规率 54.17%、
-上下文召回率 53.13%。step 76 相对 Week 6 的三场景 composite 均未回退，格式和失败率
-门禁通过，但全局延迟比为 1.4276，超过 1.25 上限；商品 `label_completeness` 支持数也
-低于基线，因此 selector 的 4 个候选均不合格。参数锁未创建，一次性 test 未读取，
-故不存在可报告的 test 三方绝对/相对变化，也不能宣称最终 2% 门禁通过。
+protocol-v4 同 allocation 重评的 Week 6 路由 adapters 加权综合分为 0.068071、
+平均延迟 5727.70 ms；零样本商品/售后/行程 composite 为
+0.076923/0.100000/0.050000，加权综合分 0.075577、失败率 0%、平均延迟 1979.36 ms，
+对话格式合规率 54.17%、上下文召回率 53.13%。
+四个候选失败率均为 0%，但全局延迟比均超过预注册的 1.25 上限，因此
+`eligible_count=0`，selector 终态为 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`。未创建参数锁，
+正式 test 未读取且未消费，故不存在可报告的 test 三方绝对/相对变化，也不能
+宣称最终 2% 门禁通过。
 
 ## DPO 执行状态
 
@@ -68,8 +91,8 @@ development 零样本全 114 条加权综合分 0.070147、失败率 0%、平均
 
 ## 测试结果
 
-当前代码完整 `python -m unittest discover -s tests -v` 为 401/401 PASS；compileall、
-五份 Week 7 Slurm 脚本 `bash -n`、数据锁验证和 `git diff --check` 均通过。Spartan
+当前代码完整 `python -m unittest discover -s tests -v` 为 412/412 PASS；compileall、
+六份 Week 7 Slurm 脚本 `bash -n`、数据锁验证和 `git diff --check` 均通过。Spartan
 训练环境实测为 L40S、torch 2.8.0+cu128、Transformers 4.57.1、PEFT 0.17.1、
 bitsandbytes 0.47.0，环境门禁通过。
 
@@ -81,7 +104,8 @@ bitsandbytes 0.47.0，环境门禁通过。
 
 ## 未完成项和真实原因
 
-训练已完成，但 selector 因全部 4 个 checkpoint 的全局延迟和商品支持数门禁失败而
-`BLOCKED_NO_ELIGIBLE_CHECKPOINT`。因此参数锁与一次性 test 按规则未执行，test 保持
-未消费；这不是 GPU 或代码未完成，而是预注册验收未通过。24 条对话人工四维评分需要
+训练和 protocol-v4 公平重评已完成，但全部 4 个 checkpoint 均超过全局 1.25 延迟比门禁，
+selector 因此以 `eligible_count=0` 和 `BLOCKED_NO_ELIGIBLE_CHECKPOINT` 终止。参数锁与
+一次性 test 按规则未执行，正式 test 保持未读取、未消费；这是预注册验收门禁的真实
+阻断结果。24 条对话人工四维评分需要
 真实用户输入，保持 `PENDING_REAL_HUMAN_INPUT`。不存在伪造 GPU、人工审核或指标。

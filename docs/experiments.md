@@ -403,6 +403,34 @@ manifest.
   因此 `SKIPPED`。完整 unittest 401/401，compileall、五份 Slurm `bash -n`、锁验证和
   diff 检查通过。
 
+## 2026-08-20：Week 7 evaluation protocol-v4 公平重评
+
+- 复审确认 v3 selector 的商品支持数与延迟比较存在口径污染：无 gold 可评证据的
+  Schema-invalid 输出被错误计为支持，训练内 development 推理又使用
+  `use_cache=false`，不能与独立加载且启用 cache 的 Week 6 基线直接比较。提交
+  `833d41a` 增加独立 `evaluation_protocol_v4.json`；它绑定既有 v3 config、数据锁、
+  development 与四个 checkpoint，不是新数据锁、新训练或新模型。
+- 首次公平重评 job `29449140` 在 A100 preempt 节点运行 00:48:55；完成 Week 6
+  baseline 角色后确认 90 分钟不足并显式取消。该目录没有 `protocol_summary.json`，
+  partial 产物保留但不进入任何聚合或 selection。
+- 第二次独立作业 `29449999` 在 L40S 节点运行 01:19:44，状态 `COMPLETED 0:0`。
+  同一 allocation 依次完成 Week 6 routed adapters、step 38/76/113/151 与 zero-shot；
+  protocol summary SHA-256 为
+  `6990bda69463d9d9df65082c39d9d53733e176d4988ea6342eb170fde7c960f3`。
+- 公平 Week 6 全 development 平均延迟为 5727.70 ms。step 38/76/113/151 的综合分
+  分别为 0.258513/0.723404/0.746154/0.733077，失败率均为 0；延迟比分别为
+  1.6312/1.3221/1.3155/1.4894，全部超过预注册 1.25。step 38 还未通过行程任务与
+  格式门禁；其余三个候选仅被全局延迟阻断。
+- selector SHA-256
+  `39f76e9992eb6cb88f095200b3378646c44a8dab18e64acde7e986813de4cb5b`
+  返回 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，candidate/eligible=4/0。未创建
+  parameter-lock，正式 test 未读取且一次性额度未消费；人工对话项仍为
+  `PENDING_REAL_HUMAN_INPUT`，DPO 仍因无真实审核偏好对而 `SKIPPED`。完整机器证据见
+  `experiments/week7_evaluation_protocol_20260820_v4.json`。
+- 修复提交上的完整 unittest 为 412/412；compileall、Week 7 Slurm `bash -n`、数据锁
+  验证和 `git diff --check` 均通过。本节记录的是 development 阻断结论，不能替代
+  Week 6/统一模型/zero-shot 的一次性正式 test 三方比较。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定

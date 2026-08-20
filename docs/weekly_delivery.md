@@ -562,6 +562,8 @@ branches inherit the same delivery state.
 
 ## Week 7 Delivery Status（2026-08-20）
 
+状态：`BLOCKED_NO_ELIGIBLE_CHECKPOINT`。protocol-v4 公平重评已完成，但无候选通过预注册门禁。
+
 - [x] 从指定 Week 6 终态提交创建隔离分支，旧工作树保持不变。
 - [x] v3 train/development/test 锁通过 sample/source/image/group/template 五维隔离；
   test 未运行，对话父任务在三场景间为 150/150/150、8/8/8、8/8/8。
@@ -571,14 +573,20 @@ branches inherit the same delivery state.
 - [x] 固定 Schema constrained decoding 的 format-only 对照实现，禁止语义提升结论。
 - [x] 对话 24 条人工队列保持空白，未由 Agent 代填。
 - [x] DPO 门禁为 `SKIPPED`：0 条偏好对通过真实质量与视觉证据审核。
-- [x] 完整 unittest 401/401、compileall、锁验证、五份 shell 语法和 diff 检查通过。
+- [x] 完整 unittest 412/412、compileall、锁验证、六份 shell 语法和 diff 检查通过。
 - [x] Week 6 adapters 与零样本的完整 114 条 development 基线已生成并哈希绑定。
 - [x] Schema 自由/受约束实际对照完成；constrained primary 90/90 请求失败，free
   fallback 90/90 成功，生产模式锁定 free，未宣称语义提升。
 - [x] 多任务训练在 step 151 早停并正常完成，四个 checkpoint/raw/metrics 已保存和哈希
-  绑定；最高综合分 step 76 为 0.869412。
-- [ ] 参数锁与一次性 test：selector 因全部 checkpoint 的延迟和商品支持数门禁失败而
-  `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，故按规则未创建参数锁、未消费 test。
+  绑定；v3 训练时历史最高综合分 step 76 为 0.869412。
+- [x] 独立 protocol-v4 公平重评仅重跑 development 评估，继续绑定 v3 配置、数据锁和
+  checkpoints，未创建 v4 训练或 v4 数据。attempt 1 作业 `29449140` 被取消，不完整
+  产物排除于评分；attempt 2 作业 `29449999` 为 `COMPLETED`。
+- [x] protocol-v4 候选 step 38/76/113/151 的综合分为
+  0.258513/0.723404/0.746154/0.733077，全局延迟比为
+  1.6312/1.3221/1.3155/1.4894；1.25 门禁下 `eligible_count=0`。
+- [ ] 参数锁与一次性 test：protocol-v4 selector 终态为
+  `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，故按规则未创建参数锁、正式 test 未读取且未消费。
 - [ ] 对话人工四维评分：`PENDING_REAL_HUMAN_INPUT`。
 - [x] 分支证据门禁提交 `bb6ecfe` 与最终 GPU 结果/文档收尾提交均已推送。因自动验收
   未全部通过，未快进 `dev`；未进入 `stg`，未打标签。
