@@ -13,7 +13,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from src.training.week6_qlora import environment_report
 from src.training.week7_data import CORE_SCENARIOS, canonical_sha256, iter_jsonl, load_week7_config, sha256_file
 from src.training.week7_evaluation import (
     Week7EvaluationError,
@@ -21,7 +20,18 @@ from src.training.week7_evaluation import (
     summarize_raw_records,
 )
 from src.training.week7_qlora import Week7TrainingError, structure_aware_messages, training_messages
-from src.training.week7_latency_protocol import validate_latency_protocol_v4
+from src.evaluation.metrics import WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL
+from src.training.week7_latency_protocol import (
+    _default_model_loader,
+    _protocol_runtime,
+    _release_model,
+    validate_latency_protocol_v4,
+)
+from src.training.week7_runtime import (
+    LATENCY_PROTOCOL_VERSION,
+    generate_record,
+    inference_runtime,
+)
 from src.training.week7_selection import (
     evaluate_development_candidate,
     validate_development_raw_artifact,
@@ -886,6 +896,57 @@ def create_parameter_lock(
     for scenario, spec in week6_specs.items():
         if locked_week6_hashes and spec["adapter_model_sha256"] != locked_week6_hashes[scenario]:
             raise Week7EvaluationError(f"Week 6 adapter does not match the preregistered hash: {scenario}")
+    protocol_spec = selection.get("latency_protocol")
+    if protocol_spec is None:
+        evaluation_runtime = {
+            "schema_version": "week7_final_legacy_nf4_runtime_v1",
+            "latency_protocol": LATENCY_PROTOCOL_VERSION,
+            "inference_precision": "nf4",
+            "generation": {
+                "max_new_tokens": int(max_new_tokens),
+                "warmup_max_new_tokens": 1,
+                "do_sample": False,
+                "use_cache": True,
+                "max_input_length": int(config["training"]["max_length"]),
+                "structure_aware_truncation": True,
+            },
+            "timing": {"warmup_excluded": True},
+            "metric_support_protocol": WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL,
+        }
+    else:
+        if not isinstance(protocol_spec, dict):
+            raise Week7EvaluationError("selected evaluation protocol is invalid")
+        protocol_summary_path = Path(str(protocol_spec.get("path", ""))).resolve()
+        protocol_summary = _read_json(protocol_summary_path)
+        protocol_config_path = Path(
+            str(protocol_summary.get("protocol_config_path", ""))
+        ).resolve()
+        protocol_config = _read_json(protocol_config_path)
+        try:
+            runtime_contract = _protocol_runtime(protocol_config)
+        except Week7TrainingError as exc:
+            raise Week7EvaluationError("unsupported selected evaluation runtime") from exc
+        if int(max_new_tokens) != int(runtime_contract["generation"]["max_new_tokens"]):
+            raise Week7EvaluationError(
+                "parameter-lock max_new_tokens must match the selected evaluation protocol"
+            )
+        evaluation_runtime = {
+            "protocol_summary_path": str(protocol_summary_path),
+            "protocol_summary_sha256": sha256_file(protocol_summary_path),
+            "protocol_config_path": str(protocol_config_path),
+            "protocol_config_sha256": sha256_file(protocol_config_path),
+            "schema_version": runtime_contract["schema_version"],
+            "latency_protocol": runtime_contract["latency_protocol"],
+            "inference_precision": runtime_contract["inference_precision"],
+            "generation": runtime_contract["generation"],
+            "timing": protocol_config.get("timing"),
+            "metric_support_protocol": protocol_config.get("metric_support_protocol"),
+        }
+    if evaluation_runtime["metric_support_protocol"] != WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL:
+        raise Week7EvaluationError(
+            "selected evaluation protocol must use gold-evaluable metric support"
+        )
+
     payload: dict[str, Any] = {
         "schema_version": "week7_parameter_lock_v1",
         "status": "LOCKED",
@@ -916,6 +977,7 @@ def create_parameter_lock(
             "sha256": sha256_file(selection_path),
         },
         "evaluation_protocol": selection.get("latency_protocol"),
+        "evaluation_runtime": evaluation_runtime,
     }
     payload["lock_sha256"] = canonical_sha256(payload)
     _write_json_new(Path(output_path), payload)
@@ -934,7 +996,7 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
         "base_model", "selected_checkpoint", "selected_checkpoint_sha256",
         "selected_checkpoint_config_sha256", "week6_adapters", "generation",
         "test_run_id", "training_summary", "selection", "development_evidence",
-        "evaluation_protocol",
+        "evaluation_protocol", "evaluation_runtime",
     }
     if payload.get("status") != "LOCKED" or not required <= set(payload):
         raise Week7EvaluationError("complete parameter lock is required before test")
@@ -1016,6 +1078,59 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
     )
     if payload.get("evaluation_protocol") != selection.get("latency_protocol"):
         raise Week7EvaluationError("parameter lock evaluation-protocol binding mismatch")
+    protocol_spec = selection.get("latency_protocol")
+    if protocol_spec is None:
+        runtime_contract = {
+            "generation": {
+                "max_new_tokens": int(generation["max_new_tokens"]),
+                "warmup_max_new_tokens": 1,
+                "do_sample": False,
+                "use_cache": True,
+                "max_input_length": int(config["training"]["max_length"]),
+                "structure_aware_truncation": True,
+            },
+        }
+        expected_runtime = {
+            "schema_version": "week7_final_legacy_nf4_runtime_v1",
+            "latency_protocol": LATENCY_PROTOCOL_VERSION,
+            "inference_precision": "nf4",
+            "generation": runtime_contract["generation"],
+            "timing": {"warmup_excluded": True},
+            "metric_support_protocol": WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL,
+        }
+    else:
+        if not isinstance(protocol_spec, dict):
+            raise Week7EvaluationError("parameter lock evaluation protocol is invalid")
+        protocol_summary_path = Path(str(protocol_spec.get("path", ""))).resolve()
+        protocol_summary = _read_json(protocol_summary_path)
+        protocol_config_path = Path(
+            str(protocol_summary.get("protocol_config_path", ""))
+        ).resolve()
+        protocol_config = _read_json(protocol_config_path)
+        try:
+            runtime_contract = _protocol_runtime(protocol_config)
+        except Week7TrainingError as exc:
+            raise Week7EvaluationError("unsupported locked evaluation runtime") from exc
+        expected_runtime = {
+            "protocol_summary_path": str(protocol_summary_path),
+            "protocol_summary_sha256": sha256_file(protocol_summary_path),
+            "protocol_config_path": str(protocol_config_path),
+            "protocol_config_sha256": sha256_file(protocol_config_path),
+            "schema_version": runtime_contract["schema_version"],
+            "latency_protocol": runtime_contract["latency_protocol"],
+            "inference_precision": runtime_contract["inference_precision"],
+            "generation": runtime_contract["generation"],
+            "timing": protocol_config.get("timing"),
+            "metric_support_protocol": protocol_config.get("metric_support_protocol"),
+        }
+    if (
+        payload.get("evaluation_runtime") != expected_runtime
+        or expected_runtime["metric_support_protocol"]
+        != WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL
+        or int(generation["max_new_tokens"])
+        != int(runtime_contract["generation"]["max_new_tokens"])
+    ):
+        raise Week7EvaluationError("parameter lock evaluation runtime mismatch")
     selected_step = int(selection["selected"].get("step", -1))
     selected_path = Path(payload["selected_checkpoint"]).resolve()
     if (
@@ -1406,61 +1521,62 @@ def _transformers_runner(
     adapter_dir: Path | None,
     max_new_tokens: int,
     record_sink: Callable[[dict[str, Any]], None],
+    evaluation_runtime: dict[str, Any],
+    run_id: str,
 ) -> list[dict[str, Any]]:
-    report = environment_report(require_cuda=True)
-    if report.get("status") != "ok":
-        raise Week7TrainingError(f"final test environment is not ready: {report.get('status')}")
-    import torch
-    from peft import PeftModel
-    from transformers import AutoProcessor, BitsAndBytesConfig, Qwen3VLForConditionalGeneration
-
-    quant = config["quantization"]
-    model = Qwen3VLForConditionalGeneration.from_pretrained(
-        config["base_model"],
-        quantization_config=BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type=quant["bnb_4bit_quant_type"],
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
-        ),
-        torch_dtype=torch.bfloat16,
-        device_map={"": int(os.environ.get("LOCAL_RANK", "0"))},
-        attn_implementation=config["training"]["attn_implementation"],
+    if not rows:
+        raise Week7EvaluationError("final-test model route cannot be empty")
+    generation = evaluation_runtime["generation"]
+    if int(max_new_tokens) != int(generation["max_new_tokens"]):
+        raise Week7EvaluationError("final-test generation does not match locked runtime")
+    processor, model_loader = _default_model_loader(
+        config,
+        {"inference_precision": evaluation_runtime["inference_precision"]},
     )
-    if adapter_dir is not None:
-        model = PeftModel.from_pretrained(model, str(adapter_dir), is_trainable=False)
-    processor = AutoProcessor.from_pretrained(config["base_model"])
-    model.eval()
-    records: list[dict[str, Any]] = []
-    for row in rows:
-        messages = structure_aware_messages(
-            processor, training_messages(row), int(config["training"]["max_length"])
+    model = model_loader(adapter_dir)
+
+    def messages(row: dict[str, Any]) -> list[dict[str, Any]]:
+        return structure_aware_messages(
+            processor,
+            training_messages(row),
+            int(generation["max_input_length"]),
         )[:-1]
-        started = time.perf_counter()
-        raw_output, error = "", None
-        try:
-            inputs = processor.apply_chat_template(
-                messages, tokenize=True, add_generation_prompt=True, return_dict=True,
-                return_tensors="pt", truncation=False,
+
+    runtime_options = {
+        "latency_protocol": evaluation_runtime["latency_protocol"],
+        "cache_implementation": generation.get("cache_implementation"),
+        "compile_config": generation.get("compile_config"),
+    }
+    records: list[dict[str, Any]] = []
+    with inference_runtime(model):
+        warmup = generate_record(
+            model,
+            processor,
+            messages(rows[0]),
+            sample_id=rows[0]["sample_id"],
+            run_id=run_id,
+            model_name=role,
+            max_new_tokens=int(generation["warmup_max_new_tokens"]),
+            warmup=True,
+            **runtime_options,
+        )
+        if warmup.get("failed"):
+            raise Week7EvaluationError(f"final-test warmup failed for {role}")
+        for row in rows:
+            record = generate_record(
+                model,
+                processor,
+                messages(row),
+                sample_id=row["sample_id"],
+                run_id=run_id,
+                model_name=role,
+                max_new_tokens=max_new_tokens,
+                **runtime_options,
             )
-            device = next(model.parameters()).device
-            inputs = {key: value.to(device) if hasattr(value, "to") else value for key, value in inputs.items()}
-            with torch.inference_mode():
-                generated = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
-            raw_output = processor.batch_decode(
-                generated[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True,
-            )[0].strip()
-        except (RuntimeError, ValueError) as exc:
-            error = f"{type(exc).__name__}: {exc}"
-        record = {
-            "sample_id": row["sample_id"], "model_name": role, "raw_output": raw_output,
-            "latency_ms": (time.perf_counter() - started) * 1000,
-            "failed": error is not None, "error": error,
-        }
-        record_sink(record)
-        records.append(record)
+            record_sink(record)
+            records.append(record)
     del model
-    torch.cuda.empty_cache()
+    _release_model()
     return records
 
 
@@ -1673,6 +1789,7 @@ def _execute_final_test_suite(
 
     config = load_week7_config(config_path)
     max_new_tokens = int(parameter_lock["generation"]["max_new_tokens"])
+    evaluation_runtime = parameter_lock["evaluation_runtime"]
     if inference_runner is None:
         def inference_runner(
             role: str,
@@ -1681,7 +1798,15 @@ def _execute_final_test_suite(
             record_sink: Callable[[dict[str, Any]], None],
         ) -> list[dict[str, Any]]:
             return _transformers_runner(
-                root, config, role, selected_rows, adapter, max_new_tokens, record_sink,
+                root,
+                config,
+                role,
+                selected_rows,
+                adapter,
+                max_new_tokens,
+                record_sink,
+                evaluation_runtime,
+                parameter_lock["test_run_id"],
             )
 
     roles: dict[str, list[tuple[Path | None, list[dict[str, Any]]]]] = {
@@ -1705,7 +1830,13 @@ def _execute_final_test_suite(
             role, rows, output_dir / "raw_outputs" / f"{role}.jsonl", run_id,
             inference_runner, roles[role],
         )
-        summaries[role] = summarize_raw_records(root, config, rows, records)
+        summaries[role] = summarize_raw_records(
+            root,
+            config,
+            rows,
+            records,
+            metric_support_protocol=evaluation_runtime["metric_support_protocol"],
+        )
         metrics_path = output_dir / "metrics" / f"{role}.json"
         if not metrics_path.exists():
             _write_json_new(metrics_path, summaries[role])
@@ -1727,6 +1858,7 @@ def _execute_final_test_suite(
             },
             "week6_single_task_adapters": parameter_lock["week6_adapters"],
         },
+        "evaluation_runtime": evaluation_runtime,
     })
     summary_path = output_dir / "final_comparison.json"
     if not summary_path.exists():

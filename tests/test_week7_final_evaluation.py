@@ -544,11 +544,17 @@ class Week7FinalEvaluationTests(unittest.TestCase):
         baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
         protocol_baseline_path = protocol_dir / "baseline-metrics.json"
         protocol_baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+        protocol_config_path = protocol_dir / "protocol-config.json"
+        protocol_config_path.write_text(json.dumps({
+            "schema_version": "week7_evaluation_protocol_v4",
+            "metric_support_protocol": "week7_evaluation_protocol_v4",
+            "timing": {"warmup_excluded": True},
+        }), encoding="utf-8")
         protocol_path = protocol_dir / "protocol_summary.json"
-        protocol_path.write_text("{}", encoding="utf-8")
         protocol = {
             "schema_version": "week7_development_latency_protocol_v4",
             "run_id": "unit-protocol-v4",
+            "protocol_config_path": str(protocol_config_path.resolve()),
             "candidate_steps": [step],
             "roles": {
                 "week6_single_task_adapters": {
@@ -561,6 +567,7 @@ class Week7FinalEvaluationTests(unittest.TestCase):
                 },
             },
         }
+        protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
         candidate = evaluate_development_candidate(
             self.config, baseline, protocol_metrics, step=step,
             checkpoint=checkpoint,
@@ -612,10 +619,23 @@ class Week7FinalEvaluationTests(unittest.TestCase):
                 schema_decoding_mode="free",
             )
             self.assertEqual(created["evaluation_protocol"], selection["latency_protocol"])
+            self.assertEqual(created["evaluation_runtime"]["inference_precision"], "nf4")
+            self.assertEqual(
+                created["evaluation_runtime"]["metric_support_protocol"],
+                "week7_evaluation_protocol_v4",
+            )
             validated, _, _ = _validate_parameter_lock(
                 self.root, self.config_path, parameter_lock,
             )
             self.assertEqual(validated["evaluation_protocol"], selection["latency_protocol"])
+            forged = copy.deepcopy(created)
+            forged["evaluation_runtime"]["inference_precision"] = "bf16"
+            forged.pop("lock_sha256")
+            forged["lock_sha256"] = canonical_sha256(forged)
+            forged_path = self.root / "forged-runtime-lock.json"
+            forged_path.write_text(json.dumps(forged), encoding="utf-8")
+            with self.assertRaisesRegex(Week7EvaluationError, "runtime mismatch"):
+                _validate_parameter_lock(self.root, self.config_path, forged_path)
 
     def test_same_run_resumes_but_second_output_is_rejected(self):
         output = self.root / "final-output"
@@ -646,6 +666,10 @@ class Week7FinalEvaluationTests(unittest.TestCase):
             resume=True, inference_runner=self._successful_runner,
         )
         self.assertEqual(result["status"], "COMPLETED")
+        self.assertEqual(
+            result["evaluation_runtime"]["metric_support_protocol"],
+            "week7_evaluation_protocol_v4",
+        )
         self.assertEqual(set(result["models"]), {
             "week6_single_task_adapters", "multitask", "zero_shot",
         })
