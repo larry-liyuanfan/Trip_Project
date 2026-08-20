@@ -1,0 +1,159 @@
+{
+  "schema_version": "week7_final_evaluation_evidence_v1",
+  "status": "AUTOMATED_ACCEPTED_PENDING_REAL_HUMAN_INPUT",
+  "recorded_at": "2026-08-21",
+  "branch": "codex/week7-multitask-context",
+  "baseline_commit": "132779b0f6d2929ce1cdbed18e62adf3ef9edd18",
+  "runtime_fix_commit": "8619b76f88856ece92d4926fdb9c48c6db9f6404",
+  "data_identity": {
+    "dataset_version": "week7_fresh_multitask_context_20260820_v3",
+    "config_sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa",
+    "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+    "split_counts": {
+      "train": 3000,
+      "development": 114,
+      "test": 114
+    },
+    "train_composition": {
+      "image_product_search": 760,
+      "after_sales": 760,
+      "itinerary_planning": 760,
+      "general_multimodal": 270,
+      "general_multimodal_ratio": 0.09,
+      "dialogue": 450,
+      "dialogue_ratio": 0.15,
+      "dialogue_tool_calls": 45,
+      "dialogue_tool_call_ratio": 0.1
+    },
+    "cross_split_collision_counts": {
+      "sample_id": 0,
+      "source_id": 0,
+      "image_sha256": 0,
+      "group_id": 0,
+      "constraint_template_id": 0
+    }
+  },
+  "training": {
+    "slurm_job_id": "29434317",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "01:30:17",
+    "evaluation_steps": [38, 76, 113, 151],
+    "selected_checkpoint": "checkpoint-151",
+    "selected_adapter_sha256": "612af9b79b63f2652e0cd5e9d0d1d9259b5fab08a69eaddbe0d186e9c8f7540b"
+  },
+  "evaluation_protocol": {
+    "name": "week7_evaluation_protocol_v5",
+    "config_sha256": "d80c21080a6e81dd3c46466dbcfe072c10639fe7f754a93bbb7f84767b3d1292",
+    "accepted_attempt": {
+      "slurm_job_id": "29456896",
+      "state": "COMPLETED",
+      "exit_code": "0:0",
+      "elapsed": "01:28:19",
+      "protocol_summary_sha256": "08e9e49067a5aabba623139603607d00f51daf7fd041b4b184cc2ad468c3a351"
+    },
+    "excluded_attempts": [
+      {
+        "slurm_job_id": "29452655",
+        "state": "FAILED",
+        "exit_code": "1:0",
+        "reason": "disk_quota_exceeded_before_zero_shot_completion"
+      },
+      {
+        "slurm_job_id": "29456882",
+        "state": "FAILED",
+        "exit_code": "1:0",
+        "reason": "immutable_output_directory_preexisted_no_inference"
+      }
+    ],
+    "selection": {
+      "status": "SELECTED",
+      "eligible_count": 4,
+      "candidate_count": 4,
+      "selected_checkpoint": "checkpoint-151",
+      "selection_sha256": "68bfbedbc3b61494daf6fdf0911486d60339b181479e05406aa0c0434dc2ca50"
+    },
+    "development_candidates": {
+      "checkpoint-38": {"weighted_composite": 0.07435897435897436, "latency_ratio": 1.0405438549658437, "failure_rate": 0.0},
+      "checkpoint-76": {"weighted_composite": 0.6427179487179487, "latency_ratio": 0.9416939551078274, "failure_rate": 0.0},
+      "checkpoint-113": {"weighted_composite": 0.6452371794871796, "latency_ratio": 0.860850246330279, "failure_rate": 0.0},
+      "checkpoint-151": {"weighted_composite": 0.7409038461538463, "latency_ratio": 0.880933167035864, "failure_rate": 0.0}
+    }
+  },
+  "parameter_lock": {
+    "canonical_sha256": "1b3f3ffafc2f549ca29034fcee505e346bcb70bc8ce974adcdbb83ad6d38adef",
+    "file_sha256": "03d6372bbefe1800918c64f3ed9ffefc66fc93e211a39dd882fe5a1060fa6c29"
+  },
+  "final_test": {
+    "slurm_job_id": "29459265",
+    "run_id": "week7_test_once_20260820_v3",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:40:50",
+    "test_sha256": "2137eaf46e927366e4991b04306d138f2217eb82d8e7b8cba17f82a282aa2d99",
+    "test_consumption_status": "COMPLETED",
+    "resume_count": 0,
+    "failure_history": [],
+    "test_consumption_marker": {
+      "path": "/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a/project/week7-multitask-context/outputs/week7/test_consumption/week7_fresh_multitask_context_20260820_v3.json",
+      "sha256": "96015b95cc7b851068a73276cc8d0b219a0bd3f23f01b0922a9bd79fa38a7a52"
+    },
+    "all_passed": true,
+    "metrics": {
+      "multitask": {
+        "weighted_composite": 0.7449871794871796,
+        "scenario_composites": {"image_product_search": 0.15384615384615383, "after_sales": 1.0, "itinerary_planning": 0.9966666666666668},
+        "dialogue_format_compliance": 1.0,
+        "dialogue_context_recall": 0.8784722222222222,
+        "latency_mean_ms": 7173.1639031418845,
+        "failure_rate": 0.0
+      },
+      "week6_routed_adapters": {
+        "weighted_composite": 0.0618397435897436,
+        "scenario_composites": {"image_product_search": 0.0564102564102564, "after_sales": 0.1, "itinerary_planning": 0.028333333333333335},
+        "dialogue_format_compliance": 0.5,
+        "dialogue_context_recall": 0.49652777777777773,
+        "latency_mean_ms": 8250.696916941946,
+        "failure_rate": 0.0
+      },
+      "zero_shot": {
+        "weighted_composite": 0.07557692307692308,
+        "scenario_composites": {"image_product_search": 0.07692307692307691, "after_sales": 0.1, "itinerary_planning": 0.05},
+        "dialogue_format_compliance": 0.5,
+        "dialogue_context_recall": 0.6006944444444444,
+        "latency_mean_ms": 4788.493012437564,
+        "failure_rate": 0.0
+      }
+    },
+    "support_counts": {
+      "scenario_samples": {"image_product_search": 30, "after_sales": 30, "itinerary_planning": 30, "dialogue": 24},
+      "product_gold_evaluable": {"category": 2, "facility": 0, "label_completeness": 3, "price": 0, "style": 1},
+      "after_sales_each_business_metric": 30,
+      "itinerary_each_business_metric": 30
+    },
+    "artifact_sha256": {
+      "final_comparison": "58263f2578084847e0e0869869c422c1d7f030403e34a1436b463e71fa669831",
+      "metrics_multitask": "7a9694dd37eacc9599cf5ce9b3e3d1b80e7cc6a73be139fb8baf46c13cb1dddf",
+      "metrics_week6": "ab52ba89c661d3377a1b3d628271e3fc16df41d17ca6b29a186c67cef9f640c4",
+      "metrics_zero_shot": "4ba00d9d307a019eb685df2d5ea4f0acafc06bf18c38a008f28f7ce60a2012e0",
+      "raw_multitask": "f749e46fad422512d6d332605b66e7344a24c529cbee652111161377ba5a9c70",
+      "raw_week6": "e1bc0534e0b2febb7f04a59c101ac53d8ec750ea74a0c5644378faf620191439",
+      "raw_zero_shot": "5f667038e35a05f2e67e24c12c208f03de6bff95627b80e61f4b771e793803ca"
+    }
+  },
+  "schema_decoding": {
+    "slurm_job_id": "29434316",
+    "free_support": 90,
+    "constrained_support": 90,
+    "free_json_compliance": 0.9888888888888889,
+    "constrained_primary_success_count": 0,
+    "fallback_success_count": 90,
+    "fallback_failure_rate": 0.0,
+    "free_latency_mean_ms": 3300.72,
+    "constrained_with_fallback_latency_mean_ms": 3360.34,
+    "paired_latency_ratio": 1.0181,
+    "production_mode": "free"
+  },
+  "human_dialogue_evaluation": "PENDING_REAL_HUMAN_INPUT",
+  "dpo": {"status": "SKIPPED", "audited_preference_pair_count": 0}
+}

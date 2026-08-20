@@ -400,7 +400,7 @@ manifest.
   `experiments/week7_multitask_training_20260820_v3.json`；未创建 parameter-lock，
   final-test 未运行。
 - DPO 门禁见 `experiments/week7_dpo_gate_20260820_v3.json`：真实审核偏好对为 0，
-  因此 `SKIPPED`。完整 unittest 401/401，compileall、五份 Slurm `bash -n`、锁验证和
+  因此 `SKIPPED`。该提交当时完整 unittest 401/401，compileall、五份 Slurm `bash -n`、锁验证和
   diff 检查通过。
 
 ## 2026-08-20：Week 7 evaluation protocol-v4 公平重评
@@ -427,9 +427,38 @@ manifest.
   parameter-lock，正式 test 未读取且一次性额度未消费；人工对话项仍为
   `PENDING_REAL_HUMAN_INPUT`，DPO 仍因无真实审核偏好对而 `SKIPPED`。完整机器证据见
   `experiments/week7_evaluation_protocol_20260820_v4.json`。
-- 修复提交上的完整 unittest 为 412/412；compileall、Week 7 Slurm `bash -n`、数据锁
+- protocol-v4 修复提交当时的完整 unittest 为 412/412；compileall、Week 7 Slurm `bash -n`、数据锁
   验证和 `git diff --check` 均通过。本节记录的是 development 阻断结论，不能替代
   Week 6/统一模型/zero-shot 的一次性正式 test 三方比较。
+
+## 2026-08-21：Week 7 evaluation protocol-v5 与一次性 test
+
+- `configs/week7/evaluation_protocol_v5.json` 继续绑定 v3 config SHA
+  `d77d9f10...105fa`、数据锁 SHA `8af2e2d1...20504d`、114 条 development 与四个
+  既有 checkpoint；仅把公平推理口径锁为 BF16、static KV cache、Transformers
+  compile、32-token warm-up、CUDA 同步计时和 gold-evaluable support。没有新训练、
+  新数据锁或 test 调参。
+- job `29452655` 因 `/data/gpfs` 全局 100% 满在 zero-shot 阶段 `FAILED 1:0`；前五角色
+  完整但整个 attempt 排除。job `29456882` 因提交器提前创建输出目录，在 13 秒内由
+  不可覆盖门禁拒绝，未执行推理。job `29456896` 改用 home 输出与节点本地 compile
+  cache，在 L40S 上 `COMPLETED 0:0`，耗时 01:28:19；protocol summary SHA-256 为
+  `08e9e49067a5aabba623139603607d00f51daf7fd041b4b184cc2ad468c3a351`。
+- development step 38/76/113/151 的综合分为
+  0.074359/0.642718/0.645237/0.740904，平均延迟为
+  8689.47/7863.99/7188.87/7356.58 ms，相对同 allocation Week 6 基线为
+  1.0405/0.9417/0.8609/0.8809，失败率均为 0。selector 4/4 eligible，按最高综合分
+  选择 checkpoint-151；selection SHA-256 为 `68bfbedb...ca50`。
+- 提交 `8619b76` 修复 final runner 的 NF4/dynamic/旧支持口径不一致，参数锁完整绑定
+  v5 runtime；canonical lock SHA-256 为 `1b3f3ffa...adef`。唯一 final-test job
+  `29459265` 在 L40S 上 `COMPLETED 0:0`，耗时 00:40:50；marker 为 COMPLETED、无
+  failure history，7 个 artifact hash 全部复验通过。
+- test 统一模型/Week 6/zero-shot 加权综合分为 0.744987/0.061840/0.075577，平均延迟
+  为 7173.16/8250.70/4788.49 ms，失败率均为 0。统一模型商品/售后/行程 composite
+  为 0.153846/1.000000/0.996667，三场景任务、支持、JSON/Schema、全局延迟和失败率
+  门禁全部通过。对话自动格式/上下文召回为 1.0/0.878472；人工四维继续
+  `PENDING_REAL_HUMAN_INPUT`，DPO 因 0 条真实审核偏好对保持 `SKIPPED`。
+- 完整机器证据见 `experiments/week7_final_evaluation_20260821_v5.json`。当前完整
+  unittest 414/414，远端定向 22/22，compileall、shell 语法与 diff 检查通过。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 

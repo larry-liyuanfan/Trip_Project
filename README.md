@@ -538,6 +538,7 @@ development，只有参数锁定后的最终命令才允许读取 test。当前�
 python scripts/manage_week7.py build-lock --source-project-root <read-only-week5-week6-project>
 python scripts/manage_week7.py validate-lock
 python scripts/run_week7.py check-environment
+python scripts/run_week7.py latency-protocol-v5 --help
 python scripts/run_week7.py select-checkpoint --help
 python scripts/run_week7.py lock-parameters --help
 python scripts/run_week7.py final-test --help
@@ -550,27 +551,23 @@ checkpointing。完整 development 每约 10% 更新步生成评测一次，按�
 Schema、延迟和失败回退；对话人工队列只能由真实用户填写。生产作业分别使用
 `week7_development_eval.sbatch`、`week7_dialogue_development.sbatch`、
 `week7_schema_experiment.sbatch`、`week7_multitask_train.sbatch` 和
-`week7_final_test.sbatch`。checkpoint 的 development metrics/raw、Schema comparison/raw、
+`week7_latency_protocol_v5.sbatch`、`week7_final_test.sbatch`。checkpoint 的 development metrics/raw、Schema comparison/raw、
 参数锁和最终 test 状态均以 SHA-256 逐级绑定；final-test 在 Slurm 中断后只能依据原
 job、锁和 test 身份执行受审计恢复。
 
-当前选择门禁使用独立的 `evaluation_protocol_v4`，它只修正 v3 development 的评估
-口径并绑定既有 v3 配置、数据锁、训练 checkpoint 与 raw evidence；它不是新的模型版本
-或数据锁。修复前，商品指标支持数会随输出是否合法而变化，且 `unknown_fields` 中的空
-style/facility 被误作可评估标签；训练内与基线延迟还使用了不同 cache/runtime 和
-allocation。协议现按 gold evaluability 固定支持集合，在聚合前排除 unsupported 指标，
-并在同一 Slurm allocation 中以相同 Transformers cache、同步和计时范围串行重测三套
-Week 6 adapters、四个多任务 checkpoint 与 zero-shot。
+数据和训练身份仍为 v3；独立 `evaluation_protocol_v5` 只锁定公平推理口径，不是新模型
+或新数据锁。它在同一 Slurm allocation 中统一 BF16、static KV cache、Transformers
+compile、32-token warm-up、CUDA 同步计时、结构感知截断和 gold-evaluable 支持集合，
+串行重测三套 Week 6 adapters、四个多任务 checkpoint 与 zero-shot。完整作业
+`29456896` 为 `COMPLETED 0:0`，selector 选择 checkpoint-151：development 综合分
+0.740904、全局延迟比 0.8809、失败率 0。
 
-首次协议作业 `29449140` 为 `CANCELLED`，只产生部分 Week 6 baseline 角色文件，未生成
-protocol summary，全部排除。第二次作业 `29449999` 在单张 L40S 上以 `COMPLETED 0:0`
-结束，用时 `01:19:44`；protocol summary SHA-256 为
-`6990bda69463d9d9df65082c39d9d53733e176d4988ea6342eb170fde7c960f3`。step
-38/76/113/151 的全 development 延迟比分别为 1.6312/1.3221/1.3155/1.4894，均超过
-1.25 门禁；对应 gold-support 综合分为 0.258513/0.723404/0.746154/0.733077。
-step 76/113/151 的三场景 task/format/support 门禁均通过，step 38 另有行程 task/format
-回退。selector 因而仍为 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`；未创建 parameter lock，
-test 保持未读取。当前完整 `unittest` 为 412/412。
+参数锁随后完整绑定 v5 runtime；唯一 final-test 作业 `29459265` 为 `COMPLETED 0:0`，
+marker 和 7 个结果 artifact 的 SHA-256 验证通过，全部自动非回退门禁通过。test 上统一
+模型商品/售后/行程 composite 为 0.153846/1.000000/0.996667，对话格式合规率 1.0、
+上下文召回率 0.878472、平均延迟 7173.16 ms、失败率 0。人工对话四维仍为
+`PENDING_REAL_HUMAN_INPUT`，DPO 因 0 条真实审核偏好对保持 `SKIPPED`。当前完整
+`unittest` 为 414/414。
 
 ## Aliyun Runtime
 

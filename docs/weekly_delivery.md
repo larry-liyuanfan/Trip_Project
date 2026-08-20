@@ -560,9 +560,10 @@ for mentor review, and promoted from `stg` to `main` only after approval. A
 completed checklist is updated on `dev` before promotion so all downstream
 branches inherit the same delivery state.
 
-## Week 7 Delivery Status（2026-08-20）
+## Week 7 Delivery Status（2026-08-21）
 
-状态：`BLOCKED_NO_ELIGIBLE_CHECKPOINT`。protocol-v4 公平重评已完成，但无候选通过预注册门禁。
+状态：`AUTOMATED_ACCEPTED / PENDING_REAL_HUMAN_INPUT`。自动门禁与一次性 final-test 已完成；
+对话人工四维仍等待真实用户输入。
 
 - [x] 从指定 Week 6 终态提交创建隔离分支，旧工作树保持不变。
 - [x] v3 train/development/test 锁通过 sample/source/image/group/template 五维隔离；
@@ -573,7 +574,7 @@ branches inherit the same delivery state.
 - [x] 固定 Schema constrained decoding 的 format-only 对照实现，禁止语义提升结论。
 - [x] 对话 24 条人工队列保持空白，未由 Agent 代填。
 - [x] DPO 门禁为 `SKIPPED`：0 条偏好对通过真实质量与视觉证据审核。
-- [x] 完整 unittest 412/412、compileall、锁验证、六份 shell 语法和 diff 检查通过。
+- [x] 完整 unittest 414/414、compileall、锁验证、七份 shell 语法和 diff 检查通过。
 - [x] Week 6 adapters 与零样本的完整 114 条 development 基线已生成并哈希绑定。
 - [x] Schema 自由/受约束实际对照完成；constrained primary 90/90 请求失败，free
   fallback 90/90 成功，生产模式锁定 free，未宣称语义提升。
@@ -584,9 +585,16 @@ branches inherit the same delivery state.
   产物排除于评分；attempt 2 作业 `29449999` 为 `COMPLETED`。
 - [x] protocol-v4 候选 step 38/76/113/151 的综合分为
   0.258513/0.723404/0.746154/0.733077，全局延迟比为
-  1.6312/1.3221/1.3155/1.4894；1.25 门禁下 `eligible_count=0`。
-- [ ] 参数锁与一次性 test：protocol-v4 selector 终态为
-  `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，故按规则未创建参数锁、正式 test 未读取且未消费。
+  1.6312/1.3221/1.3155/1.4894；该历史 attempt 保持 `eligible_count=0`。
+- [x] protocol-v5 继续绑定 v3 数据/训练身份，在同一 allocation 统一 BF16/static cache/
+  compile/warm-up/gold-support。有效 job `29456896` 完整结束；step
+  38/76/113/151 延迟比为 1.0405/0.9417/0.8609/0.8809，4/4 eligible，选择 step 151。
+- [x] 参数锁绑定 checkpoint-151 与完整 v5 runtime；唯一 final-test job `29459265`
+  `COMPLETED 0:0`，marker 和 7 个 artifact hash 通过，`all_passed=true`。
+- [x] test 统一模型商品/售后/行程 composite 为 0.153846/1.000000/0.996667，
+  Week 6 路由基线为 0.056410/0.100000/0.028333，zero-shot 为
+  0.076923/0.100000/0.050000；所有场景、支持、JSON/Schema、延迟和失败率门禁通过。
+- [x] test 对话自动指标为格式合规率 1.0、上下文召回率 0.878472；24 条支持数固定。
 - [ ] 对话人工四维评分：`PENDING_REAL_HUMAN_INPUT`。
-- [x] 分支证据门禁提交 `bb6ecfe` 与最终 GPU 结果/文档收尾提交均已推送。因自动验收
-  未全部通过，未快进 `dev`；未进入 `stg`，未打标签。
+- [x] 代码提交 `64a5a7a`、final runtime 修复 `8619b76` 已推送；最终 GPU 证据与文档
+  收尾提交已推送。因真实人工项未完成，未快进 `dev`；未进入 `stg`，未打标签。

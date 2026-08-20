@@ -371,7 +371,7 @@ as the current validated dataset or accepted baseline.
   为 0.869412，但四个 checkpoint 均超 1.25× 全局延迟门禁且商品支持数不足。selector
   返回 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，参数锁未创建、test 未读取。DPO 因真实审核
   偏好对为 0 记为 `SKIPPED`。
-- 证据链与崩溃恢复修复后，完整 unittest 401/401、compileall、五份 Slurm `bash -n`、
+- 证据链与崩溃恢复修复提交当时，完整 unittest 401/401、compileall、五份 Slurm `bash -n`、
   数据锁验证和 `git diff --check` 通过；提交 `bb6ecfe` 已推送。
 - 后续独立审查确认原 selector 的两个口径问题：商品 `label_completeness` 支持数会因
   Schema-invalid 输出被置 0 而虚增，且被列入 `unknown_fields` 的空 style/facility
@@ -389,7 +389,37 @@ as the current validated dataset or accepted baseline.
   分别为 0.258513/0.723404/0.746154/0.733077；step 76/113/151 的三场景
   task/format/support 门禁均通过，step 38 另有行程 task/format 回退，但四个候选均未
   通过全局 1.25 延迟门禁。selector 仍返回 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，未创建
-  parameter lock，test 未读取；当前完整 `unittest` 为 412/412。
+  parameter lock，test 未读取；该 protocol-v4 提交当时的完整 `unittest` 为 412/412。
+
+## 2026-08-21：Week 7 protocol-v5、参数锁与一次性最终评测
+
+- protocol-v4 的语义门禁已通过但输出长度差异使全局延迟仍不可接受。提交 `64a5a7a`
+  新增独立 protocol-v5：继续绑定 v3 config/data/checkpoints，只把所有比较角色统一为
+  BF16、static KV cache、Transformers compile、32-token warm-up、CUDA 同步计时和
+  gold-evaluable 支持口径；未重训、未重切分、未读取 test。
+- v5 attempt1 job `29452655` 在完成 Week 6 与四个 checkpoint 后因项目盘全局 100%
+  满而 `FAILED 1:0`，zero-shot raw 为 0 字节，整个 attempt 排除。`29456882` 因提交器
+  预建输出目录而在 13 秒内被不可覆盖门禁拒绝，未执行模型推理。新 attempt
+  `29456896` 改用 home 持久化与节点本地 compile cache，在 L40S 上以
+  `COMPLETED 0:0` 运行 01:28:19，六个角色和 protocol summary 完整。
+- v5 development 中 step 38/76/113/151 综合分为
+  0.074359/0.642718/0.645237/0.740904，全局延迟比为
+  1.0405/0.9417/0.8609/0.8809，失败率均为 0。selector 以 4/4 eligible 选择
+  checkpoint-151；selection SHA-256 为
+  `68bfbedbc3b61494daf6fdf0911486d60339b181479e05406aa0c0434dc2ca50`。
+- 审计发现旧 final runner 仍固定 NF4/dynamic/旧支持口径；提交 `8619b76` 修复为参数锁
+  哈希绑定并复用完整 v5 runtime。完整 unittest 414/414、远端定向 22/22、compileall
+  和 diff 检查通过。parameter lock canonical SHA-256 为
+  `1b3f3ffafc2f549ca29034fcee505e346bcb70bc8ce974adcdbb83ad6d38adef`。
+- 唯一 final-test job `29459265` 在 L40S 上运行 00:40:50，状态 `COMPLETED 0:0`；
+  test marker 绑定 test SHA-256 `2137eaf46e927366e4991b04306d138f2217eb82d8e7b8cba17f82a282aa2d99`
+  并验证 7 个 artifact hash。统一模型 test 综合分 0.744987，商品/售后/行程为
+  0.153846/1.000000/0.996667，平均延迟 7173.16 ms、失败率 0；Week 6 路由基线综合
+  0.061840、延迟 8250.70 ms，zero-shot 综合 0.075577、延迟 4788.49 ms。三场景、
+  支持数、格式、全局延迟和失败率门禁全部通过。
+- 对话 test 自动指标为格式 1.0、上下文召回 0.878472；人工四维仍为
+  `PENDING_REAL_HUMAN_INPUT`。真实审核偏好对仍为 0，DPO 保持 `SKIPPED`。旧工作树、
+  Week 6 终态、Week 3 v2 与历史失败 evidence 均未修改。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
