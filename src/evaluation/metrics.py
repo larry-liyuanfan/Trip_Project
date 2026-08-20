@@ -56,6 +56,8 @@ MULTILABEL_PREFIXES = {
     "required_itinerary_elements": "itinerary_element",
 }
 
+WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL = "week7_evaluation_protocol_v4"
+
 
 class MetricConfigurationError(ValueError):
     """Raised when the metric alias contract is malformed or ambiguous."""
@@ -221,6 +223,188 @@ def score_sample(
     return score
 
 
+def gold_evaluable_metric_support(
+    scenario: str,
+    annotation: dict[str, Any],
+    aliases: dict[str, dict[str, str]],
+) -> dict[str, bool]:
+    """Return protocol-v4 support using gold labels only.
+
+    Empty list labels are known negatives and therefore evaluable. Missing or
+    non-list collection labels are not evaluable. Model output validity and
+    predicted content never enter this contract.
+    """
+    if scenario not in SCENARIO_METRIC_NAMES:
+        raise ValueError(f"unsupported scoring scenario: {scenario}")
+    if not isinstance(annotation, dict):
+        raise ValueError("annotation must be an object")
+
+    unknown_fields = {
+        normalize_text(field)
+        for field in annotation.get("unknown_fields", [])
+        if isinstance(field, str)
+    } if isinstance(annotation.get("unknown_fields", []), (list, tuple, set)) else set()
+
+    def known_scalar(field: str) -> bool:
+        value = normalize_value(field, annotation.get(field), aliases)
+        return field not in unknown_fields and bool(value) and value != "unknown"
+
+    def known_list(field: str) -> bool:
+        return (
+            field not in unknown_fields
+            and isinstance(annotation.get(field), (list, tuple, set))
+        )
+
+    if scenario == "image_product_search":
+        category = known_scalar("business_category")
+        price = known_scalar("price_range")
+        style = known_list("style_tags")
+        facility = known_list("visible_facilities")
+        completeness = _gold_evaluable_product_label_denominator(
+            annotation, aliases,
+        ) > 0
+        return {
+            "business_category_accuracy": category,
+            "price_range_accuracy": price,
+            "style_precision": style,
+            "style_recall": style,
+            "style_f1": style,
+            "facility_precision": facility,
+            "facility_recall": facility,
+            "facility_f1": facility,
+            "label_completeness": completeness,
+        }
+    if scenario == "after_sales":
+        key_information = known_list("key_information")
+        ocr = known_list("ocr_ground_truth")
+        return {
+            "issue_type_accuracy": known_scalar("issue_type"),
+            "severity_accuracy": known_scalar("severity"),
+            "key_information_precision": key_information,
+            "key_information_recall": key_information,
+            "key_information_f1": key_information,
+            "ocr_recall": ocr,
+            "ocr_exact_match": ocr,
+        }
+
+    hard = known_list("hard_constraints")
+    soft = known_list("soft_constraints")
+    elements = known_list("required_itinerary_elements")
+    typed_constraints = hard and soft
+    return {
+        "constraint_recognition_accuracy": typed_constraints,
+        "hard_constraint_precision": hard,
+        "hard_constraint_recall": hard,
+        "hard_constraint_f1": hard,
+        "soft_constraint_precision": soft,
+        "soft_constraint_recall": soft,
+        "soft_constraint_f1": soft,
+        "itinerary_element_precision": elements,
+        "itinerary_element_recall": elements,
+        "itinerary_element_completeness": elements,
+        "itinerary_element_f1": elements,
+        "constraint_check_coverage": typed_constraints,
+        "constraint_violation_rate": typed_constraints,
+    }
+
+
+def score_sample_with_gold_evaluable_support(
+    result: dict[str, Any],
+    annotation: dict[str, Any],
+    aliases: dict[str, dict[str, str]],
+) -> dict[str, Any]:
+    """Score one sample under protocol v4 with output-invariant support."""
+    score = score_sample(result, annotation, aliases)
+    scenario = str(result.get("scenario") or "")
+    support = gold_evaluable_metric_support(scenario, annotation, aliases)
+    for metric_name, evaluable in support.items():
+        if not evaluable:
+            score[metric_name] = None
+        elif not _is_number(score.get(metric_name)):
+            if score.get("structured_valid") is True:
+                raise ValueError(
+                    f"evaluable metric was not scored: {scenario}.{metric_name}"
+                )
+            score[metric_name] = 0.0
+
+    if scenario == "image_product_search" and support["label_completeness"]:
+        counts = score.get("multilabel_counts")
+        counts = counts if isinstance(counts, dict) else {}
+        numerator = 0.0
+        if support["business_category_accuracy"]:
+            numerator += float(score["business_category_accuracy"])
+        if support["price_range_accuracy"]:
+            numerator += float(score["price_range_accuracy"])
+        if support["style_f1"]:
+            numerator += float(counts.get("style_tags", {}).get("tp", 0))
+        if support["facility_f1"]:
+            numerator += float(counts.get("visible_facilities", {}).get("tp", 0))
+        score["label_completeness"] = numerator / _gold_evaluable_product_label_denominator(
+            annotation, aliases,
+        )
+
+    # Unsupported collection labels must not leak into micro aggregates.
+    collection_fields = {
+        "image_product_search": {
+            "style_tags": "style_f1",
+            "visible_facilities": "facility_f1",
+        },
+        "after_sales": {"key_information": "key_information_f1"},
+        "itinerary_planning": {
+            "hard_constraints": "hard_constraint_f1",
+            "soft_constraints": "soft_constraint_f1",
+            "required_itinerary_elements": "itinerary_element_f1",
+        },
+    }[scenario]
+    counts = score.get("multilabel_counts")
+    if isinstance(counts, dict):
+        for field, metric_name in collection_fields.items():
+            if not support[metric_name]:
+                counts.pop(field, None)
+    score["metric_support_protocol"] = WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL
+    score["gold_evaluable_metric_support"] = support
+    return score
+
+
+def _gold_evaluable_product_label_denominator(
+    annotation: dict[str, Any],
+    aliases: dict[str, dict[str, str]],
+) -> int:
+    raw_unknown_fields = annotation.get("unknown_fields", [])
+    unknown_fields = {
+        normalize_text(field)
+        for field in raw_unknown_fields
+        if isinstance(field, str)
+    } if isinstance(raw_unknown_fields, (list, tuple, set)) else set()
+
+    def known_scalar(field: str) -> bool:
+        value = normalize_value(field, annotation.get(field), aliases)
+        return field not in unknown_fields and bool(value) and value != "unknown"
+
+    def known_list(field: str) -> bool:
+        return (
+            field not in unknown_fields
+            and isinstance(annotation.get(field), (list, tuple, set))
+        )
+
+    return (
+        int(known_scalar("business_category"))
+        + int(known_scalar("price_range"))
+        + (
+            len(_normalized_set(annotation.get("style_tags"), "style_tags", aliases))
+            if known_list("style_tags") else 0
+        )
+        + (
+            len(_normalized_set(
+                annotation.get("visible_facilities"),
+                "visible_facilities",
+                aliases,
+            ))
+            if known_list("visible_facilities") else 0
+        )
+    )
+
+
 def score_semantic_prediction(
     result: dict[str, Any],
     annotation: dict[str, Any],
@@ -359,6 +543,7 @@ def aggregate_scenario_scores(sample_scores: list[dict[str, Any]]) -> dict[str, 
         "format_structured_valid", "semantic_metrics_status", "source_run_id",
         "coding_version", "codebook_sha256", "deterministic_prediction",
         "semantic_metric_support",
+        "metric_support_protocol", "gold_evaluable_metric_support",
     }
     metric_names = sorted(
         {
@@ -586,16 +771,7 @@ def _score_product(
             "facility_f1": facility["f1"],
         }
     )
-    denominator = (
-        int(category_accuracy is not None)
-        + int(price_accuracy is not None)
-        + len(_normalized_set(annotation.get("style_tags"), "style_tags", aliases))
-        + len(
-            _normalized_set(
-                annotation.get("visible_facilities"), "visible_facilities", aliases
-            )
-        )
-    )
+    denominator = _product_label_completeness_denominator(annotation, aliases)
     numerator = (
         (category_accuracy or 0.0)
         + (price_accuracy or 0.0)
@@ -607,6 +783,25 @@ def _score_product(
         "style_tags": _count_only(style),
         "visible_facilities": _count_only(facility),
     }
+
+
+def _product_label_completeness_denominator(
+    annotation: dict[str, Any], aliases: dict[str, dict[str, str]],
+) -> int:
+    return (
+        int(normalize_value(
+            "business_category", annotation.get("business_category"), aliases,
+        ) != "unknown")
+        + int(normalize_value(
+            "price_range", annotation.get("price_range"), aliases,
+        ) != "unknown")
+        + len(_normalized_set(annotation.get("style_tags"), "style_tags", aliases))
+        + len(
+            _normalized_set(
+                annotation.get("visible_facilities"), "visible_facilities", aliases
+            )
+        )
+    )
 
 
 def _score_after_sales(

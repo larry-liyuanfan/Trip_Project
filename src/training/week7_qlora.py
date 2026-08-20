@@ -18,6 +18,7 @@ from src.training.week6_qlora import (
 )
 from src.training.week7_data import canonical_sha256, iter_jsonl, load_week7_config, sha256_file
 from src.training.week7_evaluation import summarize_raw_records
+from src.training.week7_runtime import generate_record, inference_runtime
 
 
 class Week7TrainingError(ValueError):
@@ -102,32 +103,28 @@ class IndexedWeek7Dataset:
             return json.loads(handle.readline().decode("utf-8"))
 
 
-def _generate_record(root: Path, model: Any, processor: Any, row: dict[str, Any], run_id: str, max_new_tokens: int) -> dict[str, Any]:
-    import torch
-
-    normalized = structure_aware_messages(processor, training_messages(row), 8192)[:-1]
-    started = time.perf_counter()
-    failed = False
-    error = None
-    raw = ""
-    try:
-        inputs = processor.apply_chat_template(
-            normalized, tokenize=True, add_generation_prompt=True,
-            return_dict=True, return_tensors="pt", truncation=True, max_length=8192,
-        )
-        device = next(model.parameters()).device
-        inputs = {key: value.to(device) if hasattr(value, "to") else value for key, value in inputs.items()}
-        with torch.inference_mode():
-            generated = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
-        suffix = generated[:, inputs["input_ids"].shape[1]:]
-        raw = processor.batch_decode(suffix, skip_special_tokens=True)[0].strip()
-    except (RuntimeError, ValueError) as exc:
-        failed, error = True, f"{type(exc).__name__}: {exc}"
-    return {
-        "run_id": run_id, "sample_id": row["sample_id"], "model_name": "Qwen3-VL-8B+Week7-QLoRA",
-        "raw_output": raw, "latency_ms": (time.perf_counter() - started) * 1000,
-        "failed": failed, "error": error,
-    }
+def _generate_record(
+    root: Path,
+    model: Any,
+    processor: Any,
+    row: dict[str, Any],
+    run_id: str,
+    max_new_tokens: int,
+    max_length: int = 8192,
+) -> dict[str, Any]:
+    del root
+    normalized = structure_aware_messages(
+        processor, training_messages(row), max_length,
+    )[:-1]
+    return generate_record(
+        model,
+        processor,
+        normalized,
+        sample_id=row["sample_id"],
+        run_id=run_id,
+        model_name="Qwen3-VL-8B+Week7-QLoRA",
+        max_new_tokens=max_new_tokens,
+    )
 
 
 def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, confirm_dataset_lock: bool, resume_from_checkpoint: Path | None = None) -> dict[str, Any]:
@@ -252,9 +249,14 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
             if step in self._week7_evaluation_cache:
                 return self._week7_evaluation_cache[step]
             evaluation_started = time.perf_counter()
-            was_training = self.model.training
-            self.model.eval()
-            records = [_generate_record(root, self.model, processor, row, run_id, 2048) for row in development_rows]
+            with inference_runtime(self.model):
+                records = [
+                    _generate_record(
+                        root, self.model, processor, row, run_id, 2048,
+                        int(train_config["max_length"]),
+                    )
+                    for row in development_rows
+                ]
             summary = summarize_raw_records(root, config, development_rows, records)
             summary.update({
                 "status": "COMPLETED",
@@ -277,8 +279,6 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
                 "count": len(records),
             }
             (evaluation_dir / "metrics.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-            if was_training:
-                self.model.train()
             metrics = {
                 f"{metric_key_prefix}_weighted_composite": float(summary["weighted_composite"]),
                 f"{metric_key_prefix}_failure_rate": float(summary["failure_rate"]),

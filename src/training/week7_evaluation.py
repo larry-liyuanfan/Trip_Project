@@ -9,7 +9,13 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from src.evaluation.metrics import aggregate_scenario_scores, load_metric_aliases, score_sample
+from src.evaluation.metrics import (
+    WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL,
+    aggregate_scenario_scores,
+    load_metric_aliases,
+    score_sample,
+    score_sample_with_gold_evaluable_support,
+)
 from src.evaluation.schema_validation import SchemaValidationError, load_output_schema, validate_output
 from src.training.week7_data import CORE_SCENARIOS, Week7DataError, canonical_sha256, iter_jsonl, sha256_file
 
@@ -144,7 +150,14 @@ def summarize_dialogue_raw_records(
     }
 
 
-def summarize_raw_records(root: Path, config: dict[str, Any], rows: Iterable[dict[str, Any]], records: Iterable[dict[str, Any]]) -> dict[str, Any]:
+def summarize_raw_records(
+    root: Path,
+    config: dict[str, Any],
+    rows: Iterable[dict[str, Any]],
+    records: Iterable[dict[str, Any]],
+    *,
+    metric_support_protocol: str | None = None,
+) -> dict[str, Any]:
     rows_by_id = {row["sample_id"]: row for row in rows}
     records_list = list(records)
     if len(records_list) != len(rows_by_id) or {record.get("sample_id") for record in records_list} != set(rows_by_id):
@@ -154,6 +167,13 @@ def summarize_raw_records(root: Path, config: dict[str, Any], rows: Iterable[dic
     dialogue_scores = []
     failures = 0
     latencies = []
+    if metric_support_protocol not in {None, WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL}:
+        raise Week7EvaluationError("unsupported metric-support protocol")
+    sample_scorer = (
+        score_sample_with_gold_evaluable_support
+        if metric_support_protocol == WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL
+        else score_sample
+    )
     for record in records_list:
         row = rows_by_id[record["sample_id"]]
         raw = record.get("raw_output")
@@ -173,7 +193,9 @@ def summarize_raw_records(root: Path, config: dict[str, Any], rows: Iterable[dic
             "raw_output": raw, "parsed_output": parsed, "json_valid": json_valid,
             "schema_valid": schema_valid, "parse_or_schema_error": error, "latency_ms": latency,
         }
-        sample_scores[row["scenario"]].append(score_sample(result, _annotation(row), aliases))
+        sample_scores[row["scenario"]].append(
+            sample_scorer(result, _annotation(row), aliases)
+        )
     present_scenarios = [scenario for scenario in CORE_SCENARIOS if sample_scores[scenario]]
     if not present_scenarios:
         raise Week7EvaluationError("at least one core scenario is required for a business summary")
@@ -195,12 +217,15 @@ def summarize_raw_records(root: Path, config: dict[str, Any], rows: Iterable[dic
             "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT",
             "scores": dialogue_scores,
         }
-    return {
+    result = {
         "sample_count": len(records_list), "weighted_composite": weighted,
         "scenarios": scenario_results, "dialogue": dialogue_summary,
         "latency_ms_mean": statistics.fmean(latencies), "latency_ms_median": statistics.median(latencies),
         "failure_count": failures, "failure_rate": failures / len(records_list),
     }
+    if metric_support_protocol is not None:
+        result["metric_support_protocol"] = metric_support_protocol
+    return result
 
 
 def compare_schema_decoding(root: Path, config: dict[str, Any], rows: list[dict[str, Any]], free_records: list[dict[str, Any]], constrained_records: list[dict[str, Any]]) -> dict[str, Any]:

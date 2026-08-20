@@ -21,6 +21,7 @@ from src.training.week7_evaluation import (
     summarize_raw_records,
 )
 from src.training.week7_qlora import Week7TrainingError, structure_aware_messages, training_messages
+from src.training.week7_runtime import generate_record, inference_runtime
 
 
 def _write_jsonl_new(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -84,31 +85,21 @@ def run_transformers_development(
     elif scenario is not None or model_role != "zero_shot" or run_id != config["experiment_identity"]["zero_shot_development_run_id"]:
         raise Week7TrainingError("zero-shot development run identity mismatch")
     processor = AutoProcessor.from_pretrained(config["base_model"])
-    model.eval()
     records = []
-    for row in rows:
-        messages = structure_aware_messages(
-            processor, training_messages(row), int(config["training"]["max_length"])
-        )[:-1]
-        started = time.perf_counter()
-        raw, error = "", None
-        try:
-            inputs = processor.apply_chat_template(
-                messages, tokenize=True, add_generation_prompt=True, return_dict=True,
-                return_tensors="pt", truncation=False,
-            )
-            device = next(model.parameters()).device
-            inputs = {key: value.to(device) if hasattr(value, "to") else value for key, value in inputs.items()}
-            with torch.inference_mode():
-                generated = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
-            raw = processor.batch_decode(generated[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0].strip()
-        except (RuntimeError, ValueError) as exc:
-            error = f"{type(exc).__name__}: {exc}"
-        records.append({
-            "run_id": run_id, "sample_id": row["sample_id"], "model_name": model_role,
-            "raw_output": raw, "latency_ms": (time.perf_counter() - started) * 1000,
-            "failed": error is not None, "error": error,
-        })
+    with inference_runtime(model):
+        for row in rows:
+            messages = structure_aware_messages(
+                processor, training_messages(row), int(config["training"]["max_length"])
+            )[:-1]
+            records.append(generate_record(
+                model,
+                processor,
+                messages,
+                sample_id=row["sample_id"],
+                run_id=run_id,
+                model_name=model_role,
+                max_new_tokens=max_new_tokens,
+            ))
     summary = summarize_raw_records(root, config, rows, records)
     summary.update({
         "status": "COMPLETED", "run_id": run_id, "model_role": model_role,
@@ -155,39 +146,21 @@ def _generate_transformers_records(
     config: dict[str, Any], processor: Any, model: Any, rows: list[dict[str, Any]],
     *, run_id: str, model_role: str, max_new_tokens: int,
 ) -> list[dict[str, Any]]:
-    import torch
-
     records = []
-    for row in rows:
-        messages = structure_aware_messages(
-            processor, training_messages(row), int(config["training"]["max_length"])
-        )[:-1]
-        started = time.perf_counter()
-        raw, error = "", None
-        try:
-            inputs = processor.apply_chat_template(
-                messages, tokenize=True, add_generation_prompt=True, return_dict=True,
-                return_tensors="pt", truncation=False,
-            )
-            device = next(model.parameters()).device
-            inputs = {
-                key: value.to(device) if hasattr(value, "to") else value
-                for key, value in inputs.items()
-            }
-            with torch.inference_mode():
-                generated = model.generate(
-                    **inputs, max_new_tokens=max_new_tokens, do_sample=False,
-                )
-            raw = processor.batch_decode(
-                generated[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True,
-            )[0].strip()
-        except (RuntimeError, ValueError) as exc:
-            error = f"{type(exc).__name__}: {exc}"
-        records.append({
-            "run_id": run_id, "sample_id": row["sample_id"], "model_name": model_role,
-            "raw_output": raw, "latency_ms": (time.perf_counter() - started) * 1000,
-            "failed": error is not None, "error": error,
-        })
+    with inference_runtime(model):
+        for row in rows:
+            messages = structure_aware_messages(
+                processor, training_messages(row), int(config["training"]["max_length"])
+            )[:-1]
+            records.append(generate_record(
+                model,
+                processor,
+                messages,
+                sample_id=row["sample_id"],
+                run_id=run_id,
+                model_name=model_role,
+                max_new_tokens=max_new_tokens,
+            ))
     return records
 
 

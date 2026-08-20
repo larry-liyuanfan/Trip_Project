@@ -10,11 +10,15 @@ from src.training.week7_data import canonical_sha256, sha256_file, validate_week
 from src.training.week7_evaluation import Week7EvaluationError, compare_schema_decoding
 from src.training.week7_final_evaluation import (
     _claim_test_run,
+    _validate_parameter_lock,
     create_parameter_lock,
     recover_interrupted_final_test,
     run_final_test_suite,
 )
-from src.training.week7_selection import select_development_checkpoint
+from src.training.week7_selection import (
+    evaluate_development_candidate,
+    select_development_checkpoint,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -525,6 +529,93 @@ class Week7FinalEvaluationTests(unittest.TestCase):
                 development_evidence=self.evidence,
                 schema_decoding_mode="free",
             )
+
+    def test_parameter_lock_and_preflight_revalidate_protocol_selection(self):
+        selection = json.loads(self.selection.read_text(encoding="utf-8"))
+        step = int(selection["selected"]["step"])
+        checkpoint = self.selected
+        source_metrics_path = self.evidence["multitask_development"]
+        protocol_dir = self.root / "protocol-v4"
+        protocol_dir.mkdir()
+        protocol_metrics_path = protocol_dir / "metrics.json"
+        protocol_metrics = json.loads(source_metrics_path.read_text(encoding="utf-8"))
+        protocol_metrics_path.write_text(json.dumps(protocol_metrics), encoding="utf-8")
+        baseline_path = self.evidence["week6_development_baseline"]
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        protocol_baseline_path = protocol_dir / "baseline-metrics.json"
+        protocol_baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+        protocol_path = protocol_dir / "protocol_summary.json"
+        protocol_path.write_text("{}", encoding="utf-8")
+        protocol = {
+            "schema_version": "week7_development_latency_protocol_v4",
+            "run_id": "unit-protocol-v4",
+            "candidate_steps": [step],
+            "roles": {
+                "week6_single_task_adapters": {
+                    "metrics_path": str(protocol_baseline_path.resolve()),
+                    "metrics_sha256": sha256_file(protocol_baseline_path),
+                },
+                f"multitask_step_{step:06d}": {
+                    "metrics_path": str(protocol_metrics_path.resolve()),
+                    "metrics_sha256": sha256_file(protocol_metrics_path),
+                },
+            },
+        }
+        candidate = evaluate_development_candidate(
+            self.config, baseline, protocol_metrics, step=step,
+            checkpoint=checkpoint,
+            checkpoint_hash=sha256_file(checkpoint / "adapter_model.safetensors"),
+            metrics_path=protocol_metrics_path,
+        )
+        candidate.update({
+            "source_training_metrics_path": str(source_metrics_path.resolve()),
+            "source_training_metrics_sha256": sha256_file(source_metrics_path),
+            "evaluation_protocol": "week7_development_latency_protocol_v4",
+        })
+        selection.update({
+            "latency_protocol": {
+                "path": str(protocol_path.resolve()),
+                "sha256": sha256_file(protocol_path),
+                "run_id": protocol["run_id"],
+                "schema_version": protocol["schema_version"],
+                "week6_metrics_path": str(protocol_baseline_path.resolve()),
+                "week6_metrics_sha256": sha256_file(protocol_baseline_path),
+            },
+            "candidates": [candidate],
+            "selected": candidate,
+            "selected_evidence": {
+                "checkpoint_path": str(checkpoint.resolve()),
+                "checkpoint_adapter_sha256": sha256_file(
+                    checkpoint / "adapter_model.safetensors"
+                ),
+                "metrics_path": str(protocol_metrics_path.resolve()),
+                "metrics_sha256": sha256_file(protocol_metrics_path),
+            },
+        })
+        protocol_selection = self.root / "protocol-selection.json"
+        protocol_selection.write_text(json.dumps(selection), encoding="utf-8")
+        parameter_lock = self.root / "protocol-parameter-lock.json"
+        with patch(
+            "src.training.week7_final_evaluation.validate_latency_protocol_v4",
+            return_value=protocol,
+        ):
+            created = create_parameter_lock(
+                self.root, self.config_path, parameter_lock,
+                training_summary_path=self.training_summary,
+                selection_path=protocol_selection,
+                selected_checkpoint=self.selected,
+                week6_adapters={
+                    scenario: (path, sha256_file(path / "adapter_model.safetensors"))
+                    for scenario, path in self.week6.items()
+                },
+                development_evidence=self.evidence,
+                schema_decoding_mode="free",
+            )
+            self.assertEqual(created["evaluation_protocol"], selection["latency_protocol"])
+            validated, _, _ = _validate_parameter_lock(
+                self.root, self.config_path, parameter_lock,
+            )
+            self.assertEqual(validated["evaluation_protocol"], selection["latency_protocol"])
 
     def test_same_run_resumes_but_second_output_is_rejected(self):
         output = self.root / "final-output"

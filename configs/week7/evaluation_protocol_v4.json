@@ -1,0 +1,74 @@
+{
+  "schema_version": "week7_evaluation_protocol_v4",
+  "run_id": "week7_dev_fair_latency_support_20260820_v4",
+  "base_config": {
+    "path": "configs/week7/qwen3_vl_8b_multitask_context_v3.json",
+    "sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa"
+  },
+  "dataset": {
+    "version": "week7_fresh_multitask_context_20260820_v3",
+    "lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+    "development_sha256": "3c775c1432912129f7eba8774978c0f1f4621d79e14e33e6c488d77b5c630e04",
+    "development_count": 114,
+    "test_allowed": false
+  },
+  "source_evidence": {
+    "week6_combined_metrics_sha256": "9eecf042a4efb472698218341b8948d6e266c01bd4a51c81cdd721e0c9274084",
+    "week6_baseline_evidence_sha256": "80b6725765234a91a1163e2f0057832e542082429d30a21509760758ac443ad7",
+    "training_summary_sha256": "b76991f45265ab44a7b7a9ab22aaaa233798e5aee8b00dec78b94a776d881294",
+    "week6_raw_sha256": {
+      "image_product_search": "fd6910244d2ec0d4dea340a8c88ebf19e408a39c69dc4f9edd946d3dfda50b41",
+      "after_sales": "52131a5cbe3de23b43f8786b01c0059bbbfea5031f17e7b320ad471ea183d669",
+      "itinerary_planning": "5634553b34ddc57c414c1ded1177c391fa76953ecb2a539bc53db62f744f06cc",
+      "dialogue": "62a2f383661a3cc2296f9a18cbc09ebf00db779a82ebc77707e69d4948510001"
+    },
+    "candidates": {
+      "38": {
+        "checkpoint_adapter_sha256": "bc2eb3abc721f256bc45097f5b174e98e419b1afd0723d49f9f25cd86f96ebe7",
+        "training_raw_outputs_sha256": "ffa69483fd8f816efe39f88f1485ee16b198edf59e427f8aa0e730e39537722e"
+      },
+      "76": {
+        "checkpoint_adapter_sha256": "8a6842374dd41b5b8f820bee0983f70431f5bded25a3316644fbd26afa3c3596",
+        "training_raw_outputs_sha256": "8a6872bfaf7eb63036bcebf1f661f3713d6fcf3f111afaabeef3698dcf9749ac"
+      },
+      "113": {
+        "checkpoint_adapter_sha256": "58c97be24b1847f0030be19b69e05a4de6ed8c097b3622004849bafb3e19c9e5",
+        "training_raw_outputs_sha256": "8c74ddaedad30e3171501efec19e3bd62a8ed4c02a0f737b2fc7743b5caca15b"
+      },
+      "151": {
+        "checkpoint_adapter_sha256": "612af9b79b63f2652e0cd5e9d0d1d9259b5fab08a69eaddbe0d186e9c8f7540b",
+        "training_raw_outputs_sha256": "1cdbcd1646716fd1f33e856744959e11304b4d7d7b9e18ce0bed2f6d5bef4f3d"
+      }
+    }
+  },
+  "candidate_steps": [38, 76, 113, 151],
+  "generation": {
+    "max_new_tokens": 2048,
+    "warmup_max_new_tokens": 1,
+    "do_sample": false,
+    "use_cache": true,
+    "max_input_length": 8192,
+    "structure_aware_truncation": true
+  },
+  "timing": {
+    "protocol": "week7_transformers_latency_v4",
+    "scope": "apply_chat_template+device_transfer+generate+decode",
+    "cuda_synchronize_before": true,
+    "cuda_synchronize_after": true,
+    "model_loading_excluded": true,
+    "warmup_excluded": true,
+    "single_slurm_allocation": true,
+    "sequential_model_order": [
+      "week6_image_product_search",
+      "week6_after_sales",
+      "week6_itinerary_planning",
+      "multitask_step_000038",
+      "multitask_step_000076",
+      "multitask_step_000113",
+      "multitask_step_000151",
+      "zero_shot"
+    ]
+  },
+  "metric_support_protocol": "week7_evaluation_protocol_v4",
+  "max_latency_ratio": 1.25
+}

@@ -21,6 +21,7 @@ from src.training.week7_evaluation import (
     summarize_raw_records,
 )
 from src.training.week7_qlora import Week7TrainingError, structure_aware_messages, training_messages
+from src.training.week7_latency_protocol import validate_latency_protocol_v4
 from src.training.week7_selection import (
     evaluate_development_candidate,
     validate_development_raw_artifact,
@@ -550,6 +551,7 @@ def _validate_selection_artifact(
     selection_path: Path,
     *,
     config: dict[str, Any],
+    config_path: Path,
     config_sha256: str,
     dataset_lock_sha256: str,
     training_summary_path: Path,
@@ -590,13 +592,59 @@ def _validate_selection_artifact(
     if selection.get("week6_baseline") != expected_baseline:
         raise Week7EvaluationError("selection Week 6 baseline binding mismatch")
 
+    protocol = None
+    protocol_spec = selection.get("latency_protocol")
+    protocol_metrics_by_step: dict[str, tuple[dict[str, Any], Path]] = {}
+    gate_baseline = None
+    if protocol_spec is not None:
+        if not isinstance(protocol_spec, dict):
+            raise Week7EvaluationError("selection evaluation-protocol binding is invalid")
+        protocol_path = Path(str(protocol_spec.get("path", ""))).resolve()
+        if not protocol_path.is_file() or sha256_file(protocol_path) != protocol_spec.get("sha256"):
+            raise Week7EvaluationError("selection evaluation-protocol hash mismatch")
+        try:
+            protocol = validate_latency_protocol_v4(
+                protocol_path,
+                config_path=config_path,
+                training_summary_path=training_summary_path,
+                week6_baseline_path=week6_baseline_path,
+            )
+        except (OSError, KeyError, TypeError, ValueError, Week7TrainingError) as exc:
+            raise Week7EvaluationError("selection evaluation protocol is invalid") from exc
+        expected_protocol_spec = {
+            "path": str(protocol_path),
+            "sha256": sha256_file(protocol_path),
+            "run_id": protocol["run_id"],
+            "schema_version": protocol["schema_version"],
+            "week6_metrics_path": protocol["roles"]
+            ["week6_single_task_adapters"]["metrics_path"],
+            "week6_metrics_sha256": protocol["roles"]
+            ["week6_single_task_adapters"]["metrics_sha256"],
+        }
+        if protocol_spec != expected_protocol_spec:
+            raise Week7EvaluationError("selection evaluation-protocol identity mismatch")
+        gate_baseline = _read_json(Path(protocol_spec["week6_metrics_path"]))
+        for step in protocol["candidate_steps"]:
+            metrics_path = Path(
+                protocol["roles"][f"multitask_step_{int(step):06d}"]["metrics_path"]
+            ).resolve()
+            protocol_metrics_by_step[str(int(step))] = (_read_json(metrics_path), metrics_path)
+
     checkpoint_path = Path(selected_checkpoint).resolve()
-    metrics_path = Path(selected_metrics_path).resolve()
+    source_metrics_path = Path(selected_metrics_path).resolve()
+    selected_step = int(selected.get("step", -1))
+    metrics_path = (
+        protocol_metrics_by_step[str(selected_step)][1]
+        if protocol is not None else source_metrics_path
+    )
     expected_evidence = {
         "checkpoint_path": str(checkpoint_path),
         "checkpoint_adapter_sha256": selected_checkpoint_sha256,
         "metrics_path": str(metrics_path),
-        "metrics_sha256": selected_metrics_sha256,
+        "metrics_sha256": (
+            sha256_file(metrics_path) if protocol is not None
+            else selected_metrics_sha256
+        ),
     }
     if selected_evidence != expected_evidence:
         raise Week7EvaluationError("selection evidence binding mismatch")
@@ -606,7 +654,14 @@ def _validate_selection_artifact(
         or Path(str(selected.get("metrics_path", ""))).resolve() != metrics_path
         or selected.get("metrics_sha256") != selected_metrics_sha256
     ):
-        raise Week7EvaluationError("selected candidate binding mismatch")
+        if protocol is None:
+            raise Week7EvaluationError("selected candidate binding mismatch")
+    if protocol is not None and (
+        selected.get("metrics_sha256") != sha256_file(metrics_path)
+        or selected.get("source_training_metrics_path") != str(source_metrics_path)
+        or selected.get("source_training_metrics_sha256") != selected_metrics_sha256
+    ):
+        raise Week7EvaluationError("selected protocol/source metrics binding mismatch")
     summary = _validate_training_summary(
         training_summary_path, config=config, config_sha256=config_sha256,
         dataset_lock_sha256=dataset_lock_sha256,
@@ -636,6 +691,8 @@ def _validate_selection_artifact(
         * len(CORE_SCENARIOS)
         + int(config["dataset"]["development_dialogue_count"])
     )
+    if gate_baseline is None:
+        gate_baseline = baseline
     for recorded, step in zip(candidates, expected_steps):
         checkpoint = training_dir / f"checkpoint-{step}"
         metrics_path = (
@@ -680,9 +737,17 @@ def _validate_selection_artifact(
                 raise Week7TrainingError(
                     f"training summary development artifact mismatch: step {step}"
                 )
+            gate_metrics, gate_metrics_path = protocol_metrics_by_step.get(
+                str(step), (metrics, metrics_path),
+            )
             recomputed = evaluate_development_candidate(
-                config, baseline, metrics, step=step, checkpoint=checkpoint,
-                checkpoint_hash=checkpoint_hash, metrics_path=metrics_path,
+                config, gate_baseline, gate_metrics, step=step, checkpoint=checkpoint,
+                checkpoint_hash=checkpoint_hash, metrics_path=gate_metrics_path,
+            )
+            recomputed["source_training_metrics_path"] = str(metrics_path.resolve())
+            recomputed["source_training_metrics_sha256"] = metrics_hash
+            recomputed["evaluation_protocol"] = (
+                None if protocol is None else protocol["schema_version"]
             )
         except (KeyError, TypeError, ValueError, Week7TrainingError) as exc:
             raise Week7EvaluationError(
@@ -692,7 +757,10 @@ def _validate_selection_artifact(
             recomputed
         ):
             raise Week7EvaluationError("selection candidate gates were not reproducible")
-        if recorded.get("metrics_sha256") != metrics_hash:
+        expected_gate_hash = sha256_file(
+            protocol_metrics_by_step[str(step)][1]
+        ) if protocol is not None else metrics_hash
+        if recorded.get("metrics_sha256") != expected_gate_hash:
             raise Week7EvaluationError("selection candidate metrics hash mismatch")
         recomputed_candidates.append(recomputed)
     eligible = [candidate for candidate in recomputed_candidates if candidate["eligible"]]
@@ -771,7 +839,8 @@ def create_parameter_lock(
     }
     selection_path = Path(selection_path).resolve()
     selection = _validate_selection_artifact(
-        selection_path, config=config, config_sha256=config_hash,
+        selection_path, config=config, config_path=config_path,
+        config_sha256=config_hash,
         dataset_lock_sha256=dataset_lock["lock_sha256"],
         training_summary_path=training_summary_path,
         training_summary_sha256=sha256_file(training_summary_path),
@@ -846,6 +915,7 @@ def create_parameter_lock(
             "path": str(selection_path),
             "sha256": sha256_file(selection_path),
         },
+        "evaluation_protocol": selection.get("latency_protocol"),
     }
     payload["lock_sha256"] = canonical_sha256(payload)
     _write_json_new(Path(output_path), payload)
@@ -864,6 +934,7 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
         "base_model", "selected_checkpoint", "selected_checkpoint_sha256",
         "selected_checkpoint_config_sha256", "week6_adapters", "generation",
         "test_run_id", "training_summary", "selection", "development_evidence",
+        "evaluation_protocol",
     }
     if payload.get("status") != "LOCKED" or not required <= set(payload):
         raise Week7EvaluationError("complete parameter lock is required before test")
@@ -929,7 +1000,7 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
     if sha256_file(selection_path) != selection_spec.get("sha256"):
         raise Week7EvaluationError("selection artifact changed after parameter locking")
     selection = _validate_selection_artifact(
-        selection_path, config=config,
+        selection_path, config=config, config_path=Path(config_path).resolve(),
         config_sha256=payload["config_sha256"],
         dataset_lock_sha256=payload["dataset_lock_sha256"],
         training_summary_path=training_summary_path,
@@ -943,6 +1014,8 @@ def _validate_parameter_lock(root: Path, config_path: Path, parameter_lock_path:
         selected_metrics_sha256=payload["development_evidence"]
         ["multitask_development"]["sha256"],
     )
+    if payload.get("evaluation_protocol") != selection.get("latency_protocol"):
+        raise Week7EvaluationError("parameter lock evaluation-protocol binding mismatch")
     selected_step = int(selection["selected"].get("step", -1))
     selected_path = Path(payload["selected_checkpoint"]).resolve()
     if (

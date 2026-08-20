@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.training.week7_data import sha256_file
 from src.training.week7_inference import combine_week6_development_baseline
@@ -225,6 +226,66 @@ class Week7SelectionTests(unittest.TestCase):
         self.assertEqual(result["selected"]["step"], 38)
         self.assertTrue(result["candidates"][0]["latency_gate"])
         self.assertFalse(result["candidates"][1]["latency_gate"])
+
+    def test_protocol_selection_uses_complete_protocol_metrics_not_training_scores(self) -> None:
+        summary = self._write_training(((38, (0.9, 0.9, 0.9), 100.0),))
+        protocol_dir = self.root / "protocol"
+        protocol_dir.mkdir()
+        protocol_path = protocol_dir / "protocol_summary.json"
+        protocol_path.write_text("{}", encoding="utf-8")
+        baseline_metrics_path = protocol_dir / "week6.json"
+        baseline_metrics_path.write_text(
+            self.baseline_path.read_text(encoding="utf-8"), encoding="utf-8",
+        )
+        source_metrics_path = (
+            self.training / "development_evaluations/step-000038/metrics.json"
+        )
+        protocol_metrics = json.loads(source_metrics_path.read_text(encoding="utf-8"))
+        protocol_metrics["scenarios"] = {
+            scenario: _scenario(0.1) for scenario in SCENARIOS
+        }
+        protocol_metrics["weighted_composite"] = 0.1
+        protocol_metrics["latency_ms_mean"] = 126.0
+        protocol_metrics_path = protocol_dir / "step-38.json"
+        protocol_metrics_path.write_text(json.dumps(protocol_metrics), encoding="utf-8")
+        protocol = {
+            "schema_version": "week7_development_latency_protocol_v4",
+            "run_id": "unit-protocol",
+            "candidate_steps": [38],
+            "latency_comparison": {
+                "38": {
+                    "candidate_latency_ms_mean": 126.0,
+                    "baseline_latency_ms_mean": 100.0,
+                    "latency_ratio": 1.26,
+                },
+            },
+            "roles": {
+                "week6_single_task_adapters": {
+                    "metrics_path": str(baseline_metrics_path),
+                    "metrics_sha256": sha256_file(baseline_metrics_path),
+                },
+                "multitask_step_000038": {
+                    "metrics_path": str(protocol_metrics_path),
+                    "metrics_sha256": sha256_file(protocol_metrics_path),
+                },
+            },
+        }
+        with patch(
+            "src.training.week7_selection.validate_latency_protocol_v4",
+            return_value=protocol,
+        ):
+            result = select_development_checkpoint(
+                CONFIG, self.training, summary, self.baseline_path,
+                self.root / "protocol-selection.json",
+                latency_protocol_path=protocol_path,
+            )
+        self.assertEqual(result["status"], "BLOCKED_NO_ELIGIBLE_CHECKPOINT")
+        self.assertEqual(result["candidates"][0]["weighted_composite"], 0.1)
+        self.assertEqual(result["candidates"][0]["latency_ratio"], 1.26)
+        self.assertEqual(
+            result["candidates"][0]["source_training_metrics_path"],
+            str(source_metrics_path.resolve()),
+        )
 
     def test_rejects_forged_metrics_identity_and_checkpoint_hash(self) -> None:
         summary = self._write_training(((38, (0.6, 0.6, 0.6), 100.0),))

@@ -26,6 +26,7 @@ from src.training.week7_final_evaluation import (
     run_final_test_suite,
 )
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
+from src.training.week7_latency_protocol import run_latency_protocol_v4
 from src.training.week7_selection import select_development_checkpoint
 
 
@@ -67,6 +68,17 @@ def build_parser() -> argparse.ArgumentParser:
     select.add_argument("--training-summary", type=Path, required=True)
     select.add_argument("--week6-baseline", type=Path, required=True)
     select.add_argument("--output", type=Path, required=True)
+    select.add_argument("--latency-protocol", type=Path)
+    latency = commands.add_parser("latency-protocol-v4")
+    latency.add_argument("--output-dir", type=Path, required=True)
+    latency.add_argument("--protocol-config", type=Path, required=True)
+    latency.add_argument("--training-dir", type=Path, required=True)
+    latency.add_argument("--training-summary", type=Path, required=True)
+    latency.add_argument("--week6-baseline", type=Path, required=True)
+    latency.add_argument("--week6-baseline-evidence", type=Path, required=True)
+    latency.add_argument("--week6-product-adapter", type=Path, required=True)
+    latency.add_argument("--week6-after-sales-adapter", type=Path, required=True)
+    latency.add_argument("--week6-itinerary-adapter", type=Path, required=True)
     lock = commands.add_parser("lock-parameters")
     lock.add_argument("--output", type=Path, required=True)
     lock.add_argument("--training-summary", type=Path, required=True)
@@ -143,6 +155,21 @@ def main() -> int:
             payload = select_development_checkpoint(
                 args.config, args.training_dir, args.training_summary,
                 args.week6_baseline, args.output,
+                latency_protocol_path=args.latency_protocol,
+            )
+        elif args.command == "latency-protocol-v4":
+            payload = run_latency_protocol_v4(
+                ROOT, args.config, args.output_dir,
+                protocol_config_path=args.protocol_config,
+                training_dir=args.training_dir,
+                training_summary_path=args.training_summary,
+                week6_baseline_path=args.week6_baseline,
+                week6_baseline_evidence_path=args.week6_baseline_evidence,
+                week6_adapters={
+                    "image_product_search": args.week6_product_adapter,
+                    "after_sales": args.week6_after_sales_adapter,
+                    "itinerary_planning": args.week6_itinerary_adapter,
+                },
             )
         elif args.command == "lock-parameters":
             payload = create_parameter_lock(

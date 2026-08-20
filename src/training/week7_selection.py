@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from src.training.week7_data import CORE_SCENARIOS, canonical_sha256, load_week7_config, sha256_file
+from src.training.week7_latency_protocol import validate_latency_protocol_v4
 from src.training.week7_qlora import Week7TrainingError
 
 
@@ -176,6 +177,8 @@ def evaluate_development_candidate(
     checkpoint: Path,
     checkpoint_hash: str,
     metrics_path: Path,
+    latency_ms_mean: float | None = None,
+    baseline_latency_ms_mean: float | None = None,
 ) -> dict[str, Any]:
     """Recompute every preregistered selection gate from bound artifacts."""
     non_regression = config["evaluation"]["non_regression"]
@@ -250,8 +253,13 @@ def evaluate_development_candidate(
         and failure_rate - float(baseline["failure_rate"])
         <= float(non_regression["max_failure_rate_absolute_increase"])
     )
-    baseline_latency = float(baseline["latency_ms_mean"])
-    candidate_latency = float(metrics["latency_ms_mean"])
+    baseline_latency = float(
+        baseline["latency_ms_mean"]
+        if baseline_latency_ms_mean is None else baseline_latency_ms_mean
+    )
+    candidate_latency = float(
+        metrics["latency_ms_mean"] if latency_ms_mean is None else latency_ms_mean
+    )
     latency_ratio = candidate_latency / baseline_latency if baseline_latency else None
     latency_gate = (
         latency_ratio is not None
@@ -284,6 +292,8 @@ def select_development_checkpoint(
     training_summary_path: Path,
     week6_baseline_path: Path,
     output_path: Path,
+    *,
+    latency_protocol_path: Path | None = None,
 ) -> dict[str, Any]:
     """Select the highest composite checkpoint only after every locked gate passes."""
     config_path = Path(config_path).resolve()
@@ -317,6 +327,34 @@ def select_development_checkpoint(
     if planned_steps != sorted(set(planned_steps)) or not planned_steps or global_step <= 0:
         raise Week7TrainingError("training summary evaluation steps are invalid")
     expected_evaluated_steps = [step for step in planned_steps if step <= global_step]
+    latency_protocol = None
+    protocol_metrics_by_step: dict[str, tuple[dict[str, Any], Path]] = {}
+    gate_baseline = baseline
+    if latency_protocol_path is not None:
+        latency_protocol_path = Path(latency_protocol_path).resolve()
+        latency_protocol = validate_latency_protocol_v4(
+            latency_protocol_path,
+            config_path=config_path,
+            training_summary_path=training_summary_path,
+            week6_baseline_path=week6_baseline_path,
+        )
+        if set(latency_protocol["latency_comparison"]) != {
+            str(step) for step in expected_evaluated_steps
+        }:
+            raise Week7TrainingError(
+                "latency protocol does not cover every completed checkpoint"
+            )
+        baseline_protocol_path = Path(
+            latency_protocol["roles"]["week6_single_task_adapters"]["metrics_path"]
+        ).resolve()
+        gate_baseline = _read_json(baseline_protocol_path)
+        for step in expected_evaluated_steps:
+            protocol_metrics_path = Path(
+                latency_protocol["roles"][f"multitask_step_{step:06d}"]["metrics_path"]
+            ).resolve()
+            protocol_metrics_by_step[str(step)] = (
+                _read_json(protocol_metrics_path), protocol_metrics_path,
+            )
 
     expected_samples = (
         int(config["dataset"]["development_per_core_scenario"]) * len(CORE_SCENARIOS)
@@ -375,10 +413,19 @@ def select_development_checkpoint(
                 f"development artifacts are not bound by training summary: step {step}"
             )
 
-        candidates.append(evaluate_development_candidate(
-            config, baseline, metrics, step=step, checkpoint=checkpoint,
-            checkpoint_hash=checkpoint_hash, metrics_path=metrics_path,
-        ))
+        gate_metrics, gate_metrics_path = protocol_metrics_by_step.get(
+            str(step), (metrics, metrics_path),
+        )
+        candidate = evaluate_development_candidate(
+            config, gate_baseline, gate_metrics, step=step, checkpoint=checkpoint,
+            checkpoint_hash=checkpoint_hash, metrics_path=gate_metrics_path,
+        )
+        candidate["source_training_metrics_path"] = str(metrics_path.resolve())
+        candidate["source_training_metrics_sha256"] = sha256_file(metrics_path)
+        candidate["evaluation_protocol"] = (
+            None if latency_protocol is None else latency_protocol["schema_version"]
+        )
+        candidates.append(candidate)
     if actual_steps != expected_evaluated_steps:
         raise Week7TrainingError("development evaluation steps differ from completed training summary")
     if not candidates:
@@ -402,6 +449,16 @@ def select_development_checkpoint(
         "training_summary": {
             "path": str(training_summary_path),
             "sha256": sha256_file(training_summary_path),
+        },
+        "latency_protocol": None if latency_protocol is None else {
+            "path": str(latency_protocol_path),
+            "sha256": sha256_file(latency_protocol_path),
+            "run_id": latency_protocol["run_id"],
+            "schema_version": latency_protocol["schema_version"],
+            "week6_metrics_path": latency_protocol["roles"]
+            ["week6_single_task_adapters"]["metrics_path"],
+            "week6_metrics_sha256": latency_protocol["roles"]
+            ["week6_single_task_adapters"]["metrics_sha256"],
         },
         "candidate_count": len(candidates),
         "eligible_count": len(eligible_candidates),
