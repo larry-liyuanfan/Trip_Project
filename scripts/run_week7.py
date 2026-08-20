@@ -69,16 +69,17 @@ def build_parser() -> argparse.ArgumentParser:
     select.add_argument("--week6-baseline", type=Path, required=True)
     select.add_argument("--output", type=Path, required=True)
     select.add_argument("--latency-protocol", type=Path)
-    latency = commands.add_parser("latency-protocol-v4")
-    latency.add_argument("--output-dir", type=Path, required=True)
-    latency.add_argument("--protocol-config", type=Path, required=True)
-    latency.add_argument("--training-dir", type=Path, required=True)
-    latency.add_argument("--training-summary", type=Path, required=True)
-    latency.add_argument("--week6-baseline", type=Path, required=True)
-    latency.add_argument("--week6-baseline-evidence", type=Path, required=True)
-    latency.add_argument("--week6-product-adapter", type=Path, required=True)
-    latency.add_argument("--week6-after-sales-adapter", type=Path, required=True)
-    latency.add_argument("--week6-itinerary-adapter", type=Path, required=True)
+    for command in ("latency-protocol-v4", "latency-protocol-v5"):
+        latency = commands.add_parser(command)
+        latency.add_argument("--output-dir", type=Path, required=True)
+        latency.add_argument("--protocol-config", type=Path, required=True)
+        latency.add_argument("--training-dir", type=Path, required=True)
+        latency.add_argument("--training-summary", type=Path, required=True)
+        latency.add_argument("--week6-baseline", type=Path, required=True)
+        latency.add_argument("--week6-baseline-evidence", type=Path, required=True)
+        latency.add_argument("--week6-product-adapter", type=Path, required=True)
+        latency.add_argument("--week6-after-sales-adapter", type=Path, required=True)
+        latency.add_argument("--week6-itinerary-adapter", type=Path, required=True)
     lock = commands.add_parser("lock-parameters")
     lock.add_argument("--output", type=Path, required=True)
     lock.add_argument("--training-summary", type=Path, required=True)
@@ -157,7 +158,7 @@ def main() -> int:
                 args.week6_baseline, args.output,
                 latency_protocol_path=args.latency_protocol,
             )
-        elif args.command == "latency-protocol-v4":
+        elif args.command in {"latency-protocol-v4", "latency-protocol-v5"}:
             payload = run_latency_protocol_v4(
                 ROOT, args.config, args.output_dir,
                 protocol_config_path=args.protocol_config,

@@ -8,6 +8,7 @@ from typing import Any, Iterator
 
 
 LATENCY_PROTOCOL_VERSION = "week7_transformers_latency_v4"
+LATENCY_PROTOCOL_V5_VERSION = "week7_transformers_latency_v5_bf16_static_compile"
 
 
 def _set_cache_flag(target: Any, value: bool) -> tuple[Any, Any] | None:
@@ -53,6 +54,9 @@ def generate_record(
     model_name: str,
     max_new_tokens: int,
     warmup: bool = False,
+    latency_protocol: str = LATENCY_PROTOCOL_VERSION,
+    cache_implementation: str | None = None,
+    compile_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generate once with synchronized end-to-end timing and token-count evidence."""
     import torch
@@ -78,12 +82,20 @@ def generate_record(
             key: value.to(device) if hasattr(value, "to") else value
             for key, value in inputs.items()
         }
+        generation_options: dict[str, Any] = {}
+        if cache_implementation is not None:
+            generation_options["cache_implementation"] = cache_implementation
+        if compile_config is not None:
+            from transformers import CompileConfig
+
+            generation_options["compile_config"] = CompileConfig(**compile_config)
         with torch.inference_mode():
             generated = model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
                 use_cache=True,
+                **generation_options,
             )
         suffix = generated[:, input_token_count:]
         generated_token_count = int(suffix.shape[1])
@@ -103,6 +115,8 @@ def generate_record(
         "input_token_count": input_token_count,
         "generated_token_count": generated_token_count,
         "generation_max_new_tokens": max_new_tokens,
-        "latency_protocol": LATENCY_PROTOCOL_VERSION,
+        "latency_protocol": latency_protocol,
+        "cache_implementation": cache_implementation or "dynamic",
+        "compile_config": compile_config,
         "warmup": warmup,
     }

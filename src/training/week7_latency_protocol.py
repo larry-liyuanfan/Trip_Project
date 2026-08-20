@@ -8,6 +8,7 @@ import os
 import platform
 import socket
 import time
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable
 
@@ -24,12 +25,16 @@ from src.training.week7_evaluation import summarize_raw_records
 from src.training.week7_qlora import Week7TrainingError, structure_aware_messages, training_messages
 from src.training.week7_runtime import (
     LATENCY_PROTOCOL_VERSION,
+    LATENCY_PROTOCOL_V5_VERSION,
     generate_record,
     inference_runtime,
 )
 
 
 PROTOCOL_SCHEMA_VERSION = "week7_development_latency_protocol_v4"
+PROTOCOL_SCHEMA_V5_VERSION = "week7_development_latency_protocol_v5"
+PROTOCOL_CONFIG_V4_VERSION = "week7_evaluation_protocol_v4"
+PROTOCOL_CONFIG_V5_VERSION = "week7_evaluation_protocol_v5"
 BASELINE_RAW_HASH_KEYS = {
     "image_product_search": "product_raw",
     "after_sales": "after_sales_raw",
@@ -42,6 +47,59 @@ RecordGenerator = Callable[
     [Any, Any, list[dict[str, Any]], str, str, int],
     tuple[list[dict[str, Any]], dict[str, Any]],
 ]
+
+
+def _protocol_runtime(protocol: dict[str, Any]) -> dict[str, Any]:
+    """Return the exact pre-registered runtime contract for v4 or v5."""
+    schema = protocol.get("schema_version")
+    if schema == PROTOCOL_CONFIG_V4_VERSION:
+        return {
+            "schema_version": PROTOCOL_SCHEMA_VERSION,
+            "latency_protocol": LATENCY_PROTOCOL_VERSION,
+            "inference_precision": "nf4",
+            "generation": {
+                "max_new_tokens": 2048,
+                "warmup_max_new_tokens": 1,
+                "do_sample": False,
+                "use_cache": True,
+                "max_input_length": 8192,
+                "structure_aware_truncation": True,
+            },
+            "runtime_options": {},
+        }
+    if schema == PROTOCOL_CONFIG_V5_VERSION:
+        return {
+            "schema_version": PROTOCOL_SCHEMA_V5_VERSION,
+            "latency_protocol": LATENCY_PROTOCOL_V5_VERSION,
+            "inference_precision": "bf16",
+            "generation": {
+                "max_new_tokens": 2048,
+                "warmup_max_new_tokens": 32,
+                "do_sample": False,
+                "use_cache": True,
+                "max_input_length": 8192,
+                "structure_aware_truncation": True,
+                "cache_implementation": "static",
+                "compile_config": {
+                    "backend": "inductor",
+                    "mode": "reduce-overhead",
+                    "fullgraph": False,
+                    "dynamic": True,
+                },
+            },
+            "runtime_options": {
+                "latency_protocol": LATENCY_PROTOCOL_V5_VERSION,
+                "cache_implementation": "static",
+                "compile_config": {
+                    "backend": "inductor",
+                    "mode": "reduce-overhead",
+                    "fullgraph": False,
+                    "dynamic": True,
+                },
+                "warmup_max_new_tokens": 32,
+            },
+        }
+    raise Week7TrainingError("unsupported Week 7 evaluation protocol schema")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -90,6 +148,8 @@ def _default_record_generator(
     run_id: str,
     model_name: str,
     max_new_tokens: int,
+    *,
+    runtime_options: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if not rows:
         raise Week7TrainingError("latency protocol cannot evaluate an empty model route")
@@ -99,6 +159,8 @@ def _default_record_generator(
             processor, training_messages(row), 8192,
         )[:-1]
 
+    runtime_options = dict(runtime_options or {})
+    warmup_max_new_tokens = int(runtime_options.pop("warmup_max_new_tokens", 1))
     with inference_runtime(model):
         warmup = generate_record(
             model,
@@ -107,8 +169,9 @@ def _default_record_generator(
             sample_id=rows[0]["sample_id"],
             run_id=run_id,
             model_name=model_name,
-            max_new_tokens=1,
+            max_new_tokens=warmup_max_new_tokens,
             warmup=True,
+            **runtime_options,
         )
         records = [
             generate_record(
@@ -119,6 +182,7 @@ def _default_record_generator(
                 run_id=run_id,
                 model_name=model_name,
                 max_new_tokens=max_new_tokens,
+                **runtime_options,
             )
             for row in rows
         ]
@@ -251,6 +315,7 @@ def _validate_protocol_config(
     source_candidates: dict[str, Any],
 ) -> dict[str, Any]:
     protocol = _read_json(protocol_config_path)
+    protocol_runtime = _protocol_runtime(protocol)
     expected_order = [
         *[f"week6_{scenario}" for scenario in CORE_SCENARIOS],
         *[
@@ -264,7 +329,8 @@ def _validate_protocol_config(
     dataset = protocol.get("dataset", {})
     sources = protocol.get("source_evidence", {})
     if (
-        protocol.get("schema_version") != "week7_evaluation_protocol_v4"
+        protocol.get("schema_version")
+        not in {PROTOCOL_CONFIG_V4_VERSION, PROTOCOL_CONFIG_V5_VERSION}
         or not isinstance(protocol.get("run_id"), str)
         or not protocol["run_id"]
         or protocol.get("base_config")
@@ -277,15 +343,10 @@ def _validate_protocol_config(
             lock["files"]["development.jsonl"]["count"]
         )
         or dataset.get("test_allowed") is not False
-        or generation != {
-            "max_new_tokens": 2048,
-            "warmup_max_new_tokens": 1,
-            "do_sample": False,
-            "use_cache": True,
-            "max_input_length": 8192,
-            "structure_aware_truncation": True,
-        }
-        or timing.get("protocol") != LATENCY_PROTOCOL_VERSION
+        or generation != protocol_runtime["generation"]
+        or protocol.get("inference_precision", "nf4")
+        != protocol_runtime["inference_precision"]
+        or timing.get("protocol") != protocol_runtime["latency_protocol"]
         or timing.get("scope") != "apply_chat_template+device_transfer+generate+decode"
         or any(
             timing.get(name) is not True
@@ -319,26 +380,34 @@ def _validate_protocol_config(
     return protocol
 
 
-def _default_model_loader(config: dict[str, Any]) -> tuple[Any, ModelLoader]:
+def _default_model_loader(
+    config: dict[str, Any], protocol_config: dict[str, Any],
+) -> tuple[Any, ModelLoader]:
     import torch
     from peft import PeftModel
     from transformers import AutoProcessor, BitsAndBytesConfig, Qwen3VLForConditionalGeneration
 
     processor = AutoProcessor.from_pretrained(config["base_model"])
     quant = config["quantization"]
+    inference_precision = protocol_config.get("inference_precision", "nf4")
 
     def load(adapter: Path | None) -> Any:
-        model = Qwen3VLForConditionalGeneration.from_pretrained(
-            config["base_model"],
-            quantization_config=BitsAndBytesConfig(
+        model_kwargs: dict[str, Any] = {
+            "torch_dtype": torch.bfloat16,
+            "device_map": {"": int(os.environ.get("LOCAL_RANK", "0"))},
+            "attn_implementation": config["training"]["attn_implementation"],
+        }
+        if inference_precision == "nf4":
+            model_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type=quant["bnb_4bit_quant_type"],
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_compute_dtype=torch.bfloat16,
-            ),
-            torch_dtype=torch.bfloat16,
-            device_map={"": int(os.environ.get("LOCAL_RANK", "0"))},
-            attn_implementation=config["training"]["attn_implementation"],
+            )
+        elif inference_precision != "bf16":
+            raise Week7TrainingError("unsupported latency protocol inference precision")
+        model = Qwen3VLForConditionalGeneration.from_pretrained(
+            config["base_model"], **model_kwargs,
         )
         if adapter is not None:
             model = PeftModel.from_pretrained(model, str(adapter), is_trainable=False)
@@ -366,6 +435,7 @@ def _persist_role(
     warmups: list[dict[str, Any]],
     identity: dict[str, Any],
     runtime: dict[str, Any],
+    latency_protocol: str,
 ) -> dict[str, Any]:
     role_dir = output_dir / "roles" / role
     raw_path = role_dir / "raw_outputs.jsonl"
@@ -384,7 +454,7 @@ def _persist_role(
         "model_role": role,
         "split": "development",
         **identity,
-        "latency_protocol": LATENCY_PROTOCOL_VERSION,
+        "latency_protocol": latency_protocol,
         "runtime": runtime,
         "raw_outputs": {
             "path": str(raw_path.resolve()),
@@ -463,8 +533,12 @@ def run_latency_protocol_v4(
         baseline_raw=baseline_raw,
         source_candidates=source_candidates,
     )
+    protocol_runtime = _protocol_runtime(protocol_config)
     run_id = protocol_config["run_id"]
     max_new_tokens = int(protocol_config["generation"]["max_new_tokens"])
+    warmup_max_new_tokens = int(
+        protocol_config["generation"]["warmup_max_new_tokens"]
+    )
     available_steps = [int(step) for step in source_candidates]
     steps = [int(step) for step in protocol_config["candidate_steps"]]
     if steps != available_steps:
@@ -482,17 +556,20 @@ def run_latency_protocol_v4(
     if report["status"] not in {"ok", "injected-test-runtime"}:
         raise Week7TrainingError(f"latency protocol environment is not ready: {report['status']}")
     if report["status"] == "ok" and not os.environ.get("SLURM_JOB_ID"):
-        raise Week7TrainingError("latency protocol v4 must run inside one Slurm allocation")
+        raise Week7TrainingError("latency protocol must run inside one Slurm allocation")
     if model_loader is None:
-        processor, model_loader = _default_model_loader(config)
+        processor, model_loader = _default_model_loader(config, protocol_config)
     if processor is None or model_loader is None:
         raise Week7TrainingError("latency protocol model loader requires a processor")
-    record_generator = record_generator or _default_record_generator
+    record_generator = record_generator or partial(
+        _default_record_generator,
+        runtime_options=protocol_runtime["runtime_options"],
+    )
 
     started_unix = time.time()
     output_dir.mkdir(parents=True, exist_ok=False)
     identity = {
-        "schema_version": PROTOCOL_SCHEMA_VERSION,
+        "schema_version": protocol_runtime["schema_version"],
         "run_id": run_id,
         "protocol_config_path": str(protocol_config_path),
         "protocol_config_sha256": sha256_file(protocol_config_path),
@@ -511,8 +588,9 @@ def run_latency_protocol_v4(
         "week6_baseline_evidence_sha256": sha256_file(week6_baseline_evidence_path),
         "candidate_steps": steps,
         "max_new_tokens": max_new_tokens,
-        "warmup_max_new_tokens": 1,
-        "latency_protocol": LATENCY_PROTOCOL_VERSION,
+        "warmup_max_new_tokens": warmup_max_new_tokens,
+        "latency_protocol": protocol_runtime["latency_protocol"],
+        "inference_precision": protocol_runtime["inference_precision"],
         "execution_order": [
             *[f"week6_{scenario}" for scenario in CORE_SCENARIOS],
             *[f"multitask_step_{step:06d}" for step in steps],
@@ -531,6 +609,7 @@ def run_latency_protocol_v4(
         "config_sha256": config_hash,
         "dataset_lock_sha256": lock["lock_sha256"],
         "development_sha256": sha256_file(development_path),
+        "inference_precision": protocol_runtime["inference_precision"],
     }
 
     role_evidence: dict[str, Any] = {}
@@ -566,6 +645,7 @@ def run_latency_protocol_v4(
             "source_baseline_sha256": sha256_file(week6_baseline_path),
         },
         {"model_loads": baseline_loads},
+        protocol_runtime["latency_protocol"],
     )
 
     for step in steps:
@@ -592,6 +672,7 @@ def run_latency_protocol_v4(
                 ],
             },
             {"model_load_seconds": load_seconds},
+            protocol_runtime["latency_protocol"],
         )
 
     load_started = time.perf_counter()
@@ -606,6 +687,7 @@ def run_latency_protocol_v4(
         root, config, output_dir, "zero_shot", rows, records, [warmup],
         role_identity,
         {"model_load_seconds": load_seconds},
+        protocol_runtime["latency_protocol"],
     )
 
     summary = {
@@ -634,6 +716,9 @@ def run_latency_protocol_v4(
     return summary
 
 
+run_latency_protocol_v5 = run_latency_protocol_v4
+
+
 def validate_latency_protocol_v4(
     protocol_path: Path,
     *,
@@ -641,7 +726,7 @@ def validate_latency_protocol_v4(
     training_summary_path: Path,
     week6_baseline_path: Path,
 ) -> dict[str, Any]:
-    """Validate immutable v4 files before their latency values reach selection."""
+    """Validate immutable v4/v5 files before their values reach selection."""
     protocol_path = Path(protocol_path).resolve()
     config_path = Path(config_path).resolve()
     expected_training_summary_path = Path(training_summary_path).resolve()
@@ -649,6 +734,7 @@ def validate_latency_protocol_v4(
     payload = _read_json(protocol_path)
     protocol_config_path = Path(str(payload.get("protocol_config_path", ""))).resolve()
     protocol_config = _read_json(protocol_config_path)
+    protocol_runtime = _protocol_runtime(protocol_config)
     config = load_week7_config(config_path)
     config_hash = sha256_file(config_path)
     root = config_path.parents[2]
@@ -679,28 +765,26 @@ def validate_latency_protocol_v4(
     generation_config = protocol_config.get("generation", {})
     timing_config = protocol_config.get("timing", {})
     if (
-        payload.get("schema_version") != PROTOCOL_SCHEMA_VERSION
+        payload.get("schema_version") != protocol_runtime["schema_version"]
         or payload.get("status") != "COMPLETED"
-        or payload.get("latency_protocol") != LATENCY_PROTOCOL_VERSION
+        or payload.get("latency_protocol") != protocol_runtime["latency_protocol"]
         or payload.get("config_sha256") != config_hash
         or payload.get("training_summary_sha256") != sha256_file(training_summary_path)
         or payload.get("week6_baseline_sha256") != sha256_file(week6_baseline_path)
         or not protocol_config_path.is_file()
         or payload.get("protocol_config_sha256") != sha256_file(protocol_config_path)
-        or protocol_config.get("schema_version") != "week7_evaluation_protocol_v4"
+        or protocol_config.get("schema_version")
+        not in {PROTOCOL_CONFIG_V4_VERSION, PROTOCOL_CONFIG_V5_VERSION}
         or protocol_config.get("run_id") != payload.get("run_id")
         or protocol_config.get("candidate_steps") != payload.get("candidate_steps")
         or timing_config.get("sequential_model_order")
         != payload.get("execution_order")
-        or generation_config != {
-            "max_new_tokens": 2048,
-            "warmup_max_new_tokens": 1,
-            "do_sample": False,
-            "use_cache": True,
-            "max_input_length": 8192,
-            "structure_aware_truncation": True,
-        }
-        or timing_config.get("protocol") != LATENCY_PROTOCOL_VERSION
+        or generation_config != protocol_runtime["generation"]
+        or protocol_config.get("inference_precision", "nf4")
+        != protocol_runtime["inference_precision"]
+        or payload.get("inference_precision", "nf4")
+        != protocol_runtime["inference_precision"]
+        or timing_config.get("protocol") != protocol_runtime["latency_protocol"]
         or timing_config.get("scope")
         != "apply_chat_template+device_transfer+generate+decode"
         or any(
@@ -715,8 +799,10 @@ def validate_latency_protocol_v4(
         != WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL
         or float(protocol_config.get("max_latency_ratio", -1))
         != float(config["evaluation"]["non_regression"]["max_latency_ratio"])
-        or int(payload.get("max_new_tokens", -1)) != 2048
-        or int(payload.get("warmup_max_new_tokens", -1)) != 1
+        or int(payload.get("max_new_tokens", -1))
+        != int(protocol_runtime["generation"]["max_new_tokens"])
+        or int(payload.get("warmup_max_new_tokens", -1))
+        != int(protocol_runtime["generation"]["warmup_max_new_tokens"])
     ):
         raise Week7TrainingError("latency protocol v4 identity mismatch")
     roles = payload.get("roles")
@@ -835,7 +921,10 @@ def validate_latency_protocol_v4(
             metrics.get("status") != "COMPLETED"
             or metrics.get("model_role") != role
             or metrics.get("run_id") != payload.get("run_id")
-            or metrics.get("latency_protocol") != LATENCY_PROTOCOL_VERSION
+            or metrics.get("latency_protocol")
+            != protocol_runtime["latency_protocol"]
+            or metrics.get("inference_precision", "nf4")
+            != protocol_runtime["inference_precision"]
             or metrics.get("raw_outputs", {}).get("sha256") != evidence["raw_outputs_sha256"]
             or metrics.get("warmups", {}).get("sha256") != evidence["warmups_sha256"]
             or float(metrics.get("latency_ms_mean", -1))
@@ -847,9 +936,19 @@ def validate_latency_protocol_v4(
             or any(
                 record.get("run_id") != payload.get("run_id")
                 or record.get("model_name") != role
-                or record.get("latency_protocol") != LATENCY_PROTOCOL_VERSION
+                or record.get("latency_protocol")
+                != protocol_runtime["latency_protocol"]
                 or record.get("warmup") is not False
-                or int(record.get("generation_max_new_tokens", -1)) != 2048
+                or int(record.get("generation_max_new_tokens", -1))
+                != int(protocol_runtime["generation"]["max_new_tokens"])
+                or (
+                    protocol_config.get("schema_version") == PROTOCOL_CONFIG_V5_VERSION
+                    and (
+                        record.get("cache_implementation") != "static"
+                        or record.get("compile_config")
+                        != protocol_runtime["runtime_options"]["compile_config"]
+                    )
+                )
                 or (
                     not record.get("failed")
                     and (
@@ -863,9 +962,19 @@ def validate_latency_protocol_v4(
             or any(
                 warmup.get("run_id") != payload.get("run_id")
                 or warmup.get("model_name") != role
-                or warmup.get("latency_protocol") != LATENCY_PROTOCOL_VERSION
+                or warmup.get("latency_protocol")
+                != protocol_runtime["latency_protocol"]
                 or warmup.get("warmup") is not True
-                or int(warmup.get("generation_max_new_tokens", -1)) != 1
+                or int(warmup.get("generation_max_new_tokens", -1))
+                != int(protocol_runtime["generation"]["warmup_max_new_tokens"])
+                or (
+                    protocol_config.get("schema_version") == PROTOCOL_CONFIG_V5_VERSION
+                    and (
+                        warmup.get("cache_implementation") != "static"
+                        or warmup.get("compile_config")
+                        != protocol_runtime["runtime_options"]["compile_config"]
+                    )
+                )
                 for warmup in warmups
             )
         ):

@@ -15,6 +15,7 @@ from src.training.week7_latency_protocol import validate_latency_protocol_v4
 from src.training.week7_qlora import Week7TrainingError
 from src.training.week7_runtime import (
     LATENCY_PROTOCOL_VERSION,
+    LATENCY_PROTOCOL_V5_VERSION,
     generate_record,
     inference_runtime,
 )
@@ -100,6 +101,50 @@ class Week7LatencyProtocolTests(unittest.TestCase):
         self.assertEqual(record["input_token_count"], 3)
         self.assertEqual(record["generated_token_count"], 2)
         self.assertEqual(record["latency_protocol"], LATENCY_PROTOCOL_VERSION)
+
+    def test_v5_runtime_passes_static_cache_and_compile_contract(self):
+        model = _Model()
+        compile_payload = {
+            "backend": "inductor", "mode": "reduce-overhead",
+            "fullgraph": False, "dynamic": True,
+        }
+        fake_torch = SimpleNamespace(
+            cuda=SimpleNamespace(is_available=lambda: False),
+            inference_mode=lambda: nullcontext(),
+        )
+        fake_transformers = SimpleNamespace(
+            CompileConfig=lambda **kwargs: SimpleNamespace(**kwargs),
+        )
+        with patch.dict(
+            "sys.modules", {"torch": fake_torch, "transformers": fake_transformers},
+        ):
+            record = generate_record(
+                model, _Processor(), [{"role": "user", "content": "x"}],
+                sample_id="development-1", run_id="protocol-v5",
+                model_name="multitask_step_000113", max_new_tokens=2048,
+                latency_protocol=LATENCY_PROTOCOL_V5_VERSION,
+                cache_implementation="static", compile_config=compile_payload,
+            )
+        self.assertEqual(model.generate_kwargs["cache_implementation"], "static")
+        self.assertEqual(model.generate_kwargs["compile_config"].backend, "inductor")
+        self.assertTrue(model.generate_kwargs["compile_config"].dynamic)
+        self.assertEqual(record["latency_protocol"], LATENCY_PROTOCOL_V5_VERSION)
+        self.assertEqual(record["cache_implementation"], "static")
+        self.assertEqual(record["compile_config"], compile_payload)
+
+    def test_checked_in_v5_protocol_is_development_only_and_keeps_gate(self):
+        payload = json.loads(
+            (ROOT / "configs/week7/evaluation_protocol_v5.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(payload["schema_version"], "week7_evaluation_protocol_v5")
+        self.assertFalse(payload["dataset"]["test_allowed"])
+        self.assertEqual(payload["dataset"]["development_sha256"], sha256_file(DEVELOPMENT))
+        self.assertEqual(payload["inference_precision"], "bf16")
+        self.assertEqual(payload["generation"]["cache_implementation"], "static")
+        self.assertEqual(payload["timing"]["protocol"], LATENCY_PROTOCOL_V5_VERSION)
+        self.assertEqual(payload["max_latency_ratio"], 1.25)
 
     def _write_protocol(self, root: Path) -> tuple[Path, Path, Path]:
         config = load_week7_config(CONFIG)
