@@ -583,8 +583,20 @@ marker 和 7 个结果 artifact 的 SHA-256 验证通过，全部自动非回退
 失败率 0，三个核心场景自动门禁通过。后续人工界面审计确认 v3 对话构造把 assistant
 回复放在对应 user 问题之前；历史格式 1.0/字符串包含式上下文召回 0.878472 保留为原始
 输出，但状态为 `BLOCKED_INVALID_SOURCE_CONTEXT`，不能作为真实多轮能力结论或进入人工
-评分。DPO 因 0 条真实审核偏好对保持 `SKIPPED`。当前完整
-`unittest` 为 418/418。
+评分。修复没有改写 v3：独立 development-only 身份
+`week7_dialogue_review_20260821_v2` 将首轮任务和每个 follow-up 都改为
+user→具体 assistant 回答，24 条按 5/6/7/8 轮各 6 条，图片仍只在首次用户轮。
+checkpoint-151 新 raw 由 Spartan job `29479822` 生成，24/24 成功，SHA-256 为
+`9cb8cafc148aa8fd7fc2c9e656c59a8c6ce24e237b995df6557d22381dbcd162`。本地标注台用以下
+显式身份启动，评分仍只能由真实用户填写：
+
+```bash
+python scripts/run_week7.py build-dialogue-review-v2 --review-config configs/week7/dialogue_review_v2.json
+python scripts/run_week7_dialogue_review.py --dataset-dir outputs/week7/dialogue_review_v2/week7_dialogue_review_20260821_v2 --raw-outputs outputs/week7/dialogue_review_v2/runs/run_3e5e767_a100/raw_outputs.jsonl --output-dir outputs/week7/human_review/dialogue_review_v2 --raw-sha256 9cb8cafc148aa8fd7fc2c9e656c59a8c6ce24e237b995df6557d22381dbcd162 --dataset-version week7_dialogue_review_20260821_v2 --run-id week7_dev_dialogue_repair_checkpoint151_20260821_v2 --model-name multitask_checkpoint_151_dialogue_review_v2
+```
+
+该 v2 只恢复 development 人工四维评估，不能修复、重开或改写已消费的 v3 final-test。
+DPO 因 0 条真实审核偏好对保持 `SKIPPED`。当前完整 `unittest` 为 422/422。
 
 ## Aliyun Runtime
 

@@ -436,6 +436,21 @@ as the current validated dataset or accepted baseline.
   三个核心场景的独立 task/Schema/支持/延迟/失败率结果不因该顺序审计被重写。恢复对话
   验收需要新数据身份和对应的新模型输出，不能修改 v3 锁。完整 unittest 418/418。
 
+## 2026-08-21：Week 7 对话 development 修复与标注台恢复
+
+- 新建 development-only `week7_dialogue_review_20260821_v2`，绑定 v3 数据锁、原
+  development/queue SHA 和 checkpoint-151 adapter；不读 test、不训练、不改变 final-test
+  结论。24 条均按 user→具体 assistant 回答构造，5/6/7/8 轮各 6 条，首轮任务 24/24
+  获得具体 JSON 回答，旧提前回复命中 0，图片仅首次用户轮 24/24。
+- GPU 调度和失败如实保留：初次无分区提交被调度器拒绝，`29479321`/`29479416` 在
+  运行前取消；`29479456` 因离线
+  cache 路径错误 12 秒失败且未加载模型；`29479500` 完成生成后因 home quota 落盘失败，
+  未产生 raw；最终 `29479822` 在 A100 上 `COMPLETED 0:0`，耗时 00:11:14。
+- 有效 run 24/24 成功、失败 0，raw SHA 为 `9cb8cafc...cd162`；development 自动格式
+  合规率 0.875、字符串包含式 context recall 0.583333，仅作自动辅助，不替代人工四维。
+- 标注台状态为 `READY_FOR_REAL_HUMAN_INPUT`、完成 0/24、无效上下文 0/24，控件已启用；
+  虚假自审探针返回 HTTP 400，人工结果文件仍不存在。当前完整 unittest 422/422。
+
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
 - 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订

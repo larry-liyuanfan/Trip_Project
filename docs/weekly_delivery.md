@@ -562,8 +562,9 @@ branches inherit the same delivery state.
 
 ## Week 7 Delivery Status（2026-08-21）
 
-状态：`CORE_AUTOMATED_ACCEPTED / DIALOGUE_CONTEXT_INVALID / HUMAN_REVIEW_BLOCKED`。
-三个核心场景自动门禁与一次性 final-test 已完成；对话构造错位使人工四维不可评分。
+状态：`CORE_AUTOMATED_ACCEPTED / DIALOGUE_REVIEW_READY / PENDING_REAL_HUMAN_INPUT`。
+三个核心场景自动门禁与一次性 final-test 已完成；v3 对话缺陷保留为历史事实，新的
+development-only 修复队列已可由真实用户评分。
 
 - [x] 从指定 Week 6 终态提交创建隔离分支，旧工作树保持不变。
 - [x] v3 train/development/test 锁通过 sample/source/image/group/template 五维隔离；
@@ -574,7 +575,7 @@ branches inherit the same delivery state.
 - [x] 固定 Schema constrained decoding 的 format-only 对照实现，禁止语义提升结论。
 - [x] 对话 24 条人工队列保持空白，未由 Agent 代填。
 - [x] DPO 门禁为 `SKIPPED`：0 条偏好对通过真实质量与视觉证据审核。
-- [x] 完整 unittest 418/418、compileall、锁验证、七份 shell 语法和 diff 检查通过。
+- [x] 完整 unittest 422/422、compileall、锁验证、八份 shell 语法和 diff 检查通过。
 - [x] Week 6 adapters 与零样本的完整 114 条 development 基线已生成并哈希绑定。
 - [x] Schema 自由/受约束实际对照完成；constrained primary 90/90 请求失败，free
   fallback 90/90 成功，生产模式锁定 free，未宣称语义提升。
@@ -598,6 +599,12 @@ branches inherit the same delivery state.
   后续审计确认该 scorer 不检测 assistant/user 语义顺序，不能作为真实多轮能力结论。
 - [x] 标注台对固定队列执行上下文完整性门禁，24/24 标记为
   `BLOCKED_INVALID_SOURCE_CONTEXT`，前后端均禁止保存无效人工分数并提供逐条错位说明。
-- [ ] 对话人工四维评分：`HUMAN_REVIEW_BLOCKED`；需新数据身份和对应新 raw 后才能恢复。
+- [x] 新建 `week7_dialogue_review_20260821_v2`，24 条均为正确 user→assistant 语义顺序，
+  5–8 轮各 6 条、图片仅首次用户轮；未修改 v3 锁、旧 raw 或 test marker。
+- [x] checkpoint-151 修复队列 GPU run `29479822` 为 `COMPLETED 0:0`，24/24 成功、
+  失败 0；两次 PENDING 取消和两次真实失败均已记录，未伪装为成功。
+- [x] 标注台已重启为 `READY_FOR_REAL_HUMAN_INPUT`，无效上下文 0/24、当前完成 0/24，
+  具有逐轮对齐与四维扣分辅助；后端仍要求真实身份和本人自审。
+- [ ] 对话人工四维评分：`PENDING_REAL_HUMAN_INPUT`；Agent 未代填任何分数。
 - [x] 代码提交 `64a5a7a`、final runtime 修复 `8619b76` 已推送；最终 GPU 证据与文档
   收尾提交已推送。因真实人工项未完成，未快进 `dev`；未进入 `stg`，未打标签。

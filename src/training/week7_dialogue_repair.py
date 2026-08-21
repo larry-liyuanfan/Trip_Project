@@ -52,6 +52,23 @@ def _write_json_new(path: Path, value: dict[str, Any]) -> None:
         handle.write("\n")
 
 
+def _verify_output_parent_writable(output_dir: Path) -> None:
+    """Fail before loading the 8B model when quota/inodes cannot hold new evidence."""
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    probe = output_dir.parent / f".{output_dir.name}.write-probe-{os.getpid()}"
+    try:
+        with probe.open("x", encoding="utf-8") as handle:
+            handle.write("week7-dialogue-review-v2\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError as exc:
+        raise Week7TrainingError(
+            f"dialogue-review output parent is not writable: {output_dir.parent}"
+        ) from exc
+    finally:
+        probe.unlink(missing_ok=True)
+
+
 def _config(root: Path, config_path: Path) -> dict[str, Any]:
     value = _read_json(config_path)
     if value.get("schema_version") != REVIEW_CONFIG_SCHEMA:
@@ -307,6 +324,7 @@ def run_dialogue_review_v2(
     output_dir = Path(output_dir).resolve()
     if output_dir.exists():
         raise Week7TrainingError("refusing to overwrite dialogue-review inference evidence")
+    _verify_output_parent_writable(output_dir)
     review_config = _config(root, review_config_path)
     if (
         base_config_path != (root / review_config["base_config"]["path"]).resolve()

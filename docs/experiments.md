@@ -474,6 +474,19 @@ manifest.
 - 机器审计见 `experiments/week7_dialogue_context_audit_20260821_v1.json`；完整 unittest
   418/418、compileall 和 `git diff --check` 通过。
 
+## 2026-08-21：Week 7 corrected dialogue development review v2
+
+- 独立身份 `week7_dialogue_review_20260821_v2` 仅派生新的 development 对话和空白人工
+  队列，绑定 v3 锁与 checkpoint-151；24 条 5–8 轮按 6/6/6/6 分布，首轮及每个
+  follow-up 均为 user→具体 assistant 回答，图片仅首次用户轮，未读取 test。
+- 失败证据不合并：`29479321`/`29479416` 在运行前取消；`29479456` 因错误 HF cache
+  路径失败；`29479500` 因 home quota 在落盘时失败且无 raw。有效 job `29479822` 在
+  `gpu-a100-preempt`/`spartan-gpgpu098` 完成，24/24 成功、失败 0。
+- 新 raw/metrics SHA 为 `9cb8cafc...cd162`/`4bf4a5dd...9e57b`；自动格式 0.875、字符串
+  context recall 0.583333，只作标注辅助。标注台完成 0/24、无效上下文 0/24，状态
+  `READY_FOR_REAL_HUMAN_INPUT`；机器证据见
+  `experiments/week7_dialogue_repair_20260821_v2.json`，完整 unittest 422/422。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定

@@ -1,0 +1,81 @@
+{
+  "schema_version": "week7_dialogue_repair_evidence_v2",
+  "status": "READY_FOR_REAL_HUMAN_INPUT",
+  "scope": {
+    "split": "development",
+    "test_read": false,
+    "training_run": false,
+    "may_change_final_test_claims": false
+  },
+  "source_audit": {
+    "path": "experiments/week7_dialogue_context_audit_20260821_v1.json",
+    "sha256": "5c32c0bfa84e91b657456596e86a88ca5916ebacb713a5620c423850b9ba058c"
+  },
+  "repair_config": {
+    "path": "configs/week7/dialogue_review_v2.json",
+    "sha256": "4e5269cb95df3befc69f8425a3147488842976c294e35b448935625e483afaaf",
+    "construction_version": "aligned_concrete_turns_v2"
+  },
+  "dataset": {
+    "dataset_version": "week7_dialogue_review_20260821_v2",
+    "dataset_lock_canonical_sha256": "0a3b65e9abcefa559fcb9ee55efbc353f2e66a1a54f399ad48e85eeea2557d39",
+    "dataset_lock_file_sha256": "eb6bd7fd3e83ccf785a66355bfae1e5043033a425633e9d5ed4dca33452a69a7",
+    "development_sha256": "292f66cb684ada1e830640bcb16d4afb48651dac09503273e5ef3b8e01eee1d6",
+    "queue_sha256": "84b84a3537f137e814a97c6c59343f021e0993f3a646559ece6a3e058ae2e418",
+    "sample_count": 24,
+    "round_distribution": {"5": 6, "6": 6, "7": 6, "8": 6},
+    "first_user_has_concrete_answer_count": 24,
+    "image_only_first_user_count": 24,
+    "legacy_anticipatory_reply_count": 0,
+    "context_integrity_pass_count": 24
+  },
+  "checkpoint": {
+    "name": "checkpoint-151",
+    "adapter_sha256": "612af9b79b63f2652e0cd5e9d0d1d9259b5fab08a69eaddbe0d186e9c8f7540b"
+  },
+  "remote_attempts": [
+    {"job_id": null, "state": "SUBMISSION_REJECTED", "elapsed": "00:00:00", "reason": "default partition did not accept the requested GPU node configuration"},
+    {"job_id": "29479321", "state": "CANCELLED", "elapsed": "00:00:00", "reason": "pending standard-partition scheduling replaced before start"},
+    {"job_id": "29479416", "state": "CANCELLED", "elapsed": "00:00:00", "reason": "pending partition search replaced before start"},
+    {"job_id": "29479456", "state": "FAILED", "elapsed": "00:00:12", "exit_code": "1:0", "reason": "incorrect offline HF_HOME; model was not loaded and no raw was written"},
+    {"job_id": "29479500", "state": "FAILED", "elapsed": "00:11:21", "exit_code": "1:0", "reason": "home quota rejected output directory after generation; no raw was written"},
+    {"job_id": "29479822", "state": "COMPLETED", "elapsed": "00:11:14", "exit_code": "0:0", "partition": "gpu-a100-preempt", "node": "spartan-gpgpu098", "cpu": 8, "memory": "64G", "gpu": "A100:1", "execution_commit": "3e5e767"}
+  ],
+  "inference": {
+    "run_id": "week7_dev_dialogue_repair_checkpoint151_20260821_v2",
+    "model_name": "multitask_checkpoint_151_dialogue_review_v2",
+    "precision": "bf16",
+    "cache_implementation": "static",
+    "max_new_tokens": 2048,
+    "sample_count": 24,
+    "failure_count": 0,
+    "raw_outputs_sha256": "9cb8cafc148aa8fd7fc2c9e656c59a8c6ce24e237b995df6557d22381dbcd162",
+    "metrics_sha256": "4bf4a5dd86bd6f99599d4e5fc8221e2859a2a2fc86611eebf90f00c53fc9e57b",
+    "warmup_sha256": "26b89bdbae8e0fc0e2d5a5f8204249ed458300ac28a5bc678315148374130ee7",
+    "run_summary_sha256": "a9965350d65d556222902e1cd23d29486cd2ad762bfeaef551dbfd70ae4b57e6",
+    "format_compliance": 0.875,
+    "context_recall": 0.5833333333333334,
+    "latency_ms_mean": 23082.626183371758,
+    "latency_ms_median": 13089.445382007398
+  },
+  "human_review": {
+    "station_status": "READY_FOR_REAL_HUMAN_INPUT",
+    "blocked_invalid_context_count": 0,
+    "completed_count": 0,
+    "result_file_exists": false,
+    "agent_filled_scores": 0,
+    "required_dimensions": [
+      "historical_image_reference",
+      "requirement_update",
+      "context_carryover",
+      "logical_consistency"
+    ]
+  },
+  "verification": {
+    "focused_tests": "dialogue repair 3/3 PASS; dialogue review 5/5 PASS",
+    "full_unittest": "422/422 PASS",
+    "slurm_shell_syntax": "PASS",
+    "backend_false_self_review_probe": "HTTP 400; completed remained 0; no result file created",
+    "browser_status": "0/24 completed; 0/24 invalid context; controls enabled"
+  }
+}

@@ -1,8 +1,9 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
-终态：`CORE_AUTOMATED_ACCEPTED / DIALOGUE_CONTEXT_INVALID / HUMAN_REVIEW_BLOCKED`。
+终态：`CORE_AUTOMATED_ACCEPTED / DIALOGUE_REVIEW_READY / PENDING_REAL_HUMAN_INPUT`。
 三个核心场景通过唯一一次正式 test 的自动非回退门禁；后续审计发现 v3 多轮上下文构造
-错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论，人工四维评分被阻断。
+错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论。独立 development-only
+修复身份和新 raw 已恢复可信人工评分入口，但真实四维分数仍为 0。
 
 ## 数据锁和隔离结果
 
@@ -28,6 +29,11 @@ train 含商品、售后、行程各 760 条，共 2280 条；通用多模态正
 评估队列未产生人工分数。构造器在 450/24/24 条 train/development/test 对话中先追加
 assistant 回复、再追加其对应的 user 问题；v3 锁、训练和正式 test 产物保持不可变，
 不得在原身份上重排后继续计分。
+
+修复身份 `week7_dialogue_review_20260821_v2` 不改写 v3：24 条按 5/6/7/8 轮各 6 条，
+初始任务和每个 follow-up 均为 user→具体 assistant 回答，图片仅首次用户轮；其数据锁
+canonical SHA 为 `0a3b65e9...7d39`。该身份仅允许 development 人工复核，禁止 train/test，
+也不能改变已消费的一次性 final-test 结论。
 
 ## Schema 解码对照
 
@@ -86,6 +92,11 @@ metric 为 category 2、facility 0、label completeness 3、price 0、style 1；
 的人工队列 24/24 被完整性门禁标记为 `BLOCKED_INVALID_SOURCE_CONTEXT`。这些自动值未检测
 assistant/user 语义顺序或末轮回答相关性，因此不能证明真实多轮连贯性。
 
+新的 corrected development run `29479822` 在 checkpoint-151 上 24/24 成功、失败 0，
+raw SHA 为 `9cb8cafc...cd162`；自动格式合规率 0.875、字符串 context recall 0.583333。
+这些仍不是人工结论。标注台已验证无效上下文 0/24、完成 0/24，状态为
+`READY_FOR_REAL_HUMAN_INPUT`，等待真实用户按四维评分。
+
 ## Week 6 / 零样本对比
 
 统一模型相对 Week 6 的商品/售后/行程绝对变化为 +0.097436/+0.900000/+0.968333，
@@ -101,20 +112,21 @@ multitask/Week 6 全局延迟比约 0.8694，失败率均为 0。三场景任务
 
 ## 测试结果
 
-当前完整 `python -m unittest discover -s tests -v` 为 418/418 PASS；远端 final-runtime
-定向测试 22/22 PASS。compileall、数据隔离和配置验证、七份 Week 7 Slurm 脚本
+当前完整 `python -m unittest discover -s tests -v` 为 422/422 PASS；远端 final-runtime
+定向测试 22/22 PASS。compileall、数据隔离和配置验证、八份 Week 7 Slurm 脚本
 `bash -n`、`git diff --check` 均通过。
 
 ## Commit / push 状态
 
-protocol-v5 提交 `64a5a7a` 与 final runtime 修复 `8619b76` 已推送至
-`origin/codex/week7-multitask-context`；最终证据与文档由本次收尾提交继续推送。因真实
+protocol-v5 提交 `64a5a7a`、final runtime 修复 `8619b76`、对话修复提交
+`bc299c3`/`3e5e767`/`7cf656a` 已推送至 `origin/codex/week7-multitask-context`；最终证据与
+文档由本次收尾提交继续推送。因真实
 人工项未完成，不快进 `dev`；未进入 `stg`，未打标签。
 
 ## 未完成项和真实原因
 
-24 条对话人工四维评分因源上下文错位保持 `HUMAN_REVIEW_BLOCKED`，不是等待用户继续给
-无效样本打分。要恢复可信对话验收，必须建立新的版本化对话数据身份，修正首轮回答及
-user→assistant 顺序，并对修正上下文重新生成模型输出；不得修改 v3 锁或复用旧 raw。
+24 条 corrected development 对话已可评分，但真实人工四维仍为 0/24，状态
+`PENDING_REAL_HUMAN_INPUT`；Agent 没有代填。v3 final-test 对话缺陷仍不可逆，不会借
+development 修复重开 test 或改写历史结论。
 DPO 因 0 条真实审核偏好对正确 `SKIPPED`。三个核心场景训练、checkpoint 选择、参数锁和
 一次性 test 已完成，不存在伪造 GPU、人工审核或指标。

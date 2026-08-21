@@ -53,6 +53,15 @@
     <section class="panel">
       <h2 id="form-title" class="pending">四维评分</h2>
       <div id="integrity" class="integrity"></div>
+      <details open>
+        <summary>标注辅助：先看什么、怎么扣分</summary>
+        <ol>
+          <li>先逐轮确认每条 assistant 都在回答它前一条 user，而不是提前回答后一条。</li>
+          <li>再核对最终原始回复是否引用首图证据、采用最新需求、保留未被取消的硬约束。</li>
+          <li>只评价页面展示的原始回复；不要替模型补全，也不要把 silver 参考直接当成人工答案。</li>
+          <li>出现猜测图片外事实、遗漏最新调整或前后矛盾时，在对应维度扣分并写明依据。</li>
+        </ol>
+      </details>
       <p>统一量表：1=严重错误，2=主要缺陷，3=基本正确但有遗漏，4=正确且连贯，5=完全正确且证据充分。</p>
       <div id="rubric" class="rubric"></div>
       <div class="field"><label for="decision">最终决定</label><select id="decision"><option value="">请选择</option><option value="pass">pass · 可接受</option><option value="rework">rework · 需要修订</option><option value="reject">reject · 不可接受</option></select></div>
