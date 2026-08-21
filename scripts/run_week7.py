@@ -35,6 +35,7 @@ from src.training.week7_preference import build_preference_pairs
 from src.training.week7_mdpo import run_mdpo_ablation
 from src.training.week7_latency_protocol import run_latency_protocol_v4
 from src.training.week7_selection import select_development_checkpoint
+from src.training.week7_adversarial_audit import audit_week7_repository
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -149,6 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
     train_mdpo.add_argument("--dataset-dir", type=Path, required=True)
     train_mdpo.add_argument("--initial-adapter", type=Path, required=True)
     train_mdpo.add_argument("--output-dir", type=Path, required=True)
+    commands.add_parser("adversarial-audit")
     return result
 
 
@@ -267,11 +269,13 @@ def main() -> int:
             )
         elif args.command == "build-preference-pairs":
             payload = build_preference_pairs(ROOT, args.mdpo_config, args.output_dir)
-        else:
+        elif args.command == "train-mdpo":
             payload = run_mdpo_ablation(
                 ROOT, args.mdpo_config, args.dataset_dir,
                 args.initial_adapter, args.output_dir,
             )
+        else:
+            payload = audit_week7_repository(ROOT)
     except (OSError, ValueError, Week7TrainingError) as exc:
         raise SystemExit(f"Week 7 execution error: {exc}") from exc
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

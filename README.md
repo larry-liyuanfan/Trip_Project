@@ -542,6 +542,7 @@ python scripts/run_week7.py latency-protocol-v5 --help
 python scripts/run_week7.py select-checkpoint --help
 python scripts/run_week7.py lock-parameters --help
 python scripts/run_week7.py final-test --help
+python scripts/run_week7.py adversarial-audit
 ```
 
 正式 test 完成后，24 条固定 development 对话人工四维评分使用本地只读证据界面：
@@ -622,7 +623,11 @@ python scripts/run_week7.py dialogue-week6-baseline-v1 \
 Spartan job `29491047` 已完成 24/24、失败 0；真实单人操作者随后完成 Week 6 routed
 输出 24/24 四维评分。multitask/Week 6 四维总均值为 4.59375/4.56250，配对差
 +0.03125，按样本为 10 胜/7 平/7 负；这是描述性小差异，不作显著提升结论。加入该
-runner 与 mDPO 审计实现加入后，完整 `unittest` 为 428/428。
+runner 与 mDPO 审计实现加入后，完整 `unittest` 为 428/428。终态再执行机器优先的
+`adversarial-audit`：基线替换、跨分区碰撞、采样漂移、Schema 语义洗白、test 重跑、
+支持数删除、对话缺陷洗白、repair 读取 test、Agent 冒充人工、失败 DPO 晋级和 DPO
+读取 test 共 11/11 个反事实均被拒绝。完整 `unittest` 更新为 431/431。审计允许代码
+进入 `dev` 集成，但不允许把已知 v3 test 对话缺陷写成完全通过，也不允许进入 `stg`。
 
 ## Aliyun Runtime
 

@@ -526,6 +526,20 @@ manifest.
 - 完整机器证据见 `experiments/week7_mdpo_20260822_v1.json`。该结果是已执行但门禁失败，
   不能写成模型提升；生产/交付选择仍为 checkpoint-151。
 
+## 2026-08-22：Week 7 终态对抗审计
+
+- `python scripts/run_week7.py adversarial-audit` 以机器证据和跨文件身份为主要判断，真人
+  development 四维评分只作辅助证据；Agent 不替换人工身份、分数或验收决定。
+- 主动注入基线替换、五维碰撞、比例漂移、Schema 语义洗白、test 重跑、支持数删除、
+  对话缺陷洗白、repair 读取 test、Agent 冒充人工、失败 DPO 晋级和 DPO 读取 test，
+  11/11 个反事实均被拒绝。
+- 保守结论为 `PASS_WITH_KNOWN_IMMUTABLE_LIMITATION`：核心自动门禁和 corrected dialogue
+  development 通过，DPO adapter 拒绝；实现可以进入 `dev` 集成，但 v3 test 对话仍无效，
+  因此不得宣称完整 Week 7 test 对话能力，也不得晋级 `stg`。
+- 本地目录清理将 408,127,632 字节作废 v1/v2、失败构建和临时文件移入回收站，保留 v3
+  锁/归档、修复 raw、真人记录、偏好锁和 DPO 证据。机器证据见
+  `experiments/week7_adversarial_completion_audit_20260822_v1.json`。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定

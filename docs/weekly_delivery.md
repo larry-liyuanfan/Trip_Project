@@ -578,6 +578,8 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   10 train/6 validation。唯一 job `29491859` 完成，但 validation 0.3333/-0.00981
   未通过 0.5/>0 门禁；新 adapter 未选用、未重试、未触碰 test。
 - [x] 完整 unittest 428/428、compileall、锁验证、十份 shell 语法和 diff 检查通过。
+- [x] 终态机器优先对抗审计 11/11 个反事实被拒绝；完整 unittest 更新为 431/431。
+- [x] 作废 v1/v2、失败构建与临时文件 408,127,632 字节进入回收站；v3 和全部有效证据保留。
 - [x] Week 6 adapters 与零样本的完整 114 条 development 基线已生成并哈希绑定。
 - [x] Schema 自由/受约束实际对照完成；constrained primary 90/90 请求失败，free
   fallback 90/90 成功，生产模式锁定 free，未宣称语义提升。
@@ -617,5 +619,6 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   `af3721d2...d49f93`；multitask 总均值 4.59375，配对差 +0.03125、10 胜/7 平/7 负。
   评分由同一真实操作者重新输入，未复制 multitask 分数；小差异不作显著提升结论。
 - [x] 代码提交 `64a5a7a`、final runtime 修复 `8619b76` 与对话修复提交已推送；本次
-  人工聚合证据和状态修复由收尾提交推送。因 v3 test 对话构造缺陷不可逆，未快进
-  `dev`；未进入 `stg`，未打标签。
+  人工聚合证据和状态修复由收尾提交推送。终态对抗审计允许实现进入 `dev` 集成，
+  但因 v3 test 对话构造缺陷不可逆，完整 Week 7 能力结论仍未通过；不进入 `stg`，
+  不打标签。

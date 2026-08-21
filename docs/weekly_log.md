@@ -489,6 +489,17 @@ as the current validated dataset or accepted baseline.
 - 新 adapter SHA `3791896e...39b64` 不被选用；门禁后不再运行核心 development 生成、
   不重试调参、不读取 test。checkpoint-151 继续作为选择结果。
 
+## 2026-08-22：Week 7 终态对抗审计与目录收敛
+
+- 新增确定性终态审计和 3 个定向测试；11/11 个证据篡改/门禁绕过反事实全部被拒绝。
+  机器证据为主要判断，既有真人 development 评分为辅助证据，Agent 没有冒充人工。
+- 审计允许当前实现进入 `dev` 集成，但完整能力结论仍为
+  `FAIL_KNOWN_V3_TEST_DIALOGUE_INVALID`；不重跑 test，不选择验证回退的 DPO adapter，
+  不进入 `stg`。
+- 将作废 v1/v2 锁和传输包、失败构建及临时预检脚本共 408,127,632 字节移入 Windows
+  回收站。v3 锁/归档、修复对话 raw、真人评分、偏好锁和 mDPO 证据均保留。
+- 完整 unittest 431/431、v3 数据锁复验、10 份 Week 7 Slurm shell 语法和差异检查通过。
+
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
 - 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订

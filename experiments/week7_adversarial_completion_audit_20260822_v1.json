@@ -1,0 +1,75 @@
+{
+  "schema_version": "week7_adversarial_completion_audit_v1",
+  "status": "PASS_WITH_KNOWN_IMMUTABLE_LIMITATION",
+  "authority": {
+    "primary": "deterministic_agent_machine_audit",
+    "secondary": "previous_real_human_development_scores",
+    "agent_may_replace_human_identity_or_scores": false
+  },
+  "evidence_sha256": {
+    "data": "193b9b307e21759829781d78811a2fb4cb5835051a61db545c14ec803fd5258d",
+    "schema": "52875580bbf7a1be34868ed2a3cf19664b4671a3a09fcdf804d1b36d9cf74f05",
+    "final": "d5fb0e9d740bf2eebcc9a411a6a265c4c00f58c210a0a425a6b43880297b3daf",
+    "dialogue_audit": "5c32c0bfa84e91b657456596e86a88ca5916ebacb713a5620c423850b9ba058c",
+    "dialogue_repair": "6cbd659cf343da61bc17bbbfe9a3a351ac716cd8e07717941180e365abd90cb8",
+    "human": "16aa1bcd60ed4fe9ac0412f260dd52dc09e51425239860f79578257220cbc56b",
+    "comparison": "f49e48bab5b4418140a4a240f396c70d40b828f739acb963192429aad55bbc17",
+    "mdpo": "ff95a5f248862b6ef8860e7f232c5dc56ee1417de9097681c25e0307c97146ad"
+  },
+  "counterfactual_probes": {
+    "total": 11,
+    "rejected": 11,
+    "cases": [
+      "baseline_swap",
+      "split_collision",
+      "ratio_drift",
+      "schema_semantic_laundering",
+      "test_replay",
+      "support_deletion",
+      "dialogue_defect_laundering",
+      "repair_reads_test",
+      "agent_human_impersonation",
+      "failed_mdpo_selected",
+      "mdpo_reads_test"
+    ]
+  },
+  "verdict": {
+    "agent_primary_machine_audit": "PASS",
+    "human_evidence_role": "SUPPORTING_ONLY_NOT_AGENT_REPLACED",
+    "core_automated_gate": "PASS",
+    "corrected_dialogue_development_gate": "PASS",
+    "mdpo_selection_gate": "REJECTED_VALIDATION_REGRESSION",
+    "implementation_ready_for_dev_integration": true,
+    "full_week7_claim_gate": "FAIL_KNOWN_V3_TEST_DIALOGUE_INVALID",
+    "stg_or_release_promotion_allowed": false,
+    "test_replay_allowed": false,
+    "selected_model": "checkpoint-151"
+  },
+  "repository_hygiene": {
+    "operation": "RECYCLED_LOCAL_IGNORED_OBSOLETE_ARTIFACTS",
+    "recyclable": true,
+    "bytes_recycled": 408127632,
+    "removed_scope": [
+      "outputs/week7/failed_locks",
+      "outputs/week7/locked_data/week7_fresh_multitask_context_20260819_v1",
+      "outputs/week7/locked_data/week7_fresh_multitask_context_20260819_v2",
+      "outputs/week7/transfers/week7_fresh_multitask_context_20260819_v1.tar.gz",
+      "outputs/week7/transfers/week7_fresh_multitask_context_20260819_v2.tar.gz",
+      "work/week6_final_preflight_20260819_bce0d87.sh"
+    ],
+    "retained_scope": [
+      "Week 7 v3 data lock and transfer archive",
+      "corrected dialogue datasets and raw outputs",
+      "real human score records",
+      "preference-pair lock",
+      "mDPO run evidence"
+    ]
+  },
+  "verification": {
+    "focused_adversarial_tests": "3/3 PASS",
+    "full_unittest": "431/431 PASS",
+    "week7_slurm_shell_syntax": "10/10 PASS",
+    "v3_data_lock_validation": "PASS",
+    "git_diff_check": "PASS"
+  }
+}
