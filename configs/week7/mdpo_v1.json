@@ -1,0 +1,85 @@
+{
+  "schema_version": "week7_mdpo_config_v1",
+  "dataset_version": "week7_preference_pairs_20260822_v1",
+  "base_config": {
+    "path": "configs/week7/qwen3_vl_8b_multitask_context_v3.json",
+    "sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa"
+  },
+  "corrected_development": {
+    "path": "outputs/week7/dialogue_review_v2/week7_dialogue_review_20260821_v2/development.jsonl",
+    "sha256": "292f66cb684ada1e830640bcb16d4afb48651dac09503273e5ef3b8e01eee1d6",
+    "dataset_lock_sha256": "0a3b65e9abcefa559fcb9ee55efbc353f2e66a1a54f399ad48e85eeea2557d39"
+  },
+  "model_outputs": {
+    "multitask": {
+      "path": "outputs/week7/dialogue_review_v2/runs/run_3e5e767_a100/raw_outputs.jsonl",
+      "sha256": "9cb8cafc148aa8fd7fc2c9e656c59a8c6ce24e237b995df6557d22381dbcd162",
+      "model_name": "multitask_checkpoint_151_dialogue_review_v2"
+    },
+    "week6": {
+      "path": "outputs/week7/dialogue_comparison_v1/runs/run_dfcb511_a100/raw_outputs.jsonl",
+      "sha256": "c3effb6d36deb94993f6f3d8737e3f3c9f3f49f1d19c7620951ad4fa21318e59",
+      "model_name": "week6_single_task_adapters_dialogue_review_v1"
+    }
+  },
+  "human_scores": {
+    "multitask": {
+      "path": "outputs/week7/human_review/dialogue_review_v2/week7_dialogue_human_scores_v1.jsonl",
+      "sha256": "bdec2d18aa7c4097dc85ffd15f3f2368a1c67b178fc51aff42bb498d82eaf932"
+    },
+    "week6": {
+      "path": "outputs/week7/human_review/dialogue_comparison_v1/week7_dialogue_human_scores_v1.jsonl",
+      "sha256": "af3721d2ae43207632735b21af403c8a575be515b08092bd1df722f348d49f93"
+    }
+  },
+  "selected_checkpoint": {
+    "name": "checkpoint-151",
+    "adapter_sha256": "612af9b79b63f2652e0cd5e9d0d1d9259b5fab08a69eaddbe0d186e9c8f7540b"
+  },
+  "audit": {
+    "dimensions": [
+      "historical_image_reference",
+      "requirement_update",
+      "context_carryover",
+      "logical_consistency"
+    ],
+    "minimum_chosen_dimension_score": 4,
+    "minimum_total_score_margin": 1,
+    "require_chosen_json": true,
+    "require_visual_evidence_overlap": true,
+    "require_source_identity_match": true,
+    "reverse_pair_probe": true
+  },
+  "split": {
+    "seed": 20260822,
+    "algorithm": "lowest_sha256_per_parent_scenario_and_chosen_role_v1",
+    "validation_per_stratum": 1
+  },
+  "training": {
+    "run_id": "week7_mdpo_dialogue_20260822_v1",
+    "beta": 0.1,
+    "learning_rate": 0.000005,
+    "weight_decay": 0.02,
+    "epochs": 1,
+    "gradient_accumulation_steps": 2,
+    "max_grad_norm": 1.0,
+    "max_length": 8192,
+    "logprob_reduction": "mean",
+    "seed": 20260822,
+    "precision": "bf16",
+    "gradient_checkpointing": true,
+    "reference_mode": "precomputed_initial_adapter_logprobs",
+    "max_train_pairs": 10,
+    "max_validation_pairs": 6
+  },
+  "validation_gate": {
+    "minimum_preference_accuracy": 0.5,
+    "minimum_mean_policy_reference_margin": 0.0
+  },
+  "scope": {
+    "split": "development_preference_train_validation",
+    "test_allowed": false,
+    "single_ablation_only": true,
+    "agent_labels_may_replace_human": false
+  }
+}

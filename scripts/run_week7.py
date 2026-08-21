@@ -31,6 +31,8 @@ from src.training.week7_dialogue_repair import (
     run_dialogue_review_v2,
 )
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
+from src.training.week7_preference import build_preference_pairs
+from src.training.week7_mdpo import run_mdpo_ablation
 from src.training.week7_latency_protocol import run_latency_protocol_v4
 from src.training.week7_selection import select_development_checkpoint
 
@@ -135,6 +137,18 @@ def build_parser() -> argparse.ArgumentParser:
     compare_dialogue.add_argument("--after-sales-adapter", type=Path, required=True)
     compare_dialogue.add_argument("--itinerary-adapter", type=Path, required=True)
     compare_dialogue.add_argument("--output-dir", type=Path, required=True)
+    build_preference = commands.add_parser("build-preference-pairs")
+    build_preference.add_argument(
+        "--mdpo-config", type=Path, default=ROOT / "configs/week7/mdpo_v1.json",
+    )
+    build_preference.add_argument("--output-dir", type=Path, required=True)
+    train_mdpo = commands.add_parser("train-mdpo")
+    train_mdpo.add_argument(
+        "--mdpo-config", type=Path, default=ROOT / "configs/week7/mdpo_v1.json",
+    )
+    train_mdpo.add_argument("--dataset-dir", type=Path, required=True)
+    train_mdpo.add_argument("--initial-adapter", type=Path, required=True)
+    train_mdpo.add_argument("--output-dir", type=Path, required=True)
     return result
 
 
@@ -241,7 +255,7 @@ def main() -> int:
                 ROOT, args.config, args.review_config, args.dataset_dir,
                 args.adapter_dir, args.output_dir,
             )
-        else:
+        elif args.command == "dialogue-week6-baseline-v1":
             payload = run_dialogue_week6_baseline_v1(
                 ROOT, args.config, args.comparison_config, args.dataset_dir,
                 {
@@ -250,6 +264,13 @@ def main() -> int:
                     "itinerary_planning": args.itinerary_adapter,
                 },
                 args.output_dir,
+            )
+        elif args.command == "build-preference-pairs":
+            payload = build_preference_pairs(ROOT, args.mdpo_config, args.output_dir)
+        else:
+            payload = run_mdpo_ablation(
+                ROOT, args.mdpo_config, args.dataset_dir,
+                args.initial_adapter, args.output_dir,
             )
     except (OSError, ValueError, Week7TrainingError) as exc:
         raise SystemExit(f"Week 7 execution error: {exc}") from exc
