@@ -512,6 +512,20 @@ manifest.
   真实操作者在同一 session identity 完成，Agent 未代填。它们不是明确审核的
   chosen/rejected 偏好对，DPO 继续 `SKIPPED`。
 
+## 2026-08-22：Week 7 audited mDPO-style v1
+
+- 用户要求在不伪造人工身份的前提下继续对抗审查。两组真实四维评分按总分非平局、chosen
+  各维 ≥4、chosen JSON、视觉证据命中、来源一致和无生成失败筛选，得到 16 对；7 个
+  平局和 1 个 chosen 非 JSON 被拒绝，反转 chosen/rejected 探针 16/16 被拒绝。
+- `week7_preference_pairs_20260822_v1` 锁 SHA `a29736fc...d1f38`，train/validation
+  为 10/6，六个场景×chosen-role strata 各留 1 对 validation。human pair choice 并非
+  显式二选一，来源准确记为真实逐输出评分的确定性派生，Agent 审计不替代人工评分。
+- 单次 mDPO-style job `29491859` 在 `gpu-a100-preempt`/`spartan-gpgpu098` 完成，
+  5 个 optimizer updates，train 为 0.8/+0.01861，validation 为 0.3333/-0.00981，
+  未通过 0.5/>0 门禁。adapter `3791896e...39b64` 不选用，不做第二次 DPO 或 test。
+- 完整机器证据见 `experiments/week7_mdpo_20260822_v1.json`。该结果是已执行但门禁失败，
+  不能写成模型提升；生产/交付选择仍为 checkpoint-151。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定

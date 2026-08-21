@@ -478,6 +478,17 @@ as the current validated dataset or accepted baseline.
   调整、上下文承接、逻辑连贯差值为 -0.125/+0.291667/-0.041667/0。该同 session
   单人结果仅作描述性人工对比，不宣称统计显著。
 
+## 2026-08-22：Week 7 单次 mDPO-style 消融
+
+- 两组真实四维评分经确定性偏好派生和 Agent 对抗审计产生 16 对：7 个总分平局和 1 个
+  chosen 非 JSON 被拒绝；16/16 反转探针被拒绝。按场景×chosen 来源各留 1 对，锁为
+  10 train/6 validation；Agent 审计没有冒充真人评分或显式 pair choice。
+- job `29491859` 在 A100 上 `COMPLETED 0:0`、耗时 00:01:46，执行 5 次 optimizer
+  update；LoRA 梯度范数 0.03499–0.17151，确认并非空跑。train 准确率/平均 margin 为
+  0.8/+0.01861，但 validation 仅 0.3333/-0.00981，未通过 0.5/>0 门禁。
+- 新 adapter SHA `3791896e...39b64` 不被选用；门禁后不再运行核心 development 生成、
+  不重试调参、不读取 test。checkpoint-151 继续作为选择结果。
+
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
 - 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订

@@ -600,7 +600,11 @@ python scripts/run_week7_dialogue_review.py --dataset-dir outputs/week7/dialogue
 历史图片指代/需求迭代/上下文承接/逻辑连贯均分为
 4.5417/4.6250/4.5000/4.7083，四维未加权均值 4.59375。结果文件 SHA-256 为
 `bdec2d18...af932`，原始人工记录继续位于忽略目录，Git 仅保存聚合与哈希证据。
-DPO 因 0 条真实审核偏好对保持 `SKIPPED`。
+DPO 最初因 0 条真实审核偏好对保持 `SKIPPED`。两组真实四维评分完成后，按锁定规则派生
+16 个非平局偏好对，并通过 JSON、视觉证据、来源身份及反转探针审计；其中 10 对训练、
+6 对隔离 validation。唯一一次 mDPO-style job `29491859` 已完成，但 validation 准确率
+0.3333、平均 policy-reference margin -0.00981，未通过 0.5/>0 门禁，因此新 adapter
+不被选用，checkpoint-151 保持生产选择，test 未重跑。
 
 为补齐 corrected development 上与纯单任务模型的人工对比，锁定的三个 Week 6 adapter
 按父场景 8/8/8 路由生成另一组 24 条输出。运行命令为：
@@ -618,7 +622,7 @@ python scripts/run_week7.py dialogue-week6-baseline-v1 \
 Spartan job `29491047` 已完成 24/24、失败 0；真实单人操作者随后完成 Week 6 routed
 输出 24/24 四维评分。multitask/Week 6 四维总均值为 4.59375/4.56250，配对差
 +0.03125，按样本为 10 胜/7 平/7 负；这是描述性小差异，不作显著提升结论。加入该
-runner 后完整 `unittest` 为 424/424。
+runner 与 mDPO 审计实现加入后，完整 `unittest` 为 428/428。
 
 ## Aliyun Runtime
 

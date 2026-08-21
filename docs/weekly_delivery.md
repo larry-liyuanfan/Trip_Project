@@ -574,8 +574,10 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
 - [x] 固定 QLoRA/SFT、结构感知截断、完整 development 生成评估、checkpoint 和早停实现。
 - [x] 固定 Schema constrained decoding 的 format-only 对照实现，禁止语义提升结论。
 - [x] 对话 24 条人工队列保持空白，未由 Agent 代填。
-- [x] DPO 门禁为 `SKIPPED`：0 条偏好对通过真实质量与视觉证据审核。
-- [x] 完整 unittest 424/424、compileall、锁验证、九份 shell 语法和 diff 检查通过。
+- [x] DPO 初始门禁为 `SKIPPED`；真实双模型评分完成后确定性派生并审计 16 对，锁为
+  10 train/6 validation。唯一 job `29491859` 完成，但 validation 0.3333/-0.00981
+  未通过 0.5/>0 门禁；新 adapter 未选用、未重试、未触碰 test。
+- [x] 完整 unittest 428/428、compileall、锁验证、十份 shell 语法和 diff 检查通过。
 - [x] Week 6 adapters 与零样本的完整 114 条 development 基线已生成并哈希绑定。
 - [x] Schema 自由/受约束实际对照完成；constrained primary 90/90 请求失败，free
   fallback 90/90 成功，生产模式锁定 free，未宣称语义提升。

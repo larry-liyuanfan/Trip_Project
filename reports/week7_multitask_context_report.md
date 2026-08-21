@@ -110,13 +110,20 @@ multitask/Week 6 全局延迟比约 0.8694，失败率均为 0。三场景任务
 
 ## DPO 执行状态
 
-真实质量与视觉证据审核通过的 chosen/rejected 偏好对为 0，唯一允许的 mDPO/HDPO
-风格消融按门禁记为 `SKIPPED`。没有自举或伪造偏好对，不影响已完成的 SFT 自动验收。
+初始门禁因 0 条偏好对记为 `SKIPPED`。双模型真实四维评分完成后，确定性派生 16 个
+非平局候选，并通过 chosen 各维 ≥4、JSON、视觉证据命中、来源身份、生成成功和反转
+探针审计；锁为 10 train/6 validation。Agent 只执行可复现审计，没有生成真人身份或
+复制分数，也没有把派生选择写成显式人工二选一。
+
+唯一 mDPO-style job `29491859` 执行 5 次 optimizer update，train preference accuracy/
+平均 policy-reference margin 为 0.8/+0.01861，隔离 validation 为 0.3333/-0.00981，
+未通过预注册 0.5/>0 门禁。新 adapter SHA `3791896e...39b64` 不选用；按单次消融约束
+不再重试，且未运行核心 development 生成或 test。checkpoint-151 保持最终选择。
 
 ## 测试结果
 
-当前完整 `python -m unittest discover -s tests -v` 为 424/424 PASS；远端 final-runtime
-定向测试 22/22 PASS。compileall、数据隔离和配置验证、九份 Week 7 Slurm 脚本
+当前完整 `python -m unittest discover -s tests -v` 为 428/428 PASS；远端 final-runtime
+定向测试 22/22 PASS。compileall、数据隔离和配置验证、十份 Week 7 Slurm 脚本
 `bash -n`、`git diff --check` 均通过。
 
 ## Commit / push 状态
@@ -136,5 +143,5 @@ corrected development 的 multitask 与 Week 6 routed 人工四维均完成 24/2
 Agent 未复制或代填；该小差异只作描述性结果，不宣称统计显著。仍存在的限制是
 v3 final-test 对话构造
 缺陷不可逆；本次 development 人工完成不会重开 test 或改写历史 test 对话结论。
-DPO 因 0 条真实审核偏好对正确 `SKIPPED`。三个核心场景训练、checkpoint 选择、参数锁和
-一次性 test 已完成，不存在伪造 GPU、人工审核或指标。
+DPO 已执行一次但 validation 门禁失败并正确拒绝新 adapter。三个核心场景训练、
+checkpoint 选择、参数锁和一次性 test 已完成，不存在伪造 GPU、人工审核或指标。
