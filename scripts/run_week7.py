@@ -25,6 +25,10 @@ from src.training.week7_final_evaluation import (
     recover_interrupted_final_test,
     run_final_test_suite,
 )
+from src.training.week7_dialogue_repair import (
+    build_dialogue_review_v2,
+    run_dialogue_review_v2,
+)
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
 from src.training.week7_latency_protocol import run_latency_protocol_v4
 from src.training.week7_selection import select_development_checkpoint
@@ -106,6 +110,20 @@ def build_parser() -> argparse.ArgumentParser:
     recover_test.add_argument("--output-dir", type=Path, required=True)
     recover_test.add_argument("--slurm-job-id", required=True)
     recover_test.add_argument("--slurm-job-state", required=True)
+    build_dialogue = commands.add_parser("build-dialogue-review-v2")
+    build_dialogue.add_argument(
+        "--review-config", type=Path,
+        default=ROOT / "configs/week7/dialogue_review_v2.json",
+    )
+    build_dialogue.add_argument("--output-dir", type=Path)
+    run_dialogue = commands.add_parser("dialogue-review-v2")
+    run_dialogue.add_argument(
+        "--review-config", type=Path,
+        default=ROOT / "configs/week7/dialogue_review_v2.json",
+    )
+    run_dialogue.add_argument("--dataset-dir", type=Path, required=True)
+    run_dialogue.add_argument("--adapter-dir", type=Path, required=True)
+    run_dialogue.add_argument("--output-dir", type=Path, required=True)
     return result
 
 
@@ -197,11 +215,20 @@ def main() -> int:
                 ROOT, args.config, args.parameter_lock, args.output_dir,
                 resume=args.resume,
             )
-        else:
+        elif args.command == "recover-final-test":
             payload = recover_interrupted_final_test(
                 ROOT, args.config, args.parameter_lock, args.output_dir,
                 slurm_job_id=args.slurm_job_id,
                 slurm_job_state=args.slurm_job_state,
+            )
+        elif args.command == "build-dialogue-review-v2":
+            payload = build_dialogue_review_v2(
+                ROOT, args.review_config, args.output_dir,
+            )
+        else:
+            payload = run_dialogue_review_v2(
+                ROOT, args.config, args.review_config, args.dataset_dir,
+                args.adapter_dir, args.output_dir,
             )
     except (OSError, ValueError, Week7TrainingError) as exc:
         raise SystemExit(f"Week 7 execution error: {exc}") from exc

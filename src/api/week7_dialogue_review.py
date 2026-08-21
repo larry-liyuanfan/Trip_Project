@@ -133,6 +133,9 @@ class Week7DialogueReviewStore:
         output_dir: Path,
         *,
         expected_raw_sha256: str = EXPECTED_RAW_SHA256,
+        expected_dataset_version: str = EXPECTED_DATASET_VERSION,
+        expected_run_id: str = EXPECTED_RUN_ID,
+        expected_model_name: str = EXPECTED_MODEL_NAME,
     ) -> None:
         self.root = Path(root).resolve()
         self.dataset_dir = _within(self.root, self.root / dataset_dir)
@@ -140,6 +143,9 @@ class Week7DialogueReviewStore:
         self.output_dir = _within(self.root, self.root / output_dir)
         self.results_path = self.output_dir / "week7_dialogue_human_scores_v1.jsonl"
         self._lock = threading.RLock()
+        self.expected_dataset_version = expected_dataset_version
+        self.expected_run_id = expected_run_id
+        self.expected_model_name = expected_model_name
         self._load_inputs(expected_raw_sha256)
         self._load_reviews()
 
@@ -152,7 +158,7 @@ class Week7DialogueReviewStore:
                 raise Week7DialogueReviewError(f"required review evidence is missing: {path}")
 
         lock = _read_json(lock_path)
-        if lock.get("dataset_version") != EXPECTED_DATASET_VERSION:
+        if lock.get("dataset_version") != self.expected_dataset_version:
             raise Week7DialogueReviewError("unexpected Week 7 dataset identity")
         files = lock.get("files", {})
         expected_files = {
@@ -188,7 +194,10 @@ class Week7DialogueReviewStore:
                 raise Week7DialogueReviewError("queue sample is missing dialogue or raw output")
             if tuple(item.get("required_dimensions", [])) != DIALOGUE_DIMENSIONS:
                 raise Week7DialogueReviewError("queue dimensions changed")
-            if raw.get("run_id") != EXPECTED_RUN_ID or raw.get("model_name") != EXPECTED_MODEL_NAME:
+            if (
+                raw.get("run_id") != self.expected_run_id
+                or raw.get("model_name") != self.expected_model_name
+            ):
                 raise Week7DialogueReviewError("raw output does not belong to selected checkpoint-151")
             if raw.get("failed") is not False or not isinstance(raw.get("raw_output"), str):
                 raise Week7DialogueReviewError("queued dialogue has no successful raw output")
@@ -260,8 +269,8 @@ class Week7DialogueReviewStore:
             values = [int(row["scores"][dimension]) for row in self.latest_reviews.values()]
             dimension_means[dimension] = sum(values) / len(values) if values else None
         return {
-            "dataset_version": EXPECTED_DATASET_VERSION,
-            "model_name": EXPECTED_MODEL_NAME,
+            "dataset_version": self.expected_dataset_version,
+            "model_name": self.expected_model_name,
             "total": len(self.tasks),
             "completed": completed,
             "remaining": len(self.tasks) - completed,
@@ -326,13 +335,13 @@ class Week7DialogueReviewStore:
                 "self_review_confirmed": True,
                 "revision": revision,
                 "reviewed_at": _now(),
-                "dataset_version": EXPECTED_DATASET_VERSION,
+                "dataset_version": self.expected_dataset_version,
                 "dataset_lock_sha256": self.dataset_lock_sha256,
                 "queue_sha256": self.queue_sha256,
                 "development_sha256": self.development_sha256,
                 "raw_outputs_sha256": self.raw_outputs_sha256,
-                "model_name": EXPECTED_MODEL_NAME,
-                "run_id": EXPECTED_RUN_ID,
+                "model_name": self.expected_model_name,
+                "run_id": self.expected_run_id,
             }
             self.output_dir.mkdir(parents=True, exist_ok=True)
             payload = (json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
@@ -356,6 +365,9 @@ def create_week7_dialogue_review_app(
     raw_outputs_path: Path = Path("outputs/week7/human_review/source/multitask_step_000151_raw_outputs.jsonl"),
     output_dir: Path = Path("outputs/week7/human_review"),
     expected_raw_sha256: str = EXPECTED_RAW_SHA256,
+    expected_dataset_version: str = EXPECTED_DATASET_VERSION,
+    expected_run_id: str = EXPECTED_RUN_ID,
+    expected_model_name: str = EXPECTED_MODEL_NAME,
 ) -> FastAPI:
     project_root = (root or Path(__file__).resolve().parents[2]).resolve()
     store = Week7DialogueReviewStore(
@@ -364,6 +376,9 @@ def create_week7_dialogue_review_app(
         raw_outputs_path,
         output_dir,
         expected_raw_sha256=expected_raw_sha256,
+        expected_dataset_version=expected_dataset_version,
+        expected_run_id=expected_run_id,
+        expected_model_name=expected_model_name,
     )
     app = FastAPI(title="Trip Week 7 对话人工评分", version="1.0")
     app.state.store = store

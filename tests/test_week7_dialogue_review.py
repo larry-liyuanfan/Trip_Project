@@ -140,6 +140,39 @@ class Week7DialogueReviewTests(unittest.TestCase):
                     expected_raw_sha256=raw_sha,
                 )
 
+    def test_corrected_identity_is_configurable_and_saved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset, raw_path, raw_sha = self._fixture(root)
+            dataset_path = root / dataset
+            lock_path = dataset_path / "dataset_lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["dataset_version"] = "week7-dialogue-review-v2"
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            raw_absolute = root / raw_path
+            raw = [json.loads(line) for line in raw_absolute.read_text(encoding="utf-8").splitlines()]
+            for record in raw:
+                record["run_id"] = "corrected-run-v2"
+                record["model_name"] = "checkpoint-151-corrected-v2"
+            _write_jsonl(raw_absolute, raw)
+            store = Week7DialogueReviewStore(
+                root, dataset, raw_path, Path("outputs/week7/human_review/results-v2"),
+                expected_raw_sha256=sha256_file(raw_absolute),
+                expected_dataset_version="week7-dialogue-review-v2",
+                expected_run_id="corrected-run-v2",
+                expected_model_name="checkpoint-151-corrected-v2",
+            )
+            task = store.task(0)
+            saved = store.save(DialogueReviewSubmission(
+                queue_id=task["queue_id"], sample_id=task["sample_id"], reviewer="human",
+                review_session_id="corrected-session", scores={name: 4 for name in DIALOGUE_DIMENSIONS},
+                decision="pass", notes="checked", self_review_confirmed=True,
+            ))
+            self.assertEqual(saved["summary"]["dataset_version"], "week7-dialogue-review-v2")
+            record = json.loads(store.results_path.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(record["run_id"], "corrected-run-v2")
+            self.assertEqual(record["model_name"], "checkpoint-151-corrected-v2")
+
     def test_misaligned_v3_context_is_explained_and_cannot_be_scored(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

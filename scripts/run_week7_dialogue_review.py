@@ -10,7 +10,13 @@ import uvicorn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.api.week7_dialogue_review import EXPECTED_RAW_SHA256, create_week7_dialogue_review_app
+from src.api.week7_dialogue_review import (
+    EXPECTED_DATASET_VERSION,
+    EXPECTED_MODEL_NAME,
+    EXPECTED_RAW_SHA256,
+    EXPECTED_RUN_ID,
+    create_week7_dialogue_review_app,
+)
 
 
 def main() -> None:
@@ -27,6 +33,9 @@ def main() -> None:
     )
     parser.add_argument("--output-dir", default="outputs/week7/human_review")
     parser.add_argument("--raw-sha256", default=EXPECTED_RAW_SHA256)
+    parser.add_argument("--dataset-version", default=EXPECTED_DATASET_VERSION)
+    parser.add_argument("--run-id", default=EXPECTED_RUN_ID)
+    parser.add_argument("--model-name", default=EXPECTED_MODEL_NAME)
     args = parser.parse_args()
     if args.host not in {"127.0.0.1", "localhost"}:
         raise SystemExit("Week 7 human scoring must remain local-only")
@@ -37,6 +46,9 @@ def main() -> None:
         raw_outputs_path=Path(args.raw_outputs),
         output_dir=Path(args.output_dir),
         expected_raw_sha256=args.raw_sha256,
+        expected_dataset_version=args.dataset_version,
+        expected_run_id=args.run_id,
+        expected_model_name=args.model_name,
     )
     uvicorn.run(app, host=args.host, port=args.port)
 

@@ -1,0 +1,54 @@
+{
+  "schema_version": "week7_dialogue_review_config_v2",
+  "dataset_version": "week7_dialogue_review_20260821_v2",
+  "construction_version": "aligned_concrete_turns_v2",
+  "base_config": {
+    "path": "configs/week7/qwen3_vl_8b_multitask_context_v3.json",
+    "sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa"
+  },
+  "source": {
+    "dataset_version": "week7_fresh_multitask_context_20260820_v3",
+    "dataset_dir": "outputs/week7/locked_data/week7_fresh_multitask_context_20260820_v3",
+    "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+    "development_sha256": "3c775c1432912129f7eba8774978c0f1f4621d79e14e33e6c488d77b5c630e04",
+    "queue_sha256": "3a94eed4e4a674c102e059552689745a9dbd8ecbd28bbeea538467d8dafff156",
+    "sample_count": 24
+  },
+  "output_root": "outputs/week7/dialogue_review_v2",
+  "selected_checkpoint": {
+    "name": "checkpoint-151",
+    "adapter_sha256": "612af9b79b63f2652e0cd5e9d0d1d9259b5fab08a69eaddbe0d186e9c8f7540b"
+  },
+  "inference": {
+    "run_id": "week7_dev_dialogue_repair_checkpoint151_20260821_v2",
+    "model_name": "multitask_checkpoint_151_dialogue_review_v2",
+    "precision": "bf16",
+    "max_new_tokens": 2048,
+    "warmup_max_new_tokens": 32,
+    "max_input_length": 8192,
+    "cache_implementation": "static",
+    "compile_config": {
+      "backend": "inductor",
+      "mode": "reduce-overhead",
+      "fullgraph": false,
+      "dynamic": true
+    }
+  },
+  "human_review": {
+    "dimensions": [
+      "historical_image_reference",
+      "requirement_update",
+      "context_carryover",
+      "logical_consistency"
+    ],
+    "score_min": 1,
+    "score_max": 5,
+    "real_self_review_required": true
+  },
+  "scope": {
+    "split": "development",
+    "test_allowed": false,
+    "training_allowed": false,
+    "may_change_final_test_claims": false
+  }
+}
