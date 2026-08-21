@@ -128,6 +128,27 @@ class Week7DialogueReviewTests(unittest.TestCase):
             self.assertTrue(last["self_review_confirmed"])
             self.assertEqual(store.summary()["completed"], 1)
 
+    def test_status_becomes_completed_only_after_all_real_reviews(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset, raw_path, raw_sha = self._fixture(root)
+            store = Week7DialogueReviewStore(
+                root, dataset, raw_path, Path("outputs/week7/human_review/results"),
+                expected_raw_sha256=raw_sha,
+            )
+            for offset in range(24):
+                task = store.task(offset)
+                store.save(DialogueReviewSubmission(
+                    queue_id=task["queue_id"], sample_id=task["sample_id"], reviewer="human",
+                    review_session_id="one-real-session",
+                    scores={name: 4 for name in DIALOGUE_DIMENSIONS}, decision="pass",
+                    notes=None, self_review_confirmed=True,
+                ))
+            summary = store.summary()
+            self.assertEqual(summary["completed"], 24)
+            self.assertEqual(summary["remaining"], 0)
+            self.assertEqual(summary["scoring_status"], "HUMAN_REVIEW_COMPLETED")
+
     def test_changed_raw_output_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

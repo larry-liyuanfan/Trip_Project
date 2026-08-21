@@ -268,6 +268,12 @@ class Week7DialogueReviewStore:
         for dimension in DIALOGUE_DIMENSIONS:
             values = [int(row["scores"][dimension]) for row in self.latest_reviews.values()]
             dimension_means[dimension] = sum(values) / len(values) if values else None
+        if blocked:
+            scoring_status = "BLOCKED_INVALID_SOURCE_CONTEXT"
+        elif completed == len(self.tasks):
+            scoring_status = "HUMAN_REVIEW_COMPLETED"
+        else:
+            scoring_status = "READY_FOR_REAL_HUMAN_INPUT"
         return {
             "dataset_version": self.expected_dataset_version,
             "model_name": self.expected_model_name,
@@ -275,9 +281,7 @@ class Week7DialogueReviewStore:
             "completed": completed,
             "remaining": len(self.tasks) - completed,
             "blocked_invalid_context": blocked,
-            "scoring_status": (
-                "BLOCKED_INVALID_SOURCE_CONTEXT" if blocked else "READY_FOR_REAL_HUMAN_INPUT"
-            ),
+            "scoring_status": scoring_status,
             "dimension_means": dimension_means,
             "evidence": {
                 "dataset_lock_sha256": self.dataset_lock_sha256,

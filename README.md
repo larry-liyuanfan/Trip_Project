@@ -596,7 +596,11 @@ python scripts/run_week7_dialogue_review.py --dataset-dir outputs/week7/dialogue
 ```
 
 该 v2 只恢复 development 人工四维评估，不能修复、重开或改写已消费的 v3 final-test。
-DPO 因 0 条真实审核偏好对保持 `SKIPPED`。当前完整 `unittest` 为 422/422。
+真实单人操作者已在一个会话中完成 24/24 条并逐条确认本人自审，最终决定均为 `pass`；
+历史图片指代/需求迭代/上下文承接/逻辑连贯均分为
+4.5417/4.6250/4.5000/4.7083，四维未加权均值 4.59375。结果文件 SHA-256 为
+`16f02b46...07cc0`，原始人工记录继续位于忽略目录，Git 仅保存聚合与哈希证据。
+DPO 因 0 条真实审核偏好对保持 `SKIPPED`。当前完整 `unittest` 为 423/423。
 
 ## Aliyun Runtime
 

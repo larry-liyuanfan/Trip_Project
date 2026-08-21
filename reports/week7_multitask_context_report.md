@@ -1,9 +1,9 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
-终态：`CORE_AUTOMATED_ACCEPTED / DIALOGUE_REVIEW_READY / PENDING_REAL_HUMAN_INPUT`。
+终态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPLETED / V3_TEST_DIALOGUE_INVALID`。
 三个核心场景通过唯一一次正式 test 的自动非回退门禁；后续审计发现 v3 多轮上下文构造
 错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论。独立 development-only
-修复身份和新 raw 已恢复可信人工评分入口，但真实四维分数仍为 0。
+修复身份和新 raw 已恢复可信人工评分入口，真实单人操作者随后完成 24/24 条四维评分。
 
 ## 数据锁和隔离结果
 
@@ -94,8 +94,10 @@ assistant/user 语义顺序或末轮回答相关性，因此不能证明真实�
 
 新的 corrected development run `29479822` 在 checkpoint-151 上 24/24 成功、失败 0，
 raw SHA 为 `9cb8cafc...cd162`；自动格式合规率 0.875、字符串 context recall 0.583333。
-这些仍不是人工结论。标注台已验证无效上下文 0/24、完成 0/24，状态为
-`READY_FOR_REAL_HUMAN_INPUT`，等待真实用户按四维评分。
+这些自动值不是人工结论。真实单人操作者在同一会话完成 corrected 队列 24/24，最终
+24 条决定均为 `pass`；历史图片指代、需求迭代、上下文承接、逻辑连贯均分分别为
+4.541667/4.625000/4.500000/4.708333，四维未加权均值 4.59375。25 条 append-only
+记录含 1 次真实修订，结果 SHA 为 `16f02b46...07cc0`，Agent 未代填分数。
 
 ## Week 6 / 零样本对比
 
@@ -112,7 +114,7 @@ multitask/Week 6 全局延迟比约 0.8694，失败率均为 0。三场景任务
 
 ## 测试结果
 
-当前完整 `python -m unittest discover -s tests -v` 为 422/422 PASS；远端 final-runtime
+当前完整 `python -m unittest discover -s tests -v` 为 423/423 PASS；远端 final-runtime
 定向测试 22/22 PASS。compileall、数据隔离和配置验证、八份 Week 7 Slurm 脚本
 `bash -n`、`git diff --check` 均通过。
 
@@ -120,13 +122,12 @@ multitask/Week 6 全局延迟比约 0.8694，失败率均为 0。三场景任务
 
 protocol-v5 提交 `64a5a7a`、final runtime 修复 `8619b76`、对话修复提交
 `bc299c3`/`3e5e767`/`7cf656a` 已推送至 `origin/codex/week7-multitask-context`；最终证据与
-文档由本次收尾提交继续推送。因真实
-人工项未完成，不快进 `dev`；未进入 `stg`，未打标签。
+文档由本次收尾提交继续推送。因 v3 test 对话构造缺陷不可逆，不快进 `dev`；未进入
+`stg`，未打标签。
 
 ## 未完成项和真实原因
 
-24 条 corrected development 对话已可评分，但真实人工四维仍为 0/24，状态
-`PENDING_REAL_HUMAN_INPUT`；Agent 没有代填。v3 final-test 对话缺陷仍不可逆，不会借
-development 修复重开 test 或改写历史结论。
+corrected development 人工四维已完成 24/24。仍存在的限制是 v3 final-test 对话构造
+缺陷不可逆；本次 development 人工完成不会重开 test 或改写历史 test 对话结论。
 DPO 因 0 条真实审核偏好对正确 `SKIPPED`。三个核心场景训练、checkpoint 选择、参数锁和
 一次性 test 已完成，不存在伪造 GPU、人工审核或指标。

@@ -562,7 +562,7 @@ branches inherit the same delivery state.
 
 ## Week 7 Delivery Status（2026-08-21）
 
-状态：`CORE_AUTOMATED_ACCEPTED / DIALOGUE_REVIEW_READY / PENDING_REAL_HUMAN_INPUT`。
+状态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPLETED / V3_TEST_DIALOGUE_INVALID`。
 三个核心场景自动门禁与一次性 final-test 已完成；v3 对话缺陷保留为历史事实，新的
 development-only 修复队列已可由真实用户评分。
 
@@ -575,7 +575,7 @@ development-only 修复队列已可由真实用户评分。
 - [x] 固定 Schema constrained decoding 的 format-only 对照实现，禁止语义提升结论。
 - [x] 对话 24 条人工队列保持空白，未由 Agent 代填。
 - [x] DPO 门禁为 `SKIPPED`：0 条偏好对通过真实质量与视觉证据审核。
-- [x] 完整 unittest 422/422、compileall、锁验证、八份 shell 语法和 diff 检查通过。
+- [x] 完整 unittest 423/423、compileall、锁验证、八份 shell 语法和 diff 检查通过。
 - [x] Week 6 adapters 与零样本的完整 114 条 development 基线已生成并哈希绑定。
 - [x] Schema 自由/受约束实际对照完成；constrained primary 90/90 请求失败，free
   fallback 90/90 成功，生产模式锁定 free，未宣称语义提升。
@@ -603,8 +603,12 @@ development-only 修复队列已可由真实用户评分。
   5–8 轮各 6 条、图片仅首次用户轮；未修改 v3 锁、旧 raw 或 test marker。
 - [x] checkpoint-151 修复队列 GPU run `29479822` 为 `COMPLETED 0:0`，24/24 成功、
   失败 0；两次 PENDING 取消和两次真实失败均已记录，未伪装为成功。
-- [x] 标注台已重启为 `READY_FOR_REAL_HUMAN_INPUT`，无效上下文 0/24、当前完成 0/24，
-  具有逐轮对齐与四维扣分辅助；后端仍要求真实身份和本人自审。
-- [ ] 对话人工四维评分：`PENDING_REAL_HUMAN_INPUT`；Agent 未代填任何分数。
-- [x] 代码提交 `64a5a7a`、final runtime 修复 `8619b76` 已推送；最终 GPU 证据与文档
-  收尾提交已推送。因真实人工项未完成，未快进 `dev`；未进入 `stg`，未打标签。
+- [x] 标注台在评分前为 `READY_FOR_REAL_HUMAN_INPUT`，无效上下文 0/24，具有逐轮对齐
+  与四维扣分辅助；后端要求真实身份和本人自审。
+- [x] corrected development 对话人工四维完成 24/24：同一真实操作者和会话、自审 24，
+  最终 24 `pass`；四维均分 4.541667/4.625000/4.500000/4.708333。Agent 未代填分数。
+- [x] 人工结果 SHA `16f02b46...07cc0`，25 条 append-only 记录含 1 次真实修订；原记录
+  保持在忽略目录，Git 仅提交聚合与哈希证据。
+- [x] 代码提交 `64a5a7a`、final runtime 修复 `8619b76` 与对话修复提交已推送；本次
+  人工聚合证据和状态修复由收尾提交推送。因 v3 test 对话构造缺陷不可逆，未快进
+  `dev`；未进入 `stg`，未打标签。

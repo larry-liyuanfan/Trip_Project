@@ -451,6 +451,17 @@ as the current validated dataset or accepted baseline.
 - 标注台状态为 `READY_FOR_REAL_HUMAN_INPUT`、完成 0/24、无效上下文 0/24，控件已启用；
   虚假自审探针返回 HTTP 400，人工结果文件仍不存在。当前完整 unittest 422/422。
 
+## 2026-08-22：Week 7 corrected dialogue 单人人工四维完成
+
+- 真实单人操作者在一个 review session 内完成 corrected development 固定队列 24/24；
+  25 条 append-only 记录对应 24 个唯一样本，其中 1 条 revision=2。全部记录绑定同一
+  dataset/queue/development/raw SHA，最终 24 条 reviewer 非空、自审确认和四维分数完整。
+- 最终决定 24 `pass`、0 `rework`、0 `reject`。历史图片指代/需求迭代/上下文承接/
+  逻辑连贯均分为 4.541667/4.625000/4.500000/4.708333，四维未加权均值 4.59375。
+- 人工结果 SHA 为 `16f02b46...07cc0`；原记录保持在忽略目录，聚合证据见
+  `experiments/week7_dialogue_human_review_20260822_v2.json`。该 development 人工结果
+  不改写已消费且存在构造缺陷的 v3 test 对话；DPO 仍因 0 条审核偏好对 `SKIPPED`。
+
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
 - 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订

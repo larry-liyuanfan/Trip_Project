@@ -487,6 +487,16 @@ manifest.
   `READY_FOR_REAL_HUMAN_INPUT`；机器证据见
   `experiments/week7_dialogue_repair_20260821_v2.json`，完整 unittest 422/422。
 
+## 2026-08-22：Week 7 corrected dialogue 单人人工评估完成
+
+- 真实单人操作者在同一 session 完成固定队列 24/24，25 条 append-only 记录包含 1 次
+  revision=2；最终 24 条均有非空 reviewer、本人自审与完整四维分数，决定均为 `pass`。
+- 四维均分为历史图片指代 4.541667、需求迭代 4.625000、上下文承接 4.500000、逻辑
+  连贯 4.708333，未加权均值 4.59375。结果 SHA 为 `16f02b46...07cc0`。
+- 原人工 JSONL 留在忽略目录；机器聚合见
+  `experiments/week7_dialogue_human_review_20260822_v2.json`。这是 corrected development
+  人工证据，不重开 v3 test；没有产生 chosen/rejected 偏好对，DPO 继续 `SKIPPED`。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定
