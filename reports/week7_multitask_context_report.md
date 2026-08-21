@@ -1,9 +1,10 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
-终态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPLETED / V3_TEST_DIALOGUE_INVALID`。
+终态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID`。
 三个核心场景通过唯一一次正式 test 的自动非回退门禁；后续审计发现 v3 多轮上下文构造
 错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论。独立 development-only
-修复身份和新 raw 已恢复可信人工评分入口，真实单人操作者随后完成 24/24 条四维评分。
+修复身份和新 raw 已恢复可信人工评分入口，真实单人操作者随后分别完成 multitask 与
+Week 6 routed 各 24/24 条四维评分。
 
 ## 数据锁和隔离结果
 
@@ -127,9 +128,12 @@ protocol-v5 提交 `64a5a7a`、final runtime 修复 `8619b76`、对话修复提�
 
 ## 未完成项和真实原因
 
-corrected development 的 multitask 人工四维已完成 24/24。Week 6 三个冻结 adapter 已在
-同一 corrected 24 条上按 8/8/8 路由生成，job `29491047` 完成且失败 0；对应配对人工
-四维当前 0/24，等待真实操作者输入，Agent 未复制或代填 multitask 分数。仍存在的限制是
+corrected development 的 multitask 与 Week 6 routed 人工四维均完成 24/24。Week 6
+三个冻结 adapter 在同一 corrected 24 条上按 8/8/8 路由生成，job `29491047` 完成且
+失败 0。multitask/Week 6 四维总均值为 4.59375/4.56250，配对差 +0.03125，样本级
+10 胜/7 平/7 负；图片指代、需求调整、上下文承接、逻辑连贯差值分别为
+-0.125/+0.291667/-0.041667/0。两轮由同一真实操作者在同一 session identity 独立录入，
+Agent 未复制或代填；该小差异只作描述性结果，不宣称统计显著。仍存在的限制是
 v3 final-test 对话构造
 缺陷不可逆；本次 development 人工完成不会重开 test 或改写历史 test 对话结论。
 DPO 因 0 条真实审核偏好对正确 `SKIPPED`。三个核心场景训练、checkpoint 选择、参数锁和

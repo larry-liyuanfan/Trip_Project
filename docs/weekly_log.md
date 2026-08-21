@@ -471,6 +471,12 @@ as the current validated dataset or accepted baseline.
   raw SHA `c3effb6d...318e59`。自动值不代替人工四维结论。
 - 标注台已切换到 Week 6 routed 输出，状态 `READY_FOR_REAL_HUMAN_INPUT`、0/24、无效
   上下文 0/24。该真实评分用于与已完成的 multitask 24 条配对比较，Agent 未代填。
+- 同一真实操作者完成 Week 6 routed 24/24；25 条 append-only 记录含 1 次 revision=2，
+  最终均为 `pass`、自审 24。四维均分 4.666667/4.333333/4.541667/4.708333，总均值
+  4.56250，结果 SHA `af3721d2...d49f93`。
+- 与 multitask 配对后，总均值差 +0.03125，样本级 10 胜/7 平/7 负；图片指代、需求
+  调整、上下文承接、逻辑连贯差值为 -0.125/+0.291667/-0.041667/0。该同 session
+  单人结果仅作描述性人工对比，不宣称统计显著。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 

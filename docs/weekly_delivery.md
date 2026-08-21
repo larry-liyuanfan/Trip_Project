@@ -562,9 +562,9 @@ branches inherit the same delivery state.
 
 ## Week 7 Delivery Status（2026-08-21）
 
-状态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPLETED / V3_TEST_DIALOGUE_INVALID`。
+状态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID`。
 三个核心场景自动门禁与一次性 final-test 已完成；v3 对话缺陷保留为历史事实，新的
-development-only 修复队列已可由真实用户评分。
+development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
 
 - [x] 从指定 Week 6 终态提交创建隔离分支，旧工作树保持不变。
 - [x] v3 train/development/test 锁通过 sample/source/image/group/template 五维隔离；
@@ -611,8 +611,9 @@ development-only 修复队列已可由真实用户评分。
   保持在忽略目录，Git 仅提交聚合与哈希证据。
 - [x] Week 6 三 adapter 在同一 corrected development 上按 8/8/8 路由；job `29491047`
   完成 24/24、失败 0，raw SHA `c3effb6d...318e59`，未读取 test。
-- [ ] Week 6 routed 对话的配对人工四维评分：当前 0/24，等待同一真实操作者输入；
-  未把 multitask 评分复制为 baseline 评分。
+- [x] Week 6 routed 对话的配对人工四维评分完成 24/24：总均值 4.56250，结果 SHA
+  `af3721d2...d49f93`；multitask 总均值 4.59375，配对差 +0.03125、10 胜/7 平/7 负。
+  评分由同一真实操作者重新输入，未复制 multitask 分数；小差异不作显著提升结论。
 - [x] 代码提交 `64a5a7a`、final runtime 修复 `8619b76` 与对话修复提交已推送；本次
   人工聚合证据和状态修复由收尾提交推送。因 v3 test 对话构造缺陷不可逆，未快进
   `dev`；未进入 `stg`，未打标签。

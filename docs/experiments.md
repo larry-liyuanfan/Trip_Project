@@ -504,8 +504,13 @@ manifest.
 - Spartan job `29491047` 为 `COMPLETED 0:0`，L40S 单卡耗时 00:09:10。24/24 唯一
   sample、失败 0，格式合规率 1.0、context recall 0.555556、平均/中位延迟
   15449.04/13493.49 ms；raw SHA `c3effb6d...318e59`。
-- 机器证据见 `experiments/week7_dialogue_comparison_20260822_v1.json`。人工对比当前
-  0/24，Agent 不代填；DPO 仍因无真实审核 chosen/rejected 对保持 `SKIPPED`。
+- 真实单人操作者完成 Week 6 routed 24/24，25 条 append-only 记录含 1 次修订；最终
+  均为 `pass`，四维总均值 4.56250，结果 SHA `af3721d2...d49f93`。与 multitask 的
+  描述性配对差为 +0.03125，样本级 10 胜/7 平/7 负；四维差分别为
+  -0.125/+0.291667/-0.041667/0，不宣称统计显著。
+- 机器证据见 `experiments/week7_dialogue_comparison_20260822_v1.json`。两轮评分由同一
+  真实操作者在同一 session identity 完成，Agent 未代填。它们不是明确审核的
+  chosen/rejected 偏好对，DPO 继续 `SKIPPED`。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 

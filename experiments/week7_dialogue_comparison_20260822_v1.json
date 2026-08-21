@@ -1,6 +1,6 @@
 {
   "schema_version": "week7_dialogue_comparison_evidence_v1",
-  "status": "PENDING_REAL_HUMAN_COMPARISON",
+  "status": "HUMAN_COMPARISON_COMPLETED",
   "scope": {
     "split": "development",
     "test_read": false,
@@ -56,14 +56,75 @@
     "run_summary_sha256": "5e785b5d0d0d96ad326c773b35bf73ca700530ab61bceb6ec3408e9837b7fbc8"
   },
   "human_comparison": {
-    "station_status": "READY_FOR_REAL_HUMAN_INPUT",
-    "completed_count": 0,
+    "station_status": "HUMAN_REVIEW_COMPLETED",
+    "completed_count": 24,
     "blocked_invalid_context_count": 0,
-    "result_file_exists": false,
+    "result_file_exists": true,
     "agent_filled_scores": 0,
+    "single_operator": true,
+    "same_review_session_as_multitask": true,
+    "self_review_confirmed_count": 24,
+    "decision_counts": {"pass": 24, "rework": 0, "reject": 0},
+    "result": {
+      "ignored_path": "outputs/week7/human_review/dialogue_comparison_v1/week7_dialogue_human_scores_v1.jsonl",
+      "sha256": "af3721d2ae43207632735b21af403c8a575be515b08092bd1df722f348d49f93",
+      "append_only_record_count": 25,
+      "latest_unique_sample_count": 24,
+      "revision_distribution": {"1": 24, "2": 1},
+      "first_reviewed_at_utc": "2026-08-21T16:21:08.133763+00:00",
+      "last_reviewed_at_utc": "2026-08-21T16:27:31.979196+00:00"
+    },
+    "dimension_means": {
+      "historical_image_reference": 4.666666666666667,
+      "requirement_update": 4.333333333333333,
+      "context_carryover": 4.541666666666667,
+      "logical_consistency": 4.708333333333333,
+      "unweighted_four_dimension_mean": 4.5625
+    },
     "paired_multitask_human_evidence": {
       "path": "experiments/week7_dialogue_human_review_20260822_v2.json",
       "latest_result_sha256": "bdec2d18aa7c4097dc85ffd15f3f2368a1c67b178fc51aff42bb498d82eaf932"
+    },
+    "paired_multitask_minus_week6": {
+      "historical_image_reference": {
+        "mean_delta": -0.125,
+        "sample_win_tie_loss": {"win": 5, "tie": 11, "loss": 8}
+      },
+      "requirement_update": {
+        "mean_delta": 0.2916666666666667,
+        "sample_win_tie_loss": {"win": 11, "tie": 9, "loss": 4}
+      },
+      "context_carryover": {
+        "mean_delta": -0.041666666666666664,
+        "sample_win_tie_loss": {"win": 7, "tie": 10, "loss": 7}
+      },
+      "logical_consistency": {
+        "mean_delta": 0.0,
+        "sample_win_tie_loss": {"win": 5, "tie": 14, "loss": 5}
+      },
+      "unweighted_four_dimension_mean_delta": 0.03125,
+      "sample_overall_win_tie_loss": {"win": 10, "tie": 7, "loss": 7},
+      "parent_scenario": {
+        "image_product_search": {
+          "multitask_mean": 4.53125,
+          "week6_mean": 4.46875,
+          "delta": 0.0625,
+          "sample_win_tie_loss": {"win": 3, "tie": 3, "loss": 2}
+        },
+        "after_sales": {
+          "multitask_mean": 4.625,
+          "week6_mean": 4.65625,
+          "delta": -0.03125,
+          "sample_win_tie_loss": {"win": 3, "tie": 2, "loss": 3}
+        },
+        "itinerary_planning": {
+          "multitask_mean": 4.625,
+          "week6_mean": 4.5625,
+          "delta": 0.0625,
+          "sample_win_tie_loss": {"win": 4, "tie": 2, "loss": 2}
+        }
+      },
+      "interpretation": "DESCRIPTIVE_SMALL_DELTA_NOT_A_SIGNIFICANCE_CLAIM"
     }
   },
   "dpo_status": "SKIPPED_NO_AUDITED_PREFERENCE_PAIRS"

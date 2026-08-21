@@ -615,8 +615,10 @@ python scripts/run_week7.py dialogue-week6-baseline-v1 \
   --output-dir <new-development-output>
 ```
 
-Spartan job `29491047` 已完成 24/24、失败 0；对比标注台当前等待真实操作者评分，不能由
-Agent 代填。加入该 runner 后完整 `unittest` 为 424/424。
+Spartan job `29491047` 已完成 24/24、失败 0；真实单人操作者随后完成 Week 6 routed
+输出 24/24 四维评分。multitask/Week 6 四维总均值为 4.59375/4.56250，配对差
++0.03125，按样本为 10 胜/7 平/7 负；这是描述性小差异，不作显著提升结论。加入该
+runner 后完整 `unittest` 为 424/424。
 
 ## Aliyun Runtime
 
