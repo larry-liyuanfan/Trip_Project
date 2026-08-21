@@ -27,6 +27,7 @@ from src.training.week7_final_evaluation import (
 )
 from src.training.week7_dialogue_repair import (
     build_dialogue_review_v2,
+    run_dialogue_week6_baseline_v1,
     run_dialogue_review_v2,
 )
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
@@ -124,6 +125,16 @@ def build_parser() -> argparse.ArgumentParser:
     run_dialogue.add_argument("--dataset-dir", type=Path, required=True)
     run_dialogue.add_argument("--adapter-dir", type=Path, required=True)
     run_dialogue.add_argument("--output-dir", type=Path, required=True)
+    compare_dialogue = commands.add_parser("dialogue-week6-baseline-v1")
+    compare_dialogue.add_argument(
+        "--comparison-config", type=Path,
+        default=ROOT / "configs/week7/dialogue_comparison_v1.json",
+    )
+    compare_dialogue.add_argument("--dataset-dir", type=Path, required=True)
+    compare_dialogue.add_argument("--product-adapter", type=Path, required=True)
+    compare_dialogue.add_argument("--after-sales-adapter", type=Path, required=True)
+    compare_dialogue.add_argument("--itinerary-adapter", type=Path, required=True)
+    compare_dialogue.add_argument("--output-dir", type=Path, required=True)
     return result
 
 
@@ -225,10 +236,20 @@ def main() -> int:
             payload = build_dialogue_review_v2(
                 ROOT, args.review_config, args.output_dir,
             )
-        else:
+        elif args.command == "dialogue-review-v2":
             payload = run_dialogue_review_v2(
                 ROOT, args.config, args.review_config, args.dataset_dir,
                 args.adapter_dir, args.output_dir,
+            )
+        else:
+            payload = run_dialogue_week6_baseline_v1(
+                ROOT, args.config, args.comparison_config, args.dataset_dir,
+                {
+                    "image_product_search": args.product_adapter,
+                    "after_sales": args.after_sales_adapter,
+                    "itinerary_planning": args.itinerary_adapter,
+                },
+                args.output_dir,
             )
     except (OSError, ValueError, Week7TrainingError) as exc:
         raise SystemExit(f"Week 7 execution error: {exc}") from exc

@@ -6,7 +6,11 @@ import unittest
 from pathlib import Path
 
 from src.training.week7_data import DIALOGUE_DIMENSIONS, iter_jsonl, sha256_file
-from src.training.week7_dialogue_repair import build_dialogue_review_v2, run_dialogue_review_v2
+from src.training.week7_dialogue_repair import (
+    build_dialogue_review_v2,
+    run_dialogue_review_v2,
+    run_dialogue_week6_baseline_v1,
+)
 from src.training.week7_qlora import Week7TrainingError
 
 
@@ -191,6 +195,93 @@ class Week7DialogueRepairTests(unittest.TestCase):
             self.assertEqual(summary["sample_count"], 24)
             self.assertFalse(summary["test_read"])
             self.assertEqual(summary["adapter_sha256"], sha256_file(adapter))
+
+    def test_week6_baseline_routes_corrected_development_without_test(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            review_config, dataset = self._fixture(root)
+            source_path = root / "outputs/source-v3/development.jsonl"
+            source_rows = list(iter_jsonl(source_path))
+            scenarios = ("image_product_search", "after_sales", "itinerary_planning")
+            for index, row in enumerate(source_rows):
+                row["parent_scenario"] = scenarios[index % 3]
+            _write_jsonl(source_path, source_rows)
+            review = json.loads(review_config.read_text(encoding="utf-8"))
+            review["source"]["development_sha256"] = sha256_file(source_path)
+            review_config.write_text(json.dumps(review, ensure_ascii=False), encoding="utf-8")
+            lock = build_dialogue_review_v2(root, review_config)
+
+            adapters = {}
+            adapter_config = {}
+            for scenario in scenarios:
+                adapter_dir = root / "adapters" / scenario
+                adapter_dir.mkdir(parents=True)
+                adapter_model = adapter_dir / "adapter_model.safetensors"
+                adapter_model.write_bytes(f"locked-{scenario}".encode("utf-8"))
+                adapters[scenario] = adapter_dir
+                adapter_config[scenario] = {"sha256": sha256_file(adapter_model)}
+            comparison_config = root / "configs/week7/dialogue_comparison_v1.json"
+            comparison_config.write_text(json.dumps({
+                "schema_version": "week7_dialogue_comparison_config_v1",
+                "base_config": {
+                    "path": "configs/week7/base.json",
+                    "sha256": sha256_file(root / "configs/week7/base.json"),
+                },
+                "review_config": {
+                    "path": "configs/week7/dialogue_review_v2.json",
+                    "sha256": sha256_file(review_config),
+                },
+                "dataset": {
+                    "path": "outputs/review-v2/review-v2",
+                    "dataset_version": "review-v2",
+                    "dataset_lock_sha256": lock["lock_sha256"],
+                    "development_sha256": sha256_file(dataset / "development.jsonl"),
+                    "sample_count": 24,
+                },
+                "week6_adapters": adapter_config,
+                "routing": {
+                    "method": "parent_scenario_v1",
+                    "sample_counts": {scenario: 8 for scenario in scenarios},
+                },
+                "inference": {
+                    "run_id": "week6-corrected-dialogue-v1",
+                    "model_name": "week6-routed-dialogue-v1",
+                    "precision": "bf16",
+                    "max_new_tokens": 2048,
+                    "warmup_max_new_tokens": 32,
+                    "max_input_length": 8192,
+                    "cache_implementation": "static",
+                    "compile_config": {
+                        "backend": "inductor", "mode": "reduce-overhead",
+                        "fullgraph": False, "dynamic": True,
+                    },
+                },
+                "scope": {
+                    "split": "development", "test_allowed": False,
+                    "training_allowed": False, "may_change_final_test_claims": False,
+                },
+            }, ensure_ascii=False), encoding="utf-8")
+
+            def generate(_model, _processor, rows, run_id, model_name, _max_tokens):
+                return ([{
+                    "sample_id": row["sample_id"], "run_id": run_id,
+                    "model_name": model_name, "failed": False, "latency_ms": 1.0,
+                    "raw_output": json.dumps(row["target"], ensure_ascii=False),
+                } for row in rows], {"warmup": True})
+
+            summary = run_dialogue_week6_baseline_v1(
+                root, root / "configs/week7/base.json", comparison_config, dataset,
+                adapters, root / "outputs/week6-dialogue-comparison",
+                processor=object(), model_loader=lambda path: {"adapter": str(path)},
+                record_generator=generate,
+            )
+            self.assertEqual(summary["status"], "COMPLETED")
+            self.assertEqual(summary["sample_count"], 24)
+            self.assertFalse(summary["test_read"])
+            self.assertEqual(
+                summary["routing"]["sample_counts"], {scenario: 8 for scenario in scenarios},
+            )
+            self.assertEqual(summary["raw_outputs"]["count"], 24)
 
 
 if __name__ == "__main__":

@@ -33,6 +33,9 @@ from src.training.week7_runtime import LATENCY_PROTOCOL_V5_VERSION
 REVIEW_CONFIG_SCHEMA = "week7_dialogue_review_config_v2"
 REVIEW_LOCK_SCHEMA = "week7_dialogue_review_lock_v2"
 REVIEW_RUN_SCHEMA = "week7_dialogue_review_run_v2"
+COMPARISON_CONFIG_SCHEMA = "week7_dialogue_comparison_config_v1"
+COMPARISON_RUN_SCHEMA = "week7_dialogue_comparison_run_v1"
+CORE_SCENARIOS = ("image_product_search", "after_sales", "itinerary_planning")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -87,6 +90,26 @@ def _config(root: Path, config_path: Path) -> dict[str, Any]:
         raise Week7TrainingError("dialogue-review base config identity mismatch")
     if tuple(value["human_review"]["dimensions"]) != DIALOGUE_DIMENSIONS:
         raise Week7TrainingError("dialogue-review dimensions changed")
+    return value
+
+
+def _comparison_config(root: Path, config_path: Path) -> dict[str, Any]:
+    value = _read_json(config_path)
+    if value.get("schema_version") != COMPARISON_CONFIG_SCHEMA:
+        raise Week7TrainingError("unsupported dialogue-comparison config schema")
+    if value.get("scope") != {
+        "split": "development",
+        "test_allowed": False,
+        "training_allowed": False,
+        "may_change_final_test_claims": False,
+    }:
+        raise Week7TrainingError("dialogue-comparison scope must remain development-only")
+    for section in ("base_config", "review_config"):
+        source = root / value[section]["path"]
+        if not source.is_file() or sha256_file(source) != value[section]["sha256"]:
+            raise Week7TrainingError(f"dialogue-comparison {section} identity mismatch")
+    if set(value.get("week6_adapters", {})) != set(CORE_SCENARIOS):
+        raise Week7TrainingError("dialogue-comparison requires exactly three Week 6 adapters")
     return value
 
 
@@ -411,6 +434,163 @@ def run_dialogue_review_v2(
         "sample_count": len(rows),
         "raw_outputs": {"path": str(raw_path), "sha256": sha256_file(raw_path), "count": len(records)},
         "warmup": {"path": str(warmup_path), "sha256": sha256_file(warmup_path), "count": 1},
+        "metrics": {"path": str(metrics_path), "sha256": sha256_file(metrics_path)},
+        "runtime": inference,
+        "elapsed_seconds": time.time() - started,
+    }
+    _write_json_new(output_dir / "run_summary.json", summary)
+    return summary
+
+
+def run_dialogue_week6_baseline_v1(
+    root: Path,
+    base_config_path: Path,
+    comparison_config_path: Path,
+    dataset_dir: Path,
+    adapter_dirs: dict[str, Path],
+    output_dir: Path,
+    *,
+    processor: Any = None,
+    model_loader: Any = None,
+    record_generator: Any = None,
+) -> dict[str, Any]:
+    """Route corrected development dialogues through the three locked Week 6 adapters."""
+    root = Path(root).resolve()
+    base_config_path = Path(base_config_path).resolve()
+    comparison_config_path = Path(comparison_config_path).resolve()
+    dataset_dir = Path(dataset_dir).resolve()
+    output_dir = Path(output_dir).resolve()
+    if output_dir.exists():
+        raise Week7TrainingError("refusing to overwrite dialogue-comparison evidence")
+    _verify_output_parent_writable(output_dir)
+    config = _comparison_config(root, comparison_config_path)
+    if (
+        base_config_path != (root / config["base_config"]["path"]).resolve()
+        or sha256_file(base_config_path) != config["base_config"]["sha256"]
+    ):
+        raise Week7TrainingError("dialogue-comparison base config mismatch")
+
+    lock = _read_json(dataset_dir / "dataset_lock.json")
+    development_path = dataset_dir / "development.jsonl"
+    dataset = config["dataset"]
+    if (
+        dataset_dir != (root / dataset["path"]).resolve()
+        or lock.get("schema_version") != REVIEW_LOCK_SCHEMA
+        or lock.get("dataset_version") != dataset["dataset_version"]
+        or lock.get("lock_sha256") != dataset["dataset_lock_sha256"]
+        or sha256_file(development_path) != dataset["development_sha256"]
+        or lock.get("scope") != config["scope"]
+    ):
+        raise Week7TrainingError("dialogue-comparison dataset identity mismatch")
+    rows = list(iter_jsonl(development_path))
+    if len(rows) != int(dataset["sample_count"]):
+        raise Week7TrainingError("dialogue-comparison development count changed")
+    routed = {scenario: [] for scenario in CORE_SCENARIOS}
+    for row in rows:
+        _validate_corrected_row(row)
+        scenario = str(row.get("parent_scenario"))
+        if scenario not in routed:
+            raise Week7TrainingError("dialogue-comparison row has an unknown parent scenario")
+        routed[scenario].append(row)
+    expected_counts = {key: int(value) for key, value in config["routing"]["sample_counts"].items()}
+    actual_counts = {scenario: len(routed[scenario]) for scenario in CORE_SCENARIOS}
+    if actual_counts != expected_counts:
+        raise Week7TrainingError("dialogue-comparison route counts changed")
+
+    if set(adapter_dirs) != set(CORE_SCENARIOS):
+        raise Week7TrainingError("dialogue-comparison requires exactly three adapter paths")
+    resolved_adapters: dict[str, Path] = {}
+    for scenario in CORE_SCENARIOS:
+        adapter_dir = Path(adapter_dirs[scenario]).resolve()
+        adapter_model = adapter_dir / "adapter_model.safetensors"
+        if (
+            not adapter_model.is_file()
+            or sha256_file(adapter_model) != config["week6_adapters"][scenario]["sha256"]
+        ):
+            raise Week7TrainingError(f"dialogue-comparison adapter identity mismatch: {scenario}")
+        resolved_adapters[scenario] = adapter_dir
+
+    report = environment_report(require_cuda=True) if model_loader is None else {"status": "injected-test-runtime"}
+    if report["status"] not in {"ok", "injected-test-runtime"}:
+        raise Week7TrainingError(f"dialogue-comparison environment is not ready: {report['status']}")
+    if report["status"] == "ok" and not os.environ.get("SLURM_JOB_ID"):
+        raise Week7TrainingError("dialogue-comparison inference must run inside Slurm")
+    base_config = load_week7_config(base_config_path)
+    inference = config["inference"]
+    if model_loader is None:
+        processor, model_loader = _default_model_loader(
+            base_config, {"inference_precision": inference["precision"]},
+        )
+    if processor is None or model_loader is None:
+        raise Week7TrainingError("dialogue-comparison model loader requires processor")
+    runtime_options = {
+        "latency_protocol": LATENCY_PROTOCOL_V5_VERSION,
+        "cache_implementation": inference["cache_implementation"],
+        "compile_config": inference["compile_config"],
+        "warmup_max_new_tokens": int(inference["warmup_max_new_tokens"]),
+    }
+    record_generator = record_generator or (
+        lambda model, proc, data, run_id, model_name, max_tokens: _default_record_generator(
+            model, proc, data, run_id, model_name, max_tokens,
+            runtime_options=runtime_options,
+        )
+    )
+
+    started = time.time()
+    records: list[dict[str, Any]] = []
+    warmups: list[dict[str, Any]] = []
+    for scenario in CORE_SCENARIOS:
+        model = model_loader(resolved_adapters[scenario])
+        try:
+            scenario_records, warmup = record_generator(
+                model, processor, routed[scenario], inference["run_id"],
+                inference["model_name"], int(inference["max_new_tokens"]),
+            )
+            records.extend(scenario_records)
+            warmups.append({"scenario": scenario, "record": warmup})
+        finally:
+            del model
+            gc.collect()
+            _release_model()
+    if len(records) != len(rows) or {str(record.get("sample_id")) for record in records} != {
+        str(row["sample_id"]) for row in rows
+    }:
+        raise Week7TrainingError("dialogue-comparison output coverage mismatch")
+
+    output_dir.mkdir(parents=True, exist_ok=False)
+    raw_path = output_dir / "raw_outputs.jsonl"
+    warmup_path = output_dir / "warmup.jsonl"
+    write_jsonl_new(raw_path, records)
+    write_jsonl_new(warmup_path, warmups)
+    metrics = summarize_dialogue_raw_records(rows, records)
+    metrics.update({
+        "status": "COMPLETED",
+        "run_id": inference["run_id"],
+        "model_name": inference["model_name"],
+        "split": "development",
+        "test_read": False,
+        "routing": {"method": config["routing"]["method"], "sample_counts": actual_counts},
+    })
+    metrics_path = output_dir / "metrics.json"
+    _write_json_new(metrics_path, metrics)
+    summary = {
+        "schema_version": COMPARISON_RUN_SCHEMA,
+        "status": "COMPLETED",
+        "run_id": inference["run_id"],
+        "model_name": inference["model_name"],
+        "split": "development",
+        "test_read": False,
+        "comparison_config_sha256": sha256_file(comparison_config_path),
+        "dataset_lock_sha256": lock["lock_sha256"],
+        "development_sha256": sha256_file(development_path),
+        "adapter_sha256": {
+            scenario: sha256_file(resolved_adapters[scenario] / "adapter_model.safetensors")
+            for scenario in CORE_SCENARIOS
+        },
+        "routing": {"method": config["routing"]["method"], "sample_counts": actual_counts},
+        "sample_count": len(rows),
+        "raw_outputs": {"path": str(raw_path), "sha256": sha256_file(raw_path), "count": len(records)},
+        "warmup": {"path": str(warmup_path), "sha256": sha256_file(warmup_path), "count": len(warmups)},
         "metrics": {"path": str(metrics_path), "sha256": sha256_file(metrics_path)},
         "runtime": inference,
         "elapsed_seconds": time.time() - started,

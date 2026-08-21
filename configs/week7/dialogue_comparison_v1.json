@@ -1,0 +1,58 @@
+{
+  "schema_version": "week7_dialogue_comparison_config_v1",
+  "base_config": {
+    "path": "configs/week7/qwen3_vl_8b_multitask_context_v3.json",
+    "sha256": "d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa"
+  },
+  "review_config": {
+    "path": "configs/week7/dialogue_review_v2.json",
+    "sha256": "4e5269cb95df3befc69f8425a3147488842976c294e35b448935625e483afaaf"
+  },
+  "dataset": {
+    "path": "outputs/week7/dialogue_review_v2/week7_dialogue_review_20260821_v2",
+    "dataset_version": "week7_dialogue_review_20260821_v2",
+    "dataset_lock_sha256": "0a3b65e9abcefa559fcb9ee55efbc353f2e66a1a54f399ad48e85eeea2557d39",
+    "development_sha256": "292f66cb684ada1e830640bcb16d4afb48651dac09503273e5ef3b8e01eee1d6",
+    "sample_count": 24
+  },
+  "week6_adapters": {
+    "image_product_search": {
+      "sha256": "8b57961542a5fd82767b6e71a470b08cecd7ed4c2a8c14beda0480b5acaa5df0"
+    },
+    "after_sales": {
+      "sha256": "36bcc21bedbb9aad4f58cb0cd1870d97a5d5e83aca2f0580d4e3750b298a2160"
+    },
+    "itinerary_planning": {
+      "sha256": "7ab168a0f7073f2fad3369c028f744585362a0668f77c024098d9b27d92c9a6a"
+    }
+  },
+  "routing": {
+    "method": "parent_scenario_v1",
+    "sample_counts": {
+      "image_product_search": 8,
+      "after_sales": 8,
+      "itinerary_planning": 8
+    }
+  },
+  "inference": {
+    "run_id": "week7_dev_dialogue_week6_routed_review_20260822_v1",
+    "model_name": "week6_single_task_adapters_dialogue_review_v1",
+    "precision": "bf16",
+    "max_new_tokens": 2048,
+    "warmup_max_new_tokens": 32,
+    "max_input_length": 8192,
+    "cache_implementation": "static",
+    "compile_config": {
+      "backend": "inductor",
+      "mode": "reduce-overhead",
+      "fullgraph": false,
+      "dynamic": true
+    }
+  },
+  "scope": {
+    "split": "development",
+    "test_allowed": false,
+    "training_allowed": false,
+    "may_change_final_test_claims": false
+  }
+}
