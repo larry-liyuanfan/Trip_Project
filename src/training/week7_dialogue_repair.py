@@ -264,7 +264,7 @@ def build_dialogue_review_v2(
     lock = {
         "schema_version": REVIEW_LOCK_SCHEMA,
         "dataset_version": config["dataset_version"],
-        "config_path": str(config_path),
+        "config_path": config_path.relative_to(root).as_posix(),
         "config_sha256": sha256_file(config_path),
         "construction_version": config["construction_version"],
         "source": {

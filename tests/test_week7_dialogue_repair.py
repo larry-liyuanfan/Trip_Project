@@ -113,6 +113,7 @@ class Week7DialogueRepairTests(unittest.TestCase):
             lock = build_dialogue_review_v2(root, config)
             rows = list(iter_jsonl(output / "development.jsonl"))
             self.assertEqual(lock["scope"]["test_allowed"], False)
+            self.assertEqual(lock["config_path"], "configs/week7/dialogue_review_v2.json")
             self.assertEqual(len(rows), 24)
             self.assertEqual({row["dialogue_rounds"] for row in rows}, {5, 6, 7, 8})
             for row in rows:
