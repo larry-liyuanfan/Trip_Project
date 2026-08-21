@@ -242,6 +242,7 @@ def build_dialogue_review_v2(
             "constraint_template_id": f"week7-dialogue-review-v2:{source['parent_scenario']}:{index:04d}",
             "dialogue_rounds": rounds,
             "messages": _corrected_messages(source, rounds),
+            "context_expectations": deepcopy(source["target"]["context_state"]),
             "construction_version": config["construction_version"],
             "split": "development",
             "label_source": "programmatic_silver",

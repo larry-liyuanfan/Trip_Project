@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from src.training.week7_data import DIALOGUE_DIMENSIONS, iter_jsonl, sha256_file
-from src.training.week7_dialogue_repair import build_dialogue_review_v2
+from src.training.week7_dialogue_repair import build_dialogue_review_v2, run_dialogue_review_v2
 from src.training.week7_qlora import Week7TrainingError
 
 
@@ -22,7 +22,11 @@ class Week7DialogueRepairTests(unittest.TestCase):
     def _fixture(self, root: Path) -> tuple[Path, Path]:
         base_config = root / "configs/week7/base.json"
         base_config.parent.mkdir(parents=True, exist_ok=True)
-        base_config.write_text("{}\n", encoding="utf-8")
+        checked_in_config = (
+            Path(__file__).resolve().parents[1]
+            / "configs/week7/qwen3_vl_8b_multitask_context_v3.json"
+        )
+        base_config.write_bytes(checked_in_config.read_bytes())
         source_dir = root / "outputs/source-v3"
         development = []
         queue = []
@@ -140,6 +144,53 @@ class Week7DialogueRepairTests(unittest.TestCase):
             build_dialogue_review_v2(root, config)
             with self.assertRaisesRegex(Week7TrainingError, "refusing to overwrite"):
                 build_dialogue_review_v2(root, config)
+
+    def test_inference_binds_corrected_development_without_test(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, dataset = self._fixture(root)
+            adapter_dir = root / "checkpoint-151"
+            adapter_dir.mkdir()
+            adapter = adapter_dir / "adapter_model.safetensors"
+            adapter.write_bytes(b"locked-adapter")
+            review = json.loads(config.read_text(encoding="utf-8"))
+            review["selected_checkpoint"]["adapter_sha256"] = sha256_file(adapter)
+            review["inference"] = {
+                "run_id": "corrected-development-run-v2",
+                "model_name": "checkpoint-151-dialogue-v2",
+                "precision": "bf16",
+                "max_new_tokens": 2048,
+                "warmup_max_new_tokens": 32,
+                "max_input_length": 8192,
+                "cache_implementation": "static",
+                "compile_config": {
+                    "backend": "inductor", "mode": "reduce-overhead",
+                    "fullgraph": False, "dynamic": True,
+                },
+            }
+            config.write_text(json.dumps(review, ensure_ascii=False), encoding="utf-8")
+            build_dialogue_review_v2(root, config)
+
+            def generate(_model, _processor, rows, run_id, model_name, _max_tokens):
+                return ([{
+                    "sample_id": row["sample_id"],
+                    "run_id": run_id,
+                    "model_name": model_name,
+                    "failed": False,
+                    "latency_ms": 1.0,
+                    "raw_output": json.dumps(row["target"], ensure_ascii=False),
+                } for row in rows], {"warmup": True})
+
+            summary = run_dialogue_review_v2(
+                root, root / "configs/week7/base.json", config, dataset,
+                adapter_dir, root / "outputs/run-v2",
+                processor=object(), model_loader=lambda _path: object(),
+                record_generator=generate,
+            )
+            self.assertEqual(summary["status"], "COMPLETED")
+            self.assertEqual(summary["sample_count"], 24)
+            self.assertFalse(summary["test_read"])
+            self.assertEqual(summary["adapter_sha256"], sha256_file(adapter))
 
 
 if __name__ == "__main__":
