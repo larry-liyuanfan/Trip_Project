@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Week 7 对话人工评分</title>
+  <style>
+    :root{--ink:#17212b;--muted:#66727f;--line:#d9e0e6;--brand:#176b87;--soft:#eef6f8;--ok:#126b35;--bad:#b42318}
+    *{box-sizing:border-box}body{margin:0;background:#f2f5f7;color:var(--ink);font-family:Inter,"Microsoft YaHei",sans-serif}
+    header{background:#143642;color:#fff;padding:18px 28px}header h1{font-size:22px;margin:0 0 5px}header p{margin:0;opacity:.88}
+    main{max-width:1280px;margin:18px auto;padding:0 18px 40px}.bar,.panel{background:#fff;border:1px solid var(--line);border-radius:10px}
+    .bar{display:flex;gap:18px;align-items:center;justify-content:space-between;padding:12px 16px;margin-bottom:14px}.bar strong{font-size:17px}
+    .grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(360px,.75fr);gap:14px}.panel{padding:16px}.panel h2{font-size:18px;margin:0 0 12px}
+    .meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.tag{background:var(--soft);padding:4px 8px;border-radius:999px;font-size:13px}
+    .images{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:12px}.images img{width:100%;height:190px;object-fit:contain;background:#101820;border-radius:7px}
+    .chat{max-height:470px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;background:#fafbfc}.turn{margin:8px 0;padding:9px 11px;border-radius:8px;white-space:pre-wrap;word-break:break-word}.turn b{display:block;font-size:12px;text-transform:uppercase;margin-bottom:4px;color:var(--muted)}
+    .system{background:#f0f1f2}.user{background:#e8f3ff;margin-left:7%}.assistant{background:#eef8ee;margin-right:7%}.tool{background:#fff4de;font-family:ui-monospace,monospace}
+    pre{white-space:pre-wrap;word-break:break-word;background:#111827;color:#e5eef8;padding:13px;border-radius:8px;max-height:360px;overflow:auto;margin:0}
+    details{margin-top:12px}details pre{background:#f7f8fa;color:var(--ink);border:1px solid var(--line)}
+    .rubric{display:grid;gap:10px}.score{border:1px solid var(--line);border-radius:8px;padding:10px}.score label{font-weight:700}.score p{font-size:13px;color:var(--muted);margin:5px 0 8px;line-height:1.45}
+    select,input,textarea,button{font:inherit}select,input,textarea{border:1px solid #aeb8c2;border-radius:6px;padding:8px;background:#fff}select{min-width:160px}textarea{width:100%;resize:vertical}
+    .field{display:grid;gap:5px;margin-top:12px}.confirm{display:flex;gap:9px;align-items:flex-start;margin:14px 0;background:#fff8e8;padding:10px;border-radius:8px}.confirm input{margin-top:3px}
+    button{border:0;border-radius:7px;padding:10px 15px;cursor:pointer}.primary{background:var(--brand);color:#fff}.secondary{background:#e6ebef;color:var(--ink)}button:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;justify-content:space-between;gap:8px;margin-top:14px}.message{min-height:22px;font-size:14px}.ok{color:var(--ok)}.error{color:var(--bad)}
+    .saved{border-left:4px solid var(--ok);padding-left:9px}.pending{border-left:4px solid #d39100;padding-left:9px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}.chat{max-height:380px}.bar{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Week 7 · 多轮上下文真实人工评分</h1>
+  <p>固定 24 条 development 队列 · checkpoint-151 · 系统不会代填人工分数</p>
+</header>
+<main>
+  <div class="bar">
+    <div><strong id="counter">正在载入…</strong><div id="progress"></div></div>
+    <div id="evidence" class="tag">校验证据中</div>
+  </div>
+  <div class="grid">
+    <section class="panel">
+      <h2>对话输入与模型原始回复</h2>
+      <div id="meta" class="meta"></div>
+      <div id="images" class="images"></div>
+      <h3>模型看到的多轮上下文</h3>
+      <div id="chat" class="chat"></div>
+      <h3>checkpoint-151 原始回复</h3>
+      <pre id="model-output"></pre>
+      <details>
+        <summary>查看 silver 上下文参考（仅辅助核对，不是人工答案）</summary>
+        <pre id="silver-reference"></pre>
+      </details>
+    </section>
+    <section class="panel">
+      <h2 id="form-title" class="pending">四维评分</h2>
+      <p>统一量表：1=严重错误，2=主要缺陷，3=基本正确但有遗漏，4=正确且连贯，5=完全正确且证据充分。</p>
+      <div id="rubric" class="rubric"></div>
+      <div class="field"><label for="decision">最终决定</label><select id="decision"><option value="">请选择</option><option value="pass">pass · 可接受</option><option value="rework">rework · 需要修订</option><option value="reject">reject · 不可接受</option></select></div>
+      <div class="field"><label for="reviewer">真实评分人</label><input id="reviewer" autocomplete="name" placeholder="请输入你的姓名或固定标识"></div>
+      <div class="field"><label for="notes">评分依据 / 问题备注</label><textarea id="notes" rows="4" placeholder="请记录扣分原因；满分可简要说明。"></textarea></div>
+      <label class="confirm"><input id="self-review" type="checkbox"><span>我本人已查看图片、完整上下文和原始回复，并逐项复核以上四个分数；这些是我的真实判断。</span></label>
+      <div id="message" class="message"></div>
+      <div class="actions"><button id="prev" class="secondary">上一条</button><button id="save" class="primary">保存并进入下一条</button><button id="next" class="secondary">下一条</button></div>
+    </section>
+  </div>
+</main>
+<script>
+const dimensions={
+  historical_image_reference:{name:'历史图片指代',help:'是否正确承接首轮图片及其中可见证据，没有把后续文字误当成新图片。'},
+  requirement_update:{name:'需求迭代调整',help:'是否采用用户最新需求，并正确替代已被修改的旧偏好或约束。'},
+  context_carryover:{name:'上下文信息承接',help:'是否保留仍然有效的已确认信息、硬约束和业务证据，没有遗忘关键内容。'},
+  logical_consistency:{name:'逻辑连贯与 OTA 专业性',help:'回复是否前后一致、推理合理、无违规承诺，并保持专业清晰的 OTA 表达。'}
+};
+const rubric=document.getElementById('rubric');
+rubric.innerHTML=Object.entries(dimensions).map(([key,item])=>`<div class="score"><label for="score-${key}">${item.name}</label><p>${item.help}</p><select id="score-${key}" data-score="${key}"><option value="">请选择 1–5</option>${[1,2,3,4,5].map(n=>`<option value="${n}">${n} 分</option>`).join('')}</select></div>`).join('');
+let offset=0,current=null,status=null;
+const sessionKey='week7-human-review-session-v1';
+let sessionId=localStorage.getItem(sessionKey);if(!sessionId){sessionId=crypto.randomUUID();localStorage.setItem(sessionKey,sessionId)}
+const message=(text,error=false)=>{const el=document.getElementById('message');el.textContent=text;el.className=`message ${error?'error':'ok'}`};
+const pretty=value=>{try{return JSON.stringify(typeof value==='string'?JSON.parse(value):value,null,2)}catch{return String(value)}};
+function contentText(content){if(typeof content==='string')return content;if(Array.isArray(content))return content.map(part=>part.type==='image'?'[首轮图片]':(part.text||JSON.stringify(part))).join('\n');return JSON.stringify(content)}
+function resetForm(saved){document.querySelectorAll('[data-score]').forEach(el=>el.value=saved?.scores?.[el.dataset.score]??'');document.getElementById('decision').value=saved?.decision??'';document.getElementById('notes').value=saved?.notes??'';document.getElementById('self-review').checked=false;const title=document.getElementById('form-title');title.textContent=saved?`已保存 revision ${saved.revision} · 可修订`:'四维评分 · 待完成';title.className=saved?'saved':'pending'}
+async function loadStatus(){const response=await fetch('/api/status'),data=await response.json();if(!response.ok)throw new Error(data.detail||'状态载入失败');status=data;document.getElementById('progress').textContent=`已完成 ${data.completed}/${data.total} · 剩余 ${data.remaining}`;document.getElementById('evidence').textContent=`证据已锁定 · raw ${data.evidence.raw_outputs_sha256.slice(0,12)}…`}
+async function loadTask(nextOffset=offset){message('');const response=await fetch(`/api/task?offset=${nextOffset}`),data=await response.json();if(!response.ok)throw new Error(data.detail||'任务载入失败');offset=nextOffset;current=data;document.getElementById('counter').textContent=`第 ${offset+1}/${data.total} 条 · ${data.sample_id}`;document.getElementById('meta').innerHTML=`<span class="tag">父场景 ${data.parent_scenario}</span><span class="tag">${data.dialogue_rounds} 轮</span><span class="tag">${data.contains_tool_call?'含工具调用':'无工具调用'}</span>`;const images=document.getElementById('images');images.replaceChildren();for(const url of data.image_urls){const image=document.createElement('img');image.src=url;image.alt='首轮对话图片';images.append(image)}const chat=document.getElementById('chat');chat.replaceChildren();for(const turn of data.input_messages){const box=document.createElement('div');box.className=`turn ${turn.role}`;const label=document.createElement('b');label.textContent=turn.role;const text=document.createElement('span');text.textContent=contentText(turn.content);box.append(label,text);chat.append(box)}document.getElementById('model-output').textContent=pretty(data.model_output);document.getElementById('silver-reference').textContent=pretty(data.silver_context_reference);resetForm(data.saved_review);document.getElementById('prev').disabled=offset===0;document.getElementById('next').disabled=offset===data.total-1}
+async function save(){try{if(!current)throw new Error('任务尚未载入');const reviewer=document.getElementById('reviewer').value.trim();if(!reviewer)throw new Error('请输入真实评分人');const scoreElements=[...document.querySelectorAll('[data-score]')];if(scoreElements.some(el=>!el.value))throw new Error('请完成四个维度的评分');const decision=document.getElementById('decision').value;if(!decision)throw new Error('请选择最终决定');if(!document.getElementById('self-review').checked)throw new Error('请确认你本人已完成逐项自审');const body={queue_id:current.queue_id,sample_id:current.sample_id,reviewer,review_session_id:sessionId,scores:Object.fromEntries(scoreElements.map(el=>[el.dataset.score,Number(el.value)])),decision,notes:document.getElementById('notes').value||null,self_review_confirmed:true};const response=await fetch('/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),data=await response.json();if(!response.ok)throw new Error(data.detail||'保存失败');message(`已保存 revision ${data.revision}`);await loadStatus();await loadTask(offset<current.total-1?offset+1:offset)}catch(error){message(error.message,true)}}
+document.getElementById('prev').onclick=()=>loadTask(offset-1).catch(error=>message(error.message,true));document.getElementById('next').onclick=()=>loadTask(offset+1).catch(error=>message(error.message,true));document.getElementById('save').onclick=save;
+Promise.all([loadStatus(),loadTask(0)]).catch(error=>message(error.message,true));
+</script>
+</body>
+</html>

@@ -544,6 +544,20 @@ python scripts/run_week7.py lock-parameters --help
 python scripts/run_week7.py final-test --help
 ```
 
+正式 test 完成后，24 条固定 development 对话人工四维评分使用本地只读证据界面：
+
+```bash
+python scripts/run_week7_dialogue_review.py
+```
+
+默认只监听 `127.0.0.1:8097`，并校验 v3 数据锁、固定队列、development 和
+checkpoint-151 protocol-v5 raw output SHA-256。评分覆盖历史图片指代、需求迭代、
+上下文承接和逻辑连贯/OTA 专业性四维，每维 1–5 分；保存前必须由真实操作者确认逐项
+自审。结果以 revision 追加到忽略目录
+`outputs/week7/human_review/week7_dialogue_human_scores_v1.jsonl`，不会修改数据锁、raw
+output 或既有评分。默认 raw 文件的固定 SHA-256 为
+`aee27cf1cab1d97d26f9ba81c1319d3fe5532e8328b6738c59416c78bfa37090`。
+
 训练配置固定为 Qwen3-VL-8B、NF4 4bit、LoRA `r=16/alpha=32/dropout=0.08`、
 学习率 `1.5e-4`、weight decay `0.03`、gradient clipping `1.0` 和 gradient
 checkpointing。完整 development 每约 10% 更新步生成评测一次，按三场景加权综合分
