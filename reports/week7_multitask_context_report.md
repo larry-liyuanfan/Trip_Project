@@ -1,7 +1,8 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
-终态：`AUTOMATED_ACCEPTED / PENDING_REAL_HUMAN_INPUT`。统一模型已通过唯一一次正式 test
-的全部自动非回退门禁；对话人工四维仍等待真实用户输入。
+终态：`CORE_AUTOMATED_ACCEPTED / DIALOGUE_CONTEXT_INVALID / HUMAN_REVIEW_BLOCKED`。
+三个核心场景通过唯一一次正式 test 的自动非回退门禁；后续审计发现 v3 多轮上下文构造
+错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论，人工四维评分被阻断。
 
 ## 数据锁和隔离结果
 
@@ -24,7 +25,9 @@ constraint_template_id 五维跨分区碰撞均为 0。Week 3 v2、Week 6 训练
 train 含商品、售后、行程各 760 条，共 2280 条；通用多模态正则 270 条（9%）；5–8 轮
 对话 450 条（15%），其中工具调用格式 45 条（对话内 10%）。对话图片仅在首个用户轮
 出现，并采用结构感知截断。全部 Week 7 标签仍为 programmatic silver；24 条固定人工
-评估队列保持 `PENDING_REAL_HUMAN_INPUT`，Agent 未代填。
+评估队列未产生人工分数。构造器在 450/24/24 条 train/development/test 对话中先追加
+assistant 回复、再追加其对应的 user 问题；v3 锁、训练和正式 test 产物保持不可变，
+不得在原身份上重排后继续计分。
 
 ## Schema 解码对照
 
@@ -78,9 +81,10 @@ metric 为 category 2、facility 0、label completeness 3、price 0、style 1；
 各业务指标支持数均为 30。低或为 0 的商品支持数是锁定 test gold 的可评估证据范围，
 没有强制补标签或把 unsupported 计为 0。
 
-统一模型对话支持数 24，格式合规率 1.0、上下文召回率 0.878472；Week 6 为
+历史自动输出中，统一模型对话支持数 24，格式合规率 1.0、字符串包含式上下文召回率 0.878472；Week 6 为
 0.5/0.496528，zero-shot 为 0.5/0.600694。图片指代、需求调整、上下文承接和逻辑连贯性
-的人工四维队列仍为 `PENDING_REAL_HUMAN_INPUT`。
+的人工队列 24/24 被完整性门禁标记为 `BLOCKED_INVALID_SOURCE_CONTEXT`。这些自动值未检测
+assistant/user 语义顺序或末轮回答相关性，因此不能证明真实多轮连贯性。
 
 ## Week 6 / 零样本对比
 
@@ -97,7 +101,7 @@ multitask/Week 6 全局延迟比约 0.8694，失败率均为 0。三场景任务
 
 ## 测试结果
 
-当前完整 `python -m unittest discover -s tests -v` 为 414/414 PASS；远端 final-runtime
+当前完整 `python -m unittest discover -s tests -v` 为 418/418 PASS；远端 final-runtime
 定向测试 22/22 PASS。compileall、数据隔离和配置验证、七份 Week 7 Slurm 脚本
 `bash -n`、`git diff --check` 均通过。
 
@@ -109,7 +113,8 @@ protocol-v5 提交 `64a5a7a` 与 final runtime 修复 `8619b76` 已推送至
 
 ## 未完成项和真实原因
 
-唯一未完成交付是 24 条对话人工四维评分，需要真实用户逐项判断，状态为
-`PENDING_REAL_HUMAN_INPUT`；Agent 不得代填。DPO 不是待办，而是因 0 条真实审核偏好对
-按门禁正确 `SKIPPED`。自动训练、checkpoint 选择、参数锁和一次性 test 均已完成，
-不存在伪造 GPU、人工审核或指标。
+24 条对话人工四维评分因源上下文错位保持 `HUMAN_REVIEW_BLOCKED`，不是等待用户继续给
+无效样本打分。要恢复可信对话验收，必须建立新的版本化对话数据身份，修正首轮回答及
+user→assistant 顺序，并对修正上下文重新生成模型输出；不得修改 v3 锁或复用旧 raw。
+DPO 因 0 条真实审核偏好对正确 `SKIPPED`。三个核心场景训练、checkpoint 选择、参数锁和
+一次性 test 已完成，不存在伪造 GPU、人工审核或指标。

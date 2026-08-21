@@ -460,6 +460,20 @@ manifest.
 - 完整机器证据见 `experiments/week7_final_evaluation_20260821_v5.json`。当前完整
   unittest 414/414，远端定向 22/22，compileall、shell 语法与 diff 检查通过。
 
+## 2026-08-21：Week 7 dialogue context integrity audit
+
+- 触发：真实用户在人工评分界面发现 assistant 回复与 user 问题不对应。只读代码与固定
+  development 队列复核确认构造顺序为 assistant→对应 user，而非 user→assistant；
+  development 24/24 命中，配置声明的 train/test 影响数为 450/24。
+- 影响：checkpoint-151 raw 是在错误历史上下文上生成的，不能通过 UI 重排后计分；历史
+  格式合规和字符串包含式 context recall 不检测语义轮次或末轮相关性，因此不再用于真实
+  多轮能力结论。三个核心场景的独立自动指标保持原始事实。
+- 门禁：标注台绑定 v3 数据锁 `8af2e2d1...20504d`、队列 SHA `3a94eed4...f156`、
+  development SHA `3c775c14...0e04` 和 raw SHA `aee27cf1...7090`，24/24 阻断；后端
+  同样拒绝保存，人工记录仍为 0。不得改写 v3 锁、旧 raw 或 test marker。
+- 机器审计见 `experiments/week7_dialogue_context_audit_20260821_v1.json`；完整 unittest
+  418/418、compileall 和 `git diff --check` 通过。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定

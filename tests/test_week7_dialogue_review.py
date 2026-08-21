@@ -140,6 +140,41 @@ class Week7DialogueReviewTests(unittest.TestCase):
                     expected_raw_sha256=raw_sha,
                 )
 
+    def test_misaligned_v3_context_is_explained_and_cannot_be_scored(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset, raw_path, raw_sha = self._fixture(root)
+            dataset_path = root / dataset
+            development_path = dataset_path / "development.jsonl"
+            rows = [json.loads(line) for line in development_path.read_text(encoding="utf-8").splitlines()]
+            rows[0]["messages"] = [
+                {"role": "system", "content": "system"},
+                {"role": "user", "content": "识别图片"},
+                {"role": "assistant", "content": "我会继续只引用首次用户轮的图片证据。"},
+                {"role": "user", "content": [{"type": "text", "text": "请明确引用刚才那张图片中的证据。"}]},
+                {"role": "assistant", "content": "locked silver target"},
+            ]
+            _write_jsonl(development_path, rows)
+            lock_path = dataset_path / "dataset_lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["files"]["development.jsonl"]["sha256"] = sha256_file(development_path)
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            store = Week7DialogueReviewStore(
+                root, dataset, raw_path, Path("outputs/week7/human_review/results"),
+                expected_raw_sha256=raw_sha,
+            )
+            task = store.task(0)
+            self.assertEqual(task["context_integrity"]["status"], "BLOCKED_INVALID_SOURCE_CONTEXT")
+            self.assertEqual(task["context_integrity"]["issues"][0]["code"], "assistant_precedes_its_prompt")
+            self.assertEqual(store.summary()["blocked_invalid_context"], 1)
+            submission = DialogueReviewSubmission(
+                queue_id=task["queue_id"], sample_id=task["sample_id"], reviewer="human",
+                review_session_id="session-1", scores={name: 3 for name in DIALOGUE_DIMENSIONS},
+                decision="reject", notes="misaligned", self_review_confirmed=True,
+            )
+            with self.assertRaisesRegex(Week7DialogueReviewError, "禁止保存"):
+                store.save(submission)
+
 
 if __name__ == "__main__":
     unittest.main()

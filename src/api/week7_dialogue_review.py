@@ -27,6 +27,17 @@ EXPECTED_DATASET_VERSION = "week7_fresh_multitask_context_20260820_v3"
 EXPECTED_MODEL_NAME = "multitask_step_000151"
 EXPECTED_RUN_ID = "week7_dev_bf16_static_compile_20260820_v5"
 EXPECTED_RAW_SHA256 = "aee27cf1cab1d97d26f9ba81c1319d3fe5532e8328b6738c59416c78bfa37090"
+BROKEN_ASSISTANT_PROMPT_PAIRS = (
+    ("我会继续只引用首次用户轮的图片证据。", "请明确引用刚才那张图片中的证据。"),
+    ("已更新当前需求，历史硬约束保持不变。", "把偏好调整为更重视预算，但保留硬约束。"),
+    ("已承接图片证据、预算调整和原有硬约束。", "总结目前累计的限制，不要遗漏。"),
+    ("上下文逻辑一致；不确定信息仍标记 unknown。", "检查前后回答是否存在逻辑冲突。"),
+    (
+        "确认：回答仅使用首次图片及对话内明确提供的信息。",
+        "再次确认没有引入图片外事实。",
+    ),
+    ("新增预算优先级，未删除原有硬约束。", "说明本轮相对最初需求的变化。"),
+)
 
 
 class Week7DialogueReviewError(ValueError):
@@ -63,6 +74,52 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise Week7DialogueReviewError(f"JSON evidence must be an object: {path}")
     return value
+
+
+def _message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            str(part.get("text", ""))
+            for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
+        )
+    return ""
+
+
+def _context_integrity(messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """Detect the locked v3 bug without pretending to repair model evidence in the UI."""
+    known_pairs = set(BROKEN_ASSISTANT_PROMPT_PAIRS)
+    issues = []
+    for index, message in enumerate(messages[:-1]):
+        following = messages[index + 1]
+        if message.get("role") != "assistant" or following.get("role") != "user":
+            continue
+        assistant_text = _message_text(message.get("content"))
+        user_text = _message_text(following.get("content"))
+        if (assistant_text, user_text) not in known_pairs:
+            continue
+        issues.append(
+            {
+                "code": "assistant_precedes_its_prompt",
+                "assistant_message_index": index,
+                "user_message_index": index + 1,
+                "assistant_text": assistant_text,
+                "should_follow_user": user_text,
+            }
+        )
+    if not issues:
+        return {"status": "PASS", "scoring_allowed": True, "issues": []}
+    return {
+        "status": "BLOCKED_INVALID_SOURCE_CONTEXT",
+        "scoring_allowed": False,
+        "issues": issues,
+        "guidance": (
+            "这些 assistant 回复在对应 user 问题之前出现。当前 raw output 是在该错误上下文上生成的，"
+            "不得通过页面重排后继续评分；应在新数据身份上修复上下文并重新生成输出。"
+        ),
+    }
 
 
 class Week7DialogueReviewStore:
@@ -139,6 +196,7 @@ class Week7DialogueReviewStore:
             input_messages = deepcopy(row.get("messages", []))
             if input_messages and input_messages[-1].get("role") == "assistant":
                 input_messages.pop()
+            context_integrity = _context_integrity(input_messages)
             image_urls: list[str] = []
             for message in input_messages:
                 content = message.get("content")
@@ -165,6 +223,7 @@ class Week7DialogueReviewStore:
                     "model_output": raw["raw_output"],
                     "image_urls": image_urls,
                     "silver_context_reference": row.get("context_expectations", {}),
+                    "context_integrity": context_integrity,
                 }
             )
 
@@ -192,6 +251,10 @@ class Week7DialogueReviewStore:
 
     def summary(self) -> dict[str, Any]:
         completed = len(self.latest_reviews)
+        blocked = sum(
+            not bool(task["context_integrity"]["scoring_allowed"])
+            for task in self.tasks
+        )
         dimension_means: dict[str, float | None] = {}
         for dimension in DIALOGUE_DIMENSIONS:
             values = [int(row["scores"][dimension]) for row in self.latest_reviews.values()]
@@ -202,6 +265,10 @@ class Week7DialogueReviewStore:
             "total": len(self.tasks),
             "completed": completed,
             "remaining": len(self.tasks) - completed,
+            "blocked_invalid_context": blocked,
+            "scoring_status": (
+                "BLOCKED_INVALID_SOURCE_CONTEXT" if blocked else "READY_FOR_REAL_HUMAN_INPUT"
+            ),
             "dimension_means": dimension_means,
             "evidence": {
                 "dataset_lock_sha256": self.dataset_lock_sha256,
@@ -238,6 +305,10 @@ class Week7DialogueReviewStore:
         task = self.task_by_sample.get(submission.sample_id)
         if task is None or task["queue_id"] != submission.queue_id:
             raise Week7DialogueReviewError("submission is not part of the fixed queue")
+        if not task["context_integrity"]["scoring_allowed"]:
+            raise Week7DialogueReviewError(
+                "源对话存在 assistant/user 语义错位，禁止保存四维人工分数"
+            )
 
         with self._lock:
             current = self.latest_reviews.get(submission.sample_id)

@@ -1,0 +1,45 @@
+{
+  "schema_version": "week7_dialogue_context_integrity_audit_v1",
+  "status": "BLOCKED_INVALID_SOURCE_CONTEXT",
+  "recorded_at": "2026-08-21",
+  "dataset_version": "week7_fresh_multitask_context_20260820_v3",
+  "dataset_lock_sha256": "8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d",
+  "queue_sha256": "3a94eed4e4a674c102e059552689745a9dbd8ecbd28bbeea538467d8dafff156",
+  "development_sha256": "3c775c1432912129f7eba8774978c0f1f4621d79e14e33e6c488d77b5c630e04",
+  "selected_checkpoint_raw_sha256": "aee27cf1cab1d97d26f9ba81c1319d3fe5532e8328b6738c59416c78bfa37090",
+  "selected_checkpoint": "checkpoint-151",
+  "finding": {
+    "code": "assistant_precedes_its_prompt",
+    "generator_file": "src/training/week7_data.py",
+    "generator_lines": [464, 465, 466],
+    "description": "Each synthetic follow-up assistant reply is appended before the user prompt it was written to answer.",
+    "declared_affected_counts": {
+      "train": 450,
+      "development": 24,
+      "test": 24
+    },
+    "audited_development_count": 24,
+    "blocked_development_count": 24
+  },
+  "human_review": {
+    "saved_record_count": 0,
+    "status": "HUMAN_REVIEW_BLOCKED",
+    "agent_supplied_scores": 0
+  },
+  "metric_impact": {
+    "dialogue_format_and_string_context_metrics": "HISTORICAL_OUTPUT_NOT_VALID_FOR_TRUE_MULTITURN_CLAIM",
+    "human_dimensions": "NOT_SCORABLE_WITH_EXISTING_RAW",
+    "core_scenario_metrics": "UNCHANGED"
+  },
+  "annotation_station": {
+    "frontend_scoring_disabled": true,
+    "backend_submission_rejected": true,
+    "issue_specific_assistance": true,
+    "ui_reordering_allowed": false
+  },
+  "immutability": {
+    "v3_dataset_lock_modified": false,
+    "checkpoint_or_raw_modified": false,
+    "test_marker_modified": false
+  }
+}

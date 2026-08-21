@@ -551,9 +551,10 @@ python scripts/run_week7_dialogue_review.py
 ```
 
 默认只监听 `127.0.0.1:8097`，并校验 v3 数据锁、固定队列、development 和
-checkpoint-151 protocol-v5 raw output SHA-256。评分覆盖历史图片指代、需求迭代、
-上下文承接和逻辑连贯/OTA 专业性四维，每维 1–5 分；保存前必须由真实操作者确认逐项
-自审。结果以 revision 追加到忽略目录
+checkpoint-151 protocol-v5 raw output SHA-256。标注台还会检查 assistant 回复是否在
+对应 user 问题之前出现；命中时前后端均禁止保存四维分数，并列出错位内容作为标注辅助，
+不能通过页面重排伪装修复。只有上下文完整性通过后，才允许真实操作者按历史图片指代、
+需求迭代、上下文承接和逻辑连贯/OTA 专业性四维评分，并确认逐项自审。结果以 revision 追加到忽略目录
 `outputs/week7/human_review/week7_dialogue_human_scores_v1.jsonl`，不会修改数据锁、raw
 output 或既有评分。默认 raw 文件的固定 SHA-256 为
 `aee27cf1cab1d97d26f9ba81c1319d3fe5532e8328b6738c59416c78bfa37090`。
@@ -578,10 +579,12 @@ compile、32-token warm-up、CUDA 同步计时、结构感知截断和 gold-eval
 
 参数锁随后完整绑定 v5 runtime；唯一 final-test 作业 `29459265` 为 `COMPLETED 0:0`，
 marker 和 7 个结果 artifact 的 SHA-256 验证通过，全部自动非回退门禁通过。test 上统一
-模型商品/售后/行程 composite 为 0.153846/1.000000/0.996667，对话格式合规率 1.0、
-上下文召回率 0.878472、平均延迟 7173.16 ms、失败率 0。人工对话四维仍为
-`PENDING_REAL_HUMAN_INPUT`，DPO 因 0 条真实审核偏好对保持 `SKIPPED`。当前完整
-`unittest` 为 414/414。
+模型商品/售后/行程 composite 为 0.153846/1.000000/0.996667，平均延迟 7173.16 ms、
+失败率 0，三个核心场景自动门禁通过。后续人工界面审计确认 v3 对话构造把 assistant
+回复放在对应 user 问题之前；历史格式 1.0/字符串包含式上下文召回 0.878472 保留为原始
+输出，但状态为 `BLOCKED_INVALID_SOURCE_CONTEXT`，不能作为真实多轮能力结论或进入人工
+评分。DPO 因 0 条真实审核偏好对保持 `SKIPPED`。当前完整
+`unittest` 为 418/418。
 
 ## Aliyun Runtime
 

@@ -421,6 +421,21 @@ as the current validated dataset or accepted baseline.
   `PENDING_REAL_HUMAN_INPUT`。真实审核偏好对仍为 0，DPO 保持 `SKIPPED`。旧工作树、
   Week 6 终态、Week 3 v2 与历史失败 evidence 均未修改。
 
+## 2026-08-21：Week 7 对话上下文与人工标注台审计
+
+- 用户在固定人工队列首条发现回复语义顺序异常。代码核验确认 `_dialogue_row` 对每个
+  follow-up 先追加 assistant、再追加其对应 user；初始任务也没有先获得实质 assistant
+  结果。该路径用于 v3 train/development/test 的 450/24/24 条对话。
+- development 固定队列只读检查为 24/24 命中 `assistant_precedes_its_prompt`；人工结果
+  文件不存在，真实评分仍为 0。v3 数据锁、checkpoint、raw 和一次性 test marker 均未
+  修改，也未在页面重排后复用旧 raw。
+- 本地标注台增加上下文完整性门禁：逐条展示提前出现的 assistant 及其本应跟随的 user，
+  前端禁用四维控件，后端拒绝绕过提交；当前状态固定为
+  `BLOCKED_INVALID_SOURCE_CONTEXT`。标注辅助只解释问题，不代填或建议具体分数。
+- 历史对话格式/字符串包含式上下文召回保留为原始输出，但不能证明真实多轮连贯性；
+  三个核心场景的独立 task/Schema/支持/延迟/失败率结果不因该顺序审计被重写。恢复对话
+  验收需要新数据身份和对应的新模型输出，不能修改 v3 锁。完整 unittest 418/418。
+
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
 - 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订
