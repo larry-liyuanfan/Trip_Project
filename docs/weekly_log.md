@@ -454,13 +454,23 @@ as the current validated dataset or accepted baseline.
 ## 2026-08-22：Week 7 corrected dialogue 单人人工四维完成
 
 - 真实单人操作者在一个 review session 内完成 corrected development 固定队列 24/24；
-  25 条 append-only 记录对应 24 个唯一样本，其中 1 条 revision=2。全部记录绑定同一
+  26 条 append-only 记录对应 24 个唯一样本，其中 2 条 revision=2。全部记录绑定同一
   dataset/queue/development/raw SHA，最终 24 条 reviewer 非空、自审确认和四维分数完整。
 - 最终决定 24 `pass`、0 `rework`、0 `reject`。历史图片指代/需求迭代/上下文承接/
   逻辑连贯均分为 4.541667/4.625000/4.500000/4.708333，四维未加权均值 4.59375。
-- 人工结果 SHA 为 `16f02b46...07cc0`；原记录保持在忽略目录，聚合证据见
+- 人工结果 SHA 为 `bdec2d18...af932`；原记录保持在忽略目录，聚合证据见
   `experiments/week7_dialogue_human_review_20260822_v2.json`。该 development 人工结果
   不改写已消费且存在构造缺陷的 v3 test 对话；DPO 仍因 0 条审核偏好对 `SKIPPED`。
+
+## 2026-08-22：Week 7 corrected dialogue 的 Week 6 人工对比入口
+
+- 新增 development-only `dialogue_comparison_v1`，绑定同一 corrected 24 条及 Week 6
+  三个冻结 adapter SHA；按父场景商品/售后/行程 8/8/8 路由，不读取 test。
+- Spartan job `29491047` 在 `gpu-l40s`/`spartan-gpgpu003` 完成，耗时 00:09:10、
+  exit 0:0；24/24 唯一样本、失败 0。格式合规率 1.0、自动 context recall 0.555556，
+  raw SHA `c3effb6d...318e59`。自动值不代替人工四维结论。
+- 标注台已切换到 Week 6 routed 输出，状态 `READY_FOR_REAL_HUMAN_INPUT`、0/24、无效
+  上下文 0/24。该真实评分用于与已完成的 multitask 24 条配对比较，Agent 未代填。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 

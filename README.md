@@ -599,8 +599,24 @@ python scripts/run_week7_dialogue_review.py --dataset-dir outputs/week7/dialogue
 真实单人操作者已在一个会话中完成 24/24 条并逐条确认本人自审，最终决定均为 `pass`；
 历史图片指代/需求迭代/上下文承接/逻辑连贯均分为
 4.5417/4.6250/4.5000/4.7083，四维未加权均值 4.59375。结果文件 SHA-256 为
-`16f02b46...07cc0`，原始人工记录继续位于忽略目录，Git 仅保存聚合与哈希证据。
-DPO 因 0 条真实审核偏好对保持 `SKIPPED`。当前完整 `unittest` 为 423/423。
+`bdec2d18...af932`，原始人工记录继续位于忽略目录，Git 仅保存聚合与哈希证据。
+DPO 因 0 条真实审核偏好对保持 `SKIPPED`。
+
+为补齐 corrected development 上与纯单任务模型的人工对比，锁定的三个 Week 6 adapter
+按父场景 8/8/8 路由生成另一组 24 条输出。运行命令为：
+
+```bash
+python scripts/run_week7.py dialogue-week6-baseline-v1 \
+  --comparison-config configs/week7/dialogue_comparison_v1.json \
+  --dataset-dir outputs/week7/dialogue_review_v2/week7_dialogue_review_20260821_v2 \
+  --product-adapter <week6-product-adapter> \
+  --after-sales-adapter <week6-after-sales-adapter> \
+  --itinerary-adapter <week6-itinerary-adapter> \
+  --output-dir <new-development-output>
+```
+
+Spartan job `29491047` 已完成 24/24、失败 0；对比标注台当前等待真实操作者评分，不能由
+Agent 代填。加入该 runner 后完整 `unittest` 为 424/424。
 
 ## Aliyun Runtime
 

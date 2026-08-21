@@ -96,8 +96,8 @@ assistant/user 语义顺序或末轮回答相关性，因此不能证明真实�
 raw SHA 为 `9cb8cafc...cd162`；自动格式合规率 0.875、字符串 context recall 0.583333。
 这些自动值不是人工结论。真实单人操作者在同一会话完成 corrected 队列 24/24，最终
 24 条决定均为 `pass`；历史图片指代、需求迭代、上下文承接、逻辑连贯均分分别为
-4.541667/4.625000/4.500000/4.708333，四维未加权均值 4.59375。25 条 append-only
-记录含 1 次真实修订，结果 SHA 为 `16f02b46...07cc0`，Agent 未代填分数。
+4.541667/4.625000/4.500000/4.708333，四维未加权均值 4.59375。26 条 append-only
+记录含 2 次真实修订，结果 SHA 为 `bdec2d18...af932`，Agent 未代填分数。
 
 ## Week 6 / 零样本对比
 
@@ -114,8 +114,8 @@ multitask/Week 6 全局延迟比约 0.8694，失败率均为 0。三场景任务
 
 ## 测试结果
 
-当前完整 `python -m unittest discover -s tests -v` 为 423/423 PASS；远端 final-runtime
-定向测试 22/22 PASS。compileall、数据隔离和配置验证、八份 Week 7 Slurm 脚本
+当前完整 `python -m unittest discover -s tests -v` 为 424/424 PASS；远端 final-runtime
+定向测试 22/22 PASS。compileall、数据隔离和配置验证、九份 Week 7 Slurm 脚本
 `bash -n`、`git diff --check` 均通过。
 
 ## Commit / push 状态
@@ -127,7 +127,10 @@ protocol-v5 提交 `64a5a7a`、final runtime 修复 `8619b76`、对话修复提�
 
 ## 未完成项和真实原因
 
-corrected development 人工四维已完成 24/24。仍存在的限制是 v3 final-test 对话构造
+corrected development 的 multitask 人工四维已完成 24/24。Week 6 三个冻结 adapter 已在
+同一 corrected 24 条上按 8/8/8 路由生成，job `29491047` 完成且失败 0；对应配对人工
+四维当前 0/24，等待真实操作者输入，Agent 未复制或代填 multitask 分数。仍存在的限制是
+v3 final-test 对话构造
 缺陷不可逆；本次 development 人工完成不会重开 test 或改写历史 test 对话结论。
 DPO 因 0 条真实审核偏好对正确 `SKIPPED`。三个核心场景训练、checkpoint 选择、参数锁和
 一次性 test 已完成，不存在伪造 GPU、人工审核或指标。

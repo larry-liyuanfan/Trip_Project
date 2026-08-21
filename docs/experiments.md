@@ -489,13 +489,23 @@ manifest.
 
 ## 2026-08-22：Week 7 corrected dialogue 单人人工评估完成
 
-- 真实单人操作者在同一 session 完成固定队列 24/24，25 条 append-only 记录包含 1 次
+- 真实单人操作者在同一 session 完成固定队列 24/24，26 条 append-only 记录包含 2 次
   revision=2；最终 24 条均有非空 reviewer、本人自审与完整四维分数，决定均为 `pass`。
 - 四维均分为历史图片指代 4.541667、需求迭代 4.625000、上下文承接 4.500000、逻辑
-  连贯 4.708333，未加权均值 4.59375。结果 SHA 为 `16f02b46...07cc0`。
+  连贯 4.708333，未加权均值 4.59375。结果 SHA 为 `bdec2d18...af932`。
 - 原人工 JSONL 留在忽略目录；机器聚合见
   `experiments/week7_dialogue_human_review_20260822_v2.json`。这是 corrected development
   人工证据，不重开 v3 test；没有产生 chosen/rejected 偏好对，DPO 继续 `SKIPPED`。
+
+## 2026-08-22：Week 7 corrected dialogue Week 6 routed baseline
+
+- 配置 `configs/week7/dialogue_comparison_v1.json` 绑定 corrected development、三个冻结
+  Week 6 adapter SHA 与 8/8/8 路由；范围仅 development，test 未读取。
+- Spartan job `29491047` 为 `COMPLETED 0:0`，L40S 单卡耗时 00:09:10。24/24 唯一
+  sample、失败 0，格式合规率 1.0、context recall 0.555556、平均/中位延迟
+  15449.04/13493.49 ms；raw SHA `c3effb6d...318e59`。
+- 机器证据见 `experiments/week7_dialogue_comparison_20260822_v1.json`。人工对比当前
+  0/24，Agent 不代填；DPO 仍因无真实审核 chosen/rejected 对保持 `SKIPPED`。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 

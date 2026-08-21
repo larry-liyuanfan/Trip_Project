@@ -14,12 +14,12 @@
   },
   "result": {
     "ignored_path": "outputs/week7/human_review/dialogue_review_v2/week7_dialogue_human_scores_v1.jsonl",
-    "sha256": "16f02b466232a359fda137b37c98bfb354bbed89501559277a1f5bfc57d07cc0",
-    "append_only_record_count": 25,
+    "sha256": "bdec2d18aa7c4097dc85ffd15f3f2368a1c67b178fc51aff42bb498d82eaf932",
+    "append_only_record_count": 26,
     "latest_unique_sample_count": 24,
-    "revision_distribution": {"1": 24, "2": 1},
+    "revision_distribution": {"1": 24, "2": 2},
     "first_reviewed_at_utc": "2026-08-21T14:14:26.328049+00:00",
-    "last_reviewed_at_utc": "2026-08-21T14:37:45.459470+00:00"
+    "last_reviewed_at_utc": "2026-08-21T14:52:23.130322+00:00"
   },
   "human_validation": {
     "single_operator": true,
