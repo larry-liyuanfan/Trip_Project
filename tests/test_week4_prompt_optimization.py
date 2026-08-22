@@ -265,6 +265,7 @@ class Week4PromptOptimizationTest(unittest.TestCase):
                 "json_valid": False,
                 "schema_valid": False,
                 "latency_ms": 7000.0,
+                "token_usage": {"total_tokens": 1234},
             }
         ]
 

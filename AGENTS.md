@@ -168,7 +168,15 @@ Never commit secrets, API keys, credentials, private endpoints, model weights, l
 
 Before changing or running GPU services, verify the documented CUDA, container runtime, model compatibility, and memory assumptions. Do not run competing GPU workloads concurrently when the documented workflow requires exclusive access.
 
+Treat an acquired GPU allocation as a scarce execution asset. For long-running training, keep the Slurm allocation owner or supervisor separate from the training child process so a recoverable application failure does not automatically terminate the allocation. Save automatic, resumable checkpoints at bounded intervals and before risky transitions. On a recoverable failure, keep the allocation alive for a bounded diagnosis and repair window, preserve logs and immutable outputs, apply only a versioned and verified fix, and resume from the latest valid checkpoint in the same allocation. Do not release the GPU merely because the training child exited. Stop the allocation only for data-identity mismatch, memory or hardware safety risk, output-contamination risk, an unrecoverable infrastructure failure, or the requested walltime limit. If the scheduler has already reclaimed the allocation, record that accurately instead of describing it as an intentional release.
+
+Request the smallest realistic GPU walltime that covers the measured workload plus an evidence-based safety buffer. Estimate it from pilot throughput, dataset size, epochs, evaluation and checkpoint overhead, and startup or reload cost; update later requests from observed runtimes. The purpose of a tighter walltime is faster scheduling and better backfill eligibility, not usage-based billing. A shorter request may improve schedulability but is not a guaranteed priority boost. Do not default to a multi-day maximum such as 72 hours when evidence supports a materially shorter request, and do not choose an unrealistically short limit that is likely to kill a healthy run before a checkpoint can complete.
+
 Avoid destructive Git, filesystem, Docker, and data operations unless the user explicitly requests them and the target has been verified. Prefer reversible, scoped operations and preserve reproducibility evidence.
+
+## Local Infrastructure Context
+
+Before operating project-specific cloud servers, read `.agents/server.local.md` when it exists. Treat it as local, non-authoritative runtime context: verify live state before any cost-incurring, destructive, networking, or security-group change. Never copy private-key contents, API keys, passwords, or other secrets from local infrastructure files into tracked files, logs, chat output, or commits.
 
 ## Single-Operator Human Review
 

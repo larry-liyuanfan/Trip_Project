@@ -156,9 +156,20 @@ def normalize_structured_info(structured: dict[str, Any]) -> dict[str, Any]:
     normalized["objects"] = normalize_objects(normalized.get("objects", []))
     for key in ["style", "ocr_text", "location_clues", "travel_intent"]:
         normalized[key] = ensure_list(normalized.get(key, []))
+    for key in ["merchant_type", "poi_type", "scene"]:
+        normalized[key] = normalize_optional_text(normalized.get(key))
     normalized.pop("confidence", None)
     normalized.pop("image_summary", None)
     return normalized
+
+
+def normalize_optional_text(value: Any) -> str | None:
+    """将模型偶发返回的空列表或单元素列表收敛为可选文本。"""
+    if value is None or value == "" or value == []:
+        return None
+    if isinstance(value, list):
+        return str(value[0]) if value[0] is not None else None
+    return str(value)
 
 
 def normalize_objects(value: Any) -> list[str]:

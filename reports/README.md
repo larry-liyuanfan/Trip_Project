@@ -6,6 +6,8 @@
 
 ## 综合报告
 
+- `week1_to_week5_qwen3_vl_4b_rerun_report.md`：使用单 A10 上的
+  `Qwen3-VL-4B-Instruct` 对 Week 1-5 进行有边界的重跑、验证与成本评估。
 - `week1_to_week4_qwen37_overall_report.md`：迁移到阿里云
   `qwen3.7-plus` 后的 Week 1-4 整体交付与效果总结。
 

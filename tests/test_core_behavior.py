@@ -87,6 +87,15 @@ class CoreBehaviorTest(unittest.TestCase):
         self.assertEqual(response.structured_info.ocr_text, ["Cafe"])
         self.assertEqual(response.confidence, 0.8)
 
+    def test_parse_model_response_normalizes_optional_text_lists(self):
+        response = parse_model_response(
+            '{"merchant_type": [], "poi_type": ["food"], "scene": ["indoor"]}'
+        )
+
+        self.assertIsNone(response.structured_info.merchant_type)
+        self.assertEqual(response.structured_info.poi_type, "food")
+        self.assertEqual(response.structured_info.scene, "indoor")
+
     def test_keyword_retriever_returns_ranked_matching_pois(self):
         catalog = [
             {

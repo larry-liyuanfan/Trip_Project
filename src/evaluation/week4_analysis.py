@@ -293,7 +293,7 @@ def _build_runtime_comparisons(
                 "optimized_json_compliance": optimized["json_compliance"],
                 "baseline_schema_compliance": baseline["schema_compliance"],
                 "optimized_schema_compliance": optimized["schema_compliance"],
-                "baseline_mean_total_tokens": baseline["mean_total_tokens"],
+                "baseline_mean_total_tokens": None,
                 "baseline_token_status": "PENDING_not_recorded",
                 "optimized_mean_total_tokens": optimized["mean_total_tokens"],
                 "baseline_mean_latency_ms": baseline["mean_latency_ms"],

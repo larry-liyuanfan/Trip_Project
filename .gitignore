@@ -48,3 +48,4 @@ outputs/
 docs/internship_weekly_summary.md
 docs/superpowers/
 /work/
+.agents/*.local.md
