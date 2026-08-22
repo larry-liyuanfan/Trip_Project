@@ -47,7 +47,7 @@ selection。按既定隔离规则未提交 corrected-dialogue v4 test；test mar
 ## 数据锁和隔离结果
 
 执行分支从 Week 6 终态 `132779b0f6d2929ce1cdbed18e62adf3ef9edd18` 建立，旧
-`agent/portfolio-positioning` 工作树未参与开发。活动身份为
+`agent/portfolio-positioning` 工作树未参与开发。以下历史 v3 身份为
 `week7_fresh_multitask_context_20260820_v3`，配置 SHA-256 为
 `d77d9f10b551f30c599572e974fba2c3c2af087f37ed35e93b9dc7ac2dc105fa`，数据锁
 SHA-256 为 `8af2e2d13c22fb641fc7344b1e56e5827aa78b1ebde653c6e55c83b36d20504d`。
@@ -112,7 +112,7 @@ protocol、selection、checkpoint-151、adapter 和最终推理 runtime。
 
 ## 三场景及对话指标
 
-唯一 final-test 作业 `29459265` 在 L40S 上 `COMPLETED 0:0`，耗时 00:40:50；marker
+历史 v3 的唯一 final-test 作业 `29459265` 在 L40S 上 `COMPLETED 0:0`，耗时 00:40:50；marker
 和 7 个结果 artifact 的 SHA-256 全部复验通过，`all_passed=true`。
 
 | 模型角色 | 商品 composite | 售后 composite | 行程 composite | 加权综合分 | 平均延迟（ms） | 失败率 |
@@ -163,19 +163,19 @@ multitask/Week 6 全局延迟比约 0.8694，失败率均为 0。三场景任务
 终态新增机器优先对抗审计：既有真人 development 评分只作辅助证据，Agent 不替换人工
 身份或分数。基线替换、跨分区碰撞、比例漂移、Schema 语义洗白、test 重跑、支持数删除、
 对话缺陷洗白、repair 读取 test、Agent 冒充人工、失败 DPO 晋级和 DPO 读取 test 共
-11/11 个反事实均被拒绝。结论允许实现进入 `dev` 集成，但 v3 test 对话完整验收仍失败，
-不允许晋级 `stg` 或重跑 test。
+11/11 个反事实均被拒绝。该历史审计曾允许 v3 实现进入 `dev` 保存；当前 v4 自动门禁
+失败后不再满足本轮 `dev` 快进条件，也不允许晋级 `stg` 或绕过门禁运行 test。
 
-当前完整 `python -m unittest discover -s tests -v` 为 431/431 PASS；远端 final-runtime
-定向测试 22/22 PASS。compileall、数据隔离和配置验证、十份 Week 7 Slurm 脚本
-`bash -n`、`git diff --check` 均通过。
+当前闭环实测完整 `python -m unittest discover -s tests -v` 为 445/445 PASS；v4 定向
+13/13、证据更新后相关定向 16/16 PASS。v4 数据锁、配置解析、两份 v4 Slurm 脚本
+`bash -n` 和 `git diff --check` 均通过；历史远端 final-runtime 定向 22/22 继续保留。
 
 ## Commit / push 状态
 
 protocol-v5 提交 `64a5a7a`、final runtime 修复 `8619b76`、对话修复提交
-`bc299c3`/`3e5e767`/`7cf656a` 已推送至 `origin/codex/week7-multitask-context`；最终证据与
-文档由本次收尾提交继续推送。根据用户最新的分支整理授权和终态对抗审计，代码允许
-快进 `dev` 作集成保存；这不等于完整 Week 7 test 对话验收，不进入 `stg`，不打标签。
+`bc299c3`/`3e5e767`/`7cf656a` 已推送至历史分支；v4 恢复、训练与门禁终态证据推送至
+`origin/codex/week7-dialogue-correction-v4-recovery`。由于 v4 development 自动门禁
+FAIL，当前分支不快进 `dev`，不进入 `stg`，不打标签。
 
 本地目录整理把 408,127,632 字节作废 v1/v2 锁和传输包、失败构建及临时预检脚本移入
 Windows 回收站；保留 v3 锁/归档、corrected dialogue raw、真实人工记录、偏好锁和
