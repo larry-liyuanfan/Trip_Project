@@ -538,6 +538,11 @@ as the current validated dataset or accepted baseline.
   Week 7 74/74、完整 unittest 445/445、v4 数据锁复验、两份 v4 Slurm shell
   语法和 `git diff --check` 均通过。`.gitattributes` 固定 Week 7 config 与
   Spartan shell 为 LF，避免 Windows checkout 改变哈希或破坏 shell 解析。
+- 修复提交 `c002a78` 已推送隔离分支；attempt 2 job `29505375` 于
+  2026-08-22 17:35:01 AEST 提交到 `gpu-l40s`，输出目录
+  `work/week7_multitask_v4/run_c002a78_attempt2`。config SHA、canonical lock SHA、
+  `week7_multitask_context_sft_20260822_v4` run ID 均未改变，初始状态
+  `PENDING(Resources)`；旧 attempt 与 v4 test 未消费状态保持不变。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 

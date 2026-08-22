@@ -643,3 +643,5 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   完成证据时勾选。
 - [x] attempt 2 前置修复验收：两条真实逐轮生成路径的 strict block 回归、v4
   13/13、Week 7 74/74、完整 unittest 445/445、数据锁、Slurm 语法和 diff 检查通过。
+- [ ] attempt 2 job `29505375` 已提交，当前 `PENDING(Resources)`；仅在训练完成且
+  development 自动门禁 PASS 后才允许执行不可覆盖 checkpoint selection 与一次 test。

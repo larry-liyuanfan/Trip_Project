@@ -574,6 +574,11 @@ manifest.
   逐轮生成，旧裸字符串回填会确定失败；修复后 v4 13/13、Week 7 74/74、完整
   unittest 445/445，v4 锁和两份 Slurm shell 语法均 PASS。Week 7 JSON 与 Spartan
   shell 通过 `.gitattributes` 固定 LF，消除 Windows CRLF 对哈希和 `bash -n` 的影响。
+- attempt 2：执行提交 `c002a78`，job `29505375`，初始状态 `PENDING(Resources)`；
+  输出 `work/week7_multitask_v4/run_c002a78_attempt2`、日志
+  `work/week7_multitask_v4/logs_c002a78_attempt2`。config `e5b76008...`、canonical
+  lock `000a2e57...`、run ID 和全部训练超参数与 attempt 1 相同；未声明 checkpoint
+  resume，因为 attempt 1 无 checkpoint。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
