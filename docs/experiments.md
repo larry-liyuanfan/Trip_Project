@@ -588,6 +588,13 @@ manifest.
 - 恢复：job `29506065` 从同输出目录 `checkpoint-38` 提交；远端仍为 clean
   `c002a78`，config SHA、lock SHA、run ID 未变。此次仅使用显式
   `--resume-from-checkpoint` 恢复能力；若相同故障重复，不再提交下一次恢复。
+- `29506065` 终态 `FAILED 1:0`，00:34:51，MaxRSS 约 20.1 GB；训练越过原退出点
+  并到 step 76，随后写 development artifact 时明确报 `[Errno 122] Disk quota exceeded`。
+  step-76 仅创建 0-byte raw，无可评分证据。只删除项目内可再生成的 container cache
+  26 GiB、pip cache 1.2 GiB 和该 partial；step-38 adapter/optimizer/raw/metrics 哈希
+  均保持。GPFS `df` 从约 0.9 GiB 可用恢复为约 28 GiB。
+- quota 修复后的同身份恢复 job 为 `29506362`，仍使用 clean `c002a78`、相同
+  config/data/run ID 和 `checkpoint-38`；未变更任何训练超参数或已评分数据。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 

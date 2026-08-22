@@ -647,3 +647,6 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   development 自动门禁 PASS 后才允许执行不可覆盖 checkpoint selection 与一次 test。
 - [ ] `29505375` 在完整 step-38 checkpoint 后无主堆栈地退出；一次同身份受控恢复
   job `29506065` 已从该 checkpoint 提交。test 仍未消费，门禁尚未 PASS。
+- [ ] `29506065` 在 step 76 暴露明确磁盘配额根因；已只回收可再生成的 26 GiB
+  container cache、1.2 GiB pip cache 与 0-byte partial，冻结资产未动。恢复 job
+  `29506362` 已提交，仍从完整 checkpoint-38 继续。

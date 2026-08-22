@@ -551,6 +551,12 @@ as the current validated dataset or accepted baseline.
 - 排除超时、CPU OOM、test 消费及不完整 checkpoint 后，按既有恢复契约从同目录
   `checkpoint-38` 做一次受控 resume；config/data/run/git identity 不变，resume job
   `29506065` 已提交。若同点再次失败将停止，不继续盲重试。
+- `29506065` 成功越过 step 39，但在完成 step-76 生成后写评估文件时明确报
+  `[Errno 122] Disk quota exceeded`；仅留下 0-byte partial，未形成第二个有效
+  evaluation/checkpoint。审计确认项目内可再生成的 Apptainer/container cache 26 GiB
+  与 pip cache 1.2 GiB，不属于数据锁、模型、checkpoint 或报告；已删除缓存内容及
+  该 0-byte partial，保留 step-38 全部证据，GPFS 可用空间由约 0.9 GiB 恢复到
+  约 28 GiB。随后提交同身份 quota-recovered resume job `29506362`。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
