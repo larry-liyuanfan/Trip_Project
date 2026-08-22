@@ -579,6 +579,15 @@ manifest.
   `work/week7_multitask_v4/logs_c002a78_attempt2`。config `e5b76008...`、canonical
   lock `000a2e57...`、run ID 和全部训练超参数与 attempt 1 相同；未声明 checkpoint
   resume，因为 attempt 1 无 checkpoint。
+- attempt 2 首次进程终态：`FAILED 1:0`，00:27:51，MaxRSS 约 19.6 GB；step 38
+  development 114/114 完成，raw SHA `7c41d30...`、metrics SHA `6b7b37...`，
+  checkpoint adapter SHA `f425646...`。weighted composite 0.339991、failure 0；
+  商品/售后/行程 composite 0.564706/0.52/0.045，对话 automatic 0.231308。
+  日志在 step 39 后只有 `Exception ignored in: <object repr() failed>`，无可归因主堆栈；
+  作业非超时、非 Slurm OOM，checkpoint 文件完整且 test marker absent。
+- 恢复：job `29506065` 从同输出目录 `checkpoint-38` 提交；远端仍为 clean
+  `c002a78`，config SHA、lock SHA、run ID 未变。此次仅使用显式
+  `--resume-from-checkpoint` 恢复能力；若相同故障重复，不再提交下一次恢复。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 

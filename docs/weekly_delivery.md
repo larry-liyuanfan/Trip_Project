@@ -645,3 +645,5 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   13/13、Week 7 74/74、完整 unittest 445/445、数据锁、Slurm 语法和 diff 检查通过。
 - [ ] attempt 2 job `29505375` 已提交，当前 `PENDING(Resources)`；仅在训练完成且
   development 自动门禁 PASS 后才允许执行不可覆盖 checkpoint selection 与一次 test。
+- [ ] `29505375` 在完整 step-38 checkpoint 后无主堆栈地退出；一次同身份受控恢复
+  job `29506065` 已从该 checkpoint 提交。test 仍未消费，门禁尚未 PASS。

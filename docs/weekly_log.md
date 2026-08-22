@@ -543,6 +543,14 @@ as the current validated dataset or accepted baseline.
   `work/week7_multitask_v4/run_c002a78_attempt2`。config SHA、canonical lock SHA、
   `week7_multitask_context_sft_20260822_v4` run ID 均未改变，初始状态
   `PENDING(Resources)`；旧 attempt 与 v4 test 未消费状态保持不变。
+- job `29505375` 在 step 38 完成首次 development 评估并产出完整 checkpoint 后，
+  于 step 39 以 `FAILED 1:0` 终止；日志未给出主异常堆栈，仅留下 tqdm 退出期
+  `Exception ignored`。可核验证据为 114/114 raw、metrics SHA
+  `6b7b37...`、adapter SHA `f425646...`，failure rate 0；首次综合分 0.339991，
+  商品/售后/行程为 0.564706/0.52/0.045，对话 automatic 0.231308。
+- 排除超时、CPU OOM、test 消费及不完整 checkpoint 后，按既有恢复契约从同目录
+  `checkpoint-38` 做一次受控 resume；config/data/run/git identity 不变，resume job
+  `29506065` 已提交。若同点再次失败将停止，不继续盲重试。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 

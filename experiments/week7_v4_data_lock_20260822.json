@@ -79,7 +79,7 @@
     "v4_targeted_tests": "13/13 PASS",
     "full_unittest": "445/445 PASS",
     "slurm_shell_syntax": "2/2 PASS",
-    "gpu_training": "ATTEMPT_2_PENDING job=29505375 commit=c002a78 same_identity test_unconsumed",
+    "gpu_training": "ATTEMPT_2_RESUME_PENDING job=29506065 from=checkpoint-38 prior_job=29505375_failed test_unconsumed",
     "development_checkpoint_selection": "PENDING",
     "corrected_dialogue_test": "PENDING"
   }
