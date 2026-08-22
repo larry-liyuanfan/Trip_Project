@@ -1,10 +1,48 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
-终态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID`。
+终态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID / V4_DEVELOPMENT_GATE_FAILED_TEST_UNCONSUMED`。
 三个核心场景通过唯一一次正式 test 的自动非回退门禁；后续审计发现 v3 多轮上下文构造
 错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论。独立 development-only
 修复身份和新 raw 已恢复可信人工评分入口，真实单人操作者随后分别完成 multitask 与
 Week 6 routed 各 24/24 条四维评分。
+
+## Corrected-dialogue v4 自动闭环
+
+v4 身份 `week7_corrected_multitask_context_20260822_v4` 使用独立 3000/114/114
+train/development/test 锁，canonical SHA-256 为
+`000a2e57620428034da27e03ba3c92483e9c147032166ad273ed089fbb97c9fa`。训练实际比例为
+三核心场景各 760、通用多模态 270（9%）、多轮对话 450（15%）；三分区五维冲突为 0，
+v4 test 与 v3 完整 3228 行 identity manifest 五维重叠也为 0。
+
+锁定 config SHA-256 为 `e5b76008e504e0775b62506acbeba3e38438cf14851493be512aa4325fd89b7c`。
+最终同身份恢复 job `29506362` 在 clean commit `c002a78` 上 `COMPLETED 0:0`，耗时
+02:37:50；从 checkpoint-38 恢复，完成 step 38/76/113/151/188/226 六次完整
+development 评估，并在连续两次未改善后于 step 226 早停。run summary SHA-256 为
+`5af980efc851e2e0c15d96ea13853e3728fa194618fcd737ea976e3926e2e5a5`，最佳综合分
+0.833980 位于 step 151；该 checkpoint/final adapter SHA-256 为
+`296ad3f362e559738b55d93e2164f549631994138f5acaed72d8b4b3b48d9d86`。
+
+| v4 development step | weighted composite | automatic composite | 格式 | context recall | task value | sequential coverage | 全门禁 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 38 | 0.339991 | 0.231308 | 0.958333 | 0.354167 | 0.000000 | 0.306654 | FAIL |
+| 76 | 0.787641 | 0.591224 | 0.625000 | 0.750000 | 0.468750 | 0.711481 | FAIL |
+| 113 | 0.806420 | 0.769122 | 0.833333 | 0.809028 | 0.708333 | 0.721238 | FAIL |
+| 151 | 0.833980 | 0.778585 | 0.833333 | 0.777778 | 0.741319 | 0.733081 | FAIL |
+| 188 | 0.832830 | 0.775168 | 0.833333 | 0.750000 | 0.741319 | 0.726524 | FAIL |
+| 226 | 0.817248 | 0.765102 | 0.833333 | 0.715278 | 0.741319 | 0.711618 | FAIL |
+
+每次 development 支持数为商品/售后/行程各 30、对话 24。最佳 step 151 的三个核心
+场景 composite 为 0.564706/0.970000/0.968333，对话 automatic 为 0.778585；step 226
+相应为 0.547059/0.970000/0.933333/0.765102，114 条失败为 0，平均延迟
+14,716.89 ms。step 226 的商品 JSON/Schema 为 1.0/0.966667，售后为
+1.0/0.966667，行程为 0.933333/0.933333。这些都是 development 指标，不是 test 结果。
+
+所有候选的 overall/dialogue/sequential failure rate 均为 0，但 0/6 同时达到预注册的
+格式 0.95、context recall 0.85、context-state value 0.75、task key 0.95、task value
+0.75、sequential coverage 0.75、automatic composite 0.85 门槛。不可覆盖 selector 已
+实际执行并正确返回 `no v4 checkpoint passed the automatic development gate`，没有写出
+selection。按既定隔离规则未提交 corrected-dialogue v4 test；test marker 仍
+`LOCKED_UNCONSUMED`，因此没有生成或宣称 v4 的 Week 6 routed/zero-shot test 对比。
 
 ## 数据锁和隔离结果
 
@@ -155,3 +193,6 @@ v3 final-test 对话构造
 缺陷不可逆；本次 development 人工完成不会重开 test 或改写历史 test 对话结论。
 DPO 已执行一次但 validation 门禁失败并正确拒绝新 adapter。三个核心场景训练、
 checkpoint 选择、参数锁和一次性 test 已完成，不存在伪造 GPU、人工审核或指标。
+corrected-dialogue v4 的 GPU 训练已完成，但 development 自动门禁失败；selector 已
+执行但未产生 selection，一次性 v4 test 未执行。这是真实终态，不以历史 v3 test 或
+人工 development 结果替代。分支因此不快进 `dev`，不进入 `stg`，不打标签。

@@ -637,16 +637,21 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   marker、全候选证据重算与 Week 6 routed/zero-shot 对比。
 - [x] v4 定向测试 10/10、Week 7 测试 71/71、完整 unittest 441/441、Python
   语法和两份 Slurm shell 语法通过。
-- [ ] v4 GPU 训练、development checkpoint 选择与 corrected-dialogue test 尚未执行；
-  attempt 1 `29504508` 在首次逐轮 development 评估因 assistant content block 类型错误
-  失败，无 checkpoint/raw/metrics；失败证据已保留且 test 未消费。本项不在无真实
-  完成证据时勾选。
+- [x] attempt 1 `29504508` 在首次逐轮 development 评估因 assistant content block
+  类型错误失败，无 checkpoint/raw/metrics；失败证据已保留且未消费 test。
 - [x] attempt 2 前置修复验收：两条真实逐轮生成路径的 strict block 回归、v4
   13/13、Week 7 74/74、完整 unittest 445/445、数据锁、Slurm 语法和 diff 检查通过。
-- [ ] attempt 2 job `29505375` 已提交，当前 `PENDING(Resources)`；仅在训练完成且
-  development 自动门禁 PASS 后才允许执行不可覆盖 checkpoint selection 与一次 test。
-- [ ] `29505375` 在完整 step-38 checkpoint 后无主堆栈地退出；一次同身份受控恢复
-  job `29506065` 已从该 checkpoint 提交。test 仍未消费，门禁尚未 PASS。
-- [ ] `29506065` 在 step 76 暴露明确磁盘配额根因；已只回收可再生成的 26 GiB
+- [x] `29505375` 在完整 step-38 checkpoint 后无主堆栈地退出；同身份受控恢复
+  job `29506065` 从该 checkpoint 提交，失败与恢复证据均完整保留。
+- [x] `29506065` 在 step 76 暴露明确磁盘配额根因；已只回收可再生成的 26 GiB
   container cache、1.2 GiB pip cache 与 0-byte partial，冻结资产未动。恢复 job
-  `29506362` 已提交，仍从完整 checkpoint-38 继续。
+  `29506362` 仍从完整 checkpoint-38 继续，未改变 config/data/run identity。
+- [x] job `29506362` `COMPLETED 0:0`；六个 development checkpoint 及 raw/metrics
+  全部写出并由 run summary 哈希绑定，step 151 综合分最高（0.833980），step 226
+  因 patience=2 早停。
+- [x] `select-v4-checkpoint` 已实际重算六个候选并正确拒绝：0/6 通过全部自动门禁，
+  因此未生成 selection。corrected-dialogue v4 test 按规则标记 `SKIPPED_GATE_FAILED`，
+  marker 仍 `LOCKED_UNCONSUMED`，没有提交或重跑 test，也没有 v4 Week 6/zero-shot test
+  对比。
+- [ ] v4 完整验收与 `dev` 快进未完成：真实原因是 development 自动门禁 FAIL，
+  不是缺少人工输入或未授权资源；本周不绕过门禁、不重训、不进入 `stg`、不打标签。

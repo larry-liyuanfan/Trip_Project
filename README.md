@@ -553,6 +553,12 @@ v4 对话对所有 assistant span 计算 SFT loss，不再只训练最后 JSON�
 要求人工输入；机器结果不标记为人工验收。对应 Spartan 作业为
 `week7_v4_multitask_train.sbatch` 和 `week7_v4_dialogue_test.sbatch`。
 
+最新一次锁定身份训练由 Spartan job `29506362` 完成并在 step 226 早停；六个
+development checkpoint 均未通过预注册对话自动门禁，因此
+`select-v4-checkpoint` 正确拒绝生成 selection，corrected-dialogue v4 test 保持
+`LOCKED_UNCONSUMED`。该终态不允许绕过门禁提交 test，也不把 development 最优分
+解释为一次性 test 结果；完整实证见 `reports/week7_multitask_context_report.md`。
+
 以下标注台命令仅用于已完成的历史 v3/corrected-development 真人证据；
 v4 自动闭环不再等待新人工输入：
 

@@ -2,7 +2,7 @@
   "schema_version": "week7_v4_data_lock_evidence_v1",
   "status": "PASS",
   "date": "2026-08-22",
-  "branch": "codex/week7-dialogue-correction-v4",
+  "branch": "codex/week7-dialogue-correction-v4-recovery",
   "base_commit": "e36931202cba6d338146faf57e008e537d67c09f",
   "config": {
     "path": "configs/week7/qwen3_vl_8b_multitask_context_v4.json",
@@ -79,8 +79,8 @@
     "v4_targeted_tests": "13/13 PASS",
     "full_unittest": "445/445 PASS",
     "slurm_shell_syntax": "2/2 PASS",
-    "gpu_training": "ATTEMPT_2_QUOTA_RECOVERED_RESUME_PENDING job=29506362 from=checkpoint-38 test_unconsumed",
-    "development_checkpoint_selection": "PENDING",
-    "corrected_dialogue_test": "PENDING"
+    "gpu_training": "COMPLETED job=29506362 exit=0:0 global_step=226 early_stop=patience_2 best_step=151 best_metric=0.8339797471766486 run_summary_sha256=5af980efc851e2e0c15d96ea13853e3728fa194618fcd737ea976e3926e2e5a5",
+    "development_checkpoint_selection": "EXECUTED_FAIL_NO_ELIGIBLE eligible=0/6 selection_file_absent",
+    "corrected_dialogue_test": "SKIPPED_GATE_FAILED LOCKED_UNCONSUMED test_consumed=false"
   }
 }

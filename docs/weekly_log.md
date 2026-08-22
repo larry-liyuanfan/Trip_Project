@@ -557,6 +557,17 @@ as the current validated dataset or accepted baseline.
   与 pip cache 1.2 GiB，不属于数据锁、模型、checkpoint 或报告；已删除缓存内容及
   该 0-byte partial，保留 step-38 全部证据，GPFS 可用空间由约 0.9 GiB 恢复到
   约 28 GiB。随后提交同身份 quota-recovered resume job `29506362`。
+- `29506362` 终态 `COMPLETED 0:0`，运行 02:37:50，从相同 `checkpoint-38` 恢复并
+  完成 step 38/76/113/151/188/226 六次 development 评估；连续两次未改善后在
+  step 226 按 patience=2 早停。run summary SHA-256 为
+  `5af980efc851e2e0c15d96ea13853e3728fa194618fcd737ea976e3926e2e5a5`，最佳综合分
+  0.833980 位于 step 151，最终 adapter SHA-256 为
+  `296ad3f362e559738b55d93e2164f549631994138f5acaed72d8b4b3b48d9d86`。
+- 不可覆盖 selector 已实际执行并以 `no v4 checkpoint passed the automatic development
+  gate` 拒绝 selection。step 151 虽为综合分最高，但格式/上下文召回/上下文值/任务键/
+  任务值/逐轮覆盖/automatic composite 均低于预注册阈值；step 226 也未通过。
+  selection 文件不存在，v4 test marker 仍未消费；按一次性 test 规则未提交任何 test job，
+  未生成 Week 6/zero-shot 的 v4 test 对比，也未快进 `dev`。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 

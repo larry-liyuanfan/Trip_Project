@@ -595,6 +595,25 @@ manifest.
   均保持。GPFS `df` 从约 0.9 GiB 可用恢复为约 28 GiB。
 - quota 修复后的同身份恢复 job 为 `29506362`，仍使用 clean `c002a78`、相同
   config/data/run ID 和 `checkpoint-38`；未变更任何训练超参数或已评分数据。
+- `29506362` 终态 `COMPLETED 0:0`，02:37:50；global step 226，因 step 188/226
+  连续两次未超过 step 151 最优综合分而按 patience=2 早停。训练 loss 0.112032，
+  峰值 GPU allocated/reserved 为 34,112,156,160/40,852,520,960 bytes。run summary
+  SHA-256 为 `5af980efc851e2e0c15d96ea13853e3728fa194618fcd737ea976e3926e2e5a5`；
+  最终 adapter 与 best checkpoint-151 adapter SHA-256 均为
+  `296ad3f362e559738b55d93e2164f549631994138f5acaed72d8b4b3b48d9d86`。
+- 六个 development 候选的 weighted composite 为 step 38/76/113/151/188/226 =
+  0.339991/0.787641/0.806420/0.833980/0.832830/0.817248；全程 overall/dialogue/
+  sequential failure rate 均为 0，但 0/6 通过全部预注册自动门禁。
+- 最佳 step 151 的格式、context recall、context-state value、task-result key/value、
+  sequential coverage、automatic composite 分别为
+  0.833333/0.777778/0.697917/0.833333/0.741319/0.733081/0.778585，对应阈值
+  0.95/0.85/0.75/0.95/0.75/0.75/0.85，全部 FAIL。最后 step 226 相应值为
+  0.833333/0.715278/0.687500/0.833333/0.741319/0.711618/0.765102，也未通过。
+- selector 在空的新目标路径上实际执行并返回
+  `no v4 checkpoint passed the automatic development gate`；按不可覆盖实现没有写出
+  selection。corrected-dialogue v4 test 因门禁失败标记 `SKIPPED_GATE_FAILED`，test
+  保持 `LOCKED_UNCONSUMED`，没有 Week 6 routed/zero-shot v4 test 指标。DPO 仍保持
+  已执行一次、validation FAIL、adapter 拒绝且关闭，不因 v4 结果重开。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
