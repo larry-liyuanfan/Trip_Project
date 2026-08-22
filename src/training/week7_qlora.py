@@ -48,6 +48,21 @@ def training_messages(row: dict[str, Any]) -> list[dict[str, Any]]:
     return messages
 
 
+def assistant_content_text(content: Any) -> str:
+    """Return assistant text from raw or processor-normalized message content."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [
+            str(item.get("text") or "")
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+        ]
+        if parts and any(parts):
+            return "".join(parts)
+    raise Week7TrainingError("assistant content is not a supported text message")
+
+
 def structure_aware_messages(processor: Any, messages: list[dict[str, Any]], max_length: int) -> list[dict[str, Any]]:
     """Keep system/first image turn/final target and remove oldest complete middle pairs."""
     normalized = _normalize_processor_messages(messages)
@@ -175,14 +190,17 @@ def _generate_record(
             turns.append({
                 "assistant_turn_index": len(turns),
                 "message_index": message_index,
-                "expected_output": message.get("content"),
+                "expected_output": assistant_content_text(message.get("content")),
                 "raw_output": raw_output,
                 "failed": failed,
                 "latency_ms": latency_ms,
             })
             total_latency_ms += latency_ms
             any_failed = any_failed or failed
-            conversation.append({"role": "assistant", "content": raw_output})
+            conversation.append({
+                "role": "assistant",
+                "content": [{"type": "text", "text": raw_output}],
+            })
         if not turns:
             raise Week7TrainingError(f"v4 dialogue has no assistant turns: {row['sample_id']}")
         return {

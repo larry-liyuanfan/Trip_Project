@@ -3,3 +3,8 @@ configs/evaluation/prompts/** text eol=lf
 configs/evaluation/schemas/** text eol=lf
 configs/evaluation/*.json text eol=lf
 configs/evaluation_*.yaml text eol=lf
+configs/week7/*.json text eol=lf
+
+# Slurm 与远端 shell 脚本必须保持 LF，避免 Windows checkout 注入 CRLF。
+scripts/spartan/*.sbatch text eol=lf
+scripts/spartan/*.sh text eol=lf

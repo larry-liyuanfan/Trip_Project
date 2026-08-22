@@ -36,6 +36,7 @@ from src.training.week7_dialogue_v4 import (
 )
 from src.training.week7_qlora import (
     Week7TrainingError,
+    assistant_content_text,
     structure_aware_messages,
     training_messages,
 )
@@ -543,14 +544,17 @@ def _sequential_record_generator(
                 turn_outputs.append({
                     "assistant_turn_index": len(turn_outputs),
                     "message_index": message_index,
-                    "expected_output": message.get("content"),
+                    "expected_output": assistant_content_text(message.get("content")),
                     "raw_output": raw_output,
                     "failed": turn_failed,
                     "latency_ms": latency_ms,
                 })
                 total_latency_ms += latency_ms
                 failed = failed or turn_failed
-                conversation.append({"role": "assistant", "content": raw_output})
+                conversation.append({
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": raw_output}],
+                })
             records.append({
                 "sample_id": row["sample_id"],
                 "run_id": run_id,
@@ -593,7 +597,9 @@ def _validate_sequential_records(
         for turn_index, (message_index, turn) in enumerate(
             zip(assistant_positions, turn_outputs, strict=True)
         ):
-            expected = str(expected_messages[message_index].get("content") or "")
+            expected = assistant_content_text(
+                expected_messages[message_index].get("content")
+            )
             if (
                 not isinstance(turn, dict)
                 or turn.get("assistant_turn_index") != turn_index

@@ -75,11 +75,11 @@
   "verification": {
     "build_lock": "PASS",
     "validate_lock": "PASS",
-    "week7_tests": "71/71 PASS",
-    "v4_targeted_tests": "10/10 PASS",
-    "full_unittest": "441/441 PASS",
+    "week7_tests": "74/74 PASS",
+    "v4_targeted_tests": "13/13 PASS",
+    "full_unittest": "445/445 PASS",
     "slurm_shell_syntax": "2/2 PASS",
-    "gpu_training": "PENDING job=29504508 partition=gpu-l40s",
+    "gpu_training": "ATTEMPT_1_FAILED job=29504508 no_checkpoint test_unconsumed",
     "development_checkpoint_selection": "PENDING",
     "corrected_dialogue_test": "PENDING"
   }

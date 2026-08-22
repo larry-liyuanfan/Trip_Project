@@ -22,8 +22,16 @@ from src.training.week7_data import (
     sha256_file,
 )
 from src.training.week7_evaluation import score_dialogue_record
-from src.training.week7_dialogue_v4_test import _comparison
-from src.training.week7_qlora import assistant_span_labels
+from src.training.week7_dialogue_v4_test import (
+    _comparison,
+    _sequential_record_generator,
+)
+from src.training.week7_qlora import (
+    Week7TrainingError,
+    _generate_record,
+    assistant_content_text,
+    assistant_span_labels,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -129,7 +137,90 @@ class _LengthProcessor:
         return {"input_ids": _FakeTensor(list(range(length)))}
 
 
+class _FakeModel:
+    training = False
+
+    def eval(self) -> None:
+        pass
+
+
+def _aligned_row() -> dict:
+    row = _parent()
+    row["sample_id"] = "week7-development-dialogue-0000"
+    row["scenario"] = "dialogue"
+    row["construction_version"] = "aligned_concrete_turns_v4"
+    row["messages"] = [
+        {"role": "system", "content": "system"},
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "path": row["image_path"]},
+                {"type": "text", "text": "请识别图片。"},
+            ],
+        },
+        {"role": "assistant", "content": "第一轮回答"},
+        {"role": "user", "content": "请继续。"},
+        {"role": "assistant", "content": "最终回答"},
+    ]
+    return row
+
+
+def _strict_generated_record(_model, _processor, messages, **kwargs) -> dict:
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            raise TypeError("processor requires list content blocks")
+        if any(not isinstance(item, dict) or "type" not in item for item in content):
+            raise TypeError("processor requires typed content blocks")
+    return {
+        "sample_id": kwargs["sample_id"],
+        "raw_output": "generated reply",
+        "failed": False,
+        "latency_ms": 1.0,
+    }
+
+
 class Week7V4DialogueTests(unittest.TestCase):
+    def test_processor_normalized_assistant_content_round_trips_to_text(self) -> None:
+        self.assertEqual(assistant_content_text("plain"), "plain")
+        self.assertEqual(
+            assistant_content_text([
+                {"type": "text", "text": "generated "},
+                {"type": "text", "text": "reply"},
+            ]),
+            "generated reply",
+        )
+        with self.assertRaisesRegex(Week7TrainingError, "assistant content"):
+            assistant_content_text([{"type": "image", "path": "x.jpg"}])
+
+    @patch(
+        "src.training.week7_qlora.generate_record",
+        side_effect=_strict_generated_record,
+    )
+    def test_training_development_generation_keeps_normalized_content_blocks(
+        self, _generate,
+    ) -> None:
+        record = _generate_record(
+            ROOT, _FakeModel(), _LengthProcessor(), _aligned_row(),
+            "unit-run", 8,
+        )
+        self.assertEqual(len(record["turn_outputs"]), 2)
+        self.assertEqual(record["raw_output"], "generated reply")
+
+    @patch(
+        "src.training.week7_dialogue_v4_test.generate_record",
+        side_effect=_strict_generated_record,
+    )
+    def test_final_test_generation_keeps_normalized_content_blocks(
+        self, _generate,
+    ) -> None:
+        records, warmup = _sequential_record_generator(
+            _FakeModel(), _LengthProcessor(), [_aligned_row()],
+            "unit-run", "unit-model", 8, runtime_options={},
+        )
+        self.assertEqual(len(records[0]["turn_outputs"]), 2)
+        self.assertEqual(warmup["raw_output"], "generated reply")
+
     def test_v4_config_loads_with_locked_automatic_identity(self) -> None:
         config = load_week7_config(CONFIG_V4)
         self.assertEqual(config["schema_version"], "week7_multitask_context_v4")

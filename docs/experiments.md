@@ -562,6 +562,18 @@ manifest.
   `29504508`使用 `gpu-l40s`、单 L40S、16 CPU、128 GiB，运行目录
   `work/week7_multitask_v4/run_d14a129`；当前为 `PENDING(Resources)`，尚无
   loss、checkpoint、development raw 或模型指标。test marker 未消费。
+- attempt 1 终态：job `29504508`，L40S，`FAILED 1:0`，实际运行 00:18:30。
+  在 step 38 首次评估时，`week7_qlora._generate_record` 将生成文本作为裸字符串
+  追加到 processor-normalized conversation，Transformers 4.57.1 遍历 content block 时报
+  `TypeError: string indices must be integers, not 'str'`。日志中已观测的 loss 为
+  1.0281/0.6484/0.3572（step 10/20/30），但无 checkpoint 和可评分指标。
+- 修复只规范化生成 assistant content block 并增加 raw/normalized text 可逆转换；
+  config SHA、dataset lock SHA、run ID、数据比例与训练超参数均不变。失败目录
+  `work/week7_multitask_v4/run_d14a129` 保留，不作为 checkpoint 或完成 run。
+- 修复验证：strict fake processor 分别实际运行训练 development 与 final-test
+  逐轮生成，旧裸字符串回填会确定失败；修复后 v4 13/13、Week 7 74/74、完整
+  unittest 445/445，v4 锁和两份 Slurm shell 语法均 PASS。Week 7 JSON 与 Spartan
+  shell 通过 `.gitattributes` 固定 LF，消除 Windows CRLF 对哈希和 `bash -n` 的影响。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 

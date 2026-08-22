@@ -638,5 +638,8 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
 - [x] v4 定向测试 10/10、Week 7 测试 71/71、完整 unittest 441/441、Python
   语法和两份 Slurm shell 语法通过。
 - [ ] v4 GPU 训练、development checkpoint 选择与 corrected-dialogue test 尚未执行；
-  唯一训练作业 `29504508` 已提交并处于 `PENDING(Resources)`，本项不在无真实
+  attempt 1 `29504508` 在首次逐轮 development 评估因 assistant content block 类型错误
+  失败，无 checkpoint/raw/metrics；失败证据已保留且 test 未消费。本项不在无真实
   完成证据时勾选。
+- [x] attempt 2 前置修复验收：两条真实逐轮生成路径的 strict block 回归、v4
+  13/13、Week 7 74/74、完整 unittest 445/445、数据锁、Slurm 语法和 diff 检查通过。

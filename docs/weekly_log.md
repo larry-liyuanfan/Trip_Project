@@ -527,6 +527,17 @@ as the current validated dataset or accepted baseline.
 - 远端 GPFS 在删除已验证传输压缩包后实测剩余约 992 MiB/8784 inodes；
   v4 锁已解包且验证，训练期持续监控空间。本地传输包、不完整首次锁和
   空临时目录已进入回收站，权威 v4 锁保留。
+- 训练 attempt 1 `29504508` 于 step 38 进入首次逐轮 development 评估后
+  `FAILED 1:0`。根因为生成的 assistant 文本以裸字符串追加回 Qwen 多模态消息，
+  processor 要求标准 text content block，因此报 `TypeError: string indices must be integers`。
+  该 attempt 无 checkpoint、无 development raw/metrics，test 未消费；训练 loss 日志如实保留。
+- 恢复修复将生成回复统一写为 `[{"type":"text","text":...}]`，并将规范化
+  assistant content 可逆还原为评分文本。配置、数据锁、run ID 和超参数不变；
+  失败 attempt 不覆盖，修复通过新增回归后才允许 attempt 2。
+- 修复后两条逐轮生成路径均由 strict content-block 回归覆盖；v4 定向 13/13、
+  Week 7 74/74、完整 unittest 445/445、v4 数据锁复验、两份 v4 Slurm shell
+  语法和 `git diff --check` 均通过。`.gitattributes` 固定 Week 7 config 与
+  Spartan shell 为 LF，避免 Windows checkout 改变哈希或破坏 shell 解析。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
