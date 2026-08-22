@@ -72,7 +72,7 @@ def load_week7_config(path: Path) -> dict[str, Any]:
     config = json.loads(Path(path).read_text(encoding="utf-8"))
     if config.get("schema_version") not in {
         "week7_multitask_context_v1", "week7_multitask_context_v2",
-        "week7_multitask_context_v3",
+        "week7_multitask_context_v3", "week7_multitask_context_v4",
     }:
         raise Week7DataError("unsupported Week 7 config")
     if config.get("base_model") != "Qwen/Qwen3-VL-8B-Instruct":
@@ -94,7 +94,13 @@ def load_week7_config(path: Path) -> dict[str, Any]:
         raise Week7DataError("Week 7 evaluation cadence or patience changed")
     if config["dynamic_adjustment_policy"]["in_place_changes_allowed"] is not False:
         raise Week7DataError("in-place dynamic adjustment is forbidden")
-    if config["schema_version"].endswith("v3"):
+    if (
+        config["schema_version"].endswith("v4")
+        and config["sampling"].get("dialogue_construction_version")
+        != "aligned_concrete_turns_v4"
+    ):
+        raise Week7DataError("v4 dialogue construction identity changed")
+    if config["schema_version"].endswith(("v3", "v4")):
         expected_dialogue_counts = {
             "train": int(dataset["dialogue_count"]),
             "development": int(dataset["development_dialogue_count"]),
@@ -102,9 +108,9 @@ def load_week7_config(path: Path) -> dict[str, Any]:
         }
         declared = config["sampling"].get("dialogue_parent_scenario_counts")
         if config["sampling"].get("dialogue_parent_strategy") != "balanced_round_robin_core_scenarios_v1":
-            raise Week7DataError("v3 dialogue parent strategy changed")
+            raise Week7DataError("balanced dialogue parent strategy changed")
         if not isinstance(declared, dict) or set(declared) != set(expected_dialogue_counts):
-            raise Week7DataError("v3 dialogue parent counts are incomplete")
+            raise Week7DataError("balanced dialogue parent counts are incomplete")
         for split, total_count in expected_dialogue_counts.items():
             counts = declared[split]
             if (
@@ -113,7 +119,9 @@ def load_week7_config(path: Path) -> dict[str, Any]:
                 or len(set(int(counts[name]) for name in CORE_SCENARIOS)) != 1
                 or sum(int(counts[name]) for name in CORE_SCENARIOS) != total_count
             ):
-                raise Week7DataError(f"v3 dialogue parent counts are not balanced: {split}")
+                raise Week7DataError(
+                    f"balanced dialogue parent counts are not balanced: {split}"
+                )
         identity = config.get("experiment_identity", {})
         required_run_ids = {
             *identity.get("development_baseline_run_ids", {}).values(),
@@ -125,10 +133,13 @@ def load_week7_config(path: Path) -> dict[str, Any]:
             identity.get("multitask_sft_run_id"),
             identity.get("test_run_id"),
         }
+        expected_suffix = "_v4" if config["schema_version"].endswith("v4") else "_v3"
         if None in required_run_ids or len(required_run_ids) != 10 or any(
-            not str(run_id).endswith("_v3") for run_id in required_run_ids
+            not str(run_id).endswith(expected_suffix) for run_id in required_run_ids
         ):
-            raise Week7DataError("v3 experiment run IDs are incomplete, reused, or not v3")
+            raise Week7DataError(
+                "balanced experiment run IDs are incomplete, reused, or mis-versioned"
+            )
     return config
 
 
@@ -408,34 +419,222 @@ def _public_identity(root: Path, output: Path, source: dict[str, Any], template_
     }
 
 
-def _core_public_row(root: Path, output: Path, scenario: str, split: str, source: dict[str, Any], ordinal: int, weight: float) -> dict[str, Any]:
+def _core_public_row(
+    root: Path,
+    output: Path,
+    scenario: str,
+    split: str,
+    source: dict[str, Any],
+    ordinal: int,
+    weight: float,
+    *,
+    identity_version: str | None = None,
+) -> dict[str, Any]:
     if scenario == "image_product_search":
         target = _product_target(source)
         identity = _public_identity(root, output, source)
         prompt = "识别图片中的 OTA 商品属性并严格输出指定 JSON Schema；不可猜测不可见字段。"
     elif scenario == "itinerary_planning":
-        template_id = f"week7-itinerary-template:{split}:{ordinal}"
+        template_namespace = f"-{identity_version}" if identity_version else ""
+        template_id = f"week7{template_namespace}-itinerary-template:{split}:{ordinal}"
         constraints, target = _itinerary_target(source, ordinal)
         identity = _public_identity(root, output, source, template_id)
         prompt = f"依据图片和以下约束规划行程，严格输出指定 JSON Schema：{constraints}"
     else:
         raise Week7DataError(f"unexpected public scenario: {scenario}")
     validate_output(root, scenario, target, "v1")
-    sample_id = f"week7-{split}-{scenario}-{ordinal:04d}"
+    sample_namespace = f"-{identity_version}" if identity_version else ""
+    sample_id = f"week7{sample_namespace}-{split}-{scenario}-{ordinal:04d}"
     return _row(sample_id, scenario, split, identity, [_system(), _user(identity["image_path"], prompt)], target, "programmatic_silver", weight)
 
 
-def _after_sales_row(root: Path, output: Path, split: str, ordinal: int, weight: float) -> dict[str, Any]:
-    identity, target = _after_sales_identity(root, output, split, ordinal)
+def _after_sales_row(
+    root: Path,
+    output: Path,
+    split: str,
+    ordinal: int,
+    weight: float,
+    *,
+    identity_version: str | None = None,
+    identity_ordinal: int | None = None,
+) -> dict[str, Any]:
+    source_ordinal = ordinal if identity_ordinal is None else identity_ordinal
+    identity_split = f"{split}_{identity_version}" if identity_version else split
+    identity, target = _after_sales_identity(
+        root, output, identity_split, source_ordinal,
+    )
     validate_output(root, "after_sales", target, "v1")
+    sample_namespace = f"-{identity_version}" if identity_version else ""
     return _row(
-        f"week7-{split}-after_sales-{ordinal:04d}", "after_sales", split, identity,
+        f"week7{sample_namespace}-{split}-after_sales-{ordinal:04d}",
+        "after_sales", split, identity,
         [_system(), _user(identity["image_path"], "读取视觉证据，判断问题类型、严重度和关键信息，严格输出指定 JSON Schema。")],
         target, "programmatic_silver", weight,
     )
 
 
-def _dialogue_row(parent: dict[str, Any], split: str, ordinal: int, tool_fraction: float, weight: float) -> dict[str, Any]:
+def _text_list(values: list[Any], *, fallback: str) -> str:
+    clean = [str(value).strip() for value in values if str(value).strip()]
+    return "、".join(clean) if clean else fallback
+
+
+def _aligned_dialogue_messages(
+    parent: dict[str, Any],
+    target: dict[str, Any],
+    rounds: int,
+    tool_call: bool,
+) -> list[dict[str, Any]]:
+    """Build concrete user→assistant turns without the historical v3 inversion."""
+    original = parent["messages"]
+    context = target["context_state"]
+    base_target = target["task_result"]
+    evidence = _text_list(
+        list(context.get("historical_image_reference") or []),
+        fallback="没有可确认的图片证据",
+    )
+    constraints = _text_list(
+        list(context.get("retained_hard_constraints") or []),
+        fallback="没有额外硬约束",
+    )
+    updated = str(context.get("updated_requirement") or "预算优先")
+    messages = [original[0], original[1]]
+    messages.append({
+        "role": "assistant",
+        "content": json.dumps(base_target, ensure_ascii=False, sort_keys=True),
+    })
+    mandatory = [
+        (
+            "请明确引用刚才那张图片中的证据。",
+            f"刚才图片中可确认的证据是：{evidence}。图片未支持的字段继续标记为 unknown。",
+        ),
+        (
+            "把偏好调整为更重视预算，但保留硬约束。",
+            f"已将当前偏好更新为“{updated}”；继续保留的硬约束是：{constraints}。",
+        ),
+        (
+            "总结目前累计的限制并检查是否存在逻辑冲突，不要遗漏。",
+            f"当前图片证据：{evidence}；最新需求：{updated}；保留硬约束：{constraints}。"
+            "这些已确认信息之间未发现冲突，未确认字段仍保持 unknown。",
+        ),
+    ]
+    optional = [
+        (
+            "再次确认没有引入图片外事实。",
+            f"已复核：只使用图片证据“{evidence}”和对话中明确给出的需求与约束，"
+            "没有补充图片外事实。",
+        ),
+        (
+            "说明本轮相对最初需求的变化。",
+            f"相对最初需求，本轮新增“{updated}”偏好；原有硬约束“{constraints}”未被删除。",
+        ),
+        (
+            "如果信息仍不足，应如何处理？",
+            "信息不足的字段继续输出 unknown，不根据常识或图片外信息进行猜测。",
+        ),
+    ]
+    for user_text, assistant_text in mandatory + optional[: rounds - 5]:
+        messages.append({
+            "role": "user",
+            "content": [{"type": "text", "text": user_text}],
+        })
+        messages.append({"role": "assistant", "content": assistant_text})
+    messages.append({
+        "role": "user",
+        "content": [{"type": "text", "text": "给出包含当前上下文状态的最终结构化结果。"}],
+    })
+    if tool_call:
+        messages.append({
+            "role": "assistant",
+            "content": (
+                '<tool_call>{"name":"check_constraints",'
+                '"arguments":{"scope":"conversation"}}</tool_call>'
+            ),
+        })
+        messages.append({"role": "tool", "content": '{"status":"ok"}'})
+    messages.append({
+        "role": "assistant",
+        "content": json.dumps(target, ensure_ascii=False, sort_keys=True),
+    })
+    return messages
+
+
+def _validate_aligned_dialogue(row: dict[str, Any]) -> None:
+    messages = row["messages"]
+    user_count = sum(message.get("role") == "user" for message in messages)
+    if user_count != int(row["dialogue_rounds"]):
+        raise Week7DataError(f"aligned dialogue round mismatch: {row['sample_id']}")
+    image_indices = []
+    for index, message in enumerate(messages):
+        content = message.get("content")
+        if isinstance(content, list) and any(
+            isinstance(item, dict) and item.get("type") == "image"
+            for item in content
+        ):
+            image_indices.append(index)
+    if image_indices != [1]:
+        raise Week7DataError(f"aligned dialogue image placement changed: {row['sample_id']}")
+    if not messages or messages[0].get("role") != "system":
+        raise Week7DataError(f"aligned dialogue must start with system: {row['sample_id']}")
+    for index, message in enumerate(messages):
+        role = message.get("role")
+        if role == "user":
+            if index + 1 >= len(messages) or messages[index + 1].get("role") != "assistant":
+                raise Week7DataError(
+                    f"aligned dialogue user/assistant alignment changed: {row['sample_id']}"
+                )
+        elif role == "tool":
+            if (
+                index == 0
+                or messages[index - 1].get("role") != "assistant"
+                or "<tool_call>" not in str(messages[index - 1].get("content") or "")
+                or index + 1 >= len(messages)
+                or messages[index + 1].get("role") != "assistant"
+            ):
+                raise Week7DataError(
+                    f"aligned dialogue tool sequence changed: {row['sample_id']}"
+                )
+        elif role == "assistant" and index + 1 < len(messages):
+            next_role = messages[index + 1].get("role")
+            is_tool_call = "<tool_call>" in str(message.get("content") or "")
+            expected_next = "tool" if is_tool_call else "user"
+            if next_role != expected_next:
+                raise Week7DataError(
+                    f"aligned dialogue assistant sequence changed: {row['sample_id']}"
+                )
+    legacy = {
+        "我会继续只引用首次用户轮的图片证据。",
+        "已更新当前需求，历史硬约束保持不变。",
+        "已承接图片证据、预算调整和原有硬约束。",
+        "上下文逻辑一致；不确定信息仍标记 unknown。",
+    }
+    if any(
+        isinstance(message.get("content"), str)
+        and message["content"] in legacy
+        for message in messages
+    ):
+        raise Week7DataError(f"legacy anticipatory reply entered v4: {row['sample_id']}")
+    if messages[-1].get("role") != "assistant":
+        raise Week7DataError(f"aligned dialogue does not end in assistant: {row['sample_id']}")
+    try:
+        final = json.loads(str(messages[-1]["content"]))
+    except json.JSONDecodeError as exc:
+        raise Week7DataError(
+            f"aligned dialogue final target is not JSON: {row['sample_id']}"
+        ) from exc
+    if final != row["target"]:
+        raise Week7DataError(f"aligned dialogue final target changed: {row['sample_id']}")
+
+
+def _dialogue_row(
+    parent: dict[str, Any],
+    split: str,
+    ordinal: int,
+    tool_fraction: float,
+    weight: float,
+    *,
+    aligned: bool = False,
+    identity_version: str | None = None,
+) -> dict[str, Any]:
     rounds = 5 + ordinal % 4
     base_target = parent["target"]
     evidence_terms = list(base_target.get("observed_evidence") or []) if isinstance(base_target, dict) else []
@@ -451,6 +650,8 @@ def _dialogue_row(parent: dict[str, Any], split: str, ordinal: int, tool_fractio
             "evidence_policy": "仅使用首次用户轮图片和对话中明确提供的信息",
         },
     }
+    stride = round(1.0 / tool_fraction)
+    tool_call = ordinal % stride == 0
     messages = list(parent["messages"])
     followups = [
         ("请明确引用刚才那张图片中的证据。", "我会继续只引用首次用户轮的图片证据。"),
@@ -461,27 +662,47 @@ def _dialogue_row(parent: dict[str, Any], split: str, ordinal: int, tool_fractio
         ("再次确认没有引入图片外事实。", "确认：回答仅使用首次图片及对话内明确提供的信息。"),
         ("说明本轮相对最初需求的变化。", "新增预算优先级，未删除原有硬约束。"),
     ]
-    for user_text, assistant_text in followups[: rounds - 1]:
-        messages.append({"role": "assistant", "content": assistant_text})
-        messages.append({"role": "user", "content": [{"type": "text", "text": user_text}]})
-    messages.append({"role": "assistant", "content": json.dumps(target, ensure_ascii=False, sort_keys=True)})
-    stride = round(1.0 / tool_fraction)
-    tool_call = ordinal % stride == 0
-    if tool_call:
-        messages.insert(-1, {"role": "assistant", "content": "<tool_call>{\"name\":\"check_constraints\",\"arguments\":{\"scope\":\"conversation\"}}</tool_call>"})
-        messages.insert(-1, {"role": "tool", "content": "{\"status\":\"ok\"}"})
+    if aligned:
+        messages = _aligned_dialogue_messages(parent, target, rounds, tool_call)
+    else:
+        for user_text, assistant_text in followups[: rounds - 1]:
+            messages.append({"role": "assistant", "content": assistant_text})
+            messages.append({
+                "role": "user",
+                "content": [{"type": "text", "text": user_text}],
+            })
+        messages.append({
+            "role": "assistant",
+            "content": json.dumps(target, ensure_ascii=False, sort_keys=True),
+        })
+        if tool_call:
+            messages.insert(-1, {
+                "role": "assistant",
+                "content": (
+                    '<tool_call>{"name":"check_constraints",'
+                    '"arguments":{"scope":"conversation"}}</tool_call>'
+                ),
+            })
+            messages.insert(-1, {"role": "tool", "content": '{"status":"ok"}'})
     identity = {
         "source_id": parent["source_id"], "group_id": parent["group_id"],
         "constraint_template_id": parent.get("constraint_template_id"),
         "image_sha256": parent["image_sha256"], "image_path": parent["image_path"],
     }
-    row = _row(f"week7-{split}-dialogue-{ordinal:04d}", "dialogue", split, identity, messages, target, "programmatic_silver", weight)
+    sample_namespace = f"-{identity_version}" if identity_version else ""
+    row = _row(
+        f"week7{sample_namespace}-{split}-dialogue-{ordinal:04d}",
+        "dialogue", split, identity, messages, target, "programmatic_silver", weight,
+    )
     row.update({
         "parent_sample_id": parent["sample_id"], "dialogue_rounds": rounds,
         "parent_scenario": parent.get("scenario"),
         "evaluation_dimensions": list(DIALOGUE_DIMENSIONS), "contains_tool_call": tool_call,
         "context_expectations": target["context_state"],
     })
+    if aligned:
+        row["construction_version"] = "aligned_concrete_turns_v4"
+        _validate_aligned_dialogue(row)
     return row
 
 
@@ -508,6 +729,8 @@ def _balanced_dialogue_rows(
         rows.append(_dialogue_row(
             pool[parent_index], split, ordinal,
             float(config["sampling"]["tool_call_dialogue_fraction"]), weight,
+            aligned=config["schema_version"].endswith("v4"),
+            identity_version=("v4" if config["schema_version"].endswith("v4") else None),
         ))
         used[scenario] += 1
     expected = {scenario: int(declared[scenario]) for scenario in CORE_SCENARIOS}
@@ -574,17 +797,50 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
     train_core = int(dataset["train_per_core_scenario"])
     dev_core = int(dataset["development_per_core_scenario"])
     test_core = int(dataset["test_per_core_scenario"])
-    public_needed = 2 * (train_core + dev_core + test_core) + int(dataset["general_regularization_count"])
+    is_v4 = config["schema_version"].endswith("v4")
+    # After train/dev, v3 consumed its test sources and then 270 general-train
+    # sources. v4 skips both blocks before selecting a genuinely unseen test.
+    v3_consumed_public_skip = (
+        2 * test_core + int(dataset["general_regularization_count"])
+        if is_v4 else 0
+    )
+    public_needed = (
+        2 * (train_core + dev_core + test_core)
+        + int(dataset["general_regularization_count"])
+        + v3_consumed_public_skip
+    )
     sources = iter(_collect_public_sources(source_root, config, consumed, public_needed))
     core: dict[str, list[dict[str, Any]]] = {split: [] for split in ("train", "development", "test")}
     split_counts = {"train": train_core, "development": dev_core, "test": test_core}
     silver_weight = float(dataset["silver_weight"])
     for split, count in split_counts.items():
+        if is_v4 and split == "test":
+            for _ in range(v3_consumed_public_skip):
+                next(sources)
         for scenario in ("image_product_search", "itinerary_planning"):
             for ordinal in range(count):
-                core[split].append(_core_public_row(root, output, scenario, split, next(sources), ordinal, silver_weight))
+                source = next(sources)
+                if is_v4:
+                    row = _core_public_row(
+                        root, output, scenario, split, source, ordinal,
+                        silver_weight, identity_version="v4",
+                    )
+                else:
+                    row = _core_public_row(
+                        root, output, scenario, split, source, ordinal, silver_weight,
+                    )
+                core[split].append(row)
         for ordinal in range(count):
-            core[split].append(_after_sales_row(root, output, split, ordinal, silver_weight))
+            if is_v4:
+                row = _after_sales_row(
+                    root, output, split, ordinal, silver_weight,
+                    identity_version="v4",
+                )
+            else:
+                row = _after_sales_row(
+                    root, output, split, ordinal, silver_weight,
+                )
+            core[split].append(row)
 
     general = []
     for ordinal in range(int(dataset["general_regularization_count"])):
@@ -600,7 +856,7 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
     dialogue_counts = {"train": int(dataset["dialogue_count"]), "development": int(dataset["development_dialogue_count"]), "test": int(dataset["test_dialogue_count"])}
     dialogues: dict[str, list[dict[str, Any]]] = {}
     for split, count in dialogue_counts.items():
-        if config["schema_version"].endswith("v3"):
+        if config["schema_version"].endswith(("v3", "v4")):
             dialogues[split] = _balanced_dialogue_rows(
                 core[split], split, config, silver_weight,
             )
@@ -627,6 +883,41 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
         "test": core["test"] + dialogues["test"],
     }
     isolation = _validate_partition_isolation(rows_by_split, consumed)
+    historical_v3_test_exclusion = None
+    if is_v4:
+        historical_path = (
+            root / dataset["source_paths"]["historical_v3_identity_manifest"]
+        )
+        if not historical_path.is_file():
+            raise Week7DataError(f"historical v3 test identity is missing: {historical_path}")
+        historical_rows = list(iter_jsonl(historical_path))
+        historical_sets = {
+            field: {row.get(field) for row in historical_rows if row.get(field)}
+            for field in IDENTITY_FIELDS
+        }
+        current_sets = {
+            field: {row.get(field) for row in rows_by_split["test"] if row.get(field)}
+            for field in IDENTITY_FIELDS
+        }
+        overlaps = {
+            field: sorted(historical_sets[field] & current_sets[field])
+            for field in IDENTITY_FIELDS
+        }
+        if any(overlaps.values()):
+            raise Week7DataError(
+                f"v4 test reuses consumed v3 test identity: "
+                f"{ {field: values[:3] for field, values in overlaps.items() if values} }"
+            )
+        historical_v3_test_exclusion = {
+            "status": "PASS",
+            "path": str(historical_path.relative_to(root).as_posix()),
+            "sha256": sha256_file(historical_path),
+            "historical_count": len(historical_rows),
+            "historical_scope": "v3_train_development_test_all_rows",
+            "v4_test_count": len(rows_by_split["test"]),
+            "dimensions": list(IDENTITY_FIELDS),
+            "overlap_counts": {field: len(values) for field, values in overlaps.items()},
+        }
     if len(rows_by_split["train"]) != int(dataset["train_total"]):
         raise Week7DataError("training row count changed")
     manifest_rows = []
@@ -645,7 +936,8 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
     counts = {split: dict(Counter(row["scenario"] for row in rows)) for split, rows in rows_by_split.items()}
     lock = {
         "schema_version": (
-            "week7_dataset_lock_v3" if config["schema_version"].endswith("v3")
+            "week7_dataset_lock_v4" if config["schema_version"].endswith("v4")
+            else "week7_dataset_lock_v3" if config["schema_version"].endswith("v3")
             else "week7_dataset_lock_v2" if config["schema_version"].endswith("v2")
             else "week7_dataset_lock_v1"
         ),
@@ -655,12 +947,21 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
         "week5_dialogue_audit": dialogue_audit, "counts": counts,
         "actual_train_ratios": {"general_multimodal": len(general) / len(rows_by_split["train"]), "dialogue": len(dialogues["train"]) / len(rows_by_split["train"])},
         "isolation": isolation, "files": files, "actual_tool_call_ratios": tool_call_ratios,
+        "historical_v3_test_exclusion": historical_v3_test_exclusion,
         "dialogue_parent_scenario_counts": {
             split: dict(Counter(row.get("parent_scenario") for row in rows))
             for split, rows in dialogues.items()
         },
         "test_policy": {"status": "LOCKED_UNCONSUMED", "may_read_only_after_parameter_lock": True, "maximum_evaluations": 1},
-        "label_policy": {"week7_rows": "programmatic_silver", "human_accepted_rows": 0, "human_queue_status": "PENDING_REAL_HUMAN_INPUT"},
+        "label_policy": {
+            "week7_rows": "programmatic_silver",
+            "human_accepted_rows": 0,
+            "human_queue_status": (
+                "NOT_REQUIRED_AUTOMATIC_V4"
+                if config["schema_version"].endswith("v4")
+                else "PENDING_REAL_HUMAN_INPUT"
+            ),
+        },
     }
     lock["lock_sha256"] = canonical_sha256(lock)
     (output / "dataset_lock.json").write_text(json.dumps(lock, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -710,7 +1011,7 @@ def validate_week7_lock(root: Path, config_path: Path, *, include_test: bool = F
                 if not isinstance(expected, dict) or expected.get("updated_requirement") != "预算优先":
                     raise Week7DataError(f"dialogue context expectation missing: {row['sample_id']}")
             validated[split] += 1
-    if config["schema_version"].endswith("v3"):
+    if config["schema_version"].endswith(("v3", "v4")):
         declared = config["sampling"]["dialogue_parent_scenario_counts"]
         for split in splits:
             expected = {
@@ -720,6 +1021,13 @@ def validate_week7_lock(root: Path, config_path: Path, *, include_test: bool = F
                 raise Week7DataError(f"dialogue parent distribution changed: {split}")
             if lock.get("dialogue_parent_scenario_counts", {}).get(split) != expected:
                 raise Week7DataError(f"locked dialogue parent distribution changed: {split}")
+            if config["schema_version"].endswith("v4"):
+                for row in iter_jsonl(output / split / "dialogue.jsonl"):
+                    if row.get("construction_version") != "aligned_concrete_turns_v4":
+                        raise Week7DataError(
+                            f"v4 dialogue construction identity changed: {row['sample_id']}"
+                        )
+                    _validate_aligned_dialogue(row)
         expected_test = {
             scenario: int(declared["test"][scenario]) for scenario in CORE_SCENARIOS
         }

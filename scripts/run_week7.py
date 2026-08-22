@@ -30,6 +30,8 @@ from src.training.week7_dialogue_repair import (
     run_dialogue_week6_baseline_v1,
     run_dialogue_review_v2,
 )
+from src.training.week7_dialogue_v4 import select_v4_checkpoint
+from src.training.week7_dialogue_v4_test import run_corrected_dialogue_test_once
 from src.training.week7_qlora import Week7TrainingError, run_multitask_training
 from src.training.week7_preference import build_preference_pairs
 from src.training.week7_mdpo import run_mdpo_ablation
@@ -77,6 +79,16 @@ def build_parser() -> argparse.ArgumentParser:
     select.add_argument("--week6-baseline", type=Path, required=True)
     select.add_argument("--output", type=Path, required=True)
     select.add_argument("--latency-protocol", type=Path)
+    select_v4 = commands.add_parser("select-v4-checkpoint")
+    select_v4.add_argument("--training-dir", type=Path, required=True)
+    select_v4.add_argument("--training-summary", type=Path, required=True)
+    select_v4.add_argument("--output", type=Path, required=True)
+    v4_test = commands.add_parser("v4-dialogue-test")
+    v4_test.add_argument("--selection", type=Path, required=True)
+    v4_test.add_argument("--output-dir", type=Path, required=True)
+    v4_test.add_argument("--week6-product-adapter", type=Path, required=True)
+    v4_test.add_argument("--week6-after-sales-adapter", type=Path, required=True)
+    v4_test.add_argument("--week6-itinerary-adapter", type=Path, required=True)
     for command in ("latency-protocol-v4", "latency-protocol-v5"):
         latency = commands.add_parser(command)
         latency.add_argument("--output-dir", type=Path, required=True)
@@ -202,6 +214,20 @@ def main() -> int:
                 args.config, args.training_dir, args.training_summary,
                 args.week6_baseline, args.output,
                 latency_protocol_path=args.latency_protocol,
+            )
+        elif args.command == "select-v4-checkpoint":
+            payload = select_v4_checkpoint(
+                ROOT, args.config, args.training_dir,
+                args.training_summary, args.output,
+            )
+        elif args.command == "v4-dialogue-test":
+            payload = run_corrected_dialogue_test_once(
+                ROOT, args.config, args.selection, args.output_dir,
+                {
+                    "image_product_search": args.week6_product_adapter,
+                    "after_sales": args.week6_after_sales_adapter,
+                    "itinerary_planning": args.week6_itinerary_adapter,
+                },
             )
         elif args.command in {"latency-protocol-v4", "latency-protocol-v5"}:
             payload = run_latency_protocol_v4(

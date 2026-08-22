@@ -76,6 +76,41 @@ def structure_aware_messages(processor: Any, messages: list[dict[str, Any]], max
     return candidate
 
 
+def assistant_span_labels(
+    processor: Any,
+    messages: list[dict[str, Any]],
+    input_ids: Any,
+) -> Any:
+    """Mask non-assistant tokens while supervising every assistant turn."""
+    labels = input_ids.clone()
+    labels.fill_(-100)
+    supervised_spans = 0
+    full_length = int(input_ids.shape[1])
+    for index, message in enumerate(messages):
+        if message.get("role") != "assistant":
+            continue
+        prefix = processor.apply_chat_template(
+            messages[:index], tokenize=True, add_generation_prompt=True,
+            return_dict=True, return_tensors="pt", truncation=False,
+        )
+        through = processor.apply_chat_template(
+            messages[: index + 1], tokenize=True, add_generation_prompt=False,
+            return_dict=True, return_tensors="pt", truncation=False,
+        )
+        start = int(prefix["input_ids"].shape[1])
+        end = int(through["input_ids"].shape[1])
+        if not 0 <= start < end <= full_length:
+            raise Week7TrainingError(
+                f"assistant token span is invalid: message={index}, span={start}:{end}, "
+                f"full_length={full_length}"
+            )
+        labels[:, start:end] = input_ids[:, start:end]
+        supervised_spans += 1
+    if supervised_spans == 0 or not (labels != -100).any():
+        raise Week7TrainingError("no assistant span remained after truncation")
+    return labels
+
+
 class IndexedWeek7Dataset:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
@@ -115,11 +150,55 @@ def _generate_record(
     del root
     normalized = structure_aware_messages(
         processor, training_messages(row), max_length,
-    )[:-1]
+    )
+    if row.get("construction_version") == "aligned_concrete_turns_v4":
+        conversation: list[dict[str, Any]] = []
+        turns = []
+        total_latency_ms = 0.0
+        any_failed = False
+        for message_index, message in enumerate(normalized):
+            if message.get("role") != "assistant":
+                conversation.append(message)
+                continue
+            generated = generate_record(
+                model,
+                processor,
+                conversation,
+                sample_id=f"{row['sample_id']}#assistant-{len(turns):02d}",
+                run_id=run_id,
+                model_name="Qwen3-VL-8B+Week7-QLoRA",
+                max_new_tokens=max_new_tokens,
+            )
+            raw_output = str(generated.get("raw_output") or "")
+            failed = bool(generated.get("failed"))
+            latency_ms = float(generated.get("latency_ms", 0.0))
+            turns.append({
+                "assistant_turn_index": len(turns),
+                "message_index": message_index,
+                "expected_output": message.get("content"),
+                "raw_output": raw_output,
+                "failed": failed,
+                "latency_ms": latency_ms,
+            })
+            total_latency_ms += latency_ms
+            any_failed = any_failed or failed
+            conversation.append({"role": "assistant", "content": raw_output})
+        if not turns:
+            raise Week7TrainingError(f"v4 dialogue has no assistant turns: {row['sample_id']}")
+        return {
+            "sample_id": row["sample_id"],
+            "run_id": run_id,
+            "model_name": "Qwen3-VL-8B+Week7-QLoRA",
+            "raw_output": turns[-1]["raw_output"],
+            "latency_ms": total_latency_ms,
+            "failed": any_failed,
+            "turn_outputs": turns,
+            "generation_mode": "sequential_assistant_turns_v4",
+        }
     return generate_record(
         model,
         processor,
-        normalized,
+        normalized[:-1],
         sample_id=row["sample_id"],
         run_id=run_id,
         model_name="Qwen3-VL-8B+Week7-QLoRA",
@@ -138,6 +217,9 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
     if lock.get("config_sha256") != config_sha256:
         raise Week7TrainingError("training config SHA-256 does not match the dataset lock")
     run_id = config["experiment_identity"]["multitask_sft_run_id"]
+    declared_run_id = os.environ.get("TRIP_RUN_ID")
+    if declared_run_id is not None and declared_run_id != run_id:
+        raise Week7TrainingError("TRIP_RUN_ID differs from the locked v4 config")
     run_identity = {
         "run_id": run_id,
         "config_sha256": config_sha256,
@@ -207,15 +289,9 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
             messages, tokenize=True, add_generation_prompt=False, return_dict=True,
             return_tensors="pt", truncation=False,
         )
-        prompt = processor.apply_chat_template(
-            messages[:-1], tokenize=True, add_generation_prompt=True, return_dict=True,
-            return_tensors="pt", truncation=False,
+        inputs["labels"] = assistant_span_labels(
+            processor, messages, inputs["input_ids"],
         )
-        labels = inputs["input_ids"].clone()
-        labels[:, : prompt["input_ids"].shape[1]] = -100
-        if not (labels != -100).any():
-            raise Week7TrainingError("assistant target was truncated")
-        inputs["labels"] = labels
         inputs["_sample_weight"] = torch.tensor(float(batch[0]["sample_weight"]))
         return inputs
 
@@ -289,6 +365,25 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
             if summary["dialogue"]:
                 metrics[f"{metric_key_prefix}_dialogue_format_compliance"] = float(summary["dialogue"]["format_compliance"])
                 metrics[f"{metric_key_prefix}_dialogue_context_recall"] = float(summary["dialogue"]["context_recall"])
+                if "automatic_composite" in summary["dialogue"]:
+                    metrics[f"{metric_key_prefix}_dialogue_automatic_composite"] = float(
+                        summary["dialogue"]["automatic_composite"]
+                    )
+                    metrics[f"{metric_key_prefix}_dialogue_context_state_value_accuracy"] = float(
+                        summary["dialogue"]["context_state_value_accuracy"]
+                    )
+                    metrics[f"{metric_key_prefix}_dialogue_task_result_key_coverage"] = float(
+                        summary["dialogue"]["task_result_key_coverage"]
+                    )
+                    metrics[f"{metric_key_prefix}_dialogue_task_result_value_accuracy"] = float(
+                        summary["dialogue"]["task_result_value_accuracy"]
+                    )
+                    metrics[f"{metric_key_prefix}_dialogue_sequential_turn_coverage"] = float(
+                        summary["dialogue"]["sequential_turn_coverage"]
+                    )
+                    metrics[f"{metric_key_prefix}_dialogue_sequential_turn_failure_rate"] = float(
+                        summary["dialogue"]["sequential_turn_failure_rate"]
+                    )
             self.log(metrics)
             self.control = self.callback_handler.on_evaluate(
                 self.args, self.state, self.control, metrics,

@@ -622,3 +622,20 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   人工聚合证据和状态修复由收尾提交推送。终态对抗审计允许实现进入 `dev` 集成，
   但因 v3 test 对话构造缺陷不可逆，完整 Week 7 能力结论仍未通过；不进入 `stg`，
   不打标签。
+
+### Corrected-dialogue v4 执行增量（2026-08-22）
+
+- [x] 接受 ADR-031，保留 v3 失效历史证据，新建 v4 全量 train/development/test
+  身份与独立 run IDs。
+- [x] v4 锁 3000/114/114 实际构建并验证；训练比例 9% 通用正则、15%
+  对话，三分区五维冲突 0。
+- [x] v4 test 与 v3 完整 3228 行 identity manifest 五维重叠 0；test 仍
+  `LOCKED_UNCONSUMED`。
+- [x] 所有 assistant span 参与 SFT loss；development/test 实现逐轮生成和机器
+  sequential 门禁，未冒充人工评分。
+- [x] 实现严格 checkpoint selector 和一次性 corrected-dialogue test runner，包含原子
+  marker、全候选证据重算与 Week 6 routed/zero-shot 对比。
+- [x] v4 定向测试 10/10、Week 7 测试 71/71、完整 unittest 441/441、Python
+  语法和两份 Slurm shell 语法通过。
+- [ ] v4 GPU 训练、development checkpoint 选择与 corrected-dialogue test 尚未执行；
+  本项不在无真实作业证据时勾选。

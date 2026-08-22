@@ -413,6 +413,29 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **影响**：本次论文评审与设计不代表已经获得新指标；更大模型、GRPO/RL、无验证的
   合成推理和更多 epoch 均须由新开发集证据单独授权，不能作为默认动作。
 
+## ADR-031：Week 7 对话构造 v4 修正与无新人工输入自动闭环
+
+- **日期**：2026-08-22
+- **状态**：Accepted；来自用户最新直接指令，在对话缺陷修正与新 test 身份上
+  supersede ADR-030 的原 Week 7 一次性 v3 test 约束；其余 Week 6 不可变证据、
+  Week 3 v2 禁止调参和五维隔离约束保持有效。
+- **决策**：保留 v3 全部历史产物及失效结论，新建 v4 全量数据锁并修正
+  train/development/test 的 user→assistant 对齐；从 Qwen3-VL-8B-Instruct 原底座
+  按已锁 QLoRA/SFT 配置重训。development 以机器自动四维、格式和失败率门禁选
+  checkpoint，并将配置、数据锁、raw 输出和 adapter SHA-256 与选择结果绑定。
+- **一次性测试**：只有 development 自动门禁通过后才可消费 v4 corrected-dialogue
+  test 一次；同一批 24 条分别生成 multitask、Week 6 三 adapter 按场景路由和
+  zero-shot 原始输出。消费 marker 在模型加载前落盘，作业失败或指标不合格
+  也不得通过换参重跑追逐 test。
+- **人工边界**：现有 corrected development 24/24 真人评分保留为辅助证据；本 v4
+  不要求新的人工干预。Agent 可执行自动对抗判定，但这些结果必须标识为
+  machine/automatic，不得冒充 human accepted。
+- **DPO**：已执行的唯一 mDPO-style v1 因 validation 门禁失败而关闭；v4
+  不再运行 DPO，不修改或重新解释已有偏好对审计。
+- **影响**：v4 是对真实系统性构造缺陷的新身份修复，不是对 v3 test 的回溯修补。
+  新 test 结果只适用于 v4 corrected-dialogue 口径；不改写 Week 6 终态、v3 原始评测
+  或既有真人评分。
+
 ## Decision Template
 
 ```markdown

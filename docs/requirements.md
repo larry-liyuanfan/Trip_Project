@@ -439,6 +439,29 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 
 ## Week 7：多任务混合微调与上下文搭建
 
+### 2026-08-22 用户直接修正授权（v4）
+
+- 用户最新指令取代原 Week 7 对“v3 test 不可重开”和“必须继续人工抽样”的
+  限制。v3 的 train/development/test 对话轮次构造有助手回复早于对应用户要求的
+  系统性缺陷，因此 v3 数据、训练、原始输出和一次性 test 仅作不可改写的
+  历史证据，不得用于声称已正确验证多轮能力。
+- 新建 `week7_corrected_multitask_context_20260822_v4`，在保持核心场景分区边界和随机种子的
+  前提下，替换 train/development/test 全部对话构造：每个用户轮必须先于回答，
+  图片仅出现在首个用户轮，支持 5–8 个用户轮，最终结构化目标必须与当前
+  上下文状态一致。v4 必须重建全数据锁、从原底座重训统一 adapter，不从 v3
+  checkpoint 续训。
+- v4 development 以确定性机器指标和对抗切片为主门禁；指标包含 JSON 格式、
+  上下文键覆盖、上下文值准确率、任务结果键覆盖、上下文召回和失败率。
+  已有 corrected development 24 条真人四维结果仅作辅助的历史描述；本轮不再
+  等待新的人工输入，Agent 或机器指标不得改写为真人评分、人工验收或
+  统计显著结论。
+- 只有通过预注册自动门禁的 development checkpoint 才可锁定。锁定后允许对
+  v4 corrected-dialogue test 执行一次新的自动评测，并同时对比锁定的 Week 6
+  routed adapters 和零样本底座。开始消费 test 后无论作业成功或门禁失败都
+  不得换参数重跑。
+- 已完成的唯一一次 mDPO-style 消融因 validation 门禁失败而拒绝新 adapter；
+  v4 不重试 DPO，不以自标注或机器自举冒充新的高质量偏好对。
+
 ### Week 6 交接与执行边界
 
 - Week 6 已在提交 `132779b0f6d2929ce1cdbed18e62adf3ef9edd18` 完成交付并进入 `stg`。其训练数据锁、三个单场景 adapter、checkpoint、原始输出、冻结评测、报告和归档均作为历史终态保持不可变；Week 7 不得原地续训、覆盖或改写这些产物。

@@ -529,23 +529,32 @@ python scripts/evaluate_week6_adapter.py compare \
 
 ## Week 7 Multitask Context
 
-Week 7 固定使用 `configs/week7/qwen3_vl_8b_multitask_context_v3.json`。数据构建必须
-显式指向保留 Week 5/6 历史产物的只读来源项目；生成后默认验证只读取 train 和
-development，只有参数锁定后的最终命令才允许读取 test。当前本地锁摘要见
-`experiments/week7_data_lock_20260820_v3.json`。
+Week 7 当前修正身份固定使用
+`configs/week7/qwen3_vl_8b_multitask_context_v4.json`。v3 因对话 assistant/user
+错序仅作不可改写历史证据。v4 数据构建必须显式指向保留 Week 5/6 历史
+产物的只读来源项目；默认验证只读 train/development，corrected-dialogue test
+只能在 development 自动门禁选定 checkpoint 后消费一次。v4 锁与 v3 完整
+identity manifest 执行五维零重叠审计，不仅排除旧 test，也排除 v3 的训练和
+development 来源。
 
 ```bash
-python scripts/manage_week7.py build-lock --source-project-root <read-only-week5-week6-project>
-python scripts/manage_week7.py validate-lock
-python scripts/run_week7.py check-environment
-python scripts/run_week7.py latency-protocol-v5 --help
-python scripts/run_week7.py select-checkpoint --help
-python scripts/run_week7.py lock-parameters --help
-python scripts/run_week7.py final-test --help
+python scripts/manage_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4.json build-lock --source-project-root <read-only-week5-week6-project>
+python scripts/manage_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4.json validate-lock
+python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4.json check-environment
+python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4.json train-multitask --help
+python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4.json select-v4-checkpoint --help
+python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4.json v4-dialogue-test --help
 python scripts/run_week7.py adversarial-audit
 ```
 
-正式 test 完成后，24 条固定 development 对话人工四维评分使用本地只读证据界面：
+v4 对话对所有 assistant span 计算 SFT loss，不再只训练最后 JSON；development
+和 test 依次生成每个 assistant 轮，将模型自己的前序回复放回上下文，并统计
+逐轮覆盖率、逐轮失败率、上下文值准确率及任务结果键/值准确率。新评测不
+要求人工输入；机器结果不标记为人工验收。对应 Spartan 作业为
+`week7_v4_multitask_train.sbatch` 和 `week7_v4_dialogue_test.sbatch`。
+
+以下标注台命令仅用于已完成的历史 v3/corrected-development 真人证据；
+v4 自动闭环不再等待新人工输入：
 
 ```bash
 python scripts/run_week7_dialogue_review.py

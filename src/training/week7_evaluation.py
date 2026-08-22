@@ -76,7 +76,82 @@ def _dialogue_terms(value: Any) -> set[str]:
     return terms
 
 
-def score_dialogue_record(row: dict[str, Any], raw_output: str, latency_ms: float, failed: bool) -> dict[str, Any]:
+def _sequential_turn_score(
+    row: dict[str, Any], turn_outputs: Any,
+) -> tuple[float, float, int, int]:
+    expected_assistants = [
+        (index, message.get("content"))
+        for index, message in enumerate(row.get("messages", []))
+        if message.get("role") == "assistant"
+    ]
+    if not isinstance(turn_outputs, list) or not expected_assistants:
+        return 0.0, 1.0, len(expected_assistants), 0
+    scores = []
+    failures = 0
+    for turn_index, (message_index, expected_output) in enumerate(expected_assistants):
+        if turn_index >= len(turn_outputs) or not isinstance(turn_outputs[turn_index], dict):
+            scores.append(0.0)
+            failures += 1
+            continue
+        observed = turn_outputs[turn_index]
+        raw = str(observed.get("raw_output") or "")
+        if (
+            observed.get("assistant_turn_index") != turn_index
+            or observed.get("message_index") != message_index
+        ):
+            scores.append(0.0)
+            failures += 1
+            continue
+        failures += bool(observed.get("failed"))
+        expected_text = str(expected_output or "")
+        if "<tool_call>" in expected_text:
+            scores.append(float(
+                "<tool_call>" in raw
+                and '"name":"check_constraints"' in raw.replace(" ", "")
+                and '"scope":"conversation"' in raw.replace(" ", "")
+            ))
+            continue
+        try:
+            expected_json = json.loads(expected_text)
+            observed_json = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            required = {
+                term for term in _dialogue_terms(row.get("context_expectations", {}))
+                if term in expected_text.casefold()
+            }
+            if "unknown" in expected_text.casefold():
+                required.add("unknown")
+            scores.append(
+                sum(term in raw.casefold() for term in required) / len(required)
+                if required else float(bool(raw.strip()))
+            )
+        else:
+            if isinstance(expected_json, dict) and isinstance(observed_json, dict):
+                scores.append(
+                    sum(observed_json.get(key) == value for key, value in expected_json.items())
+                    / len(expected_json)
+                    if expected_json else 1.0
+                )
+            else:
+                scores.append(float(observed_json == expected_json))
+    observed_count = min(len(turn_outputs), len(expected_assistants))
+    if len(turn_outputs) > len(expected_assistants):
+        failures += len(turn_outputs) - len(expected_assistants)
+    return (
+        statistics.fmean(scores) if scores else 0.0,
+        min(1.0, failures / len(expected_assistants)),
+        len(expected_assistants),
+        observed_count,
+    )
+
+
+def score_dialogue_record(
+    row: dict[str, Any],
+    raw_output: str,
+    latency_ms: float,
+    failed: bool,
+    turn_outputs: Any = None,
+) -> dict[str, Any]:
     expectations = row.get("context_expectations")
     if not isinstance(expectations, dict):
         raise Week7EvaluationError(f"dialogue context expectations are missing: {row.get('sample_id')}")
@@ -93,6 +168,51 @@ def score_dialogue_record(row: dict[str, Any], raw_output: str, latency_ms: floa
         json_valid = isinstance(parsed, dict)
     except json.JSONDecodeError:
         pass
+    automatic_eligible = row.get("construction_version") == "aligned_concrete_turns_v4"
+    expected_target = row.get("target") if isinstance(row.get("target"), dict) else {}
+    expected_context = expectations
+    expected_task = expected_target.get("task_result", {})
+    parsed_context = parsed.get("context_state", {}) if isinstance(parsed, dict) else {}
+    parsed_task = parsed.get("task_result", {}) if isinstance(parsed, dict) else {}
+    context_keys = set(expected_context)
+    task_keys = set(expected_task) if isinstance(expected_task, dict) else set()
+    context_key_coverage = (
+        len(context_keys & set(parsed_context)) / len(context_keys)
+        if context_keys and isinstance(parsed_context, dict)
+        else 0.0
+    )
+    context_value_accuracy = (
+        sum(parsed_context.get(key) == value for key, value in expected_context.items())
+        / len(expected_context)
+        if expected_context and isinstance(parsed_context, dict)
+        else 0.0
+    )
+    task_key_coverage = (
+        len(task_keys & set(parsed_task)) / len(task_keys)
+        if task_keys and isinstance(parsed_task, dict)
+        else 0.0
+    )
+    task_value_accuracy = (
+        sum(parsed_task.get(key) == value for key, value in expected_task.items())
+        / len(expected_task)
+        if expected_task and isinstance(parsed_task, dict)
+        else 0.0
+    )
+    sequential_coverage, sequential_failure_rate, expected_turns, observed_turns = (
+        _sequential_turn_score(row, turn_outputs)
+        if automatic_eligible else (0.0, 0.0, 0, 0)
+    )
+    automatic_composite = None
+    if automatic_eligible:
+        automatic_composite = statistics.fmean((
+            float(json_valid),
+            recalled / len(expected) if expected else 1.0,
+            context_key_coverage,
+            context_value_accuracy,
+            task_key_coverage,
+            task_value_accuracy,
+            sequential_coverage,
+        ))
     return {
         "sample_id": row["sample_id"], "scenario": "dialogue", "latency_ms": latency_ms,
         "failed": failed, "format_compliance": float(json_valid),
@@ -100,10 +220,62 @@ def score_dialogue_record(row: dict[str, Any], raw_output: str, latency_ms: floa
         "historical_image_reference": float(bool(image_terms) and any(term in normalized for term in image_terms)),
         "requirement_update": float(bool(updated_requirement) and updated_requirement in normalized),
         "context_carryover": float(not retained_terms or all(term in normalized for term in retained_terms)),
-        "logical_consistency": None,
+        "logical_consistency": context_value_accuracy if automatic_eligible else None,
+        "context_state_key_coverage": context_key_coverage,
+        "context_state_value_accuracy": context_value_accuracy,
+        "task_result_key_coverage": task_key_coverage,
+        "task_result_value_accuracy": task_value_accuracy,
+        "sequential_turn_coverage": sequential_coverage,
+        "sequential_turn_failure_rate": sequential_failure_rate,
+        "sequential_turn_count_expected": expected_turns,
+        "sequential_turn_count_observed": observed_turns,
+        "final_target_exact_match": float(parsed == expected_target),
+        "automatic_semantic_gate_eligible": automatic_eligible,
+        "automatic_composite": automatic_composite,
         "parsed_output": parsed,
-        "human_required": True,
+        "human_required": not automatic_eligible,
     }
+
+
+def _dialogue_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
+    automatic = all(item["automatic_semantic_gate_eligible"] for item in scores)
+    result = {
+        "sample_count": len(scores),
+        "format_compliance": statistics.fmean(item["format_compliance"] for item in scores),
+        "context_recall": statistics.fmean(item["context_recall"] for item in scores),
+        "human_dimensions_status": (
+            "NOT_REQUIRED_AUTOMATIC_V4" if automatic else "PENDING_REAL_HUMAN_INPUT"
+        ),
+        "scores": scores,
+    }
+    if automatic:
+        result.update({
+            "context_state_key_coverage": statistics.fmean(
+                item["context_state_key_coverage"] for item in scores
+            ),
+            "context_state_value_accuracy": statistics.fmean(
+                item["context_state_value_accuracy"] for item in scores
+            ),
+            "task_result_key_coverage": statistics.fmean(
+                item["task_result_key_coverage"] for item in scores
+            ),
+            "task_result_value_accuracy": statistics.fmean(
+                item["task_result_value_accuracy"] for item in scores
+            ),
+            "sequential_turn_coverage": statistics.fmean(
+                item["sequential_turn_coverage"] for item in scores
+            ),
+            "sequential_turn_failure_rate": statistics.fmean(
+                item["sequential_turn_failure_rate"] for item in scores
+            ),
+            "final_target_exact_match": statistics.fmean(
+                item["final_target_exact_match"] for item in scores
+            ),
+            "automatic_composite": statistics.fmean(
+                item["automatic_composite"] for item in scores
+            ),
+        })
+    return result
 
 
 def summarize_dialogue_raw_records(
@@ -129,20 +301,16 @@ def summarize_dialogue_raw_records(
             raw = ""
         latency = float(record.get("latency_ms", 0.0))
         failed = bool(record.get("failed"))
-        scores.append(score_dialogue_record(row, raw, latency, failed))
+        scores.append(score_dialogue_record(
+            row, raw, latency, failed, record.get("turn_outputs"),
+        ))
         latencies.append(latency)
         failures += failed
     return {
         "sample_count": len(records_list),
         "weighted_composite": None,
         "scenarios": {},
-        "dialogue": {
-            "sample_count": len(scores),
-            "format_compliance": statistics.fmean(item["format_compliance"] for item in scores),
-            "context_recall": statistics.fmean(item["context_recall"] for item in scores),
-            "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT",
-            "scores": scores,
-        },
+        "dialogue": _dialogue_summary(scores),
         "latency_ms_mean": statistics.fmean(latencies),
         "latency_ms_median": statistics.median(latencies),
         "failure_count": failures,
@@ -184,7 +352,9 @@ def summarize_raw_records(
         failures += failed
         latencies.append(latency)
         if row["scenario"] == "dialogue":
-            dialogue_scores.append(score_dialogue_record(row, raw, latency, failed))
+            dialogue_scores.append(score_dialogue_record(
+                row, raw, latency, failed, record.get("turn_outputs"),
+            ))
             continue
         parsed, json_valid, schema_valid, error = strict_parse_output(root, row["scenario"], raw)
         result = {
@@ -210,15 +380,22 @@ def summarize_raw_records(
     weighted = sum(float(config["evaluation"]["scenario_weights"][scenario]) * scenario_composites[scenario] for scenario in present_scenarios) / selected_weight
     dialogue_summary = None
     if dialogue_scores:
-        dialogue_summary = {
-            "sample_count": len(dialogue_scores),
-            "format_compliance": statistics.fmean(item["format_compliance"] for item in dialogue_scores),
-            "context_recall": statistics.fmean(item["context_recall"] for item in dialogue_scores),
-            "human_dimensions_status": "PENDING_REAL_HUMAN_INPUT",
-            "scores": dialogue_scores,
-        }
+        dialogue_summary = _dialogue_summary(dialogue_scores)
+    core_weighted = weighted
+    automatic_gate = config["evaluation"].get("dialogue_automatic_gate", {})
+    if automatic_gate.get("enabled") is True:
+        if not dialogue_summary or "automatic_composite" not in dialogue_summary:
+            raise Week7EvaluationError("v4 automatic dialogue evidence is missing")
+        dialogue_weight = float(automatic_gate["selection_weight"])
+        if not 0.0 < dialogue_weight < 1.0:
+            raise Week7EvaluationError("v4 dialogue selection weight is invalid")
+        weighted = (
+            (1.0 - dialogue_weight) * core_weighted
+            + dialogue_weight * float(dialogue_summary["automatic_composite"])
+        )
     result = {
         "sample_count": len(records_list), "weighted_composite": weighted,
+        "core_weighted_composite": core_weighted,
         "scenarios": scenario_results, "dialogue": dialogue_summary,
         "latency_ms_mean": statistics.fmean(latencies), "latency_ms_median": statistics.median(latencies),
         "failure_count": failures, "failure_rate": failures / len(records_list),

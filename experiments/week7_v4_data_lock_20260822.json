@@ -1,0 +1,86 @@
+{
+  "schema_version": "week7_v4_data_lock_evidence_v1",
+  "status": "PASS",
+  "date": "2026-08-22",
+  "branch": "codex/week7-dialogue-correction-v4",
+  "base_commit": "e36931202cba6d338146faf57e008e537d67c09f",
+  "config": {
+    "path": "configs/week7/qwen3_vl_8b_multitask_context_v4.json",
+    "sha256": "e5b76008e504e0775b62506acbeba3e38438cf14851493be512aa4325fd89b7c"
+  },
+  "dataset": {
+    "version": "week7_corrected_multitask_context_20260822_v4",
+    "canonical_lock_sha256": "000a2e57620428034da27e03ba3c92483e9c147032166ad273ed089fbb97c9fa",
+    "dataset_lock_file_sha256": "27188744e44578e1e2e430c26a922dd48ebc5f66d5eb3f2f29f353502e9d8460",
+    "identity_manifest_sha256": "bfd5cb958c884fabbe73d0bfa0b9e6a4b0c70fef0ae48f95633bdf345d14255f",
+    "seed": 20260819,
+    "counts": {
+      "train": 3000,
+      "development": 114,
+      "test": 114
+    },
+    "train_composition": {
+      "image_product_search": 760,
+      "after_sales": 760,
+      "itinerary_planning": 760,
+      "general_multimodal": 270,
+      "dialogue": 450,
+      "general_multimodal_fraction": 0.09,
+      "dialogue_fraction": 0.15
+    }
+  },
+  "files": {
+    "train.jsonl": {
+      "count": 3000,
+      "sha256": "cc6dc95023fb8b14a380288ddf7dbb2247151282fe0be31424440aa3945e66fe"
+    },
+    "development.jsonl": {
+      "count": 114,
+      "sha256": "e5db45fdc5f3231eb75de189d1c3a4b70f2f536ac8a8c7dbda6d647f3563fda1"
+    },
+    "test.jsonl": {
+      "count": 114,
+      "sha256": "a948ebfb672df8ec2ff19477a884ed191fc932fecd40c84d1fd67fc0875477fc"
+    },
+    "test/dialogue.jsonl": {
+      "count": 24,
+      "sha256": "7b0cb60403604a42d1b0b25e6f3feefea4a250124602adf84a4fe4d6763f24e0"
+    }
+  },
+  "isolation": {
+    "status": "PASS",
+    "dimensions": [
+      "sample_id",
+      "source_id",
+      "image_sha256",
+      "group_id",
+      "constraint_template_id"
+    ],
+    "cross_split_collision_count": 0,
+    "historical_v3_manifest_count": 3228,
+    "historical_v3_manifest_sha256": "c36abf41325d60eded5121c3b21953bef03e726ae3a6cf22b4b7eb6392a30244",
+    "v4_test_vs_historical_v3_overlap_counts": {
+      "sample_id": 0,
+      "source_id": 0,
+      "image_sha256": 0,
+      "group_id": 0,
+      "constraint_template_id": 0
+    }
+  },
+  "test_policy": {
+    "status": "LOCKED_UNCONSUMED",
+    "maximum_evaluations": 1,
+    "test_consumed": false
+  },
+  "verification": {
+    "build_lock": "PASS",
+    "validate_lock": "PASS",
+    "week7_tests": "71/71 PASS",
+    "v4_targeted_tests": "10/10 PASS",
+    "full_unittest": "441/441 PASS",
+    "slurm_shell_syntax": "2/2 PASS",
+    "gpu_training": "PENDING",
+    "development_checkpoint_selection": "PENDING",
+    "corrected_dialogue_test": "PENDING"
+  }
+}

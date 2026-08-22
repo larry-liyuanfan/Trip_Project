@@ -540,6 +540,25 @@ manifest.
   锁/归档、修复 raw、真人记录、偏好锁和 DPO 证据。机器证据见
   `experiments/week7_adversarial_completion_audit_20260822_v1.json`。
 
+## 2026-08-22：Week 7 corrected-dialogue v4 数据锁与执行链
+
+- 配置：`configs/week7/qwen3_vl_8b_multitask_context_v4.json`，SHA-256
+  `e5b76008e504e0775b62506acbeba3e38438cf14851493be512aa4325fd89b7c`。
+- 数据：`week7_corrected_multitask_context_20260822_v4`；命令为
+  `python scripts/manage_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4.json build-lock --source-project-root E:\Project\Trip_Project`。
+  实际锁 SHA-256 为 `000a2e57620428034da27e03ba3c92483e9c147032166ad273ed089fbb97c9fa`。
+- 实测身份：train/development/test=3000/114/114；训练三核心场景各 760、
+  general 270（9%）、dialogue 450（15%）；分区内重复和跨分区五维冲突为 0。
+- 对已消费 v3 完整 identity manifest（3228 行）重算 v4 test 隔离，
+  sample/source/image/group/template 重叠均为 0。`validate-lock` 实测 PASS 且
+  `test_consumed=false`。
+- 训练实现修正为 all-assistant-span SFT；评测实现修正为逐 assistant 轮生成，
+  不使用金标中间回复 teacher forcing。自动门禁增加 task value accuracy、
+  sequential turn coverage 和 sequential turn failure rate；已有真人结果只作辅助描述。
+- 实测 v4 定向测试 10/10、全部 Week 7 测试 71/71、完整 unittest 441/441、
+  Slurm shell 语法检查 2/2 通过。GPU 训练、selector 和一次性 test 仍为
+  `PENDING`；未生成新指标。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定

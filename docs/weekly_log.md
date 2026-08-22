@@ -500,6 +500,27 @@ as the current validated dataset or accepted baseline.
   回收站。v3 锁/归档、修复对话 raw、真人评分、偏好锁和 mDPO 证据均保留。
 - 完整 unittest 431/431、v3 数据锁复验、10 份 Week 7 Slurm shell 语法和差异检查通过。
 
+## 2026-08-22：Week 7 corrected-dialogue v4 全量修正开始
+
+- 用户直接 supersede v3 对话 test 不可重开的旧约束，接受 ADR-031。v3 全部
+  产物保持不变；新建分支 `codex/week7-dialogue-correction-v4`。
+- 新锁 `week7_corrected_multitask_context_20260822_v4` 已本地实际构建：
+  train/development/test 为 3000/114/114，训练比例为三核心场景各 760、通用
+  270（9%）、对话 450（15%）。三分区五维冲突为 0。
+- v4 test 另外排除已消费 v3 完整 identity manifest 的 3228 行；
+  sample/source/image/group/template 五维重叠均为 0。锁 SHA-256 为
+  `000a2e57620428034da27e03ba3c92483e9c147032166ad273ed089fbb97c9fa`，test 仍是
+  `LOCKED_UNCONSUMED`。
+- 修正数据构造的 user→assistant 对齐、5–8 轮、首轮图片和最终结构化目标；
+  SFT 改为监督所有 assistant token span。development/test 改为逐 assistant 轮生成，
+  每轮使用模型自己的前序回复，不再 teacher-force 金标中间答案。
+- 自动 development selector 与一次性 corrected-dialogue test runner 已实现，绑定
+  config/data/training/checkpoint/raw/metrics 哈希，重算全候选门禁并原子消费 test。
+  新的人工输入不再是 v4 前置；历史 24/24 真人结果只作辅助描述。
+- 当前实测 v4 定向 10/10、全部 Week 7 测试 71/71、完整 unittest 441/441
+  通过。GPU 训练、checkpoint
+  选择和新 test 尚未运行，不记录任何新模型指标。
+
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
 - 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订
