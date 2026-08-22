@@ -558,6 +558,10 @@ manifest.
 - 实测 v4 定向测试 10/10、全部 Week 7 测试 71/71、完整 unittest 441/441、
   Slurm shell 语法检查 2/2 通过。GPU 训练、selector 和一次性 test 仍为
   `PENDING`；未生成新指标。
+- Git 提交 `d14a1292360619d47672acdeee09e88dfd408840` 已推送。Spartan 作业
+  `29504508`使用 `gpu-l40s`、单 L40S、16 CPU、128 GiB，运行目录
+  `work/week7_multitask_v4/run_d14a129`；当前为 `PENDING(Resources)`，尚无
+  loss、checkpoint、development raw 或模型指标。test marker 未消费。
 
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 

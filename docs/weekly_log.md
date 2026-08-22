@@ -520,6 +520,13 @@ as the current validated dataset or accepted baseline.
 - 当前实测 v4 定向 10/10、全部 Week 7 测试 71/71、完整 unittest 441/441
   通过。GPU 训练、checkpoint
   选择和新 test 尚未运行，不记录任何新模型指标。
+- 实现提交 `d14a129` 已推送到 `origin/codex/week7-dialogue-correction-v4`；
+  Spartan 同一提交和 v4 锁复验 PASS。唯一 L40S 训练作业 `29504508` 已提交，
+  当前 `PENDING(Resources)`，Slurm 估计 2026-08-22 20:59:57 AEST 启动；未提交
+  A100/H100 竞争副本，未消费 test marker。
+- 远端 GPFS 在删除已验证传输压缩包后实测剩余约 992 MiB/8784 inodes；
+  v4 锁已解包且验证，训练期持续监控空间。本地传输包、不完整首次锁和
+  空临时目录已进入回收站，权威 v4 锁保留。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 

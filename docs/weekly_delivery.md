@@ -638,4 +638,5 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
 - [x] v4 定向测试 10/10、Week 7 测试 71/71、完整 unittest 441/441、Python
   语法和两份 Slurm shell 语法通过。
 - [ ] v4 GPU 训练、development checkpoint 选择与 corrected-dialogue test 尚未执行；
-  本项不在无真实作业证据时勾选。
+  唯一训练作业 `29504508` 已提交并处于 `PENDING(Resources)`，本项不在无真实
+  完成证据时勾选。
