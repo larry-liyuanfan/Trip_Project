@@ -41,8 +41,9 @@ development 评估，并在连续两次未改善后于 step 226 早停。run sum
 格式 0.95、context recall 0.85、context-state value 0.75、task key 0.95、task value
 0.75、sequential coverage 0.75、automatic composite 0.85 门槛。不可覆盖 selector 已
 实际执行并正确返回 `no v4 checkpoint passed the automatic development gate`，没有写出
-selection。按既定隔离规则未提交 corrected-dialogue v4 test；test marker 仍
-`LOCKED_UNCONSUMED`，因此没有生成或宣称 v4 的 Week 6 routed/zero-shot test 对比。
+selection。按既定隔离规则未提交 corrected-dialogue v4 test；test consumption marker
+不存在且 test policy 仍为 `LOCKED_UNCONSUMED`，因此没有生成或宣称 v4 的 Week 6
+routed/zero-shot test 对比。
 
 ## 数据锁和隔离结果
 

@@ -651,7 +651,7 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   因 patience=2 早停。
 - [x] `select-v4-checkpoint` 已实际重算六个候选并正确拒绝：0/6 通过全部自动门禁，
   因此未生成 selection。corrected-dialogue v4 test 按规则标记 `SKIPPED_GATE_FAILED`，
-  marker 仍 `LOCKED_UNCONSUMED`，没有提交或重跑 test，也没有 v4 Week 6/zero-shot test
-  对比。
+  consumption marker 不存在且 test policy 仍 `LOCKED_UNCONSUMED`，没有提交或重跑
+  test，也没有 v4 Week 6/zero-shot test 对比。
 - [ ] v4 完整验收与 `dev` 快进未完成：真实原因是 development 自动门禁 FAIL，
   不是缺少人工输入或未授权资源；本周不绕过门禁、不重训、不进入 `stg`、不打标签。

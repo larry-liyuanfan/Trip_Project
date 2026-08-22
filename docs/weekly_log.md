@@ -566,8 +566,9 @@ as the current validated dataset or accepted baseline.
 - 不可覆盖 selector 已实际执行并以 `no v4 checkpoint passed the automatic development
   gate` 拒绝 selection。step 151 虽为综合分最高，但格式/上下文召回/上下文值/任务键/
   任务值/逐轮覆盖/automatic composite 均低于预注册阈值；step 226 也未通过。
-  selection 文件不存在，v4 test marker 仍未消费；按一次性 test 规则未提交任何 test job，
-  未生成 Week 6/zero-shot 的 v4 test 对比，也未快进 `dev`。
+  selection 文件与 v4 test consumption marker 均不存在，test policy 仍为
+  `LOCKED_UNCONSUMED`；按一次性 test 规则未提交任何 test job，未生成 Week 6/zero-shot
+  的 v4 test 对比，也未快进 `dev`。
 
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
