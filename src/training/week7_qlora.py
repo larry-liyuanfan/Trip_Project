@@ -16,8 +16,17 @@ from src.training.week6_qlora import (
     environment_report,
     resolve_lora_targets,
 )
-from src.training.week7_data import canonical_sha256, iter_jsonl, load_week7_config, sha256_file
-from src.training.week7_evaluation import summarize_raw_records
+from src.training.week7_data import (
+    ALIGNED_DIALOGUE_CONSTRUCTION_VERSIONS,
+    canonical_sha256,
+    iter_jsonl,
+    load_week7_config,
+    sha256_file,
+)
+from src.training.week7_evaluation import (
+    summarize_raw_records,
+    valid_check_constraints_tool_call,
+)
 from src.training.week7_runtime import generate_record, inference_runtime
 
 
@@ -64,7 +73,7 @@ def assistant_content_text(content: Any) -> str:
 
 
 def structure_aware_messages(processor: Any, messages: list[dict[str, Any]], max_length: int) -> list[dict[str, Any]]:
-    """Keep system/first image turn/final target and remove oldest complete middle pairs."""
+    """Keep system, the first image turn, and latest complete user-led blocks."""
     normalized = _normalize_processor_messages(messages)
 
     def length(value: list[dict[str, Any]]) -> int:
@@ -76,19 +85,32 @@ def structure_aware_messages(processor: Any, messages: list[dict[str, Any]], max
 
     if length(normalized) <= max_length:
         return normalized
-    if len(normalized) <= 3:
-        raise Week7TrainingError("structure-aware truncation cannot preserve required messages")
-    middle = normalized[2:-1]
-    while middle:
-        remove = 2 if len(middle) >= 2 else 1
-        middle = middle[remove:]
-        candidate = [normalized[0], normalized[1], *middle, normalized[-1]]
-        if length(candidate) <= max_length:
-            return candidate
-    candidate = [normalized[0], normalized[1], normalized[-1]]
-    if length(candidate) > max_length:
+    if not normalized or normalized[0].get("role") != "system":
+        raise Week7TrainingError("structure-aware truncation requires a system message")
+    blocks: list[list[dict[str, Any]]] = []
+    for message in normalized[1:]:
+        if message.get("role") == "user":
+            blocks.append([message])
+        elif not blocks:
+            raise Week7TrainingError("conversation content appears before the first user turn")
+        else:
+            blocks[-1].append(message)
+    if not blocks:
+        raise Week7TrainingError("structure-aware truncation requires a user turn")
+    if len(blocks) == 1:
         raise Week7TrainingError("required system/image/target structure exceeds max_length")
-    return candidate
+    first = blocks[0]
+    suffix = blocks[1:]
+    while suffix:
+        flattened_suffix = [item for block in suffix for item in block]
+        for preserved_first in (first, first[:1]):
+            candidate = [normalized[0], *preserved_first, *flattened_suffix]
+            if length(candidate) <= max_length:
+                return candidate
+        if len(suffix) == 1:
+            break
+        suffix = suffix[1:]
+    raise Week7TrainingError("required system/image/latest-turn structure exceeds max_length")
 
 
 def assistant_span_labels(
@@ -163,44 +185,65 @@ def _generate_record(
     max_length: int = 8192,
 ) -> dict[str, Any]:
     del root
-    normalized = structure_aware_messages(
-        processor, training_messages(row), max_length,
-    )
-    if row.get("construction_version") == "aligned_concrete_turns_v4":
+    messages = training_messages(row)
+    if row.get("construction_version") in ALIGNED_DIALOGUE_CONSTRUCTION_VERSIONS:
         conversation: list[dict[str, Any]] = []
         turns = []
         total_latency_ms = 0.0
         any_failed = False
-        for message_index, message in enumerate(normalized):
+        for message_index, message in enumerate(messages):
             if message.get("role") != "assistant":
                 conversation.append(message)
                 continue
+            generation_messages = structure_aware_messages(
+                processor, conversation, max_length,
+            )
             generated = generate_record(
                 model,
                 processor,
-                conversation,
+                generation_messages,
                 sample_id=f"{row['sample_id']}#assistant-{len(turns):02d}",
                 run_id=run_id,
                 model_name="Qwen3-VL-8B+Week7-QLoRA",
                 max_new_tokens=max_new_tokens,
             )
             raw_output = str(generated.get("raw_output") or "")
-            failed = bool(generated.get("failed"))
+            generation_failed = bool(generated.get("failed"))
+            expected_text = assistant_content_text(message.get("content"))
+            expects_tool_call = "<tool_call>" in expected_text
+            has_tool_marker = (
+                "<tool_call>" in raw_output or "</tool_call>" in raw_output
+            )
+            protocol_valid = (
+                valid_check_constraints_tool_call(raw_output)
+                if expects_tool_call else not has_tool_marker
+            )
             latency_ms = float(generated.get("latency_ms", 0.0))
             turns.append({
                 "assistant_turn_index": len(turns),
                 "message_index": message_index,
-                "expected_output": assistant_content_text(message.get("content")),
+                "expected_output": expected_text,
                 "raw_output": raw_output,
-                "failed": failed,
+                "failed": generation_failed,
                 "latency_ms": latency_ms,
+                "error": generated.get("error"),
+                "input_token_count": generated.get("input_token_count"),
+                "generated_token_count": generated.get("generated_token_count"),
+                "generation_max_new_tokens": generated.get("generation_max_new_tokens"),
+                "limit_reached": (
+                    generated.get("generated_token_count") is not None
+                    and int(generated["generated_token_count"]) >= max_new_tokens
+                ),
+                "protocol_valid": protocol_valid,
             })
             total_latency_ms += latency_ms
-            any_failed = any_failed or failed
+            any_failed = any_failed or generation_failed or not protocol_valid
             conversation.append({
                 "role": "assistant",
                 "content": [{"type": "text", "text": raw_output}],
             })
+            if generation_failed or not protocol_valid:
+                break
         if not turns:
             raise Week7TrainingError(f"v4 dialogue has no assistant turns: {row['sample_id']}")
         return {
@@ -216,7 +259,7 @@ def _generate_record(
     return generate_record(
         model,
         processor,
-        normalized[:-1],
+        structure_aware_messages(processor, messages[:-1], max_length),
         sample_id=row["sample_id"],
         run_id=run_id,
         model_name="Qwen3-VL-8B+Week7-QLoRA",
@@ -310,7 +353,10 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
         inputs["labels"] = assistant_span_labels(
             processor, messages, inputs["input_ids"],
         )
-        inputs["_sample_weight"] = torch.tensor(float(batch[0]["sample_weight"]))
+        inputs["_sample_weight"] = torch.tensor(
+            float(batch[0]["sample_weight"])
+            * float(batch[0].get("loss_multiplier", 1.0))
+        )
         return inputs
 
     total_updates = math.ceil(len(train_dataset) / int(train_config["gradient_accumulation_steps"])) * int(train_config["epochs"])
@@ -346,12 +392,21 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
             with inference_runtime(self.model):
                 records = [
                     _generate_record(
-                        root, self.model, processor, row, run_id, 2048,
+                        root, self.model, processor, row, run_id,
+                        int(config["evaluation"].get("generation_max_new_tokens", 2048)),
                         int(train_config["max_length"]),
                     )
                     for row in development_rows
                 ]
-            summary = summarize_raw_records(root, config, development_rows, records)
+            summary = summarize_raw_records(
+                root,
+                config,
+                development_rows,
+                records,
+                metric_support_protocol=config["evaluation"].get(
+                    "metric_support_protocol"
+                ),
+            )
             summary.update({
                 "status": "COMPLETED",
                 "model_role": "multitask_checkpoint",
@@ -402,6 +457,15 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
                     metrics[f"{metric_key_prefix}_dialogue_sequential_turn_failure_rate"] = float(
                         summary["dialogue"]["sequential_turn_failure_rate"]
                     )
+                    for name in (
+                        "initial_task_stable_value_accuracy",
+                        "anchor_retention",
+                        "tool_protocol_compliance",
+                    ):
+                        if name in summary["dialogue"]:
+                            metrics[f"{metric_key_prefix}_dialogue_{name}"] = float(
+                                summary["dialogue"][name]
+                            )
             self.log(metrics)
             self.control = self.callback_handler.on_evaluate(
                 self.args, self.state, self.control, metrics,

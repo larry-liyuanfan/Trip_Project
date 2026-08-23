@@ -21,7 +21,10 @@ from src.training.week7_data import (
     load_week7_config,
     sha256_file,
 )
-from src.training.week7_evaluation import score_dialogue_record
+from src.training.week7_evaluation import (
+    score_dialogue_record,
+    valid_check_constraints_tool_call,
+)
 from src.training.week7_dialogue_v4_test import (
     _comparison,
     _sequential_record_generator,
@@ -31,11 +34,13 @@ from src.training.week7_qlora import (
     _generate_record,
     assistant_content_text,
     assistant_span_labels,
+    structure_aware_messages,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_V4 = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v4.json"
+CONFIG_V4_FIX1 = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json"
 
 
 def _parent() -> dict:
@@ -181,6 +186,66 @@ def _strict_generated_record(_model, _processor, messages, **kwargs) -> dict:
 
 
 class Week7V4DialogueTests(unittest.TestCase):
+    def test_fix1_config_locks_new_identity_and_support_protocol(self) -> None:
+        config = load_week7_config(CONFIG_V4_FIX1)
+        self.assertEqual(config["dataset"]["identity_namespace"], "v4fix1")
+        self.assertEqual(
+            config["dataset"]["train_core_scenario_counts"],
+            {
+                "image_product_search": 600,
+                "after_sales": 840,
+                "itinerary_planning": 840,
+            },
+        )
+        self.assertTrue(config["sampling"]["explicit_tool_request"])
+        self.assertEqual(
+            config["evaluation"]["dialogue_scoring_protocol"],
+            "gold_plus_anchor_v1",
+        )
+        self.assertEqual(
+            config["evaluation"]["metric_support_protocol"],
+            "week7_evaluation_protocol_v4",
+        )
+
+    def test_fix1_tool_prompt_matches_strict_tool_contract(self) -> None:
+        row = _dialogue_row(
+            _parent(),
+            "development",
+            0,
+            0.1,
+            0.5,
+            aligned=True,
+            identity_version="v4fix1",
+            construction_version="aligned_grounded_tool_turns_v4_fix1",
+            explicit_tool_request=True,
+        )
+        self.assertIn("可用工具：check_constraints", row["messages"][0]["content"])
+        tool_index = next(
+            index for index, message in enumerate(row["messages"])
+            if message["role"] == "assistant"
+            and "<tool_call>" in str(message["content"])
+        )
+        self.assertIn("先调用 check_constraints", str(row["messages"][tool_index - 1]))
+        self.assertTrue(valid_check_constraints_tool_call(row["messages"][tool_index]["content"]))
+        self.assertFalse(valid_check_constraints_tool_call(json.dumps(row["target"])))
+
+    def test_structure_aware_truncation_keeps_complete_user_led_blocks(self) -> None:
+        messages = [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "first"},
+            {"role": "assistant", "content": "first answer"},
+            {"role": "user", "content": "middle"},
+            {"role": "assistant", "content": "middle answer"},
+            {"role": "user", "content": "final"},
+            {"role": "assistant", "content": "final answer"},
+        ]
+        truncated = structure_aware_messages(_LengthProcessor(), messages, 15)
+        self.assertEqual(
+            [message["role"] for message in truncated],
+            ["system", "user", "assistant", "user", "assistant"],
+        )
+        self.assertEqual(truncated[-2]["content"][0]["text"], "final")
+
     def test_processor_normalized_assistant_content_round_trips_to_text(self) -> None:
         self.assertEqual(assistant_content_text("plain"), "plain")
         self.assertEqual(
@@ -202,9 +267,13 @@ class Week7V4DialogueTests(unittest.TestCase):
     ) -> None:
         record = _generate_record(
             ROOT, _FakeModel(), _LengthProcessor(), _aligned_row(),
-            "unit-run", 8,
+            "unit-run", 8, 9,
         )
         self.assertEqual(len(record["turn_outputs"]), 2)
+        self.assertEqual(
+            [turn["message_index"] for turn in record["turn_outputs"]],
+            [2, 4],
+        )
         self.assertEqual(record["raw_output"], "generated reply")
 
     @patch(
@@ -216,10 +285,50 @@ class Week7V4DialogueTests(unittest.TestCase):
     ) -> None:
         records, warmup = _sequential_record_generator(
             _FakeModel(), _LengthProcessor(), [_aligned_row()],
-            "unit-run", "unit-model", 8, runtime_options={},
+            "unit-run", "unit-model", 8, runtime_options={}, max_length=9,
         )
         self.assertEqual(len(records[0]["turn_outputs"]), 2)
+        self.assertEqual(
+            [turn["message_index"] for turn in records[0]["turn_outputs"]],
+            [2, 4],
+        )
         self.assertEqual(warmup["raw_output"], "generated reply")
+
+    @patch(
+        "src.training.week7_dialogue_v4_test.generate_record",
+        side_effect=_strict_generated_record,
+    )
+    def test_invalid_direct_json_tool_turn_stops_before_tool_injection(
+        self, _generate,
+    ) -> None:
+        row = _dialogue_row(
+            _parent(),
+            "development",
+            0,
+            0.1,
+            0.5,
+            aligned=True,
+            identity_version="v4fix1",
+            construction_version="aligned_grounded_tool_turns_v4_fix1",
+            explicit_tool_request=True,
+        )
+        records, _warmup = _sequential_record_generator(
+            _FakeModel(), _LengthProcessor(), [row],
+            "unit-run", "unit-model", 8, runtime_options={},
+        )
+        record = records[0]
+        tool_message_index = next(
+            index for index, message in enumerate(row["messages"])
+            if message["role"] == "assistant"
+            and "<tool_call>" in str(message["content"])
+        )
+        self.assertTrue(record["failed"])
+        self.assertEqual(record["turn_outputs"][-1]["message_index"], tool_message_index)
+        self.assertFalse(record["turn_outputs"][-1]["protocol_valid"])
+        self.assertFalse(any(
+            turn["message_index"] > tool_message_index
+            for turn in record["turn_outputs"]
+        ))
 
     def test_v4_config_loads_with_locked_automatic_identity(self) -> None:
         config = load_week7_config(CONFIG_V4)
@@ -459,6 +568,40 @@ class Week7V4DialogueTests(unittest.TestCase):
         self.assertEqual(score["sequential_turn_coverage"], 1.0)
         self.assertEqual(score["sequential_turn_failure_rate"], 0.0)
         self.assertEqual(score["automatic_composite"], 1.0)
+
+    def test_anchor_consistency_cannot_replace_gold_visual_scoring(self) -> None:
+        row = _dialogue_row(
+            _parent(),
+            "development",
+            1,
+            0.1,
+            0.5,
+            aligned=True,
+            construction_version="aligned_grounded_tool_turns_v4_fix1",
+        )
+        turns = _perfect_turn_outputs(row)
+        initial = json.loads(turns[0]["raw_output"])
+        initial["observed_evidence"] = ["hallucinated lobby sign"]
+        turns[0]["raw_output"] = json.dumps(initial, ensure_ascii=False)
+        final = copy.deepcopy(row["target"])
+        final["context_state"]["historical_image_reference"] = [
+            "hallucinated lobby sign"
+        ]
+        final["task_result"]["observed_evidence"] = ["hallucinated lobby sign"]
+        turns[-1]["raw_output"] = json.dumps(final, ensure_ascii=False)
+        score = score_dialogue_record(
+            row,
+            turns[-1]["raw_output"],
+            1.0,
+            False,
+            turns,
+            scoring_protocol="gold_plus_anchor_v1",
+        )
+        self.assertEqual(score["anchor_retention"], 1.0)
+        self.assertEqual(score["initial_task_stable_value_accuracy"], 1.0)
+        self.assertLess(score["context_state_value_accuracy"], 1.0)
+        self.assertLess(score["task_result_value_accuracy"], 1.0)
+        self.assertLess(score["automatic_composite"], 1.0)
 
     def test_missing_or_misordered_sequential_turns_reduce_score(self) -> None:
         row = _dialogue_row(

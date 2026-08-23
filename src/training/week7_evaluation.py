@@ -17,7 +17,14 @@ from src.evaluation.metrics import (
     score_sample_with_gold_evaluable_support,
 )
 from src.evaluation.schema_validation import SchemaValidationError, load_output_schema, validate_output
-from src.training.week7_data import CORE_SCENARIOS, Week7DataError, canonical_sha256, iter_jsonl, sha256_file
+from src.training.week7_data import (
+    ALIGNED_DIALOGUE_CONSTRUCTION_VERSIONS,
+    CORE_SCENARIOS,
+    Week7DataError,
+    canonical_sha256,
+    iter_jsonl,
+    sha256_file,
+)
 
 
 class Week7EvaluationError(ValueError):
@@ -76,8 +83,63 @@ def _dialogue_terms(value: Any) -> set[str]:
     return terms
 
 
+def valid_check_constraints_tool_call(raw_output: str) -> bool:
+    compact = str(raw_output or "").strip()
+    if not compact.startswith("<tool_call>") or not compact.endswith("</tool_call>"):
+        return False
+    payload = compact[len("<tool_call>"):-len("</tool_call>")]
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError:
+        return False
+    return (
+        isinstance(parsed, dict)
+        and parsed.get("name") == "check_constraints"
+        and parsed.get("arguments") == {"scope": "conversation"}
+    )
+
+
+def _without_free_evidence(value: Any) -> Any:
+    """Remove free-text evidence leaves while preserving task decisions and structure."""
+    if isinstance(value, dict):
+        return {
+            key: _without_free_evidence(child)
+            for key, child in value.items()
+            if key not in {"observed_evidence", "source_evidence", "historical_image_reference"}
+        }
+    if isinstance(value, list):
+        return [_without_free_evidence(child) for child in value]
+    return value
+
+
+def _stable_task_value_accuracy(observed: Any, expected: Any) -> float:
+    if not isinstance(observed, dict) or not isinstance(expected, dict) or not expected:
+        return 0.0
+    observed_stable = _without_free_evidence(observed)
+    expected_stable = _without_free_evidence(expected)
+    return sum(
+        observed_stable.get(key) == value for key, value in expected_stable.items()
+    ) / len(expected_stable)
+
+
+def _initial_task(turn_outputs: Any) -> dict[str, Any] | None:
+    if not isinstance(turn_outputs, list) or not turn_outputs:
+        return None
+    first = turn_outputs[0]
+    if not isinstance(first, dict):
+        return None
+    try:
+        parsed = json.loads(str(first.get("raw_output") or ""))
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def _sequential_turn_score(
-    row: dict[str, Any], turn_outputs: Any,
+    row: dict[str, Any],
+    turn_outputs: Any,
+    *,
+    expected_context: dict[str, Any] | None = None,
 ) -> tuple[float, float, int, int]:
     expected_assistants = [
         (index, message.get("content"))
@@ -103,20 +165,20 @@ def _sequential_turn_score(
             failures += 1
             continue
         failures += bool(observed.get("failed"))
+        if observed.get("protocol_valid") is False:
+            failures += 1
         expected_text = str(expected_output or "")
         if "<tool_call>" in expected_text:
-            scores.append(float(
-                "<tool_call>" in raw
-                and '"name":"check_constraints"' in raw.replace(" ", "")
-                and '"scope":"conversation"' in raw.replace(" ", "")
-            ))
+            scores.append(float(valid_check_constraints_tool_call(raw)))
             continue
         try:
             expected_json = json.loads(expected_text)
             observed_json = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             required = {
-                term for term in _dialogue_terms(row.get("context_expectations", {}))
+                term for term in _dialogue_terms(
+                    expected_context or row.get("context_expectations", {})
+                )
                 if term in expected_text.casefold()
             }
             if "unknown" in expected_text.casefold():
@@ -151,12 +213,19 @@ def score_dialogue_record(
     latency_ms: float,
     failed: bool,
     turn_outputs: Any = None,
+    *,
+    scoring_protocol: str = "gold_exact_v1",
 ) -> dict[str, Any]:
     expectations = row.get("context_expectations")
     if not isinstance(expectations, dict):
         raise Week7EvaluationError(f"dialogue context expectations are missing: {row.get('sample_id')}")
+    if scoring_protocol not in {"gold_exact_v1", "gold_plus_anchor_v1"}:
+        raise Week7EvaluationError("unsupported dialogue scoring protocol")
+    initial_task = _initial_task(turn_outputs)
     expected = _dialogue_terms(expectations)
-    image_terms = _dialogue_terms(expectations.get("historical_image_reference"))
+    image_terms = _dialogue_terms(
+        expectations.get("historical_image_reference")
+    )
     retained_terms = _dialogue_terms(expectations.get("retained_hard_constraints"))
     updated_requirement = str(expectations.get("updated_requirement") or "").casefold()
     normalized = raw_output.casefold()
@@ -168,10 +237,11 @@ def score_dialogue_record(
         json_valid = isinstance(parsed, dict)
     except json.JSONDecodeError:
         pass
-    automatic_eligible = row.get("construction_version") == "aligned_concrete_turns_v4"
+    automatic_eligible = row.get("construction_version") in ALIGNED_DIALOGUE_CONSTRUCTION_VERSIONS
     expected_target = row.get("target") if isinstance(row.get("target"), dict) else {}
     expected_context = expectations
-    expected_task = expected_target.get("task_result", {})
+    gold_task = expected_target.get("task_result", {})
+    expected_task = gold_task
     parsed_context = parsed.get("context_state", {}) if isinstance(parsed, dict) else {}
     parsed_task = parsed.get("task_result", {}) if isinstance(parsed, dict) else {}
     context_keys = set(expected_context)
@@ -198,8 +268,39 @@ def score_dialogue_record(
         if expected_task and isinstance(parsed_task, dict)
         else 0.0
     )
+    expected_tool_indices = [
+        index
+        for index, message in enumerate(row.get("messages", []))
+        if message.get("role") == "assistant"
+        and "<tool_call>" in str(message.get("content") or "")
+    ]
+    observed_by_message = {
+        turn.get("message_index"): turn
+        for turn in turn_outputs or []
+        if isinstance(turn, dict)
+    }
+    tool_protocol_compliance = float(all(
+        index in observed_by_message
+        and observed_by_message[index].get("protocol_valid") is not False
+        and valid_check_constraints_tool_call(
+            str(observed_by_message[index].get("raw_output") or "")
+        )
+        for index in expected_tool_indices
+    )) if expected_tool_indices else None
+    initial_stable_value_accuracy = _stable_task_value_accuracy(initial_task, gold_task)
+    anchor_terms = _dialogue_terms(
+        initial_task.get("observed_evidence") if initial_task else None
+    )
+    anchor_retention = (
+        sum(term in normalized for term in anchor_terms) / len(anchor_terms)
+        if anchor_terms else 0.0
+    )
     sequential_coverage, sequential_failure_rate, expected_turns, observed_turns = (
-        _sequential_turn_score(row, turn_outputs)
+        _sequential_turn_score(
+            row,
+            turn_outputs,
+            expected_context=expected_context,
+        )
         if automatic_eligible else (0.0, 0.0, 0, 0)
     )
     automatic_composite = None
@@ -225,6 +326,9 @@ def score_dialogue_record(
         "context_state_value_accuracy": context_value_accuracy,
         "task_result_key_coverage": task_key_coverage,
         "task_result_value_accuracy": task_value_accuracy,
+        "initial_task_stable_value_accuracy": initial_stable_value_accuracy,
+        "anchor_retention": anchor_retention,
+        "tool_protocol_compliance": tool_protocol_compliance,
         "sequential_turn_coverage": sequential_coverage,
         "sequential_turn_failure_rate": sequential_failure_rate,
         "sequential_turn_count_expected": expected_turns,
@@ -232,6 +336,7 @@ def score_dialogue_record(
         "final_target_exact_match": float(parsed == expected_target),
         "automatic_semantic_gate_eligible": automatic_eligible,
         "automatic_composite": automatic_composite,
+        "dialogue_scoring_protocol": scoring_protocol,
         "parsed_output": parsed,
         "human_required": not automatic_eligible,
     }
@@ -249,7 +354,11 @@ def _dialogue_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
         "scores": scores,
     }
     if automatic:
+        protocols = {item["dialogue_scoring_protocol"] for item in scores}
+        if len(protocols) != 1:
+            raise Week7EvaluationError("dialogue scoring protocols differ within one summary")
         result.update({
+            "dialogue_scoring_protocol": protocols.pop(),
             "context_state_key_coverage": statistics.fmean(
                 item["context_state_key_coverage"] for item in scores
             ),
@@ -261,6 +370,12 @@ def _dialogue_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
             ),
             "task_result_value_accuracy": statistics.fmean(
                 item["task_result_value_accuracy"] for item in scores
+            ),
+            "initial_task_stable_value_accuracy": statistics.fmean(
+                item["initial_task_stable_value_accuracy"] for item in scores
+            ),
+            "anchor_retention": statistics.fmean(
+                item["anchor_retention"] for item in scores
             ),
             "sequential_turn_coverage": statistics.fmean(
                 item["sequential_turn_coverage"] for item in scores
@@ -275,11 +390,22 @@ def _dialogue_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
                 item["automatic_composite"] for item in scores
             ),
         })
+        tool_scores = [
+            item["tool_protocol_compliance"] for item in scores
+            if item["tool_protocol_compliance"] is not None
+        ]
+        result["tool_protocol_compliance"] = (
+            statistics.fmean(tool_scores) if tool_scores else None
+        )
+        result["tool_protocol_support_count"] = len(tool_scores)
     return result
 
 
 def summarize_dialogue_raw_records(
-    rows: Iterable[dict[str, Any]], records: Iterable[dict[str, Any]],
+    rows: Iterable[dict[str, Any]],
+    records: Iterable[dict[str, Any]],
+    *,
+    scoring_protocol: str = "gold_exact_v1",
 ) -> dict[str, Any]:
     """Summarize an exact dialogue-only development run without fabricating task metrics."""
     rows_by_id = {row["sample_id"]: row for row in rows}
@@ -302,7 +428,12 @@ def summarize_dialogue_raw_records(
         latency = float(record.get("latency_ms", 0.0))
         failed = bool(record.get("failed"))
         scores.append(score_dialogue_record(
-            row, raw, latency, failed, record.get("turn_outputs"),
+            row,
+            raw,
+            latency,
+            failed,
+            record.get("turn_outputs"),
+            scoring_protocol=scoring_protocol,
         ))
         latencies.append(latency)
         failures += failed
@@ -353,7 +484,14 @@ def summarize_raw_records(
         latencies.append(latency)
         if row["scenario"] == "dialogue":
             dialogue_scores.append(score_dialogue_record(
-                row, raw, latency, failed, record.get("turn_outputs"),
+                row,
+                raw,
+                latency,
+                failed,
+                record.get("turn_outputs"),
+                scoring_protocol=config["evaluation"].get(
+                    "dialogue_scoring_protocol", "gold_exact_v1"
+                ),
             ))
             continue
         parsed, json_valid, schema_valid, error = strict_parse_output(root, row["scenario"], raw)

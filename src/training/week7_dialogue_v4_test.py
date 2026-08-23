@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from src.training.week6_qlora import environment_report
 from src.training.week7_data import (
+    ALIGNED_DIALOGUE_CONSTRUCTION_VERSIONS,
     CORE_SCENARIOS,
     _validate_aligned_dialogue,
     canonical_sha256,
@@ -23,7 +24,10 @@ from src.training.week7_data import (
     sha256_file,
     write_jsonl_new,
 )
-from src.training.week7_evaluation import summarize_dialogue_raw_records
+from src.training.week7_evaluation import (
+    summarize_dialogue_raw_records,
+    valid_check_constraints_tool_call,
+)
 from src.training.week7_latency_protocol import (
     _default_model_loader,
     _dialogue_task,
@@ -451,7 +455,12 @@ def _claim_test(
     return claim
 
 
-def _load_test_dialogues(root: Path, lock_root: Path, lock: dict[str, Any]) -> list[dict[str, Any]]:
+def _load_test_dialogues(
+    root: Path,
+    lock_root: Path,
+    lock: dict[str, Any],
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
     test_path = lock_root / "test" / "dialogue.jsonl"
     declared = lock["files"]["test/dialogue.jsonl"]
     if sha256_file(test_path) != declared["sha256"]:
@@ -461,8 +470,13 @@ def _load_test_dialogues(root: Path, lock_root: Path, lock: dict[str, Any]) -> l
         row.get("split") != "test" or row.get("scenario") != "dialogue" for row in rows
     ):
         raise Week7TrainingError("v4 dialogue test rows do not match the locked count/split")
+    expected_construction = config["sampling"].get(
+        "dialogue_construction_version", "aligned_concrete_turns_v4"
+    )
+    if expected_construction not in ALIGNED_DIALOGUE_CONSTRUCTION_VERSIONS:
+        raise Week7TrainingError("unsupported corrected dialogue construction")
     for row in rows:
-        if row.get("construction_version") != "aligned_concrete_turns_v4":
+        if row.get("construction_version") != expected_construction:
             raise Week7TrainingError("legacy dialogue construction entered the v4 test")
         _validate_aligned_dialogue(row)
         image_path = root / str(row["image_path"])
@@ -498,14 +512,13 @@ def _sequential_record_generator(
     max_new_tokens: int,
     *,
     runtime_options: dict[str, Any],
+    max_length: int = 8192,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if not rows:
         raise Week7TrainingError("v4 sequential dialogue route is empty")
     options = dict(runtime_options)
     warmup_max_new_tokens = int(options.pop("warmup_max_new_tokens", 1))
-    first_messages = structure_aware_messages(
-        processor, training_messages(rows[0]), 8192,
-    )
+    first_messages = training_messages(rows[0])
     first_assistant = next(
         index for index, message in enumerate(first_messages)
         if message.get("role") == "assistant"
@@ -513,15 +526,16 @@ def _sequential_record_generator(
     records = []
     with inference_runtime(model):
         warmup = generate_record(
-            model, processor, first_messages[:first_assistant],
+            model, processor,
+            structure_aware_messages(
+                processor, first_messages[:first_assistant], max_length,
+            ),
             sample_id=f"{rows[0]['sample_id']}#warmup",
             run_id=run_id, model_name=model_name,
             max_new_tokens=warmup_max_new_tokens, warmup=True, **options,
         )
         for row in rows:
-            messages = structure_aware_messages(
-                processor, training_messages(row), 8192,
-            )
+            messages = training_messages(row)
             conversation: list[dict[str, Any]] = []
             turn_outputs = []
             total_latency_ms = 0.0
@@ -530,8 +544,11 @@ def _sequential_record_generator(
                 if message.get("role") != "assistant":
                     conversation.append(message)
                     continue
+                generation_messages = structure_aware_messages(
+                    processor, conversation, max_length,
+                )
                 generated = generate_record(
-                    model, processor, conversation,
+                    model, processor, generation_messages,
                     sample_id=(
                         f"{row['sample_id']}#assistant-{len(turn_outputs):02d}"
                     ),
@@ -539,22 +556,47 @@ def _sequential_record_generator(
                     max_new_tokens=max_new_tokens, **options,
                 )
                 raw_output = str(generated.get("raw_output") or "")
-                turn_failed = bool(generated.get("failed"))
+                generation_failed = bool(generated.get("failed"))
+                expected_output = assistant_content_text(message.get("content"))
+                expects_tool_call = "<tool_call>" in expected_output
+                has_tool_marker = (
+                    "<tool_call>" in raw_output or "</tool_call>" in raw_output
+                )
+                protocol_valid = (
+                    valid_check_constraints_tool_call(raw_output)
+                    if expects_tool_call
+                    else not has_tool_marker
+                )
                 latency_ms = float(generated.get("latency_ms", 0.0))
                 turn_outputs.append({
                     "assistant_turn_index": len(turn_outputs),
                     "message_index": message_index,
-                    "expected_output": assistant_content_text(message.get("content")),
+                    "expected_output": expected_output,
                     "raw_output": raw_output,
-                    "failed": turn_failed,
+                    "failed": generation_failed,
                     "latency_ms": latency_ms,
+                    "error": generated.get("error"),
+                    "input_token_count": generated.get("input_token_count"),
+                    "generated_token_count": generated.get("generated_token_count"),
+                    "generation_max_new_tokens": generated.get(
+                        "generation_max_new_tokens"
+                    ),
+                    "limit_reached": (
+                        generated.get("generated_token_count") is not None
+                        and int(generated["generated_token_count"])
+                        >= max_new_tokens
+                    ),
+                    "protocol_valid": protocol_valid,
                 })
                 total_latency_ms += latency_ms
-                failed = failed or turn_failed
+                failed = failed or generation_failed or not protocol_valid
                 conversation.append({
                     "role": "assistant",
                     "content": [{"type": "text", "text": raw_output}],
                 })
+                if generation_failed or not protocol_valid:
+                    # 生成或工具协议失败时不得注入锁定的 tool result 或伪造后续轮。
+                    break
             records.append({
                 "sample_id": row["sample_id"],
                 "run_id": run_id,
@@ -589,13 +631,14 @@ def _validate_sequential_records(
         if (
             record.get("generation_mode") != "sequential_assistant_turns_v4"
             or not isinstance(turn_outputs, list)
-            or len(turn_outputs) != len(assistant_positions)
+            or not turn_outputs
+            or len(turn_outputs) > len(assistant_positions)
         ):
             raise Week7TrainingError(
                 f"sequential assistant-turn coverage mismatch: {row['sample_id']}"
             )
         for turn_index, (message_index, turn) in enumerate(
-            zip(assistant_positions, turn_outputs, strict=True)
+            zip(assistant_positions, turn_outputs)
         ):
             expected = assistant_content_text(
                 expected_messages[message_index].get("content")
@@ -607,6 +650,25 @@ def _validate_sequential_records(
                 or turn.get("expected_output") != expected
                 or not isinstance(turn.get("raw_output"), str)
                 or not isinstance(turn.get("failed"), bool)
+                or not isinstance(turn.get("protocol_valid"), bool)
+                or turn.get("error") is not None
+                and not isinstance(turn.get("error"), str)
+                or turn.get("input_token_count") is not None
+                and (
+                    not isinstance(turn.get("input_token_count"), int)
+                    or int(turn["input_token_count"]) < 0
+                )
+                or turn.get("generated_token_count") is not None
+                and (
+                    not isinstance(turn.get("generated_token_count"), int)
+                    or int(turn["generated_token_count"]) < 0
+                )
+                or turn.get("generation_max_new_tokens") is not None
+                and (
+                    not isinstance(turn.get("generation_max_new_tokens"), int)
+                    or int(turn["generation_max_new_tokens"]) <= 0
+                )
+                or not isinstance(turn.get("limit_reached"), bool)
                 or not isinstance(turn.get("latency_ms"), (int, float))
                 or not math.isfinite(float(turn["latency_ms"]))
                 or float(turn["latency_ms"]) < 0.0
@@ -614,6 +676,16 @@ def _validate_sequential_records(
                 raise Week7TrainingError(
                     f"sequential assistant-turn identity mismatch: {row['sample_id']}"
                 )
+        if len(turn_outputs) < len(assistant_positions) and not (
+            record.get("failed") is True
+            and (
+                turn_outputs[-1].get("failed") is True
+                or turn_outputs[-1].get("protocol_valid") is False
+            )
+        ):
+            raise Week7TrainingError(
+                f"incomplete sequential turns lack a protocol failure: {row['sample_id']}"
+            )
         if record.get("raw_output") != turn_outputs[-1]["raw_output"]:
             raise Week7TrainingError(
                 f"final raw output differs from final assistant turn: {row['sample_id']}"
@@ -629,6 +701,7 @@ def _persist_role(
     *,
     run_id: str,
     model_identity: Any,
+    scoring_protocol: str = "gold_exact_v1",
 ) -> dict[str, Any]:
     role_dir = output_dir / "roles" / role
     role_dir.mkdir(parents=True, exist_ok=False)
@@ -637,7 +710,9 @@ def _persist_role(
     warmup_path = role_dir / "warmups.jsonl"
     write_jsonl_new(raw_path, records)
     write_jsonl_new(warmup_path, warmups)
-    metrics = summarize_dialogue_raw_records(rows, records)
+    metrics = summarize_dialogue_raw_records(
+        rows, records, scoring_protocol=scoring_protocol,
+    )
     metrics.update({
         "status": "COMPLETED",
         "model_role": role,
@@ -681,6 +756,36 @@ def _comparison(config: dict[str, Any], roles: dict[str, dict[str, Any]]) -> dic
         "failure_rate": (None, "failure_rate"),
         "latency_ms_mean": (None, "latency_ms_mean"),
     }
+    dialogue_count = int(config["dataset"]["test_dialogue_count"])
+    tool_stride = round(1.0 / float(config["sampling"]["tool_call_dialogue_fraction"]))
+    expected_tool_support = sum(
+        index % tool_stride == 0 for index in range(dialogue_count)
+    )
+    if (
+        "minimum_tool_protocol_compliance"
+        in config["evaluation"]["dialogue_automatic_gate"]
+        and any(
+            int(payload.get("dialogue", {}).get("tool_protocol_support_count", -1))
+            != expected_tool_support
+            for payload in roles.values()
+        )
+    ):
+        raise Week7TrainingError("final dialogue tool support identity mismatch")
+    optional_dialogue_metrics = (
+        "initial_task_stable_value_accuracy",
+        "anchor_retention",
+        "tool_protocol_compliance",
+    )
+    available_optional_metrics = {
+        metric_name
+        for metric_name in optional_dialogue_metrics
+        if all(
+            isinstance(payload.get("dialogue", {}).get(metric_name), (int, float))
+            for payload in roles.values()
+        )
+    }
+    for metric_name in sorted(available_optional_metrics):
+        metric_paths[metric_name] = ("dialogue", metric_name)
     for dimension in AUTOMATIC_DIMENSIONS:
         metric_paths[f"automatic_dimension.{dimension}"] = (
             "automatic_dimensions",
@@ -727,6 +832,22 @@ def _comparison(config: dict[str, Any], roles: dict[str, dict[str, Any]]) -> dic
         "failure_rate": float(roles["multitask"]["failure_rate"])
         <= float(gate["maximum_failure_rate"]),
     }
+    optional_minimum_checks = {
+        "initial_task_stable_value_accuracy": (
+            "minimum_initial_task_stable_value_accuracy"
+        ),
+        "anchor_retention": "minimum_anchor_retention",
+        "tool_protocol_compliance": "minimum_tool_protocol_compliance",
+    }
+    for metric_name, threshold_name in optional_minimum_checks.items():
+        if threshold_name in gate:
+            if metric_name not in available_optional_metrics:
+                raise Week7TrainingError(
+                    f"configured dialogue gate metric is unavailable: {metric_name}"
+                )
+            checks[metric_name] = float(dialogue[metric_name]) >= float(
+                gate[threshold_name]
+            )
     return {
         "status": "PASS" if all(checks.values()) else "FAIL",
         "gate_checks": checks,
@@ -747,6 +868,10 @@ def _comparison(config: dict[str, Any], roles: dict[str, dict[str, Any]]) -> dic
                 "automatic_composite": payload["dialogue"]["automatic_composite"],
                 "failure_rate": payload["failure_rate"],
                 "latency_ms_mean": payload["latency_ms_mean"],
+                **{
+                    metric_name: payload["dialogue"][metric_name]
+                    for metric_name in sorted(available_optional_metrics)
+                },
             }
             for role, payload in roles.items()
         },
@@ -776,6 +901,19 @@ def run_corrected_dialogue_test_once(
     config, lock, lock_root, selection, checkpoint, checkpoint_hash = _validate_inputs(
         root, config_path, selection_path, week6_adapters, output_dir,
     )
+    scoring_protocol = config["evaluation"].get(
+        "dialogue_scoring_protocol", "gold_exact_v1"
+    )
+    max_new_tokens = int(
+        config["evaluation"].get("generation_max_new_tokens", 2048)
+    )
+    if max_new_tokens <= 0:
+        raise Week7TrainingError(
+            "corrected dialogue generation_max_new_tokens must be positive"
+        )
+    max_length = int(config["training"]["max_length"])
+    if max_length <= 0:
+        raise Week7TrainingError("corrected dialogue max_length must be positive")
     report = (
         environment_report(require_cuda=True)
         if model_loader is None
@@ -800,7 +938,7 @@ def run_corrected_dialogue_test_once(
     )
     try:
         # 只有原子占用成功后才允许读取 test 内容或计算其哈希。
-        rows = _load_test_dialogues(root, lock_root, lock)
+        rows = _load_test_dialogues(root, lock_root, lock, config)
         runtime_options = {
             "latency_protocol": LATENCY_PROTOCOL_V5_VERSION,
             "cache_implementation": "static",
@@ -835,12 +973,12 @@ def run_corrected_dialogue_test_once(
                     model_name,
                     max_new_tokens,
                     runtime_options=runtime_options,
+                    max_length=max_length,
                 )
 
         output_dir.mkdir(parents=True, exist_ok=False)
         run_id = config["experiment_identity"]["test_run_id"]
         model_name = config["base_model"]
-        max_new_tokens = 2048
         role_metrics: dict[str, dict[str, Any]] = {}
 
         def generate_route(
@@ -875,6 +1013,7 @@ def run_corrected_dialogue_test_once(
                 warmups,
                 run_id=f"{run_id}_{role}",
                 model_identity=identity,
+                scoring_protocol=scoring_protocol,
             )
 
         generate_route(
@@ -924,6 +1063,11 @@ def run_corrected_dialogue_test_once(
                 "precision": "bf16",
                 "latency_protocol": LATENCY_PROTOCOL_V5_VERSION,
                 "max_new_tokens": max_new_tokens,
+                "max_length": max_length,
+                "dialogue_construction_version": config["sampling"].get(
+                    "dialogue_construction_version", "aligned_concrete_turns_v4"
+                ),
+                "dialogue_scoring_protocol": scoring_protocol,
                 "cache_implementation": "static",
                 "compile_config": runtime_options["compile_config"],
             },

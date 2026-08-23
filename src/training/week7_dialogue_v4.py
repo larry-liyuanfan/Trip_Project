@@ -105,7 +105,13 @@ def _validate_and_recompute_metrics(
     records = list(iter_jsonl(bound_path))
     if len(records) != bound_count:
         raise Week7TrainingError("v4 development raw-output row count mismatch")
-    recomputed = summarize_raw_records(root, config, development_rows, records)
+    recomputed = summarize_raw_records(
+        root,
+        config,
+        development_rows,
+        records,
+        metric_support_protocol=config["evaluation"].get("metric_support_protocol"),
+    )
     recorded_summary = {field: metrics.get(field) for field in _SUMMARY_FIELDS}
     recomputed_summary = {field: recomputed.get(field) for field in _SUMMARY_FIELDS}
     if canonical_sha256(recorded_summary) != canonical_sha256(recomputed_summary):
@@ -132,6 +138,11 @@ def _automatic_gate(config: dict[str, Any], metrics: dict[str, Any]) -> dict[str
         or not dialogue_scores
     ):
         raise Week7TrainingError("v4 automatic dialogue score coverage mismatch")
+    expected_scoring_protocol = config["evaluation"].get(
+        "dialogue_scoring_protocol", "gold_exact_v1"
+    )
+    if dialogue.get("dialogue_scoring_protocol", "gold_exact_v1") != expected_scoring_protocol:
+        raise Week7TrainingError("v4 dialogue scoring protocol identity mismatch")
     values = {
         "format_compliance": _finite_unit_interval(
             dialogue.get("format_compliance"), "dialogue.format_compliance"
@@ -191,6 +202,29 @@ def _automatic_gate(config: dict[str, Any], metrics: dict[str, Any]) -> dict[str
             config["evaluation"]["non_regression"]["max_failure_rate"]
         ),
     }
+    optional_minimums = {
+        "initial_task_stable_value_accuracy": "minimum_initial_task_stable_value_accuracy",
+        "anchor_retention": "minimum_anchor_retention",
+        "tool_protocol_compliance": "minimum_tool_protocol_compliance",
+    }
+    for metric_name, threshold_name in optional_minimums.items():
+        if threshold_name in declared:
+            if metric_name == "tool_protocol_compliance":
+                support_count = sum(
+                    score.get(metric_name) is not None for score in dialogue_scores
+                )
+                if (
+                    support_count <= 0
+                    or int(dialogue.get("tool_protocol_support_count", -1))
+                    != support_count
+                ):
+                    raise Week7TrainingError(
+                        "v4 tool protocol support identity mismatch"
+                    )
+            values[metric_name] = _finite_unit_interval(
+                dialogue.get(metric_name), f"dialogue.{metric_name}"
+            )
+            thresholds[metric_name] = float(declared[threshold_name])
     for name, threshold in thresholds.items():
         _finite_unit_interval(threshold, f"dialogue_automatic_gate.{name}")
     checks = {
@@ -346,12 +380,10 @@ def select_v4_checkpoint(
         key=lambda candidate: (candidate["weighted_composite"], -candidate["step"]),
         default=None,
     )
-    if selected is None:
-        raise Week7TrainingError("no v4 checkpoint passed the automatic development gate")
     result: dict[str, Any] = {
         "schema_version": "week7_v4_development_checkpoint_selection_v1",
-        "status": "PASS",
-        "eligible": True,
+        "status": "PASS" if selected is not None else "BLOCKED_NO_ELIGIBLE_CHECKPOINT",
+        "eligible": selected is not None,
         "config_path": str(config_path),
         "config_sha256": config_hash,
         "dataset_version": config["dataset"]["dataset_version"],
@@ -367,18 +399,21 @@ def select_v4_checkpoint(
         "selection_rule": "automatic_gates_then_max_weighted_composite_then_earliest_step",
         "candidate_count": len(candidates),
         "eligible_count": len(eligible),
-        "selected_checkpoint": {
-            "path": selected["checkpoint"],
-            "adapter_sha256": selected["checkpoint_adapter_sha256"],
-            "step": selected["step"],
-            "metrics_path": selected["metrics_path"],
-            "metrics_sha256": selected["metrics_sha256"],
-            "raw_outputs_path": selected["raw_outputs_path"],
-            "raw_outputs_sha256": selected["raw_outputs_sha256"],
-            "weighted_composite": selected["weighted_composite"],
-            "core_weighted_composite": selected["core_weighted_composite"],
-            "automatic_gate": selected["automatic_gate"],
-        },
+        "selected_checkpoint": (
+            {
+                "path": selected["checkpoint"],
+                "adapter_sha256": selected["checkpoint_adapter_sha256"],
+                "step": selected["step"],
+                "metrics_path": selected["metrics_path"],
+                "metrics_sha256": selected["metrics_sha256"],
+                "raw_outputs_path": selected["raw_outputs_path"],
+                "raw_outputs_sha256": selected["raw_outputs_sha256"],
+                "weighted_composite": selected["weighted_composite"],
+                "core_weighted_composite": selected["core_weighted_composite"],
+                "automatic_gate": selected["automatic_gate"],
+            }
+            if selected is not None else None
+        ),
         "candidates": candidates,
     }
     result["selection_sha256"] = canonical_sha256(result)
@@ -386,4 +421,9 @@ def select_v4_checkpoint(
     with output_path.open("x", encoding="utf-8", newline="\n") as handle:
         json.dump(result, handle, ensure_ascii=False, indent=2, sort_keys=True)
         handle.write("\n")
+    if selected is None:
+        raise Week7TrainingError(
+            f"no v4 checkpoint passed the automatic development gate; "
+            f"blocked evidence: {output_path}"
+        )
     return result

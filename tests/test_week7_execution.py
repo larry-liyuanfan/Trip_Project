@@ -102,10 +102,11 @@ class Week7ExecutionTests(unittest.TestCase):
         }
         messages = training_messages(row)
         self.assertEqual(messages[-1]["role"], "assistant")
-        truncated = structure_aware_messages(FakeProcessor(), messages, 180)
+        truncated = structure_aware_messages(FakeProcessor(), messages, 200)
         self.assertEqual(truncated[0]["role"], "system")
         self.assertEqual(truncated[1]["role"], "user")
         self.assertEqual(truncated[-1]["role"], "assistant")
+        self.assertEqual(truncated[-2]["role"], "user")
         image_count = sum(
             item.get("type") == "image"
             for message in truncated
