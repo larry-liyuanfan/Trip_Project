@@ -117,6 +117,10 @@ class SystemRuntimeTest(unittest.TestCase):
     def test_transformers_messages_convert_openai_image_blocks(self):
         messages = [
             {
+                "role": "system",
+                "content": "system instruction",
+            },
+            {
                 "role": "user",
                 "content": [
                     {
@@ -131,10 +135,15 @@ class SystemRuntimeTest(unittest.TestCase):
         converted = _transformers_messages(messages)
 
         self.assertEqual(
-            converted[0]["content"][0],
+            converted[0]["content"],
+            [{"type": "text", "text": "system instruction"}],
+        )
+        self.assertEqual(
+            converted[1]["content"][0],
             {"type": "image", "image": "https://example.com/image.jpg"},
         )
-        self.assertEqual(messages[0]["content"][0]["type"], "image_url")
+        self.assertEqual(messages[0]["content"], "system instruction")
+        self.assertEqual(messages[1]["content"][0]["type"], "image_url")
 
     def test_valid_first_output_is_returned_without_retry(self):
         backend = FakeBackend([json.dumps(PRODUCT_OUTPUT, ensure_ascii=False)])

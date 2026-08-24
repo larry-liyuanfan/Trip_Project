@@ -603,6 +603,9 @@ def _transformers_messages(
     normalized = _normalize_message_images(messages)
     for message in normalized:
         content = message.get("content")
+        if isinstance(content, str):
+            message["content"] = [{"type": "text", "text": content}]
+            continue
         if not isinstance(content, list):
             continue
         for index, part in enumerate(content):
