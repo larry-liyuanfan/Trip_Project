@@ -38,7 +38,7 @@ class OpenAICompatibleClient:
             model_name
             or os.getenv("MODEL_NAME")
             or os.getenv("VLLM_MODEL_NAME")
-            or "Qwen/Qwen2-VL-2B-Instruct"
+            or "Qwen/Qwen3-VL-8B-Instruct"
         )
         self.api_key = api_key or _read_api_key()
         self.timeout_seconds = timeout_seconds
@@ -53,7 +53,9 @@ class OpenAICompatibleClient:
     ) -> ImageUnderstandingResponse:
         """Call the configured endpoint, otherwise return deterministic output."""
         if not self.base_url:
-            return fallback_image_understanding(request)
+            if self.fallback_enabled:
+                return fallback_image_understanding(request)
+            raise RuntimeError("model endpoint is not configured")
 
         payload = self._build_chat_payload(request)
         try:

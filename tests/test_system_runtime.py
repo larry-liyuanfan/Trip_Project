@@ -14,6 +14,7 @@ from src.inference.client import OpenAICompatibleClient
 from src.inference.schemas import (
     DialogueRequest,
     DialogueTurn,
+    ImageUnderstandingRequest,
     TaskRequest,
     VisualSearchRequest,
 )
@@ -280,6 +281,14 @@ class SystemRuntimeTest(unittest.TestCase):
             client = OpenAICompatibleClient()
 
         self.assertFalse(client.fallback_enabled)
+        self.assertEqual(client.model_name, "Qwen/Qwen3-VL-8B-Instruct")
+
+    def test_legacy_client_fails_closed_without_production_endpoint(self):
+        request = ImageUnderstandingRequest(image_urls=["https://example.com/image.jpg"])
+        with patch.dict("os.environ", {"APP_ENV": "production"}, clear=True):
+            client = OpenAICompatibleClient()
+            with self.assertRaisesRegex(RuntimeError, "endpoint is not configured"):
+                client.understand_images(request)
 
     def test_readiness_reports_retrieval_initialization_failure(self):
         with patch("src.api.routes.get_scenario_service", return_value=FakeReadyService()):
