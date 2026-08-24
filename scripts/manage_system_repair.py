@@ -28,7 +28,12 @@ from src.training.system_repair import (
     run_week5_repair_queue,
     select_system_repair_candidate,
 )
-from src.training.week7_data import build_week7_lock, load_week7_config, sha256_file
+from src.training.week7_data import (
+    build_week7_lock,
+    clone_week7_lock_for_runtime_config,
+    load_week7_config,
+    sha256_file,
+)
 from src.training.week7_inference import run_system_repair_test_once
 from src.training.week7_qlora import run_multitask_training
 
@@ -51,6 +56,8 @@ def parser() -> argparse.ArgumentParser:
     merge.add_argument("--run-id", required=True)
     lock = sub.add_parser("build-data-lock")
     lock.add_argument("--source-root", type=Path, default=ROOT)
+    clone = sub.add_parser("clone-data-lock")
+    clone.add_argument("--source-config", type=Path, required=True)
     pilot = sub.add_parser("prompt-pilot")
     pilot.add_argument("--output-dir", type=Path, required=True)
     pilot.add_argument("--endpoint", required=True)
@@ -97,6 +104,12 @@ def main() -> int:
     elif args.command == "build-data-lock":
         output = build_week7_lock(ROOT, args.source_root, args.config)
         result = {"status": "COMPLETED", "output": str(output)}
+    elif args.command == "clone-data-lock":
+        result = clone_week7_lock_for_runtime_config(
+            ROOT,
+            args.source_config,
+            args.config,
+        )
     elif args.command == "prompt-pilot":
         result = run_prompt_pilot(
             ROOT,

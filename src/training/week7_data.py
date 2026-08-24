@@ -254,6 +254,102 @@ def evaluation_generation_limit(
     )
 
 
+def runtime_lock_data_contract(config: dict[str, Any]) -> dict[str, Any]:
+    """Remove only runtime identities that may change without rebuilding rows."""
+
+    contract = json.loads(json.dumps(config, ensure_ascii=False))
+    contract["system_repair"].pop("repair_id", None)
+    contract["dataset"].pop("dataset_version", None)
+    contract["evaluation"].pop("generation_max_new_tokens", None)
+    contract["evaluation"].pop("generation_max_new_tokens_by_scenario", None)
+    contract.pop("experiment_identity", None)
+    return contract
+
+
+def clone_week7_lock_for_runtime_config(
+    root: Path,
+    source_config_path: Path,
+    target_config_path: Path,
+) -> dict[str, Any]:
+    """Bind an unchanged, unconsumed data lock to a versioned runtime config."""
+
+    root = Path(root).resolve()
+    source_config_path = Path(source_config_path).resolve()
+    target_config_path = Path(target_config_path).resolve()
+    source_config = load_week7_config(source_config_path)
+    target_config = load_week7_config(target_config_path)
+    if runtime_lock_data_contract(source_config) != runtime_lock_data_contract(
+        target_config
+    ):
+        raise Week7DataError("runtime lock clone would change the locked data contract")
+    source_version = source_config["dataset"]["dataset_version"]
+    target_version = target_config["dataset"]["dataset_version"]
+    if source_version == target_version:
+        raise Week7DataError("runtime lock clone requires a new dataset version")
+    output_root = root / target_config["dataset"]["output_root"]
+    source = output_root / source_version
+    target = output_root / target_version
+    if target.exists():
+        raise Week7DataError(f"runtime lock target already exists: {target}")
+    source_validation = validate_week7_lock(root, source_config_path)
+    if source_validation.get("status") != "PASS":
+        raise Week7DataError("source runtime lock did not validate")
+    if (source / "system_repair_test_consumption.json").exists():
+        raise Week7DataError("source test split was already consumed")
+    source_lock_path = source / "dataset_lock.json"
+    source_lock = json.loads(source_lock_path.read_text(encoding="utf-8"))
+
+    target.mkdir(parents=True)
+    try:
+        for source_path in source.rglob("*"):
+            relative = source_path.relative_to(source)
+            if source_path.is_dir() or relative.parts[0] == "images":
+                continue
+            if relative.name in {
+                "dataset_lock.json",
+                "system_repair_test_consumption.json",
+            }:
+                continue
+            target_path = target / relative
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                target_path.hardlink_to(source_path)
+            except OSError:
+                shutil.copy2(source_path, target_path)
+        cloned_lock = json.loads(json.dumps(source_lock, ensure_ascii=False))
+        cloned_lock.pop("lock_sha256", None)
+        cloned_lock["dataset_version"] = target_version
+        cloned_lock["config_sha256"] = sha256_file(target_config_path)
+        cloned_lock["derived_from_runtime_lock"] = {
+            "dataset_version": source_version,
+            "config_sha256": sha256_file(source_config_path),
+            "lock_sha256": source_lock["lock_sha256"],
+            "data_files_unchanged": True,
+            "test_consumed": False,
+        }
+        cloned_lock["lock_sha256"] = canonical_sha256(cloned_lock)
+        (target / "dataset_lock.json").write_text(
+            json.dumps(cloned_lock, ensure_ascii=False, indent=2, sort_keys=True)
+            + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        target_validation = validate_week7_lock(root, target_config_path)
+    except Exception:
+        shutil.rmtree(target)
+        raise
+    return {
+        "status": "COMPLETED",
+        "source_dataset_version": source_version,
+        "dataset_version": target_version,
+        "lock_sha256": cloned_lock["lock_sha256"],
+        "source_lock_sha256": source_lock["lock_sha256"],
+        "data_files_unchanged": True,
+        "test_consumed": False,
+        "validation": target_validation,
+    }
+
+
 def _add_identity(sets: dict[str, set[str]], row: dict[str, Any]) -> None:
     provenance = row.get("provenance") if isinstance(row.get("provenance"), dict) else {}
     values = {

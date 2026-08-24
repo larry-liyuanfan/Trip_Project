@@ -1,6 +1,7 @@
 import inspect
 import json
 import unittest
+from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -24,6 +25,7 @@ from src.training.week7_data import (
     _product_target,
     evaluation_generation_limit,
     load_week7_config,
+    runtime_lock_data_contract,
     sha256_file,
 )
 from src.training.week7_inference import run_transformers_development
@@ -173,6 +175,21 @@ class SystemRepairTest(unittest.TestCase):
         self.assertEqual(
             evaluation_generation_limit(config, "after_sales", 768),
             768,
+        )
+
+    def test_runtime_lock_v2_changes_no_training_or_sample_contract(self):
+        source = load_week7_config(SYSTEM_CONFIG)
+        target = load_week7_config(SYSTEM_CONFIG_V2)
+
+        self.assertEqual(
+            runtime_lock_data_contract(source),
+            runtime_lock_data_contract(target),
+        )
+        changed = deepcopy(target)
+        changed["training"]["learning_rate"] = 1e-5
+        self.assertNotEqual(
+            runtime_lock_data_contract(source),
+            runtime_lock_data_contract(changed),
         )
 
     def test_week5_repair_config_locks_observed_failure_breakdown(self):
