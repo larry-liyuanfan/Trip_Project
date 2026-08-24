@@ -577,17 +577,17 @@ def build_service(root: Path | None = None) -> ScenarioService:
 
 def _correction_messages(
     messages: list[dict[str, Any]],
-    raw: str,
+    _raw: str,
     error: str,
 ) -> list[dict[str, Any]]:
     return [
         *messages,
-        {"role": "assistant", "content": raw},
         {
             "role": "user",
             "content": (
                 "上一次输出未通过 JSON/Schema 校验。"
                 f"错误：{error}。请重新读取原输入，只输出修正后的完整 JSON；"
+                "不要续写或局部修补上一次输出，必须从第一个顶层键开始重新生成；"
                 "保留 Schema 要求的全部字段，数组严格遵守 minItems/maxItems，"
                 "删除重复证据并保持内容紧凑，确保 JSON 在生成上限内完整闭合；"
                 "若错误包含 maxLength，必须缩短对应字符串；若缺少 required 字段，"

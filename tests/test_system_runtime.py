@@ -222,6 +222,8 @@ class SystemRuntimeTest(unittest.TestCase):
         self.assertIn("全部字段", retry_text)
         self.assertIn("minItems/maxItems", retry_text)
         self.assertIn("完整闭合", retry_text)
+        self.assertEqual(len(backend.messages[1]), len(backend.messages[0]) + 1)
+        self.assertNotIn("assistant", [item["role"] for item in backend.messages[1]])
 
     def test_two_invalid_outputs_fail_closed(self):
         backend = FakeBackend(["not-json", "still-not-json"])
