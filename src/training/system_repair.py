@@ -259,6 +259,10 @@ def run_week5_repair_queue(
                 break
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
+                if service is not None:
+                    raise SystemRepairError(
+                        f"in-process model backend failed before a valid response: {error}"
+                    ) from exc
                 if network_attempt > int(repair["model"]["max_network_retries"]):
                     break
         record = {

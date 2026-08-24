@@ -3,6 +3,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from src.training.system_prompt_pilot import (
     PromptPilotError,
@@ -73,6 +74,62 @@ def metrics(composite=0.8, dialogue=0.8):
 
 
 class SystemRepairTest(unittest.TestCase):
+    def test_week5_in_process_infrastructure_failure_stops_immediately(self):
+        class BrokenService:
+            def run_task(self, scenario, request):
+                raise OSError("model cache missing")
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config = root / "repair.json"
+            config.write_text("{}\n", encoding="utf-8")
+            output = root / "repair"
+            output.mkdir()
+            candidate = {
+                "sample_id": "sample-1",
+                "input": {
+                    "images": [{"path": "image.jpg"}],
+                    "text_constraints": None,
+                },
+            }
+            (output / "repair_queue.jsonl").write_text(
+                json.dumps(
+                    {
+                        "sample_id": "sample-1",
+                        "scenario": "image_product_search",
+                        "candidate": candidate,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            repair_config = {
+                "output_dir": "repair",
+                "repair_id": "repair-v1",
+                "model": {
+                    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+                    "max_network_retries": 2,
+                    "timeout_seconds": 1,
+                },
+            }
+            with patch(
+                "src.training.system_repair.load_repair_config",
+                return_value=repair_config,
+            ), patch(
+                "src.training.system_repair._git_commit",
+                return_value="a" * 40,
+            ):
+                with self.assertRaisesRegex(
+                    SystemRepairError,
+                    "in-process model backend failed",
+                ):
+                    run_week5_repair_queue(
+                        root,
+                        config,
+                        run_id="run-v1",
+                        service=BrokenService(),
+                    )
+
     def test_system_config_locks_1980_continuation_examples(self):
         config = load_week7_config(SYSTEM_CONFIG)
 
