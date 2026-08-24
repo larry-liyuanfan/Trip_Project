@@ -302,6 +302,17 @@ class SystemRuntimeTest(unittest.TestCase):
         self.assertIn('"itinerary"', retry_text)
         self.assertIn('"constraint_check":[]', retry_text)
         self.assertIn("不得在任何 ] 或 } 后插入自然语言", retry_text)
+        correction_schema = backend.response_formats[1]["json_schema"]["schema"]
+        itinerary_schema = correction_schema["properties"]["itinerary"]
+        self.assertEqual(itinerary_schema["maxItems"], 4)
+        self.assertEqual(
+            itinerary_schema["items"]["properties"]["activities"]["maxItems"],
+            2,
+        )
+        self.assertEqual(
+            correction_schema["properties"]["constraint_check"]["maxItems"],
+            12,
+        )
 
     def test_readiness_verifies_adapter_file_hash(self):
         with TemporaryDirectory() as tmpdir:

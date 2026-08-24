@@ -659,6 +659,15 @@ def _json_schema_response_format(
     schema_version: str,
 ) -> dict[str, Any]:
     schema = load_output_schema(root, scenario, schema_version)
+    if scenario == "itinerary_planning":
+        itinerary = schema["properties"]["itinerary"]
+        itinerary["maxItems"] = min(int(itinerary.get("maxItems", 4)), 4)
+        activities = itinerary["items"]["properties"]["activities"]
+        activities["maxItems"] = min(int(activities.get("maxItems", 2)), 2)
+        schema["properties"]["constraint_check"]["maxItems"] = min(
+            int(schema["properties"]["constraint_check"].get("maxItems", 12)),
+            12,
+        )
     return {
         "type": "json_schema",
         "json_schema": {
