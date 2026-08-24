@@ -1,14 +1,19 @@
 import json
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
+from src.training.system_prompt_pilot import (
+    PromptPilotError,
+    load_completed_prompt_pilot,
+)
 from src.training.system_repair import (
     SystemRepairError,
     _validate_historical_failure_contract,
     evaluate_system_release_gates,
     load_repair_config,
 )
-from src.training.week7_data import _product_target, load_week7_config
+from src.training.week7_data import _product_target, load_week7_config, sha256_file
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -146,6 +151,58 @@ class SystemRepairTest(unittest.TestCase):
             {"current_week7", "compact_schema_v1", "evidence_state_v1"},
         )
 
+    def test_completed_prompt_pilot_resume_is_hash_bound(self):
+        versions = {
+            "current_week7",
+            "compact_schema_v1",
+            "evidence_state_v1",
+        }
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config = root / "config.json"
+            prompts = root / "prompts.json"
+            output = root / "pilot"
+            output.mkdir()
+            config.write_text("{}\n", encoding="utf-8")
+            prompts.write_text("{}\n", encoding="utf-8")
+            summaries = {}
+            for version in versions:
+                raw = output / f"{version}_raw.jsonl"
+                raw.write_text(
+                    "".join(
+                        json.dumps({"sample_id": f"sample-{index}"}) + "\n"
+                        for index in range(144)
+                    ),
+                    encoding="utf-8",
+                )
+                summaries[version] = {"raw_sha256": sha256_file(raw)}
+            selection = {
+                "status": "COMPLETED",
+                "split": "development",
+                "test_consumed": False,
+                "config_sha256": sha256_file(config),
+                "prompt_candidates_sha256": sha256_file(prompts),
+                "counts": {
+                    "image_product_search": 48,
+                    "after_sales": 48,
+                    "itinerary_planning": 48,
+                },
+                "summaries": summaries,
+            }
+            (output / "selection.json").write_text(
+                json.dumps(selection), encoding="utf-8"
+            )
+
+            loaded = load_completed_prompt_pilot(config, prompts, output)
+            self.assertEqual(loaded["status"], "COMPLETED")
+
+            with (output / "current_week7_raw.jsonl").open(
+                "a", encoding="utf-8"
+            ) as handle:
+                handle.write("{}\n")
+            with self.assertRaises(PromptPilotError):
+                load_completed_prompt_pilot(config, prompts, output)
+
     def test_spartan_job_requests_one_gpu_and_six_hours(self):
         text = (ROOT / "scripts/spartan/system_repair_train.sbatch").read_text(
             encoding="utf-8"
@@ -155,17 +212,16 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("#SBATCH --time=06:00:00", text)
         self.assertNotIn("--gpus=2", text)
 
-    def test_spartan_inference_job_reuses_one_adapter_server(self):
+    def test_spartan_inference_job_reuses_one_in_process_adapter(self):
         text = (
             ROOT / "scripts/spartan/system_repair_inference.sbatch"
         ).read_text(encoding="utf-8")
 
         self.assertIn("#SBATCH --gpus=1", text)
         self.assertIn("#SBATCH --time=06:00:00", text)
-        self.assertIn("src.api.repair_app:app", text)
-        self.assertIn("prompt-pilot", text)
-        self.assertIn("run-week5-repair", text)
-        self.assertIn("merge-week5-repair", text)
+        self.assertIn("run-inference-repair", text)
+        self.assertIn("TRIP_ADAPTER_DIR", text)
+        self.assertNotIn("uvicorn", text)
         self.assertNotIn("#SBATCH --array", text)
 
 

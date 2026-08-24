@@ -25,6 +25,8 @@ from src.data.week5_dataset import (
     load_week5_config,
 )
 from src.evaluation.schema_validation import validate_output
+from src.inference.schemas import TaskRequest
+from src.inference.system_runtime import ModelGenerationError, ScenarioService
 from src.training.week7_data import canonical_sha256, sha256_file
 
 
@@ -170,8 +172,9 @@ def run_week5_repair_queue(
     config_path: Path,
     *,
     run_id: str,
-    base_url: str,
+    base_url: str | None = None,
     resume: bool = False,
+    service: ScenarioService | None = None,
 ) -> dict[str, Any]:
     """Run the 64-record queue through packaged endpoints with resumable evidence."""
     root = Path(root).resolve()
@@ -202,6 +205,8 @@ def run_week5_repair_queue(
         row["sample_id"] for row in _iter_jsonl(results_path)
     } if results_path.exists() else set()
     session = requests.Session()
+    if service is None and not base_url:
+        raise SystemRepairError("base_url is required without an in-process service")
     for item in queue:
         if item["sample_id"] in completed:
             continue
@@ -220,15 +225,24 @@ def run_week5_repair_queue(
         error = None
         for network_attempt in range(1, int(repair["model"]["max_network_retries"]) + 2):
             try:
-                response = session.post(
-                    f"{base_url.rstrip('/')}/v1/tasks/{endpoint}",
-                    json=request_payload,
-                    timeout=int(repair["model"]["timeout_seconds"]),
-                )
-                response.raise_for_status()
-                response_payload = response.json()
+                if service is not None:
+                    response_payload = service.run_task(
+                        item["scenario"],
+                        TaskRequest.model_validate(request_payload),
+                    ).model_dump()
+                else:
+                    response = session.post(
+                        f"{str(base_url).rstrip('/')}/v1/tasks/{endpoint}",
+                        json=request_payload,
+                        timeout=int(repair["model"]["timeout_seconds"]),
+                    )
+                    response.raise_for_status()
+                    response_payload = response.json()
                 if response_payload.get("schema_valid") is not True:
                     raise SystemRepairError("system endpoint returned non-valid output")
+                break
+            except ModelGenerationError as exc:
+                error = f"{type(exc).__name__}: {exc}"
                 break
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"

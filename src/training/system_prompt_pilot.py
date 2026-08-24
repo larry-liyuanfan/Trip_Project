@@ -6,11 +6,12 @@ import json
 import statistics
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import requests
 
 from src.evaluation.schema_validation import load_output_schema
+from src.inference.system_runtime import GenerationResult
 from src.inference.transport_utils import normalize_image_url
 from src.training.week7_data import CORE_SCENARIOS, iter_jsonl, load_week7_config, sha256_file
 from src.training.week7_evaluation import summarize_raw_records
@@ -18,6 +19,45 @@ from src.training.week7_evaluation import summarize_raw_records
 
 class PromptPilotError(ValueError):
     """Raised when a prompt pilot is incomplete or attempts to consume test."""
+
+
+def load_completed_prompt_pilot(
+    config_path: Path,
+    candidates_path: Path,
+    output_dir: Path,
+) -> dict[str, Any]:
+    """Validate and return an immutable completed pilot for safe resume."""
+
+    selection_path = Path(output_dir) / "selection.json"
+    if not selection_path.is_file():
+        raise PromptPilotError("resumed prompt pilot has no selection.json")
+    result = json.loads(selection_path.read_text(encoding="utf-8"))
+    if (
+        result.get("status") != "COMPLETED"
+        or result.get("split") != "development"
+        or result.get("test_consumed") is not False
+        or result.get("config_sha256") != sha256_file(config_path)
+        or result.get("prompt_candidates_sha256") != sha256_file(candidates_path)
+        or result.get("counts")
+        != {scenario: 48 for scenario in CORE_SCENARIOS}
+    ):
+        raise PromptPilotError("resumed prompt pilot identity is invalid")
+    summaries = result.get("summaries", {})
+    if set(summaries) != {
+        "current_week7",
+        "compact_schema_v1",
+        "evidence_state_v1",
+    }:
+        raise PromptPilotError("resumed prompt pilot versions changed")
+    for version, summary in summaries.items():
+        raw_path = Path(output_dir) / f"{version}_raw.jsonl"
+        if (
+            not raw_path.is_file()
+            or sha256_file(raw_path) != summary.get("raw_sha256")
+            or sum(1 for _ in iter_jsonl(raw_path)) != 144
+        ):
+            raise PromptPilotError(f"resumed prompt pilot raw evidence changed: {version}")
+    return result
 
 
 def run_prompt_pilot(
@@ -29,6 +69,7 @@ def run_prompt_pilot(
     endpoint: str,
     served_model: str,
     timeout_seconds: int = 300,
+    generator: Callable[..., GenerationResult] | None = None,
 ) -> dict[str, Any]:
     root = Path(root).resolve()
     config = load_week7_config(config_path)
@@ -58,22 +99,37 @@ def run_prompt_pilot(
                 raw_output = ""
                 usage = {}
                 try:
-                    response = session.post(
-                        endpoint,
-                        json={
-                            "model": served_model,
-                            "messages": messages,
-                            "temperature": 0.0,
-                            "max_tokens": 3072,
-                            "enable_thinking": False,
-                            "response_format": {"type": "json_object"},
-                        },
-                        timeout=timeout_seconds,
-                    )
-                    response.raise_for_status()
-                    payload = response.json()
-                    raw_output = payload["choices"][0]["message"]["content"]
-                    usage = payload.get("usage") or {}
+                    if generator is not None:
+                        generated = generator(
+                            messages,
+                            response_format={"type": "json_object"},
+                            max_new_tokens=3072,
+                        )
+                        raw_output = generated.content
+                        usage = {
+                            "prompt_tokens": generated.input_tokens,
+                            "completion_tokens": generated.output_tokens,
+                            "total_tokens": (
+                                generated.input_tokens + generated.output_tokens
+                            ),
+                        }
+                    else:
+                        response = session.post(
+                            endpoint,
+                            json={
+                                "model": served_model,
+                                "messages": messages,
+                                "temperature": 0.0,
+                                "max_tokens": 3072,
+                                "enable_thinking": False,
+                                "response_format": {"type": "json_object"},
+                            },
+                            timeout=timeout_seconds,
+                        )
+                        response.raise_for_status()
+                        payload = response.json()
+                        raw_output = payload["choices"][0]["message"]["content"]
+                        usage = payload.get("usage") or {}
                 except Exception as exc:
                     error = f"{type(exc).__name__}: {exc}"
                 record = {

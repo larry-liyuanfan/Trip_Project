@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,14 +12,22 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.training.system_prompt_pilot import run_prompt_pilot
+from src.training.system_prompt_pilot import (
+    load_completed_prompt_pilot,
+    run_prompt_pilot,
+)
+from src.inference.system_runtime import (
+    ReleaseSettings,
+    ScenarioService,
+    TransformersPeftBackend,
+)
 from src.training.system_repair import (
     build_week5_repair_v2,
     evaluate_system_release_gates,
     merge_week5_repair_results,
     run_week5_repair_queue,
 )
-from src.training.week7_data import build_week7_lock, load_week7_config
+from src.training.week7_data import build_week7_lock, load_week7_config, sha256_file
 from src.training.week7_qlora import run_multitask_training
 
 
@@ -44,6 +53,11 @@ def parser() -> argparse.ArgumentParser:
     pilot.add_argument("--output-dir", type=Path, required=True)
     pilot.add_argument("--endpoint", required=True)
     pilot.add_argument("--served-model", required=True)
+    combined = sub.add_parser("run-inference-repair")
+    combined.add_argument("--output-dir", type=Path, required=True)
+    combined.add_argument("--run-id", required=True)
+    combined.add_argument("--adapter-dir", type=Path, required=True)
+    combined.add_argument("--resume", action="store_true")
     train = sub.add_parser("train")
     train.add_argument("--output-dir", type=Path, required=True)
     train.add_argument("--resume-from-checkpoint", type=Path)
@@ -82,6 +96,61 @@ def main() -> int:
             endpoint=args.endpoint,
             served_model=args.served_model,
         )
+    elif args.command == "run-inference-repair":
+        os.environ["TRIP_ADAPTER_DIR"] = str(args.adapter_dir.resolve())
+        settings = ReleaseSettings.load(root=ROOT)
+        backend = TransformersPeftBackend(settings)
+        service = ScenarioService(settings, backend)
+        if args.output_dir.exists() and args.resume:
+            pilot_result = load_completed_prompt_pilot(
+                args.config,
+                DEFAULT_PROMPTS,
+                args.output_dir,
+            )
+        else:
+            pilot_result = run_prompt_pilot(
+                ROOT,
+                args.config,
+                DEFAULT_PROMPTS,
+                args.output_dir,
+                endpoint="in-process://transformers-peft",
+                served_model=settings.adapter_name,
+                generator=backend.generate_with_usage,
+            )
+        repair_result = run_week5_repair_queue(
+            ROOT,
+            DEFAULT_WEEK5,
+            run_id=args.run_id,
+            resume=args.resume,
+            service=service,
+        )
+        final_summary = (
+            ROOT
+            / "outputs/system_repair/week5_preannotation_repair_v2/final_summary.json"
+        )
+        if final_summary.exists() and args.resume:
+            merge_result = json.loads(final_summary.read_text(encoding="utf-8"))
+            final_result = final_summary.with_name("schema_valid_silver_80000.jsonl")
+            if (
+                merge_result.get("status") != "COMPLETED"
+                or merge_result.get("schema_valid") != 80000
+                or merge_result.get("unresolved") != 0
+                or not final_result.is_file()
+                or merge_result.get("result_sha256") != sha256_file(final_result)
+            ):
+                raise SystemExit("resumed Week 5 final evidence is invalid")
+        else:
+            merge_result = merge_week5_repair_results(
+                ROOT,
+                DEFAULT_WEEK5,
+                run_id=args.run_id,
+            )
+        result = {
+            "status": "COMPLETED",
+            "prompt_pilot": pilot_result,
+            "week5_repair": repair_result,
+            "week5_merge": merge_result,
+        }
     elif args.command == "train":
         result = run_multitask_training(
             ROOT,

@@ -27,7 +27,6 @@ export TRANSFORMERS_OFFLINE=1
 export HF_HUB_DISABLE_TELEMETRY=1
 export PYTHONUNBUFFERED=1
 export TRIP_RELEASE_CONFIG="configs/releases/qwen3_vl_system_v1.json"
-export TRIP_ADAPTER_DIR
 source "${TRIP_VENV}/bin/activate"
 
 python scripts/manage_system_repair.py \
@@ -37,51 +36,16 @@ python scripts/manage_week7.py \
   --config configs/system_repair/qwen3_vl_8b_system_repair_v1.json \
   validate-lock
 
-port="${TRIP_REPAIR_PORT:-18011}"
-python -m uvicorn src.api.repair_app:app \
-  --host 127.0.0.1 --port "${port}" \
-  >"${TRIP_PROMPT_OUTPUT_DIR}.server.log" 2>&1 &
-server_pid=$!
-cleanup() {
-  kill "${server_pid}" 2>/dev/null || true
-  wait "${server_pid}" 2>/dev/null || true
-}
-trap cleanup EXIT
-
-python - "http://127.0.0.1:${port}/v1/models" <<'PY'
-import json
-import sys
-import time
-import urllib.request
-
-url = sys.argv[1]
-for _ in range(180):
-    try:
-        with urllib.request.urlopen(url, timeout=10) as response:
-            payload = json.load(response)
-        if payload.get("data"):
-            break
-    except Exception:
-        time.sleep(5)
-else:
-    raise SystemExit("repair inference server did not become ready")
-PY
-
-python scripts/manage_system_repair.py \
+arguments=(
+  python scripts/manage_system_repair.py \
   --config configs/system_repair/qwen3_vl_8b_system_repair_v1.json \
-  prompt-pilot \
+  run-inference-repair \
   --output-dir "${TRIP_PROMPT_OUTPUT_DIR}" \
-  --endpoint "http://127.0.0.1:${port}/v1/chat/completions" \
-  --served-model "trip-qwen3-vl-8b-unified-v4-fix2"
-
-python scripts/manage_system_repair.py \
-  --config configs/system_repair/qwen3_vl_8b_system_repair_v1.json \
-  run-week5-repair \
   --run-id "${TRIP_WEEK5_RUN_ID}" \
-  --base-url "http://127.0.0.1:${port}"
-
-python scripts/manage_system_repair.py \
-  --config configs/system_repair/qwen3_vl_8b_system_repair_v1.json \
-  merge-week5-repair \
-  --run-id "${TRIP_WEEK5_RUN_ID}"
+  --adapter-dir "${TRIP_ADAPTER_DIR}"
+)
+if [[ "${TRIP_RESUME:-0}" == "1" ]]; then
+  arguments+=(--resume)
+fi
+"${arguments[@]}"
 sync
