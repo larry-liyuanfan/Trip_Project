@@ -212,11 +212,17 @@ def main() -> int:
             json.loads(args.week6_routed.read_text(encoding="utf-8")),
         )
         result["evidence"] = {
+            "config_path": str(args.config.resolve()),
             "config_sha256": sha256_file(args.config),
+            "selection_path": str(args.selection.resolve()),
             "selection_sha256": sha256_file(args.selection),
+            "candidate_metrics_path": str(args.candidate.resolve()),
             "candidate_metrics_sha256": sha256_file(args.candidate),
+            "existing_metrics_path": str(args.existing.resolve()),
             "existing_metrics_sha256": sha256_file(args.existing),
+            "zero_shot_metrics_path": str(args.zero_shot.resolve()),
             "zero_shot_metrics_sha256": sha256_file(args.zero_shot),
+            "week6_routed_metrics_path": str(args.week6_routed.resolve()),
             "week6_routed_metrics_sha256": sha256_file(args.week6_routed),
             "adapter_model_sha256": selection["adapter_model_sha256"],
         }

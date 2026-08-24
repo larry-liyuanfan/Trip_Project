@@ -33,6 +33,7 @@ from src.training.week7_qlora import (
     training_messages,
 )
 from src.training.week7_runtime import generate_record, inference_runtime
+from src.training.system_repair import evaluate_system_release_gates
 
 
 def _validate_system_candidate_adapter(
@@ -211,19 +212,48 @@ def run_system_repair_test_once(
         raise Week7TrainingError("test config SHA-256 does not match the dataset lock")
     selection = json.loads(selection_path.read_text(encoding="utf-8"))
     gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    gate_evidence = gate.get("evidence", {})
     if (
         selection.get("status") != "COMPLETED"
         or selection.get("test_consumed") is not False
         or gate.get("status") != "PASS"
         or gate.get("test_consumption_allowed") is not True
-        or gate.get("evidence", {}).get("selection_sha256")
-        != sha256_file(selection_path)
-        or gate.get("evidence", {}).get("candidate_metrics_sha256")
+        or gate_evidence.get("config_sha256") != sha256_file(config_path)
+        or Path(str(gate_evidence.get("selection_path", ""))).resolve()
+        != selection_path
+        or gate_evidence.get("selection_sha256") != sha256_file(selection_path)
+        or gate_evidence.get("candidate_metrics_sha256")
         != selection.get("development_metrics", {}).get("sha256")
-        or gate.get("evidence", {}).get("adapter_model_sha256")
+        or gate_evidence.get("adapter_model_sha256")
         != selection.get("adapter_model_sha256")
     ):
         raise Week7TrainingError("system-repair development gate evidence mismatch")
+    metric_specs = {
+        "candidate": ("candidate_metrics_path", "candidate_metrics_sha256"),
+        "existing": ("existing_metrics_path", "existing_metrics_sha256"),
+        "zero_shot": ("zero_shot_metrics_path", "zero_shot_metrics_sha256"),
+        "week6_routed": (
+            "week6_routed_metrics_path",
+            "week6_routed_metrics_sha256",
+        ),
+    }
+    metrics = {}
+    for name, (path_key, hash_key) in metric_specs.items():
+        path = Path(str(gate_evidence.get(path_key, ""))).resolve()
+        if not path.is_file() or sha256_file(path) != gate_evidence.get(hash_key):
+            raise Week7TrainingError(
+                f"system-repair {name} development evidence changed"
+            )
+        metrics[name] = json.loads(path.read_text(encoding="utf-8"))
+    recomputed_gate = evaluate_system_release_gates(
+        config,
+        metrics["candidate"],
+        metrics["existing"],
+        metrics["zero_shot"],
+        metrics["week6_routed"],
+    )
+    if any(gate.get(key) != recomputed_gate.get(key) for key in recomputed_gate):
+        raise Week7TrainingError("system-repair development gate was not reproducible")
     adapter_dir = Path(selection["adapter_dir"]).resolve()
     adapter_hashes = {
         path.name: sha256_file(path)

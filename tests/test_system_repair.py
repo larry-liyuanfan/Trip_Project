@@ -560,6 +560,15 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("TRIP_GATE", text)
         self.assertNotIn("evaluate-development", text)
 
+    def test_final_test_recomputes_all_development_gate_inputs(self):
+        text = (ROOT / "src/training/week7_inference.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('"week6_routed_metrics_path"', text)
+        self.assertIn("evaluate_system_release_gates(", text)
+        self.assertIn("development gate was not reproducible", text)
+
 
 if __name__ == "__main__":
     unittest.main()
