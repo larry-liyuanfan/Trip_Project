@@ -560,3 +560,44 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - 对话专项报告必须分别给出格式合规率、上下文信息召回率和真实人工抽样结果；没有人工输入时不得伪造连贯性、逻辑合理性或业务专业性结论。
 - 仅在所有参数锁定后执行一次新 test 评测。任何未真实运行的训练、DPO、人工评估或指标均标记为 `PENDING` 或 `SKIPPED`，不得宣称完成或提升。
 - 更新 README、周日志、交付清单、实验记录和 Week 7 报告；不得修改 Week 6 终态报告，不得生成 Week 8 计划。
+
+## 系统收敛修复与统一封装（2026-08-24）
+
+### 当前范围
+
+- 对 Week 1-7 已发现的工程和模型问题执行实际修复，不以新增“已知限制”代替修复。
+- 不新增人工标注；新构建标签只允许标记为 `silver` 或自动验证结果。Week 3、Week 6、
+  Week 7 的冻结数据、运行和报告保持不可变。
+- 默认业务模型为 `Qwen/Qwen3-VL-8B-Instruct` 加 Week 7 unified adapter；规范运行时为
+  Transformers、PEFT 和 NF4，vLLM 仅保留为可选后端。
+- 所有修复使用新的 config、dataset、run 和 test identity。开发门禁通过前不得读取新 test；
+  test 只能消费一次。
+
+### 必须修复
+
+- API 生产模式禁止静默 fallback；模型、Schema 或检索失败必须返回明确错误。
+- 提供三场景任务接口、多轮对话、CLIP/Milvus 视觉检索、`/health` 和严格 `/ready`。
+  `/ready` 必须核验模型、adapter、Prompt、Schema、CLIP、Milvus 和 release identity。
+- 每个结构化模型请求最多允许一次模型级 Schema 纠错；保留两次原始输出，脚本不得补字段。
+- 新建 `week5_preannotation_repair_v2`，替换 44 个不可读输入并修复 20 个 JSON/Schema
+  失败；原 80,000 候选、64 条失败和人工 accepted 统计保持不变。
+- 建立 1,980 条自动修复训练集和独立 development/test：三个核心场景各 500、对话
+  300、通用正则 180，silver 权重不超过 0.5；从 checkpoint-226 受控继续 SFT，旧
+  adapter 不覆盖。
+- 在每场景 48 条 fresh development 上比较当前 Week 7、`compact_schema_v1` 和
+  `evidence_state_v1`；不根据 test 或全量运行反向选 Prompt。
+- 使用 1,000 张真实 OTA 图片生成 CLIP 512 维向量，完成 Milvus HNSW/COSINE CRUD、
+  过滤、延迟和 Recall@K 实测。
+- 提供统一 Compose、release manifest、`tripctl doctor/validate/serve/smoke` 和私有 OSS
+  分层包；不得上传密钥、模型缓存或未经许可的原始 Yelp 数据。
+
+### 晋级门禁
+
+- 核心场景主要业务指标不得低于同一 development 上最佳现有基线；JSON/Schema 目标均
+  不低于 95%，失败率不高于 2%，平均延迟不超过基线 1.25 倍，支持数不得通过删除困难
+  样本下降。
+- 对话使用独立 `DIALOGUE_BETA` 门禁，同时必须超过 Week 6 routed 与 zero-shot；旧严格
+  研究门禁结论不改写。
+- 只有代码测试、Week 5 80,000/80,000 Schema-valid、Prompt pilot、修复 adapter、四场景
+  smoke、Milvus 实测、Docker/OSS 哈希和干净 checkout 全部通过，才允许快进 `dev` 与
+  `stg`；否则代码和失败证据可进入 `dev`，但不得进入 `stg`。

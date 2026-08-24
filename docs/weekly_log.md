@@ -888,3 +888,9 @@ as the current validated dataset or accepted baseline.
   15,209，连续请求失败归零；历史 raw 记录随后以不覆盖模式补传。
 - 当前预标注仍未完成，人工修正、质检和 accepted 数量没有因此增加；本地电脑不再是
   运行依赖，且禁止本地与 ECS 同时写入该 run。
+- 2026-08-24：建立三个隔离 worktree 并合并系统修复：Qwen3-VL fail-closed 运行时、
+  Week 5 v2/新数据锁、CLIP/Milvus 和统一发布封装。完整测试 482/482 通过。
+- 2026-08-24：实际生成 1,000 x 512 CLIP 向量；Milvus 1,000 条 CRUD、HNSW/COSINE、
+  100 查询实测完成，平均/P95 2.2355/2.4097 ms，Recall@10=1.0。
+- 2026-08-24：Week 5 v2 审计为 80,000 候选、64 条修复队列、五维评测冲突 0；因本轮
+  Spartan 尚未登录，64 条重推理、Prompt pilot、继续 SFT 和模型门禁保持未完成。

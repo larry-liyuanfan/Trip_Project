@@ -897,3 +897,20 @@ manifest.
   checkpoint 15,209、连续请求失败 0。
 - 运行方式：systemd 常驻，vLLM 仍只通过服务器回环地址访问；本地 supervisor、runner
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
+## 2026-08-24：系统收敛修复与 CLIP/Milvus 实测
+
+- Git 基线：`feature/system-consolidation`，模型为
+  `Qwen/Qwen3-VL-8B-Instruct` + Week 7 unified adapter；本地未加载该 adapter。
+- fresh 数据：`system_repair_fresh_multitask_20260824_v1`，train/development/test
+  1,980/168/120，lock SHA-256
+  `15fe49114dcfd54019b742a4e551114c8c50d4cc54f09479ed4f0abfba3f8366`，五维隔离 PASS，
+  test 未消费。
+- Week 5 v2：80,000 候选、历史成功 79,936、修复队列 64、替换 44，五维评测冲突 0；
+  状态 `AWAITING_MODEL_REPAIR`。
+- CLIP：`openai/clip-vit-base-patch32`，本地 RTX 4070 CUDA，1,000 个真实 OTA 图片，
+  512 维且全部 L2 normalized。
+- Milvus：`2.6.20`，HNSW/COSINE，M=16、efConstruction=128、ef=64；索引 4.6205 秒，
+  100 个查询平均/P95 2.2355/2.4097 ms，Recall@10=1.0，CRUD 全部通过。
+- 验证：定向 25/25、完整 unittest 482/482、配置校验和 `git diff --check` 通过。
+- 未运行：Qwen3-VL Prompt pilot、64 条 Week 5 修复、继续 SFT、fresh test 和 OSS 上传。
+  未生成或声称任何新模型提升。

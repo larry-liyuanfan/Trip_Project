@@ -668,6 +668,37 @@ runner 与 mDPO 审计实现加入后，完整 `unittest` 为 428/428。终态�
 
 ## Aliyun Runtime
 
+## Unified Qwen3-VL System Runtime
+
+当前统一系统入口使用 `configs/releases/qwen3_vl_system_v1.json`，默认基座为
+`Qwen/Qwen3-VL-8B-Instruct`，adapter 必须通过文件 SHA-256 核验。生产模式没有模型、
+Schema 或检索静默回退。
+
+```bash
+python scripts/tripctl.py doctor
+python scripts/tripctl.py validate
+python scripts/tripctl.py serve
+python scripts/tripctl.py smoke --base-url http://127.0.0.1:8000
+```
+
+统一接口：
+
+- `POST /v1/tasks/image-product-search`
+- `POST /v1/tasks/after-sales`
+- `POST /v1/tasks/itinerary-planning`
+- `POST /v1/dialogue`
+- `POST /v1/visual-search`
+- `GET /health`
+- `GET /ready`
+
+`/health` 只表示 API 进程存活；`/ready` 会实际核验 adapter、模型后端、Prompt、Schema、
+CLIP、Milvus 和 release identity。Milvus 基准配置位于
+`docker/system/milvus_system.yaml`，统一 Compose 位于 `docker/system/docker-compose.yml`。
+没有实际 adapter 时 `tripctl doctor` 返回 `not_ready`，这是预期的 fail-closed 行为。
+
+系统收敛修复的真实进度、Milvus 实测和未完成模型门禁见
+`reports/system_consolidation_repair_report.md`。
+
 The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the
 Singapore workspace-specific OpenAI-compatible endpoint. The ECS deployment
 does not run local vLLM. FastAPI and Milvus bind to loopback by default; use an

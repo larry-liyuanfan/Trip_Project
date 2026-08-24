@@ -453,6 +453,20 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **影响**：该决策修复评分和优化目标错位，不保证模型必然通过门禁，也不把自动结果
   解释为人工或统计显著结论。DPO 保持既有一次失败后关闭。
 
+## ADR-033：系统收敛采用新身份修复和 fail-closed 发布门禁
+
+- **日期**：2026-08-24
+- **状态**：Accepted；来自用户对两天并行修复和系统封装的直接要求。
+- **决策**：三个临时执行分支分别处理模型、运行时和检索封装，最终由单一集成分支合并。
+  历史冻结资产不改写；Week 5 v2、fresh development/test、Prompt pilot、继续 SFT 和发布包
+  使用独立身份。生产 API 关闭静默 fallback，readiness 必须同时核验模型、adapter、
+  Prompt、Schema、CLIP、Milvus 和 release identity。
+- **模型门禁**：核心三场景、DIALOGUE_BETA、失败率、延迟和支持数必须由同一 fresh
+  development 的真实运行产物裁决。只有 development 全部通过后才允许消费一次新 test；
+  未完成或未通过不能用状态文字改成 READY。
+- **发布影响**：完整代码修复和失败证据可进入 `dev`；只有模型、检索、Docker、OSS 与
+  干净 checkout 门禁全部通过才允许进入 `stg`。`main` 不在本次修改范围。
+
 ## Decision Template
 
 ```markdown
