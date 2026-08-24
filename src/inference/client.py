@@ -42,7 +42,11 @@ class OpenAICompatibleClient:
         )
         self.api_key = api_key or _read_api_key()
         self.timeout_seconds = timeout_seconds
-        self.fallback_enabled = _env_flag("MODEL_FALLBACK_ENABLED", default=True)
+        production = os.getenv("APP_ENV", "").strip().lower() == "production"
+        self.fallback_enabled = _env_flag(
+            "MODEL_FALLBACK_ENABLED",
+            default=not production,
+        )
 
     def understand_images(
         self, request: ImageUnderstandingRequest

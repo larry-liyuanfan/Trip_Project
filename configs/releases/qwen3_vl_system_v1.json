@@ -1,0 +1,35 @@
+{
+  "schema_version": "system_release_v1",
+  "release_id": "trip-qwen3-vl-8b-unified-v1-rc1",
+  "status": "release_candidate",
+  "model": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "60595ebc30ec8e3b1d3b9e65d4943ca011c0006a",
+    "backend": "transformers-peft",
+    "adapter_name": "trip-qwen3-vl-8b-unified-v4-fix2",
+    "adapter_model_sha256": "ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee",
+    "adapter_path_env": "TRIP_ADAPTER_DIR",
+    "trust_remote_code": false
+  },
+  "prompts": {
+    "image_product_search": "standardized_v2",
+    "after_sales": "standardized_v2",
+    "itinerary_planning": "standardized_v4"
+  },
+  "schemas": {
+    "image_product_search": "v1",
+    "after_sales": "v1",
+    "itinerary_planning": "v2"
+  },
+  "generation": {
+    "max_new_tokens": 3072,
+    "do_sample": false,
+    "temperature": 0.0,
+    "max_schema_retries": 1
+  },
+  "quality": {
+    "core_scenarios": "READY",
+    "dialogue": "DIALOGUE_BETA",
+    "strict_dialogue_gate": "FAIL"
+  }
+}

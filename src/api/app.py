@@ -14,7 +14,7 @@ def create_app() -> FastAPI:
     """Create the API application and register all business routes."""
     app = FastAPI(
         title="OTA Multimodal Search and Travel Planning System",
-        version="0.1.0",
+        version="1.0.0-rc1",
         description="VLM-based OTA multimodal search and travel planning API.",
     )
     app.include_router(router)
