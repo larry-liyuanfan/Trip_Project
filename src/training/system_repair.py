@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import re
+import subprocess
 import time
 from collections import Counter
 from pathlib import Path
@@ -41,6 +42,17 @@ IDENTITY_FIELDS = (
 
 class SystemRepairError(ValueError):
     """Raised when repair provenance, counts, or release gates are invalid."""
+
+
+def _git_commit(root: Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout.strip()
 
 
 def load_repair_config(path: Path) -> dict[str, Any]:
@@ -189,6 +201,7 @@ def run_week5_repair_queue(
         "config_sha256": sha256_file(config_path),
         "queue_sha256": sha256_file(queue_path),
         "base_model": repair["model"]["base_model"],
+        "git_commit": _git_commit(root),
     }
     identity_path = run_dir / "run_identity.json"
     if run_dir.exists():

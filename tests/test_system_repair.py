@@ -16,6 +16,7 @@ from src.training.system_repair import (
     _validate_historical_failure_contract,
     evaluate_system_release_gates,
     load_repair_config,
+    run_week5_repair_queue,
     select_system_repair_candidate,
 )
 from src.training.week7_data import _product_target, load_week7_config, sha256_file
@@ -378,6 +379,11 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("#SBATCH --gpus=1", text)
         self.assertIn("#SBATCH --time=06:00:00", text)
         self.assertNotIn("--gpus=2", text)
+
+    def test_week5_resume_identity_binds_git_commit(self):
+        source = inspect.getsource(run_week5_repair_queue)
+
+        self.assertIn('"git_commit": _git_commit(root)', source)
 
     def test_spartan_inference_job_is_resumable_and_reuses_one_adapter(self):
         text = (
