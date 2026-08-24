@@ -28,6 +28,9 @@ class FakeStore:
         self.call = {"vector": vector, "top_k": top_k, "filters": filters}
         return [[{"id": 7, "distance": 0.95, "entity": {"image_id": "photo-7"}}]]
 
+    def ready(self):
+        return True, "ok"
+
 
 class SystemPackageTest(unittest.TestCase):
     def test_clip_vector_validation_rejects_wrong_dimension_and_norm(self):

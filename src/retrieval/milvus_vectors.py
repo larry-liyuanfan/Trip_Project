@@ -131,6 +131,16 @@ class OTAMilvusVectorStore:
             consistency_level=self.config["collection"]["consistency_level"],
         )
 
+    def ready(self) -> tuple[bool, str]:
+        """Check that the configured collection exists without creating it."""
+        try:
+            exists = self.client.has_collection(collection_name=self.collection)
+        except Exception as exc:
+            return False, f"Milvus connection failed: {exc}"
+        if not exists:
+            return False, f"Milvus collection is missing: {self.collection}"
+        return True, "ok"
+
     def build_indexes(self) -> None:
         """Build configured HNSW/COSINE and scalar indexes."""
         params = self.client.prepare_index_params()

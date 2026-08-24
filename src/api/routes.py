@@ -4,6 +4,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, HTTPException
 
@@ -24,6 +25,9 @@ from src.inference.system_runtime import (
 from src.planning.itinerary_planner import build_itinerary
 from src.retrieval.hybrid_retriever import HybridRetriever
 from src.retrieval.index_builder import load_jsonl
+from src.retrieval.clip_embeddings import CLIPImageEncoder
+from src.retrieval.milvus_vectors import OTAMilvusVectorStore, load_milvus_config
+from src.retrieval.visual_search import VisualSearchService
 
 router = APIRouter()
 
@@ -48,6 +52,10 @@ def readiness() -> dict[str, Any]:
         payload = get_scenario_service().ready()
     except RuntimeConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    retrieval_checks = _retrieval_readiness()
+    payload["checks"].update(retrieval_checks)
+    if not all(check["ok"] for check in retrieval_checks.values()):
+        payload["status"] = "not_ready"
     if payload["status"] != "ready":
         raise HTTPException(status_code=503, detail=payload)
     return payload
@@ -94,6 +102,37 @@ def dialogue(request: DialogueRequest) -> dict[str, Any]:
 @router.post("/v1/visual-search")
 def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
     """Combine VLM-derived terms with the current hybrid retrieval baseline."""
+    if os.getenv("APP_ENV", "").strip().lower() == "production":
+        if len(request.image_urls) != 1:
+            raise HTTPException(
+                status_code=422,
+                detail="production visual search requires exactly one image",
+            )
+        try:
+            image_path = _local_image_path(request.image_urls[0])
+        except RuntimeConfigurationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        try:
+            service = get_visual_search_service()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"visual-search dependencies are unavailable: {exc}",
+            ) from exc
+        filters = {"city": request.city} if request.city else None
+        try:
+            results = service.search(
+                image_path,
+                top_k=request.top_k,
+                filters=filters,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"visual search failed: {exc}") from exc
+        return {
+            "retrieval_mode": "clip_milvus_hnsw_cosine",
+            "embedding_model": "openai/clip-vit-base-patch32",
+            "results": results,
+        }
     understanding = VLLMClient().understand_images(
         ImageUnderstandingRequest(
             image_urls=request.image_urls,
@@ -144,6 +183,40 @@ def get_scenario_service() -> ScenarioService:
     return build_service()
 
 
+@lru_cache(maxsize=1)
+def get_visual_search_service() -> VisualSearchService:
+    """Build the configured CLIP/Milvus production retrieval service."""
+    config_path = Path(
+        os.getenv("MILVUS_CONFIG", "docker/system/milvus_system.yaml")
+    )
+    config = load_milvus_config(config_path)
+    encoder = CLIPImageEncoder(
+        device=os.getenv("CLIP_DEVICE", "auto"),
+        batch_size=int(os.getenv("CLIP_BATCH_SIZE", "20")),
+    )
+    return VisualSearchService(encoder, OTAMilvusVectorStore(config))
+
+
+def _retrieval_readiness() -> dict[str, dict[str, Any]]:
+    try:
+        service = get_visual_search_service()
+    except Exception as exc:
+        reason = f"retrieval initialization failed: {exc}"
+        return {
+            "clip": {"ok": False, "detail": reason},
+            "milvus": {"ok": False, "detail": reason},
+        }
+    clip_ready, clip_reason = service.ready()
+    try:
+        milvus_ready, milvus_reason = service.store.ready()
+    except Exception as exc:
+        milvus_ready, milvus_reason = False, f"Milvus readiness failed: {exc}"
+    return {
+        "clip": {"ok": clip_ready, "detail": clip_reason},
+        "milvus": {"ok": milvus_ready, "detail": milvus_reason},
+    }
+
+
 def _run_scenario(scenario: str, request: TaskRequest) -> dict[str, Any]:
     try:
         return get_scenario_service().run_task(scenario, request).model_dump()
@@ -158,3 +231,22 @@ def _env_flag(name: str, *, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _local_image_path(value: str) -> Path:
+    if value.startswith("file://"):
+        parsed = urlparse(value)
+        path_text = unquote(parsed.path)
+        if len(path_text) >= 3 and path_text[0] == "/" and path_text[2] == ":":
+            path_text = path_text[1:]
+        path = Path(path_text)
+    elif "://" in value or value.startswith("data:"):
+        raise RuntimeConfigurationError(
+            "production visual search accepts mounted local image paths only"
+        )
+    else:
+        path = Path(value)
+    resolved = path if path.is_absolute() else Path.cwd() / path
+    if not resolved.is_file():
+        raise RuntimeConfigurationError(f"visual-search image does not exist: {resolved}")
+    return resolved.resolve()

@@ -7,9 +7,14 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
-from src.api.routes import dialogue
+from src.api.routes import dialogue, readiness, visual_search
 from src.inference.client import OpenAICompatibleClient
-from src.inference.schemas import DialogueRequest, DialogueTurn, TaskRequest
+from src.inference.schemas import (
+    DialogueRequest,
+    DialogueTurn,
+    TaskRequest,
+    VisualSearchRequest,
+)
 from src.inference.system_runtime import (
     ModelGenerationError,
     ReleaseSettings,
@@ -41,6 +46,25 @@ class FakeBackend:
     def generate(self, messages, *, response_format, max_new_tokens):
         self.messages.append(messages)
         return self.outputs.pop(0)
+
+
+class FakeReadyService:
+    def ready(self):
+        return {
+            "status": "ready",
+            "release_id": "test-release",
+            "checks": {},
+        }
+
+
+class FakeVisualSearchService:
+    def __init__(self, results=None):
+        self.results = results or []
+        self.call = None
+
+    def search(self, image_path, *, top_k, filters):
+        self.call = {"image_path": image_path, "top_k": top_k, "filters": filters}
+        return self.results
 
 
 def settings(adapter_path=None, adapter_sha="0" * 64):
@@ -174,6 +198,52 @@ class SystemRuntimeTest(unittest.TestCase):
             client = OpenAICompatibleClient()
 
         self.assertFalse(client.fallback_enabled)
+
+    def test_readiness_reports_retrieval_initialization_failure(self):
+        with patch("src.api.routes.get_scenario_service", return_value=FakeReadyService()):
+            with patch(
+                "src.api.routes.get_visual_search_service",
+                side_effect=RuntimeError("Milvus config missing"),
+            ):
+                with self.assertRaises(HTTPException) as raised:
+                    readiness()
+
+        self.assertEqual(raised.exception.status_code, 503)
+        self.assertFalse(raised.exception.detail["checks"]["clip"]["ok"])
+        self.assertFalse(raised.exception.detail["checks"]["milvus"]["ok"])
+
+    def test_production_visual_search_uses_clip_milvus_without_fallback(self):
+        service = FakeVisualSearchService(
+            [{"image_id": "photo-1", "score": 0.9}]
+        )
+        with TemporaryDirectory() as tmpdir:
+            image_path = Path(tmpdir) / "query.jpg"
+            image_path.write_bytes(b"image")
+            request = VisualSearchRequest(
+                image_urls=[str(image_path)],
+                city="Shanghai",
+                top_k=3,
+            )
+            with patch.dict("os.environ", {"APP_ENV": "production"}, clear=True):
+                with patch(
+                    "src.api.routes.get_visual_search_service", return_value=service
+                ):
+                    result = visual_search(request)
+
+        self.assertEqual(result["retrieval_mode"], "clip_milvus_hnsw_cosine")
+        self.assertEqual(result["results"][0]["image_id"], "photo-1")
+        self.assertEqual(service.call["filters"], {"city": "Shanghai"})
+
+    def test_production_visual_search_rejects_remote_url(self):
+        request = VisualSearchRequest(
+            image_urls=["https://example.com/query.jpg"],
+            top_k=3,
+        )
+        with patch.dict("os.environ", {"APP_ENV": "production"}, clear=True):
+            with self.assertRaises(HTTPException) as raised:
+                visual_search(request)
+
+        self.assertEqual(raised.exception.status_code, 503)
 
 
 if __name__ == "__main__":

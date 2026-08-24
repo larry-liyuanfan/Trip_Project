@@ -14,7 +14,11 @@ import requests
 from pydantic import ValidationError
 
 from src.evaluation.prompting import render_standard_prompt
-from src.evaluation.schema_validation import SchemaValidationError, validate_output
+from src.evaluation.schema_validation import (
+    SchemaValidationError,
+    load_output_schema,
+    validate_output,
+)
 from src.inference.schemas import (
     DialogueModelOutput,
     DialogueRequest,
@@ -318,7 +322,27 @@ class ScenarioService:
     def ready(self) -> dict[str, Any]:
         adapter_ready, adapter_reason = self.settings.validate_adapter()
         backend_ready, backend_reason = self.backend.ready()
-        ready = adapter_ready and backend_ready
+        schema_errors = []
+        for scenario, version in self.settings.schema_versions.items():
+            try:
+                load_output_schema(self.settings.root, scenario, version)
+                prompt_root = (
+                    self.settings.root
+                    / "configs"
+                    / "evaluation"
+                    / "prompts"
+                    / self.settings.prompt_versions[scenario]
+                )
+                if not (prompt_root / "common.yaml").is_file() or not (
+                    prompt_root / f"{scenario}.yaml"
+                ).is_file():
+                    raise RuntimeConfigurationError(
+                        f"prompt files are missing for {scenario}"
+                    )
+            except Exception as exc:
+                schema_errors.append(f"{scenario}: {exc}")
+        contracts_ready = not schema_errors
+        ready = adapter_ready and backend_ready and contracts_ready
         return {
             "status": "ready" if ready else "not_ready",
             "release_id": self.settings.release_id,
@@ -328,6 +352,10 @@ class ScenarioService:
             "checks": {
                 "adapter": {"ok": adapter_ready, "detail": adapter_reason},
                 "model_backend": {"ok": backend_ready, "detail": backend_reason},
+                "prompt_schema_contracts": {
+                    "ok": contracts_ready,
+                    "detail": "ok" if contracts_ready else "; ".join(schema_errors),
+                },
             },
         }
 
