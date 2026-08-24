@@ -21,6 +21,7 @@ from src.inference.system_runtime import (
     ReleaseSettings,
     ScenarioService,
     TransformersPeftBackend,
+    _transformers_messages,
 )
 
 
@@ -103,20 +104,37 @@ class SystemRuntimeTest(unittest.TestCase):
                 ValueError("diagnostic failure")
             )
         )
-        vision_module = types.SimpleNamespace(
-            process_vision_info=lambda messages: ([], [])
-        )
+        with self.assertRaisesRegex(
+            ModelGenerationError,
+            "ValueError: diagnostic failure",
+        ):
+            backend.generate_with_usage(
+                [{"role": "user", "content": "test"}],
+                response_format={"type": "json_object"},
+                max_new_tokens=8,
+            )
 
-        with patch.dict("sys.modules", {"qwen_vl_utils": vision_module}):
-            with self.assertRaisesRegex(
-                ModelGenerationError,
-                "ValueError: diagnostic failure",
-            ):
-                backend.generate_with_usage(
-                    [{"role": "user", "content": "test"}],
-                    response_format={"type": "json_object"},
-                    max_new_tokens=8,
-                )
+    def test_transformers_messages_convert_openai_image_blocks(self):
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/image.jpg"},
+                    },
+                    {"type": "text", "text": "inspect"},
+                ],
+            }
+        ]
+
+        converted = _transformers_messages(messages)
+
+        self.assertEqual(
+            converted[0]["content"][0],
+            {"type": "image", "image": "https://example.com/image.jpg"},
+        )
+        self.assertEqual(messages[0]["content"][0]["type"], "image_url")
 
     def test_valid_first_output_is_returned_without_retry(self):
         backend = FakeBackend([json.dumps(PRODUCT_OUTPUT, ensure_ascii=False)])

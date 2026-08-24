@@ -250,31 +250,29 @@ class TransformersPeftBackend:
         del response_format  # Schema is enforced after generation for this backend.
         self._ensure_loaded()
         try:
-            from qwen_vl_utils import process_vision_info
-
-            normalized = _normalize_message_images(messages)
-            text = self._processor.apply_chat_template(
+            normalized = _transformers_messages(messages)
+            inputs = self._processor.apply_chat_template(
                 normalized,
-                tokenize=False,
+                tokenize=True,
                 add_generation_prompt=True,
-            )
-            image_inputs, video_inputs = process_vision_info(normalized)
-            inputs = self._processor(
-                text=[text],
-                images=image_inputs,
-                videos=video_inputs,
-                padding=True,
+                return_dict=True,
                 return_tensors="pt",
-            ).to(self._model.device)
+                truncation=False,
+            )
+            device = next(self._model.parameters()).device
+            inputs = {
+                key: value.to(device) if hasattr(value, "to") else value
+                for key, value in inputs.items()
+            }
             generated = self._model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
             )
-            input_tokens = int(inputs.input_ids.shape[1])
+            input_tokens = int(inputs["input_ids"].shape[1])
             trimmed = [
                 output[len(input_ids) :]
-                for input_ids, output in zip(inputs.input_ids, generated)
+                for input_ids, output in zip(inputs["input_ids"], generated)
             ]
             output_tokens = int(trimmed[0].shape[0])
             content = self._processor.batch_decode(
@@ -594,6 +592,29 @@ def _normalize_message_images(messages: list[dict[str, Any]]) -> list[dict[str, 
             image = part.get("image_url", {})
             if isinstance(image, dict) and isinstance(image.get("url"), str):
                 image["url"] = normalize_image_url(image["url"])
+    return normalized
+
+
+def _transformers_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert OpenAI image blocks to the Qwen3-VL processor contract."""
+
+    normalized = _normalize_message_images(messages)
+    for message in normalized:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for index, part in enumerate(content):
+            if part.get("type") != "image_url":
+                continue
+            image = part.get("image_url")
+            url = image.get("url") if isinstance(image, dict) else image
+            if not isinstance(url, str) or not url:
+                raise RuntimeConfigurationError(
+                    "Transformers image_url block has no URL"
+                )
+            content[index] = {"type": "image", "image": url}
     return normalized
 
 
