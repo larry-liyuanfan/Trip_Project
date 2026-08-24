@@ -570,6 +570,42 @@ as the current validated dataset or accepted baseline.
   `LOCKED_UNCONSUMED`；按一次性 test 规则未提交任何 test job，未生成 Week 6/zero-shot
   的 v4 test 对比，也未快进 `dev`。
 
+## 2026-08-23：Week 7 v4 fix1 独立身份闭环
+
+- 用户直接授权的 gate repair 以新提交 `6bb5322`、新配置
+  `qwen3_vl_8b_multitask_context_v4_fix1.json` 和新身份
+  `week7_corrected_multitask_context_20260823_v4_fix1` 执行；v3 与首版 v4 的数据、
+  raw、checkpoint、报告和失败结论均未改写。
+- fix1 锁为 train/development/test=3000/114/114，canonical SHA-256
+  `7f66795c69f8cb35cafa712e7847155708a662b88d069824b60706f6903ea9a7`；训练实际
+  商品/售后/行程=600/840/840、通用正则=270（9%）、对话=450（15%）。三分区五维
+  冲突为 0，并额外排除 v3 与首版 v4 identity manifest；test 未消费。
+- fix1 锁定显式工具请求、gold-plus-anchor 对话评分、3072-token 生成上限、
+  evaluation protocol v4 支持口径和场景 loss multiplier 0.8/1.1/1.1；所有调整只依据
+  development，以新 config/data/run identity 实施，未读取旧或新 test。
+- 首次 job `29526506` 因 `HF_HOME` 错指仅约 35 MiB 的 runtime-home 而失败；没有把该
+  环境故障冒充训练结论。安全恢复保持 config/data/run/git identity 不变，改用真实
+  25 GiB Hugging Face cache 和非覆盖目录 `run_6bb5322_attempt2`；job `29526965`
+  `COMPLETED 0:0`，耗时 02:43:24，L40S 单卡，step 226 按 patience=2 早停。
+- 六个 development weighted composite（38/76/113/151/188/226）为
+  0.353427/0.729860/0.751086/0.764049/0.753292/0.752986；best/final adapter 为
+  checkpoint-151，SHA-256 `b42aeeb...5131bc`。run summary SHA-256 为
+  `6d5400fd...491d0`，train loss 0.182206，峰值 allocated/reserved 显存为
+  15,191,208,448/31,545,360,384 bytes。
+- step 151 的商品/售后/行程 composite 为 0.153846/0.970000/1.000000，对话格式、
+  context recall、context-state value、task key/value、sequential coverage、automatic
+  composite 为 1.0/0.854167/0.791667/0.962384/0.820023/0.725585/0.877630；总体失败率
+  0，平均延迟 11,503.48 ms。支持数为核心场景各 30、对话 24。
+- 不可覆盖 selector 实际重算 6 个候选，0/6 通过全部门禁；step 151 仅
+  sequential coverage 0.725585 < 0.75，其他候选也至少一项失败。阻断证据状态为
+  `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，文件 SHA-256 `782e92ab...cc104`，selected
+  checkpoint 为 null、`test_read=false`。
+- 因 development 门禁失败，唯一 fix1 one-shot test 未提交且不得重跑；没有 fix1
+  Week 6 routed/zero-shot test 对比。DPO 保持既有一次 validation 失败后关闭；分支不
+  快进 `dev`，不进入 `stg`，不打标签。
+- 终态本地复验：fix1 定向 26/26、全部 Week 7 79/79、完整 unittest 450/450；fix1
+  config、数据锁/五维隔离、两份 v4 Slurm shell 语法和 `git diff --check` 均 PASS。
+
 ## 2026-08-17：Week 6 最终数据锁与 8B pilot 准备
 
 - 独立核验 Week 5 最终单轮闭环为 79,936 成功、64 最终失败，三场景最新人工修订

@@ -615,6 +615,60 @@ manifest.
   保持 `LOCKED_UNCONSUMED`，没有 Week 6 routed/zero-shot v4 test 指标。DPO 仍保持
   已执行一次、validation FAIL、adapter 拒绝且关闭，不因 v4 结果重开。
 
+## 2026-08-23：Week 7 corrected-dialogue v4 fix1 gate repair
+
+- 执行身份：Git `6bb5322f9f0b1daa3004bab27c0884c4bd6971fd`；config SHA-256
+  `42ac8657bf21dd0887ab53acbce68e0ab074aa5c5c9e0044b802d2f4a3003de6`；dataset
+  canonical lock SHA-256 `7f66795c69f8cb35cafa712e7847155708a662b88d069824b60706f6903ea9a7`；
+  run ID `week7_fix1_multitask_context_sft_20260823_v4`。config、data、run 与首版 v4
+  完全分离，后者只作为排除 manifest 与历史证据。
+- 锁：train/development/test=3000/114/114；train 为商品 600、售后 840、行程 840、
+  general 270（9%）、dialogue 450（15%）。identity manifest 文件 SHA-256
+  `f3ae7c2f...d6d54`，train/development/test 文件 SHA-256 分别为
+  `a5be73aa...94323`/`b7e79e56...be612`/`a4098010...dd60`；三分区五维冲突 0，
+  且排除 Week 3、Week 6、v3 与首版 v4 已消费身份。
+- 方法：Qwen3-VL-8B、NF4 4bit、r=16/alpha=32/dropout=0.08，attention 与视觉
+  projection LoRA，lr=1.5e-4、weight decay=0.03、max grad norm=1、gradient
+  checkpointing、effective batch=16。训练样本 loss multiplier 为商品/售后/行程/
+  对话/general=0.8/1.1/1.1/1/1；对话使用显式工具请求、gold-plus-anchor 和
+  3072 max-new-token，全部在运行前锁定。
+- job `29526506` 因 HF_HOME 错指仅约 35 MiB runtime-home 失败。修复只把 HF_HOME
+  指向已确认的 25 GiB `huggingface/hub` cache，并使用非覆盖输出
+  `run_6bb5322_attempt2`；config/data/run/git identity 不变。恢复 job `29526965`
+  为 L40S、16 CPU、128 GiB，`COMPLETED 0:0`，耗时 02:43:24，没有再次操作失败 job。
+- 训练 global step=226/计划 376，step 188 与 226 连续未超过 step 151，故按
+  patience=2 早停。train loss=0.182206；峰值 GPU allocated/reserved 为
+  15,191,208,448/31,545,360,384 bytes。run identity 文件 SHA-256 `03663dad...69dbf`，
+  run summary SHA-256 `6d5400fd...491d0`，best/final adapter SHA-256
+  `b42aeeb...5131bc`。
+
+| fix1 step | weighted | core weighted | dialogue automatic | format | context recall | sequential coverage | gate |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 38 | 0.353427 | 0.391269 | 0.202059 | 0.708333 | 0.371528 | 0.334551 | FAIL |
+| 76 | 0.729860 | 0.735654 | 0.706683 | 0.833333 | 0.826389 | 0.711825 | FAIL |
+| 113 | 0.751086 | 0.725154 | 0.854817 | 0.958333 | 0.833333 | 0.724458 | FAIL |
+| 151 | 0.764049 | 0.735654 | 0.877630 | 1.000000 | 0.854167 | 0.725585 | FAIL |
+| 188 | 0.753292 | 0.725154 | 0.865844 | 0.958333 | 0.840278 | 0.733360 | FAIL |
+| 226 | 0.752986 | 0.725154 | 0.864316 | 1.000000 | 0.854167 | 0.733084 | FAIL |
+
+- 每次 development 支持数为商品/售后/行程各 30、对话 24。最佳 step 151 的三场景
+  composite=0.153846/0.970000/1.000000，context-state value=0.791667、task key/value=
+  0.962384/0.820023、initial stable=0.931548、anchor=1、tool protocol=1、overall/
+  dialogue/sequential failure=0，平均延迟 11,503.48 ms。唯一未通过项为 sequential
+  coverage 0.725585 < 0.75。
+- selector 重算六个候选后写出 `BLOCKED_NO_ELIGIBLE_CHECKPOINT`；evidence 文件
+  SHA-256 `782e92ab673c8628861af8e1eb6247454f3c8c9f608c9888899ae3eec64cc104`，内部
+  canonical selection SHA-256 `e2069003...c3572d`，eligible_count=0、selected=null、
+  `test_read=false`。六份 development metrics SHA-256 依次为
+  `51bb3b4f...5c1d`、`2cedb294...2659`、`e3b7dd18...874c`、`cc222f31...2f3c`、
+  `38dbd617...6edf`、`7ad6b83c...3a21`。
+- fix1 one-shot test 未提交，marker 不存在；因此没有 fix1 Week 6 routed/zero-shot test
+  对比，不能以 development 或历史 v3 test 替代。DPO 仍为既有一次 validation FAIL
+  后关闭；本实验不快进 `dev`、不进入 `stg`、不打标签。
+- 代码与证据复验为 fix1 定向 26/26、Week 7 79/79、完整 unittest 450/450；config
+  解析、fix1 lock/five-dimension isolation、两份 v4 Slurm `bash -n` 和
+  `git diff --check` 均 PASS。
+
 ## 2026-08-17：Week 6 最终数据锁与 QLoRA pilot 前置验证
 
 - Git 基线：`068b40c` 加本次 Week 6 未提交工作区；模型固定

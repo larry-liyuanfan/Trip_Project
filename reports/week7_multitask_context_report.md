@@ -1,12 +1,60 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
-终态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID / V4_DEVELOPMENT_GATE_FAILED_TEST_UNCONSUMED`。
+终态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID / V4_FIX1_DEVELOPMENT_GATE_FAILED_TEST_UNCONSUMED`。
 三个核心场景通过唯一一次正式 test 的自动非回退门禁；后续审计发现 v3 多轮上下文构造
 错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论。独立 development-only
 修复身份和新 raw 已恢复可信人工评分入口，真实单人操作者随后分别完成 multitask 与
 Week 6 routed 各 24/24 条四维评分。
 
-## Corrected-dialogue v4 自动闭环
+## Corrected-dialogue v4 fix1 终态闭环
+
+fix1 是用户直接授权的独立 gate-repair 身份，不改写 v3 或首版 v4。配置为
+`configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json`，SHA-256
+`42ac8657bf21dd0887ab53acbce68e0ab074aa5c5c9e0044b802d2f4a3003de6`；执行提交为
+`6bb5322f9f0b1daa3004bab27c0884c4bd6971fd`。数据身份
+`week7_corrected_multitask_context_20260823_v4_fix1` 的 canonical lock SHA-256 为
+`7f66795c69f8cb35cafa712e7847155708a662b88d069824b60706f6903ea9a7`，
+train/development/test=3000/114/114。train 实际配比为商品 600、售后 840、行程
+840、通用多模态 270（9%）、对话 450（15%）；五维分区冲突为 0，并额外排除 v3 和
+首版 v4 的完整 identity manifest。test 始终未读取。
+
+首次 job `29526506` 因 `HF_HOME` 错指仅约 35 MiB 的 runtime-home 失败。安全修复只把
+cache 指向已确认的 25 GiB `huggingface/hub` 并使用新非覆盖输出目录，没有改变
+config/data/run/git identity。恢复 job `29526965` 在单张 L40S 上 `COMPLETED 0:0`，
+耗时 02:43:24；运行至 step 226 后按 patience=2 早停。run identity 文件 SHA-256 为
+`03663dad...69dbf`，run summary SHA-256 为 `6d5400fd...491d0`，train loss 为
+0.182206，峰值 allocated/reserved 显存为 15,191,208,448/31,545,360,384 bytes。
+best/final adapter 为 checkpoint-151，SHA-256 `b42aeeb...5131bc`。
+
+| fix1 development step | weighted composite | core weighted | dialogue automatic | 格式 | context recall | sequential coverage | 全门禁 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 38 | 0.353427 | 0.391269 | 0.202059 | 0.708333 | 0.371528 | 0.334551 | FAIL |
+| 76 | 0.729860 | 0.735654 | 0.706683 | 0.833333 | 0.826389 | 0.711825 | FAIL |
+| 113 | 0.751086 | 0.725154 | 0.854817 | 0.958333 | 0.833333 | 0.724458 | FAIL |
+| 151 | 0.764049 | 0.735654 | 0.877630 | 1.000000 | 0.854167 | 0.725585 | FAIL |
+| 188 | 0.753292 | 0.725154 | 0.865844 | 0.958333 | 0.840278 | 0.733360 | FAIL |
+| 226 | 0.752986 | 0.725154 | 0.864316 | 1.000000 | 0.854167 | 0.733084 | FAIL |
+
+每次 development 支持数为商品/售后/行程各 30、对话 24。最佳 step 151 的三个核心
+场景 composite 为 0.153846/0.970000/1.000000；context-state value、task-result
+key/value、initial stable、anchor、tool protocol 分别为
+0.791667/0.962384/0.820023/0.931548/1.0/1.0。overall、dialogue 与 sequential
+failure rate 均为 0，平均延迟 11,503.48 ms。其自动门禁只有 sequential coverage
+0.725585 未达到预注册 0.75；其余 checkpoint 至少一项门禁失败，不能用相邻 checkpoint
+拼接指标。商品行级支持数为 30，但 gold-evaluable 子指标支持仍固定稀疏：category=3、
+facility=2、label completeness=4、price=0、style=0；商品 JSON/Schema、售后各主指标、
+行程各主指标支持数为 30，对话 tool-protocol 支持数为 3。没有删除低支持指标或将
+unsupported 样本计为 0。
+
+不可覆盖 selector 已重算全部六个候选并写出
+`BLOCKED_NO_ELIGIBLE_CHECKPOINT`，eligible_count=0、selected checkpoint=null、
+`test_read=false`。阻断 evidence 文件 SHA-256 为
+`782e92ab673c8628861af8e1eb6247454f3c8c9f608c9888899ae3eec64cc104`，内部 canonical
+selection SHA-256 为 `e2069003...c3572d`。因此唯一 fix1 one-shot test 没有提交，
+consumption marker 不存在；没有 fix1 的 Week 6 routed/zero-shot test 对比，也没有将
+development 数值或历史 v3 test 冒充本轮 test 结果。
+
+## Corrected-dialogue v4 历史自动闭环
 
 v4 身份 `week7_corrected_multitask_context_20260822_v4` 使用独立 3000/114/114
 train/development/test 锁，canonical SHA-256 为
@@ -47,6 +95,10 @@ routed/zero-shot test 对比。
 
 ## 数据锁和隔离结果
 
+当前 fix1 锁及隔离结果见本报告首节：3000/114/114、canonical SHA-256
+`7f66795c...9a7`，并对 v3、首版 v4、Week 3 与 Week 6 来源执行五维排除。以下段落保留
+v3 历史身份和其一次性 test 消费记录，不代表 fix1 读取了 test。
+
 执行分支从 Week 6 终态 `132779b0f6d2929ce1cdbed18e62adf3ef9edd18` 建立，旧
 `agent/portfolio-positioning` 工作树未参与开发。以下历史 v3 身份为
 `week7_fresh_multitask_context_20260820_v3`，配置 SHA-256 为
@@ -62,6 +114,10 @@ constraint_template_id 五维跨分区碰撞均为 0。Week 3 v2、Week 6 训练
 `COMPLETED`，`resume_count=0`、`failure_history=[]`。
 
 ## 实际数据配比
+
+当前 fix1 train 的实际配比为商品/售后/行程 600/840/840，通用正则 270（9%）、
+多轮对话 450（15%）；下述三核心场景各 760 是历史 v3/首版 v4 配比，保留用于解释
+既有 test 与人工证据，不是 fix1 训练计数。
 
 train 含商品、售后、行程各 760 条，共 2280 条；通用多模态正则 270 条（9%）；5–8 轮
 对话 450 条（15%），其中工具调用格式 45 条（对话内 10%）。对话图片仅在首个用户轮
@@ -167,16 +223,18 @@ multitask/Week 6 全局延迟比约 0.8694，失败率均为 0。三场景任务
 11/11 个反事实均被拒绝。该历史审计曾允许 v3 实现进入 `dev` 保存；当前 v4 自动门禁
 失败后不再满足本轮 `dev` 快进条件，也不允许晋级 `stg` 或绕过门禁运行 test。
 
-当前闭环实测完整 `python -m unittest discover -s tests -v` 为 445/445 PASS；v4 定向
-13/13、证据更新后相关定向 16/16 PASS。v4 数据锁、配置解析、两份 v4 Slurm 脚本
-`bash -n` 和 `git diff --check` 均通过；历史远端 final-runtime 定向 22/22 继续保留。
+当前 fix1 闭环实测定向 26/26、全部 Week 7 79/79、完整
+`python -B -m unittest discover -s tests -v` 450/450 PASS。fix1 数据锁/五维隔离、
+配置解析、两份 v4 Slurm 脚本 `bash -n` 和 `git diff --check` 均通过；历史远端
+final-runtime 定向 22/22 继续保留。
 
 ## Commit / push 状态
 
 protocol-v5 提交 `64a5a7a`、final runtime 修复 `8619b76`、对话修复提交
-`bc299c3`/`3e5e767`/`7cf656a` 已推送至历史分支；v4 恢复、训练与门禁终态证据推送至
-`origin/codex/week7-dialogue-correction-v4-recovery`。由于 v4 development 自动门禁
-FAIL，当前分支不快进 `dev`，不进入 `stg`，不打标签。
+`bc299c3`/`3e5e767`/`7cf656a` 已推送至历史分支；首版 v4 恢复、训练与门禁证据保留在
+历史 recovery 分支。fix1 实现提交 `6bb5322` 与本终态证据位于并推送至
+`origin/codex/week7-v4-gate-repair`。由于 fix1 development 自动门禁 FAIL，当前分支
+不快进 `dev`，不进入 `stg`，不打标签。
 
 本地目录整理把 408,127,632 字节作废 v1/v2 锁和传输包、失败构建及临时预检脚本移入
 Windows 回收站；保留 v3 锁/归档、corrected dialogue raw、真实人工记录、偏好锁和
@@ -194,6 +252,7 @@ v3 final-test 对话构造
 缺陷不可逆；本次 development 人工完成不会重开 test 或改写历史 test 对话结论。
 DPO 已执行一次但 validation 门禁失败并正确拒绝新 adapter。三个核心场景训练、
 checkpoint 选择、参数锁和一次性 test 已完成，不存在伪造 GPU、人工审核或指标。
-corrected-dialogue v4 的 GPU 训练已完成，但 development 自动门禁失败；selector 已
-执行但未产生 selection，一次性 v4 test 未执行。这是真实终态，不以历史 v3 test 或
-人工 development 结果替代。分支因此不快进 `dev`，不进入 `stg`，不打标签。
+corrected-dialogue v4 fix1 的 GPU 训练已完成，但 development 自动门禁失败；selector
+写出了不可覆盖的阻断 evidence 而没有 selected checkpoint，一次性 fix1 test 未提交。
+这是真实终态，不以历史 v3 test、首版 v4 development 或人工 development 结果替代。
+因此不存在 fix1 Week 6/zero-shot test 对比，分支不快进 `dev`，不进入 `stg`，不打标签。

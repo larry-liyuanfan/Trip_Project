@@ -655,3 +655,28 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   test，也没有 v4 Week 6/zero-shot test 对比。
 - [ ] v4 完整验收与 `dev` 快进未完成：真实原因是 development 自动门禁 FAIL，
   不是缺少人工输入或未授权资源；本周不绕过门禁、不重训、不进入 `stg`、不打标签。
+
+### Corrected-dialogue v4 fix1 执行增量（2026-08-23）
+
+- [x] 新 config/data/run identity 已锁定并推送：commit `6bb5322`，fix1 canonical
+  lock SHA-256 `7f66795c...9a7`，train/development/test=3000/114/114；v3、首版 v4
+  与 fix1 三分区五维隔离复验通过，test 未消费。
+- [x] 实际训练配比为商品/售后/行程 600/840/840、通用正则 270（9%）、多轮对话
+  450（15%）；工具调用、gold-plus-anchor、metric-support 和 loss multiplier 均在运行前
+  固定，未进行原地动态调参。
+- [x] 首 job `29526506` 的错误 HF cache 环境失败如实保留；同 config/data/run/git
+  identity 的安全恢复 job `29526965` 在新非覆盖目录 `COMPLETED 0:0`，02:43:24，
+  六个 development checkpoint/raw/metrics 和 run summary 全部写出并哈希绑定。
+- [x] best checkpoint-151 weighted composite=0.764049，核心三场景
+  0.153846/0.970000/1.000000，对话 automatic=0.877630、失败率=0；最终 adapter
+  SHA-256 `b42aeeb...5131bc`。
+- [x] selector 实际执行并写出不可覆盖阻断证据：0/6 eligible，状态
+  `BLOCKED_NO_ELIGIBLE_CHECKPOINT`，文件 SHA-256 `782e92ab...cc104`；最佳候选仅
+  sequential coverage 0.725585 未达 0.75。
+- [x] fix1 one-shot test 正确标记 `SKIPPED_GATE_FAILED`：没有提交 test job，
+  marker 不存在，`test_read=false`，没有生成 Week 6/zero-shot fix1 test 指标。
+- [x] DPO 保持既有唯一一次 validation 门禁失败后关闭，没有第二次消融或 adapter 晋级。
+- [x] fix1 定向 26/26、Week 7 79/79、完整 unittest 450/450、config、数据锁、五维
+  隔离、两份 v4 Slurm shell 语法和 diff 检查全部通过。
+- [ ] fix1 完整验收与 `dev` 快进未完成，真实原因是 development 自动门禁 FAIL；
+  不绕过门禁、不进入 `stg`、不打标签。
