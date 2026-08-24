@@ -10,9 +10,17 @@
   阈值未按 fix1 结果下调，旧 raw/metrics/selector 未重算或覆盖。
 - 新建 fresh fix2 锁 3000/114/114，配比 600/840/840 + 270（9%）+ 450（15%），
   canonical SHA-256 `86a43601...e5b14b`；五维跨分区冲突 0，v3、首版 v4、fix1
-  身份均排除，test 未消费。
-- ADR-004/ADR-032 明确仅 `dev`、`stg`、`main` 为长期分支；当前 `codex/*` 仅在内容
-  安全进入 `dev` 前临时保留。fix2 GPU 训练及指标仍为 `PENDING_GPU`，未进入 `stg`。
+  身份均排除；该状态是训练前锁定证据，后续唯一 test 已按同一锁消费。
+- Spartan 训练 job `29540085` `COMPLETED 0:0`（03:35:20），step 301 按 patience=2
+  早停；selector 在 5 个 development 合格 checkpoint 中锁定 step 226，weighted/core
+  composite 为 0.796113/0.746154，selection SHA-256 `cba44b4f...d0c3ac8`。
+- 唯一 corrected-dialogue test job `29544969` `COMPLETED 0:0`（00:42:43），24 条/角色、
+  自动评估且未执行人工评分。multitask/Week 6 routed/zero-shot 自动综合分为
+  0.793399/0.152144/0.174505；最终绝对门禁 `FAIL`，10 项未达阈值，test 已消费且不得重跑。
+- ADR-004/ADR-032 明确仅 `dev`、`stg`、`main` 为长期分支；临时分支已清理，未进入
+  `stg`、未打标签。DPO 保持既有一次 validation FAIL 后关闭。
+- 终态复验：fix2 定向 54/54、完整 unittest 454/454、数据锁与五维隔离、config loader、
+  两份 v4 Slurm shell 语法和 `git diff --check` 全部通过。
 
 ## 2026-08-19: Week 6 训练后质量审计与项目收束
 

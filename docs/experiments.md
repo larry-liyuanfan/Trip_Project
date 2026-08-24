@@ -13,10 +13,20 @@
   SHA-256 `86a4360142c2517e46460cefc575131940989aa8129eca236c68eaaf71e5b14b`；
   train/development/test SHA-256 为 `cc21a001...07ced`、`b157eace...025a4`、
   `1c79407f...c8ede`。五维跨 split 冲突 0，v3/首版 v4/fix1 全量身份排除。
-- 当前结果：定向 Week 7 回归 43/43、完整 unittest 454/454 PASS，fix2 lock
-  validation、两份 v4 Slurm shell 语法和 `git diff --check` PASS，test
-  `test_consumed=false`。GPU job、checkpoint、development 指标与 test 均
-  `PENDING_GPU`；DPO 保持一次 validation FAIL 后关闭。
+- 训练：Spartan job `29540085` `COMPLETED 0:0`，03:35:20，step 301 早停；train loss
+  0.160256，峰值 allocated/reserved GPU memory 为 15,166,590,464/25,071,452,160 bytes。
+  selector 对 8 个 checkpoint 重算，5 个通过门禁，锁定 step 226；development weighted/core/
+  dialogue automatic 为 0.796113/0.746154/0.995949，失败率 0。
+- 一次性 test：job `29544969` `COMPLETED 0:0`，24 条/角色，最终 comparison SHA-256
+  `047d48bd40db7e06110063687e2fdb3b52801e856ae438fdaec02980b8a68e00`，consumption marker
+  SHA-256 `3c9370b40f137d521f853f7534e57f57f50588a8ef938530fb9510e6ef50067b`。
+  multitask/Week 6 routed/zero-shot 自动综合分为 0.793399/0.152144/0.174505；multitask
+  格式/上下文召回/上下文值/失败率为 0.916667/0.750000/0.719444/0.041667。最终门禁
+  `FAIL`（10 项绝对阈值失败），不重跑、不重新调参；人工评估未执行。DPO 保持一次
+  validation FAIL 后关闭。
+- 终态工程验证：fix2 定向 54/54、完整 unittest 454/454、`validate-lock`、config loader、
+  两份 v4 Slurm `bash -n` 与 `git diff --check` PASS。immutable data-lock 摘要保留训练前
+  `test_consumed=false`；实际单次消费由上述独立 marker 记录，未改写数据锁。
 
 ## 2026-08-19：Week 6 训练后方法审计（未运行新训练）
 

@@ -1,6 +1,6 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
-当前状态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID / V4_FIX1_DEVELOPMENT_GATE_FAILED_TEST_UNCONSUMED / V4_FIX2_LOCKED_PENDING_GPU`。
+当前状态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID / V4_FIX1_DEVELOPMENT_GATE_FAILED_TEST_UNCONSUMED / V4_FIX2_ONE_SHOT_TEST_GATE_FAILED`。
 三个核心场景通过唯一一次正式 test 的自动非回退门禁；后续审计发现 v3 多轮上下文构造
 错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论。独立 development-only
 修复身份和新 raw 已恢复可信人工评分入口，真实单人操作者随后分别完成 multitask 与
@@ -24,9 +24,52 @@ fix2 配置为 `configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json`。新�
 600/840/840 + 通用 270（9%）+ 对话 450（15%）；五维跨分区碰撞为 0。canonical
 lock SHA-256 为 `86a4360142c2517e46460cefc575131940989aa8129eca236c68eaaf71e5b14b`，
 train/development/test SHA-256 分别为 `cc21a001...07ced`、`b157eace...025a4`、
-`1c79407f...c8ede`。v3、首版 v4、fix1 identity manifest 均进入排除证据；test 当前
-未消费。fix2 GPU 训练、checkpoint、development 指标和 one-shot test 尚未运行，均为
-`PENDING_GPU`，不得用 fix1 重算值替代。
+`1c79407f...c8ede`。v3、首版 v4、fix1 identity manifest 均进入排除证据。
+
+Spartan 训练 job `29540085` 在提交 `8a4fd0103694a4251b71f6fed159e9ee2f8d9c00` 上
+`COMPLETED 0:0`，耗时 03:35:20，step 301 按 patience=2 早停；run identity/run summary
+SHA-256 为 `b778df5d...f4fe9092`/`a07b67f9...db358ac7`，train loss 0.160256，峰值
+allocated/reserved 显存为 15,166,590,464/25,071,452,160 bytes。不可覆盖 selector
+对 8 个 checkpoint 重算，5 个通过全部 development 自动门禁，锁定最优 step 226；
+adapter SHA-256 为 `ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee`，
+selection 文件 SHA-256 为 `cba44b4fe580dc47f7fbb332c12c46cae39fcd07c70bedd1a859a4793d0c3ac8`。
+
+| fix2 development step | weighted composite | 全门禁 |
+| ---: | ---: | --- |
+| 38 | 0.363881 | FAIL |
+| 76 | 0.702633 | FAIL |
+| 113 | 0.782829 | FAIL |
+| 151 | 0.794882 | PASS |
+| 188 | 0.791937 | PASS |
+| 226 | 0.796113 | PASS（selected） |
+| 264 | 0.796113 | PASS |
+| 301 | 0.796113 | PASS |
+
+selected development 支持数为 114（商品/售后/行程各 30、对话 24），core weighted
+0.746154、dialogue automatic 0.995949、格式与上下文召回均为 1、失败率为 0。
+
+唯一 one-shot test job `29544969` `COMPLETED 0:0`，耗时 00:42:43；每个角色使用同一
+corrected-dialogue 24 条，纯自动评估，未执行人工评分。comparison/consumption marker
+SHA-256 为 `047d48bd40db7e06110063687e2fdb3b52801e856ae438fdaec02980b8a68e00`/
+`3c9370b40f137d521f853f7534e57f57f50588a8ef938530fb9510e6ef50067b`。
+
+| test 角色 | 自动综合分 | 格式 | 上下文召回 | 上下文值 | 失败率 | 平均延迟 ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| multitask checkpoint-226 | 0.793399 | 0.916667 | 0.750000 | 0.719444 | 0.041667 | 33083.75 |
+| Week 6 routed | 0.152144 | 0.750000 | 0.116667 | 0.000000 | 0.125000 | 32556.57 |
+| zero-shot | 0.174505 | 0.875000 | 0.108333 | 0.000000 | 0.125000 | 34826.04 |
+
+multitask 相对 Week 6 routed 的自动综合分、上下文召回、上下文值分别变化
++0.641255/+0.633333/+0.719444，失败率变化 -0.083333；四维自动差值（图片指代、需求
+调整、上下文承接、逻辑连贯）为 +0.125/+0.750/+0.125/+0.719444。以上仅为描述性对比。
+最终绝对门禁为 `FAIL`：automatic composite、context recall、context-state value、dialogue
+failure、format、overall failure、sequential-turn failure、task-result key/value 和 tool
+protocol 共 10 项未达阈值；anchor、initial stable、sequential protocol/semantic 4 项通过。
+test 已消费且不得重跑，不能通过降阈值或选择其他 checkpoint 改写结果，因此 fix2 模型
+未验收、未进入 `stg`、未打标签。DPO 保持既有一次 validation FAIL 后关闭。
+immutable data-lock 验证摘要仍显示训练前字段 `test_consumed=false`；实际单次消费由独立
+runtime marker 记录，二者职责不同，未改写锁文件。终态 fix2 定向 54/54、完整 unittest
+454/454、数据锁与五维隔离、config loader、两份 v4 Slurm shell 语法和 diff 检查均通过。
 
 ## Corrected-dialogue v4 fix1 终态闭环
 

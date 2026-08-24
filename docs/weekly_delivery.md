@@ -687,8 +687,12 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
 - [x] 修复嵌套结构顶层全等、silver caption 逐字 hard-gate 和训练/selector 目标错位；
   新协议与旧 fix1 由 config/data/run identity 隔离。
 - [x] fresh fix2 锁 3000/114/114、五维隔离 PASS；v3、首版 v4、fix1 身份均排除，
-  canonical SHA-256 `86a43601...e5b14b`，test 未消费。
-- [x] 当前定向回归 43/43、完整 unittest 454/454、配置、数据锁、两份 Slurm shell
-  语法和 `git diff --check` PASS。
-- [ ] fix2 GPU 训练、checkpoint selector 和一次性 test 尚未运行；不得用历史结果替代。
-- [ ] 临时 `codex/*` 分支须在本提交安全快进 `dev` 后删除；不进入 `stg`、不打标签。
+  canonical SHA-256 `86a43601...e5b14b`；test 仅消费一次。
+- [x] GPU 训练 job `29540085` 完成；selector PASS 并锁定 checkpoint-226（5/8 合格）。
+- [x] 唯一 one-shot test job `29544969` 完成，24 条/角色；自动最终门禁 `FAIL`，10 项
+  绝对阈值未达。没有重跑、没有人工代填、没有以相对基线提升替代绝对门禁。
+- [x] 终态定向 54/54、完整 unittest 454/454、数据锁/五维隔离、config loader、两份
+  Slurm shell 语法和 `git diff --check` PASS。
+- [ ] fix2 模型验收未通过，真实原因是一次性 test 结果未达预注册门禁；不进入 `stg`、
+  不打标签，DPO 保持关闭。
+- [x] 长期分支仅 `dev`、`stg`、`main`，临时分支已清理。

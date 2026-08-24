@@ -568,8 +568,15 @@ selected checkpoint；corrected-dialogue fix1 test 保持 `LOCKED_UNCONSUMED`。
 
 fix2 本地锁 `week7_corrected_multitask_context_20260824_v4_fix2` 已生成并验证：
 train/development/test=3000/114/114，五维跨分区碰撞为 0，canonical lock SHA-256 为
-`86a4360142c2517e46460cefc575131940989aa8129eca236c68eaaf71e5b14b`，test 未消费。
-当前尚未产生 fix2 GPU checkpoint 或指标；在 Spartan 作业完成前状态为 `PENDING_GPU`。
+`86a4360142c2517e46460cefc575131940989aa8129eca236c68eaaf71e5b14b`。Spartan 训练 job
+`29540085` 完成并在 step 301 早停；不可覆盖 selector 通过 development 自动门禁，在
+5 个合格 checkpoint 中锁定 step 226（adapter SHA-256
+`ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee`）。唯一 one-shot
+test job `29544969` 已消费 24 条 corrected dialogue，最终门禁为 `FAIL`，不得重跑：
+multitask/Week 6 routed/zero-shot 自动综合分分别为 0.793399/0.152144/0.174505；multitask
+格式、上下文召回、失败率分别为 0.916667/0.750000/0.041667。相对基线的提升只作描述性
+结果，不能覆盖 10 项绝对阈值失败，也不宣称 Week 7 fix2 已验收。完整证据见
+`reports/week7_multitask_context_report.md`。
 
 以下标注台命令仅用于已完成的历史 v3/corrected-development 真人证据；
 v4 自动闭环不再等待新人工输入：
