@@ -14,7 +14,7 @@
   "prompts": {
     "image_product_search": "system_repair_product_compact_v3",
     "after_sales": "system_repair_after_sales_evidence_v3",
-    "itinerary_planning": "system_repair_itinerary_current_v3"
+    "itinerary_planning": "system_repair_itinerary_structured_v4"
   },
   "schemas": {
     "image_product_search": "v1",

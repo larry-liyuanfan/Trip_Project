@@ -115,8 +115,8 @@ class SystemRuntimeTest(unittest.TestCase):
                 "ocr_text",
             ),
             "itinerary_planning": (
-                "system_repair_itinerary_current_v3",
-                "九个顶层键",
+                "system_repair_itinerary_structured_v4",
+                "constraint_check 必须是对象数组",
             ),
         }
 
