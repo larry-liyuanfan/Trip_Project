@@ -310,7 +310,13 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
         raise Week7TrainingError(f"training environment is not ready: {report['status']}")
 
     import torch
-    from peft import LoraConfig, PeftConfig, get_peft_model, prepare_model_for_kbit_training
+    from peft import (
+        LoraConfig,
+        PeftConfig,
+        PeftModel,
+        get_peft_model,
+        prepare_model_for_kbit_training,
+    )
     from peft.utils.save_and_load import load_peft_weights
     from transformers import (
         AutoProcessor, BitsAndBytesConfig, EarlyStoppingCallback,
@@ -333,10 +339,43 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     targets = resolve_lora_targets(model, config)
     lora = config["lora"]
-    model = get_peft_model(model, LoraConfig(
-        r=lora["r"], lora_alpha=lora["lora_alpha"], lora_dropout=lora["lora_dropout"],
-        bias=lora["bias"], target_modules=targets, task_type="CAUSAL_LM",
-    ))
+    continuation_identity = None
+    continuation = config.get("continuation")
+    if continuation:
+        adapter_env = str(continuation["adapter_path_env"])
+        adapter_value = os.environ.get(adapter_env, "").strip()
+        if not adapter_value:
+            raise Week7TrainingError(f"{adapter_env} is required for continuation SFT")
+        adapter_dir = Path(adapter_value).resolve()
+        adapter_file = adapter_dir / "adapter_model.safetensors"
+        adapter_config_file = adapter_dir / "adapter_config.json"
+        if not adapter_file.is_file() or not adapter_config_file.is_file():
+            raise Week7TrainingError("initial continuation adapter is incomplete")
+        adapter_hash = sha256_file(adapter_file)
+        if adapter_hash != continuation["adapter_model_sha256"]:
+            raise Week7TrainingError("initial continuation adapter SHA-256 mismatch")
+        initial_config = PeftConfig.from_pretrained(str(adapter_dir))
+        if (
+            int(initial_config.r) != int(lora["r"])
+            or int(initial_config.lora_alpha) != int(lora["lora_alpha"])
+            or str(initial_config.base_model_name_or_path) != config["base_model"]
+        ):
+            raise Week7TrainingError("continuation adapter LoRA identity changed")
+        model = PeftModel.from_pretrained(
+            model,
+            str(adapter_dir),
+            is_trainable=True,
+        )
+        continuation_identity = {
+            "adapter_dir": str(adapter_dir),
+            "adapter_model_sha256": adapter_hash,
+            "expected_checkpoint": continuation.get("expected_checkpoint"),
+        }
+    else:
+        model = get_peft_model(model, LoraConfig(
+            r=lora["r"], lora_alpha=lora["lora_alpha"], lora_dropout=lora["lora_dropout"],
+            bias=lora["bias"], target_modules=targets, task_type="CAUSAL_LM",
+        ))
     parameter_report = _trainable_parameter_report(model)
     processor = AutoProcessor.from_pretrained(config["base_model"])
     train_dataset = IndexedWeek7Dataset(lock_root / "train.jsonl")
@@ -542,6 +581,7 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
         "peak_gpu_memory_reserved_bytes": int(torch.cuda.max_memory_reserved()),
         "duration_seconds": time.time() - started, "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
         "resumed_from_checkpoint": str(resume_from_checkpoint) if resume_from_checkpoint else None,
+        "continued_from_adapter": continuation_identity,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "run_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")

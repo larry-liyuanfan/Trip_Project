@@ -1,0 +1,22 @@
+{
+  "schema_version": "week5_preannotation_repair_v2",
+  "repair_id": "week5_preannotation_repair_20260824_v2",
+  "historical_output_dir": "outputs/week5_qwen3_vl_4b",
+  "historical_merged_run": "spartan/week5_spartan_merge_20260814_8cbfd8d",
+  "week5_config": "configs/week5_dataset_qwen3_vl_4b_gpu.json",
+  "output_dir": "outputs/system_repair/week5_preannotation_repair_v2",
+  "expected": {
+    "candidate_count": 80000,
+    "historical_schema_valid": 79936,
+    "input_replacements": 44,
+    "schema_retries": 19,
+    "json_retries": 1,
+    "repair_queue": 64
+  },
+  "model": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "api_base_env": "TRIP_SYSTEM_API_BASE_URL",
+    "max_network_retries": 2,
+    "timeout_seconds": 300
+  }
+}
