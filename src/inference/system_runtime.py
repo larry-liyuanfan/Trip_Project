@@ -258,7 +258,6 @@ class TransformersPeftBackend:
     ) -> GenerationResult:
         """Generate once and retain measured input/output token counts."""
 
-        del response_format  # Schema is enforced after generation for this backend.
         self._ensure_loaded()
         try:
             normalized = _transformers_messages(messages)
@@ -275,12 +274,41 @@ class TransformersPeftBackend:
                 key: value.to(device) if hasattr(value, "to") else value
                 for key, value in inputs.items()
             }
+            generation_constraints: dict[str, Any] = {}
+            if response_format and response_format.get("type") == "json_schema":
+                try:
+                    from lmformatenforcer import JsonSchemaParser
+                    from lmformatenforcer.integrations.transformers import (
+                        build_transformers_prefix_allowed_tokens_fn,
+                    )
+                except ImportError as exc:
+                    raise RuntimeConfigurationError(
+                        "install lm-format-enforcer for JSON Schema correction"
+                    ) from exc
+                contract = response_format.get("json_schema", {})
+                schema = contract.get("schema") if isinstance(contract, dict) else None
+                if not isinstance(schema, dict):
+                    raise RuntimeConfigurationError(
+                        "JSON Schema correction requires a schema object"
+                    )
+                tokenizer = getattr(self._processor, "tokenizer", None)
+                if tokenizer is None:
+                    raise RuntimeConfigurationError(
+                        "processor does not expose a tokenizer for constrained decoding"
+                    )
+                generation_constraints["prefix_allowed_tokens_fn"] = (
+                    build_transformers_prefix_allowed_tokens_fn(
+                        tokenizer,
+                        JsonSchemaParser(schema),
+                    )
+                )
             with self._torch.inference_mode():
                 generated = self._model.generate(
                     **inputs,
                     max_new_tokens=max_new_tokens,
                     do_sample=False,
                     use_cache=True,
+                    **generation_constraints,
                 )
             input_tokens = int(inputs["input_ids"].shape[1])
             trimmed = [
@@ -487,11 +515,12 @@ class ScenarioService:
     ) -> tuple[dict[str, Any], list[ModelAttempt]]:
         attempts: list[ModelAttempt] = []
         active_messages = list(messages)
+        active_response_format = response_format
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
             raw = self.backend.generate(
                 active_messages,
-                response_format=response_format,
+                response_format=active_response_format,
                 max_new_tokens=self.settings.max_new_tokens_by_scenario[scenario],
             )
             error: str | None = None
@@ -524,6 +553,11 @@ class ScenarioService:
                 raw,
                 error or "",
                 scenario=scenario,
+            )
+            active_response_format = _json_schema_response_format(
+                self.settings.root,
+                scenario,
+                schema_version,
             )
         raise ModelGenerationError(
             f"model output failed {scenario} Schema after {len(attempts)} attempts: "
@@ -617,6 +651,22 @@ def _correction_messages(
             ),
         },
     ]
+
+
+def _json_schema_response_format(
+    root: Path,
+    scenario: str,
+    schema_version: str,
+) -> dict[str, Any]:
+    schema = load_output_schema(root, scenario, schema_version)
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": f"{scenario}_{schema_version}",
+            "strict": True,
+            "schema": schema,
+        },
+    }
 
 
 def _normalize_message_images(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:

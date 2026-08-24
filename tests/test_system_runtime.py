@@ -72,12 +72,14 @@ class FakeBackend:
         self.outputs = list(outputs)
         self.ready_value = ready
         self.messages = []
+        self.response_formats = []
 
     def ready(self):
         return self.ready_value, "ok" if self.ready_value else "backend unavailable"
 
     def generate(self, messages, *, response_format, max_new_tokens):
         self.messages.append(messages)
+        self.response_formats.append(response_format)
         return self.outputs.pop(0)
 
 
@@ -252,6 +254,16 @@ class SystemRuntimeTest(unittest.TestCase):
         self.assertIn("完整闭合", retry_text)
         self.assertEqual(len(backend.messages[1]), len(backend.messages[0]) + 1)
         self.assertNotIn("assistant", [item["role"] for item in backend.messages[1]])
+        self.assertEqual(backend.response_formats[0], {"type": "json_object"})
+        self.assertEqual(backend.response_formats[1]["type"], "json_schema")
+        self.assertEqual(
+            backend.response_formats[1]["json_schema"]["name"],
+            "image_product_search_v1",
+        )
+        self.assertIn(
+            "business_category",
+            backend.response_formats[1]["json_schema"]["schema"]["required"],
+        )
 
     def test_two_invalid_outputs_fail_closed(self):
         backend = FakeBackend(["not-json", "still-not-json"])
