@@ -23,7 +23,7 @@ class PromptPilotError(ValueError):
 
 
 def _pilot_max_new_tokens(config: dict[str, Any]) -> int:
-    value = config.get("system_repair", {}).get("prompt_pilot_max_new_tokens")
+    value = config.get("generation", {}).get("max_new_tokens")
     if not isinstance(value, int) or not 1 <= value <= 3072:
         raise PromptPilotError("prompt_pilot_max_new_tokens must be within 1..3072")
     return value
@@ -66,7 +66,9 @@ def _validate_pilot_identity(
     candidates_path: Path,
 ) -> None:
     expected_counts = {scenario: 48 for scenario in CORE_SCENARIOS}
-    expected_max_new_tokens = _pilot_max_new_tokens(load_week7_config(config_path))
+    expected_max_new_tokens = _pilot_max_new_tokens(
+        json.loads(Path(candidates_path).read_text(encoding="utf-8"))
+    )
     if (
         identity.get("split") != "development"
         or identity.get("test_consumed") is not False
@@ -143,7 +145,6 @@ def run_prompt_pilot(
 ) -> dict[str, Any]:
     root = Path(root).resolve()
     config = load_week7_config(config_path)
-    max_new_tokens = _pilot_max_new_tokens(config)
     lock_root = root / config["dataset"]["output_root"] / config["dataset"]["dataset_version"]
     rows = list(iter_jsonl(lock_root / "development.jsonl"))
     core_rows = [row for row in rows if row["scenario"] in CORE_SCENARIOS]
@@ -151,6 +152,7 @@ def run_prompt_pilot(
     if any(count != 48 for count in counts.values()):
         raise PromptPilotError(f"prompt pilot requires 48 development rows per scenario: {counts}")
     candidates = json.loads(Path(candidates_path).read_text(encoding="utf-8"))
+    max_new_tokens = _pilot_max_new_tokens(candidates)
     versions = candidates.get("versions", {})
     if set(versions) != {"current_week7", "compact_schema_v1", "evidence_state_v1"}:
         raise PromptPilotError("prompt candidate identities changed")

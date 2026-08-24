@@ -1,5 +1,8 @@
 {
   "schema_version": "system_repair_prompt_candidates_v1",
+  "generation": {
+    "max_new_tokens": 512
+  },
   "versions": {
     "current_week7": {
       "system_suffix": "严格输出当前场景 JSON Schema，不输出分析过程或 Markdown。",

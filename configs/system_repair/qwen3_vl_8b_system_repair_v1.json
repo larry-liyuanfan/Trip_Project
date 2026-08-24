@@ -6,8 +6,7 @@
     "repair_id": "system_repair_20260824_v1",
     "historical_week3_week6_week7_immutable": true,
     "human_annotation_required": false,
-    "new_labels": "programmatic_silver",
-    "prompt_pilot_max_new_tokens": 512
+    "new_labels": "programmatic_silver"
   },
   "dataset": {
     "dataset_version": "system_repair_fresh_multitask_20260824_v1",

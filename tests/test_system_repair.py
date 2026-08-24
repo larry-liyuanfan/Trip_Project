@@ -80,9 +80,6 @@ class SystemRepairTest(unittest.TestCase):
         self.assertEqual(config["training"]["learning_rate"], 5e-5)
         self.assertEqual(config["training"]["epochs"], 1)
         self.assertEqual(config["dataset"]["silver_weight"], 0.5)
-        self.assertEqual(
-            config["system_repair"]["prompt_pilot_max_new_tokens"], 512
-        )
         self.assertFalse(config["continuation"]["overwrite_initial_adapter"])
 
     def test_week5_repair_config_locks_observed_failure_breakdown(self):
@@ -172,6 +169,7 @@ class SystemRepairTest(unittest.TestCase):
             set(payload["versions"]),
             {"current_week7", "compact_schema_v1", "evidence_state_v1"},
         )
+        self.assertEqual(payload["generation"]["max_new_tokens"], 512)
 
     def test_completed_prompt_pilot_resume_is_hash_bound(self):
         versions = {
@@ -189,7 +187,10 @@ class SystemRepairTest(unittest.TestCase):
                 SYSTEM_CONFIG.read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
-            prompts.write_text("{}\n", encoding="utf-8")
+            prompts.write_text(
+                json.dumps({"generation": {"max_new_tokens": 512}}) + "\n",
+                encoding="utf-8",
+            )
             identity = {
                 "split": "development",
                 "test_consumed": False,
