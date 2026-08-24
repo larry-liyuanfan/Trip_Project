@@ -372,19 +372,36 @@ def evaluate_system_release_gates(
         )
         if float(current["composite"]) < best_baseline:
             failures.append(f"{scenario}:composite_below_best_baseline")
+        aggregate = current.get("aggregate", current)
         for metric in ("json_compliance", "schema_pass"):
             threshold = float(non_regression[f"minimum_{metric}"])
-            if float(current[metric]) < threshold:
+            if float(aggregate[metric]) < threshold:
                 failures.append(f"{scenario}:{metric}_below_{threshold}")
-        if float(current["support_ratio"]) < 1.0:
-            failures.append(f"{scenario}:support_ratio_below_1")
+        if int(aggregate.get("sample_count", 0)) != int(
+            config["dataset"]["development_per_core_scenario"]
+        ):
+            failures.append(f"{scenario}:development_support_count_changed")
     if float(candidate["failure_rate"]) > float(non_regression["max_failure_rate"]):
         failures.append("failure_rate_above_limit")
-    if float(candidate["mean_latency_ms"]) > float(existing["mean_latency_ms"]) * 1.25:
+    candidate_latency = float(
+        candidate.get("latency_ms_mean", candidate.get("mean_latency_ms", 0.0))
+    )
+    existing_latency = float(
+        existing.get("latency_ms_mean", existing.get("mean_latency_ms", 0.0))
+    )
+    if candidate_latency > existing_latency * 1.25:
         failures.append("latency_ratio_above_1.25")
-    product_support = candidate["scenarios"]["image_product_search"]["support"]
+    product = candidate["scenarios"]["image_product_search"]
+    product_support = product.get("metric_support", product.get("support", {}))
+    support_fields = {
+        "style_tags": "style_f1",
+        "visible_facilities": "facility_f1",
+        "price_range": "price_range_accuracy",
+    }
     for field, minimum in config["evaluation"]["product_minimum_development_support"].items():
-        if int(product_support.get(field, 0)) < int(minimum):
+        support_key = support_fields[field]
+        support = product_support.get(support_key, product_support.get(field, 0))
+        if int(support) < int(minimum):
             failures.append(f"image_product_search:{field}_support_below_{minimum}")
 
     dialogue = candidate["dialogue"]
@@ -402,7 +419,15 @@ def evaluate_system_release_gates(
         "failure_rate": ("<=", gate["maximum_failure_rate"]),
     }
     for name, (operator, threshold) in dialogue_checks.items():
-        value = float(dialogue[name])
+        if name == "failure_rate" and name not in dialogue:
+            scores = dialogue.get("scores", [])
+            value = (
+                sum(bool(item.get("failed")) for item in scores) / len(scores)
+                if scores
+                else 1.0
+            )
+        else:
+            value = float(dialogue[name])
         passed = value >= float(threshold) if operator == ">=" else value <= float(threshold)
         if not passed:
             failures.append(f"dialogue:{name}_{operator}_{threshold}")

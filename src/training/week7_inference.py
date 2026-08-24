@@ -20,7 +20,12 @@ from src.training.week7_evaluation import (
     summarize_dialogue_raw_records,
     summarize_raw_records,
 )
-from src.training.week7_qlora import Week7TrainingError, structure_aware_messages, training_messages
+from src.training.week7_qlora import (
+    Week7TrainingError,
+    _generate_record as generate_training_record,
+    structure_aware_messages,
+    training_messages,
+)
 from src.training.week7_runtime import generate_record, inference_runtime
 
 
@@ -79,7 +84,23 @@ def run_transformers_development(
                 raise Week7TrainingError("Week 6 development adapter run identity mismatch")
             if adapter_hashes.get("adapter_model.safetensors") != expected_hash:
                 raise Week7TrainingError("Week 6 development adapter SHA-256 mismatch")
-        elif model_role != "multitask" or run_id != f"{config['experiment_identity']['multitask_sft_run_id']}_development":
+        elif model_role == "multitask_existing":
+            expected_run = (
+                f"{config['system_repair']['repair_id']}_existing_adapter_development"
+            )
+            expected_hash = config["continuation"]["adapter_model_sha256"]
+            if (
+                run_id != expected_run
+                or adapter_hashes.get("adapter_model.safetensors") != expected_hash
+            ):
+                raise Week7TrainingError(
+                    "existing multitask development adapter identity mismatch"
+                )
+        elif (
+            model_role != "multitask"
+            or run_id
+            != f"{config['experiment_identity']['multitask_sft_run_id']}_development"
+        ):
             raise Week7TrainingError("multitask development run identity mismatch")
         model = PeftModel.from_pretrained(model, str(adapter_dir), is_trainable=False)
     elif scenario is not None or model_role != "zero_shot" or run_id != config["experiment_identity"]["zero_shot_development_run_id"]:
@@ -88,18 +109,17 @@ def run_transformers_development(
     records = []
     with inference_runtime(model):
         for row in rows:
-            messages = structure_aware_messages(
-                processor, training_messages(row), int(config["training"]["max_length"])
-            )[:-1]
-            records.append(generate_record(
-                model,
-                processor,
-                messages,
-                sample_id=row["sample_id"],
-                run_id=run_id,
-                model_name=model_role,
-                max_new_tokens=max_new_tokens,
-            ))
+            records.append(
+                generate_training_record(
+                    root,
+                    model,
+                    processor,
+                    row,
+                    run_id,
+                    max_new_tokens,
+                    int(config["training"]["max_length"]),
+                )
+            )
     summary = summarize_raw_records(root, config, rows, records)
     summary.update({
         "status": "COMPLETED", "run_id": run_id, "model_role": model_role,

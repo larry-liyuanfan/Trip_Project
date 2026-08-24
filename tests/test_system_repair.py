@@ -26,6 +26,16 @@ def metrics(composite=0.8, dialogue=0.8):
     for scenario in ("image_product_search", "after_sales", "itinerary_planning"):
         scenarios[scenario] = {
             "composite": composite,
+            "aggregate": {
+                "json_compliance": 1.0,
+                "schema_pass": 1.0,
+                "sample_count": 48,
+            },
+            "metric_support": {
+                "style_f1": 5,
+                "facility_f1": 5,
+                "price_range_accuracy": 5,
+            },
             "json_compliance": 1.0,
             "schema_pass": 1.0,
             "support_ratio": 1.0,
@@ -39,6 +49,7 @@ def metrics(composite=0.8, dialogue=0.8):
         "scenarios": scenarios,
         "failure_rate": 0.0,
         "mean_latency_ms": 1000.0,
+        "latency_ms_mean": 1000.0,
         "dialogue": {
             "automatic_composite": dialogue,
             "format_compliance": 0.95,
@@ -126,7 +137,9 @@ class SystemRepairTest(unittest.TestCase):
     def test_release_gate_blocks_sparse_product_support(self):
         config = load_week7_config(SYSTEM_CONFIG)
         candidate = metrics(composite=0.8, dialogue=0.8)
-        candidate["scenarios"]["image_product_search"]["support"]["price_range"] = 0
+        candidate["scenarios"]["image_product_search"]["metric_support"][
+            "price_range_accuracy"
+        ] = 0
 
         result = evaluate_system_release_gates(
             config,
@@ -223,6 +236,17 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("TRIP_ADAPTER_DIR", text)
         self.assertNotIn("uvicorn", text)
         self.assertNotIn("#SBATCH --array", text)
+
+    def test_spartan_development_job_compares_existing_and_zero_shot(self):
+        text = (
+            ROOT / "scripts/spartan/system_repair_development_eval.sbatch"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("#SBATCH --gpus=1", text)
+        self.assertIn("#SBATCH --time=06:00:00", text)
+        self.assertIn("--model-role multitask_existing", text)
+        self.assertIn("--model-role zero_shot", text)
+        self.assertNotIn("final-test", text)
 
 
 if __name__ == "__main__":
