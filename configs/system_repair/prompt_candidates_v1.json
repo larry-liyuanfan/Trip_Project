@@ -1,0 +1,17 @@
+{
+  "schema_version": "system_repair_prompt_candidates_v1",
+  "versions": {
+    "current_week7": {
+      "system_suffix": "严格输出当前场景 JSON Schema，不输出分析过程或 Markdown。",
+      "task_suffix": "保留未知字段，不得用外部知识补齐。"
+    },
+    "compact_schema_v1": {
+      "system_suffix": "只依据图片和文字输入，直接输出一个符合当前场景 Schema 的紧凑 JSON 对象。未知内容使用 unknown、null 或空数组；不输出解释。",
+      "task_suffix": "逐个检查必填键、枚举、数组类型和 JSON 闭合后立即结束。"
+    },
+    "evidence_state_v1": {
+      "system_suffix": "只依据可观察图片证据和明确文字约束输出当前场景 JSON。observed_evidence 仅写简短可见事实；推断与未知状态分别放入 Schema 规定字段；不输出长篇推理。",
+      "task_suffix": "先在内部核对证据来源，再逐字段输出；缺少证据时保留 unknown，不得猜测。"
+    }
+  }
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import shutil
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -112,7 +113,22 @@ def load_week7_config(path: Path) -> dict[str, Any]:
     if dialogue_fraction != float(dataset["dialogue_fraction"]) or not 0.14 <= dialogue_fraction <= 0.16:
         raise Week7DataError("dialogue ratio is not approximately 15%")
     training = config["training"]
-    if float(training["learning_rate"]) != 0.00015 or float(training["weight_decay"]) <= 0.01:
+    system_repair = config.get("system_repair", {}).get("enabled") is True
+    if system_repair:
+        if (
+            int(dataset["train_total"]) != 1980
+            or float(training["learning_rate"]) != 0.00005
+            or int(training["epochs"]) != 1
+            or dataset.get("identity_namespace") != "repairv1"
+        ):
+            raise Week7DataError("system repair data or continuation parameters changed")
+        continuation = config.get("continuation", {})
+        if (
+            continuation.get("adapter_path_env") != "TRIP_INITIAL_ADAPTER_DIR"
+            or continuation.get("overwrite_initial_adapter") is not False
+        ):
+            raise Week7DataError("system repair adapter continuation contract changed")
+    elif float(training["learning_rate"]) != 0.00015 or float(training["weight_decay"]) <= 0.01:
         raise Week7DataError("Week 7 learning rate or weight decay changed")
     if float(training["evaluation_fraction_steps"]) != 0.1 or int(training["early_stopping_patience"]) != 2:
         raise Week7DataError("Week 7 evaluation cadence or patience changed")
@@ -332,6 +348,78 @@ def _caption_tags(caption: str) -> tuple[list[str], list[str]]:
     return sorted(styles), sorted(facilities)
 
 
+def _repair_source_richness(caption: str, description: str) -> int:
+    """Prioritize auditable product slices without changing historical locks."""
+    styles, facilities = _caption_tags(caption)
+    metadata_styles, metadata_facilities = _repair_business_tags(description)
+    styles = sorted(set(styles) | set(metadata_styles))
+    facilities = sorted(set(facilities) | set(metadata_facilities))
+    price = bool(re.search(r"RestaurantsPriceRange2\s*:\s*['\"]?([1-4])", description))
+    return 8 * int(bool(styles)) + 4 * int(price) + 2 * int(bool(facilities))
+
+
+def _repair_business_tags(description: str) -> tuple[list[str], list[str]]:
+    text = description.casefold()
+    styles = [
+        name
+        for name in ("casual", "classy", "romantic", "trendy", "upscale")
+        if re.search(rf"['\"]?{name}['\"]?\s*:\s*true", text)
+    ]
+    facilities = []
+    checks = {
+        "parking": ("businessparking:", "bikeparking: true"),
+        "wifi": ("wifi: u'free'", "wifi: 'free'"),
+        "bar": ("full_bar", "beer_and_wine"),
+        "outdoor_seating": ("outdoorseating: true",),
+        "wheelchair_access": ("wheelchairaccessible: true",),
+    }
+    for name, terms in checks.items():
+        if any(term in text for term in terms):
+            facilities.append(name)
+    return sorted(styles), sorted(facilities)
+
+
+def _repair_support_flags(source: dict[str, Any]) -> dict[str, bool]:
+    styles, facilities = _caption_tags(source["caption"])
+    metadata_styles, metadata_facilities = _repair_business_tags(
+        source["business_description"]
+    )
+    return {
+        "style": bool(styles or metadata_styles),
+        "facility": bool(facilities or metadata_facilities),
+        "price": bool(
+            re.search(
+                r"RestaurantsPriceRange2\s*:\s*['\"]?([1-4])",
+                source["business_description"],
+            )
+        ),
+    }
+
+
+def _order_repair_sources(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Put a minimum observable support set before the product block."""
+    chosen: list[dict[str, Any]] = []
+    chosen_ids: set[str] = set()
+    for field in ("style", "facility", "price"):
+        for row in rows:
+            if row["source_id"] in chosen_ids or not _repair_support_flags(row)[field]:
+                continue
+            chosen.append(row)
+            chosen_ids.add(row["source_id"])
+            if sum(_repair_support_flags(item)[field] for item in chosen) >= 5:
+                break
+    remaining = [row for row in rows if row["source_id"] not in chosen_ids]
+    remaining.sort(
+        key=lambda row: (
+            -_repair_source_richness(
+                row["caption"], row["business_description"]
+            ),
+            row["source_id"],
+        )
+    )
+    return chosen + remaining
+
+
 def _collect_public_sources(source_root: Path, config: dict[str, Any], consumed: dict[str, set[str]], count: int) -> list[dict[str, Any]]:
     paths = config["dataset"]["source_paths"]
     captions = {}
@@ -342,7 +430,10 @@ def _collect_public_sources(source_root: Path, config: dict[str, Any], consumed:
     candidates = []
     seen_businesses: set[str] = set()
     seed = int(config["dataset"]["seed"])
-    for row in _parquet_rows(source_root / paths["medium_pairs"], ["photo_id", "business_id", "image_path"]):
+    for row in _parquet_rows(
+        source_root / paths["medium_pairs"],
+        ["photo_id", "business_id", "image_path", "business_description"],
+    ):
         photo_id, business_id = str(row.get("photo_id") or ""), str(row.get("business_id") or "")
         if photo_id not in captions or not business_id or business_id in seen_businesses:
             continue
@@ -356,9 +447,22 @@ def _collect_public_sources(source_root: Path, config: dict[str, Any], consumed:
         candidates.append((hashlib.sha256(f"{seed}\0{photo_id}".encode()).hexdigest(), {
             "photo_id": photo_id, "business_id": business_id, "source_id": source_id,
             "group_id": group_id, "source_image": image, "caption": captions[photo_id]["caption"],
+            "business_description": str(row.get("business_description") or "")[:4000],
+            "repair_mode": config.get("system_repair", {}).get("enabled") is True,
         }))
+    if config.get("system_repair", {}).get("enabled") is True:
+        candidates.sort(
+            key=lambda item: (
+                -_repair_source_richness(
+                    item[1]["caption"], item[1]["business_description"]
+                ),
+                item[0],
+            )
+        )
+    else:
+        candidates.sort(key=lambda item: item[0])
     selected = []
-    for _, row in sorted(candidates, key=lambda item: item[0]):
+    for _, row in candidates:
         digest = sha256_file(row["source_image"])
         if digest in consumed["image_sha256"]:
             continue
@@ -368,6 +472,125 @@ def _collect_public_sources(source_root: Path, config: dict[str, Any], consumed:
             break
     if len(selected) != count:
         raise Week7DataError(f"fresh public source shortfall: {len(selected)}/{count}")
+    return selected
+
+
+def _collect_repair_public_sources(
+    source_root: Path,
+    config: dict[str, Any],
+    consumed: dict[str, set[str]],
+    split_needs: dict[str, int],
+) -> dict[str, list[dict[str, Any]]]:
+    """Allocate whole fresh business groups to one split while reusing their photos."""
+    paths = config["dataset"]["source_paths"]
+    captions = {}
+    photo_source = source_root / paths.get("photos", paths["strong_pairs"])
+    for row in _parquet_rows(
+        photo_source,
+        ["photo_id", "image_path", "caption", "label"],
+    ):
+        caption = str(row.get("caption") or "").strip()
+        label = str(row.get("label") or "unknown").strip()
+        captions[str(row["photo_id"])] = {
+            "caption": (caption[:120] if caption else f"photo type: {label}"),
+            "image_path": str(row["image_path"]),
+        }
+    by_group: dict[str, list[tuple[str, dict[str, Any]]]] = defaultdict(list)
+    seed = int(config["dataset"]["seed"])
+    seen_sources: set[str] = set()
+    seen_hashes: set[str] = set()
+    for row in _parquet_rows(
+        source_root / paths["medium_pairs"],
+        ["photo_id", "business_id", "image_path", "business_description"],
+    ):
+        photo_id = str(row.get("photo_id") or "")
+        business_id = str(row.get("business_id") or "")
+        source_id = f"yelp-photo:{photo_id}"
+        group_id = f"yelp-business:{business_id}"
+        if (
+            photo_id not in captions
+            or not business_id
+            or source_id in seen_sources
+            or source_id in consumed["source_id"]
+            or group_id in consumed["group_id"]
+        ):
+            continue
+        image = source_root / Path(str(row.get("image_path") or captions[photo_id]["image_path"]))
+        if not image.is_file():
+            continue
+        digest = sha256_file(image)
+        if digest in consumed["image_sha256"] or digest in seen_hashes:
+            continue
+        seen_sources.add(source_id)
+        seen_hashes.add(digest)
+        candidate = {
+            "photo_id": photo_id,
+            "business_id": business_id,
+            "source_id": source_id,
+            "group_id": group_id,
+            "source_image": image,
+            "caption": captions[photo_id]["caption"],
+            "business_description": str(row.get("business_description") or "")[:4000],
+            "image_sha256": digest,
+            "repair_mode": True,
+        }
+        rank = hashlib.sha256(f"{seed}\0repair\0{photo_id}".encode()).hexdigest()
+        by_group[group_id].append((rank, candidate))
+    groups = sorted(
+        by_group.items(),
+        key=lambda item: (
+            -max(
+                _repair_source_richness(
+                    row["caption"], row["business_description"]
+                )
+                for _, row in item[1]
+            ),
+            hashlib.sha256(
+                f"{seed}\0repair-group\0{item[0]}".encode()
+            ).hexdigest(),
+        ),
+    )
+    selected = {split: [] for split in split_needs}
+    remaining = dict(split_needs)
+    available_groups = list(groups)
+    split_priority = ("development", "test", "train")
+    for split in split_priority:
+        support = Counter()
+        while remaining[split] > 0 and available_groups:
+            desired = next(
+                (
+                    field
+                    for field in ("style", "facility", "price")
+                    if support[field] < 5
+                ),
+                None,
+            )
+            selected_index = 0
+            if desired is not None:
+                for index, (_, candidates) in enumerate(available_groups):
+                    if any(_repair_support_flags(row)[desired] for _, row in candidates):
+                        selected_index = index
+                        break
+            _, candidates = available_groups.pop(selected_index)
+            ordered = [row for _, row in sorted(candidates, key=lambda item: item[0])]
+            if desired is not None:
+                ordered.sort(
+                    key=lambda row: (
+                        not _repair_support_flags(row)[desired],
+                        row["source_id"],
+                    )
+                )
+            take = min(remaining[split], len(ordered))
+            accepted = ordered[:take]
+            selected[split].extend(accepted)
+            remaining[split] -= take
+            for row in accepted:
+                for field, present in _repair_support_flags(row).items():
+                    support[field] += int(present)
+    if any(remaining.values()):
+        raise Week7DataError(f"fresh repair source shortfall by split: {remaining}")
+    for split in selected:
+        selected[split] = _order_repair_sources(selected[split])
     return selected
 
 
@@ -410,7 +633,34 @@ def _product_target(source: dict[str, Any]) -> dict[str, Any]:
         category = "restaurant"
     elif any(term in text for term in ("museum", "park", "attraction", "landmark")):
         category = "attraction"
-    unknown = ["price_range"]
+    price_range = "unknown"
+    inferred_attributes: list[str] = []
+    description = str(source.get("business_description") or "")
+    repair_mode = source.get("repair_mode") is True
+    match = re.search(r"RestaurantsPriceRange2\s*:\s*['\"]?([1-4])", description)
+    if repair_mode and match:
+        price_range = {
+            "1": "budget",
+            "2": "mid_range",
+            "3": "premium",
+            "4": "luxury",
+        }[match.group(1)]
+        inferred_attributes.append("价位来自商家元数据，不作为图片直接证据")
+    if repair_mode:
+        metadata_styles, metadata_facilities = _repair_business_tags(description)
+        styles = sorted(set(styles) | set(metadata_styles))
+        facilities = sorted(set(facilities) | set(metadata_facilities))
+        if metadata_styles or metadata_facilities:
+            inferred_attributes.append("风格或设施包含商家元数据弱标签")
+        category_text = description.split("|", 2)[1].casefold() if "|" in description else ""
+        if category == "unknown":
+            if any(term in category_text for term in ("hotel", "resort", "lodging")):
+                category = "hotel"
+            elif any(term in category_text for term in ("museum", "park", "attraction", "landmark")):
+                category = "attraction"
+            elif any(term in category_text for term in ("restaurant", "food", "cafe", "bar")):
+                category = "restaurant"
+    unknown = [] if price_range != "unknown" else ["price_range"]
     if category == "unknown":
         unknown.append("business_category")
     if not styles:
@@ -421,9 +671,9 @@ def _product_target(source: dict[str, Any]) -> dict[str, Any]:
         "business_category": category,
         "style_tags": styles,
         "visible_facilities": facilities,
-        "price_range": "unknown",
+        "price_range": price_range,
         "observed_evidence": [source["caption"]],
-        "inferred_attributes": [],
+        "inferred_attributes": inferred_attributes,
         "unknown_fields": sorted(unknown),
         "confidence": 0.55,
     }
@@ -944,9 +1194,10 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
     identity_namespace = str(dataset.get("identity_namespace", "v4"))
     # After train/dev, v3 consumed its test sources and then 270 general-train
     # sources. v4 skips both blocks before selecting a genuinely unseen test.
+    system_repair = config.get("system_repair", {}).get("enabled") is True
     v3_consumed_public_skip = (
         2 * test_core + int(dataset["general_regularization_count"])
-        if is_v4 else 0
+        if is_v4 and not system_repair else 0
     )
     public_needed = (
         train_core_counts["image_product_search"]
@@ -955,7 +1206,28 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
         + int(dataset["general_regularization_count"])
         + v3_consumed_public_skip
     )
-    sources = iter(_collect_public_sources(source_root, config, consumed, public_needed))
+    if system_repair:
+        repair_sources = _collect_repair_public_sources(
+            source_root,
+            config,
+            consumed,
+            {
+                "train": (
+                    train_core_counts["image_product_search"]
+                    + train_core_counts["itinerary_planning"]
+                    + int(dataset["general_regularization_count"])
+                ),
+                "development": 2 * dev_core,
+                "test": 2 * test_core,
+            },
+        )
+        sources_by_split = {
+            split: iter(rows) for split, rows in repair_sources.items()
+        }
+    else:
+        sources = iter(
+            _collect_public_sources(source_root, config, consumed, public_needed)
+        )
     core: dict[str, list[dict[str, Any]]] = {split: [] for split in ("train", "development", "test")}
     split_counts = {
         "train": train_core_counts,
@@ -968,10 +1240,11 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
         if is_v4 and split == "test":
             for _ in range(v3_consumed_public_skip):
                 next(sources)
+        split_sources = sources_by_split[split] if system_repair else sources
         for scenario in ("image_product_search", "itinerary_planning"):
             loss_multiplier = float(loss_multipliers.get(scenario, 1.0))
             for ordinal in range(int(scenario_counts[scenario])):
-                source = next(sources)
+                source = next(split_sources)
                 if is_v4:
                     row = _core_public_row(
                         root, output, scenario, split, source, ordinal,
@@ -1004,7 +1277,7 @@ def build_week7_lock(root: Path, source_root: Path, config_path: Path) -> Path:
         f"-{identity_namespace}" if "identity_namespace" in dataset else ""
     )
     for ordinal in range(int(dataset["general_regularization_count"])):
-        source = next(sources)
+        source = next(sources_by_split["train"] if system_repair else sources)
         identity = _public_identity(root, output, source)
         target = {"caption": source["caption"], "evidence_policy": "visible_only"}
         row = _row(
