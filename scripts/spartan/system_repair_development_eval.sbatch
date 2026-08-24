@@ -27,20 +27,18 @@ export HF_HUB_DISABLE_TELEMETRY=1
 export PYTHONUNBUFFERED=1
 source "${TRIP_VENV}/bin/activate"
 
-config="configs/system_repair/qwen3_vl_8b_system_repair_v1.json"
+config="${TRIP_CONFIG:-configs/system_repair/qwen3_vl_8b_system_repair_v2.json}"
 python scripts/manage_week7.py --config "${config}" validate-lock
 python scripts/run_week7.py --config "${config}" check-environment
 
 python scripts/run_week7.py --config "${config}" evaluate-development \
   --output-dir "${TRIP_OUTPUT_ROOT}/existing_adapter" \
-  --run-id system_repair_20260824_v1_existing_adapter_development \
+  --run-id system_repair_20260825_v2_existing_adapter_development \
   --adapter-dir "${TRIP_INITIAL_ADAPTER_DIR}" \
-  --model-role multitask_existing \
-  --max-new-tokens 3072
+  --model-role multitask_existing
 
 python scripts/run_week7.py --config "${config}" evaluate-development \
   --output-dir "${TRIP_OUTPUT_ROOT}/zero_shot" \
-  --run-id system_repair_dev_zero_shot_20260824_v4 \
-  --model-role zero_shot \
-  --max-new-tokens 3072
+  --run-id system_repair_dev_zero_shot_20260825_v4 \
+  --model-role zero_shot
 sync

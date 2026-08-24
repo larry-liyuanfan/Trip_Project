@@ -1,0 +1,252 @@
+{
+  "schema_version": "week7_multitask_context_v4",
+  "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+  "system_repair": {
+    "enabled": true,
+    "repair_id": "system_repair_20260825_v2",
+    "historical_week3_week6_week7_immutable": true,
+    "human_annotation_required": false,
+    "new_labels": "programmatic_silver"
+  },
+  "dataset": {
+    "dataset_version": "system_repair_fresh_multitask_20260825_v2",
+    "identity_namespace": "repairv1",
+    "seed": 20260824,
+    "output_root": "outputs/system_repair/locked_data",
+    "source_paths": {
+      "strong_pairs": "data/yelp/processed/strong_image_caption_pairs.parquet",
+      "medium_pairs": "data/yelp/processed/image_business_attribute_pairs.parquet",
+      "photos": "data/yelp/interim/photos.parquet",
+      "week3_exclusions": [
+        "data/eval/registry/evaluation_exclusion_manifest.jsonl",
+        "data/eval/registry/evaluation_exclusion_manifest_v2.jsonl"
+      ],
+      "week5_pools": "outputs/week5_qwen3_vl_4b/pools",
+      "week6_split_manifest": "outputs/week6/locked_data/week6_week5_final_human300_20260817_v4/split_manifest.jsonl",
+      "week5_dialogue_candidates": "outputs/week5_qwen3_vl_4b/runs/dialogue-week5_dialogues_merged_10000_20260816_522b4af/candidates.jsonl",
+      "week5_dialogue_human_validation": "outputs/week5_qwen3_vl_4b/runs/dialogue-week5_dialogues_merged_10000_20260816_522b4af/human_validation.jsonl",
+      "historical_v3_identity_manifest": "outputs/week7/locked_data/week7_fresh_multitask_context_20260820_v3/identity_manifest.jsonl",
+      "superseded_identity_manifests": [
+        "outputs/week7/locked_data/week7_corrected_multitask_context_20260822_v4/identity_manifest.jsonl",
+        "outputs/week7/locked_data/week7_corrected_multitask_context_20260823_v4_fix1/identity_manifest.jsonl",
+        "outputs/week7/locked_data/week7_corrected_multitask_context_20260824_v4_fix2/identity_manifest.jsonl"
+      ]
+    },
+    "train_total": 1980,
+    "train_core_scenario_counts": {
+      "image_product_search": 500,
+      "after_sales": 500,
+      "itinerary_planning": 500
+    },
+    "general_regularization_count": 180,
+    "dialogue_count": 300,
+    "development_per_core_scenario": 48,
+    "test_per_core_scenario": 30,
+    "development_dialogue_count": 24,
+    "test_dialogue_count": 30,
+    "general_regularization_fraction": 0.09090909090909091,
+    "dialogue_fraction": 0.15151515151515152,
+    "silver_weight": 0.5
+  },
+  "sampling": {
+    "strategy": "sha256_rank_repair_slices_v1",
+    "core_scenario_weights": {
+      "image_product_search": 0.3333333333333333,
+      "after_sales": 0.3333333333333333,
+      "itinerary_planning": 0.3333333333333333
+    },
+    "tool_call_dialogue_fraction": 0.10,
+    "dialogue_rounds_min": 5,
+    "dialogue_rounds_max": 8,
+    "dialogue_parent_strategy": "balanced_round_robin_core_scenarios_v1",
+    "dialogue_construction_version": "aligned_grounded_tool_turns_v4_fix2",
+    "explicit_tool_request": true,
+    "dialogue_parent_scenario_counts": {
+      "train": {"image_product_search": 100, "after_sales": 100, "itinerary_planning": 100},
+      "development": {"image_product_search": 8, "after_sales": 8, "itinerary_planning": 8},
+      "test": {"image_product_search": 10, "after_sales": 10, "itinerary_planning": 10}
+    }
+  },
+  "quantization": {
+    "load_in_4bit": true,
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": true,
+    "bnb_4bit_compute_dtype": "bfloat16"
+  },
+  "lora": {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.08,
+    "bias": "none",
+    "language_target_suffixes": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    "visual_projection_candidates": [
+      "visual_projection",
+      "visual.merger.linear_fc1",
+      "visual.merger.linear_fc2"
+    ],
+    "save_adapter_only": true
+  },
+  "continuation": {
+    "adapter_path_env": "TRIP_INITIAL_ADAPTER_DIR",
+    "adapter_model_sha256": "ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee",
+    "expected_checkpoint": "checkpoint-226",
+    "overwrite_initial_adapter": false
+  },
+  "training": {
+    "optimizer": "adamw_torch",
+    "learning_rate": 0.00005,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.03,
+    "max_grad_norm": 1.0,
+    "per_device_train_batch_size": 1,
+    "per_device_eval_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "effective_global_batch_size_one_gpu": 16,
+    "gradient_checkpointing": true,
+    "bf16": true,
+    "attn_implementation": "sdpa",
+    "epochs": 1,
+    "max_length": 8192,
+    "logging_steps": 10,
+    "evaluation_fraction_steps": 0.1,
+    "early_stopping_patience": 2,
+    "save_total_limit": 12,
+    "load_best_model_at_end": true,
+    "metric_for_best_model": "eval_gate_selection_score",
+    "greater_is_better": true,
+    "scenario_loss_multipliers": {
+      "image_product_search": 1.0,
+      "after_sales": 1.0,
+      "itinerary_planning": 1.0,
+      "dialogue": 1.0,
+      "general_multimodal": 1.0
+    }
+  },
+  "evaluation": {
+    "dialogue_scoring_protocol": "gate_aligned_v2",
+    "metric_support_protocol": "week7_evaluation_protocol_v4",
+    "generation_max_new_tokens": 1024,
+    "generation_max_new_tokens_by_scenario": {
+      "image_product_search": 512,
+      "after_sales": 512,
+      "itinerary_planning": 1024,
+      "dialogue": 1024
+    },
+    "scenario_weights": {
+      "image_product_search": 0.3333333333333333,
+      "after_sales": 0.3333333333333333,
+      "itinerary_planning": 0.3333333333333333
+    },
+    "metric_weights": {
+      "image_product_search": {
+        "business_category_accuracy": 0.20,
+        "price_range_accuracy": 0.15,
+        "style_f1": 0.20,
+        "facility_f1": 0.20,
+        "label_completeness": 0.15,
+        "json_compliance": 0.05,
+        "schema_pass": 0.05
+      },
+      "after_sales": {
+        "issue_type_accuracy": 0.20,
+        "severity_accuracy": 0.20,
+        "key_information_f1": 0.25,
+        "ocr_recall": 0.15,
+        "json_compliance": 0.10,
+        "schema_pass": 0.10
+      },
+      "itinerary_planning": {
+        "constraint_recognition_accuracy": 0.25,
+        "hard_constraint_recall": 0.15,
+        "soft_constraint_recall": 0.15,
+        "itinerary_element_completeness": 0.20,
+        "constraint_check_coverage": 0.15,
+        "json_compliance": 0.05,
+        "schema_pass": 0.05
+      }
+    },
+    "non_regression": {
+      "max_relative_task_drop": 0.0,
+      "json_schema_absolute_drop": 0.0,
+      "minimum_json_compliance": 0.95,
+      "minimum_schema_pass": 0.95,
+      "minimum_support_ratio": 1.0,
+      "max_latency_ratio": 1.25,
+      "max_failure_rate": 0.02,
+      "max_failure_rate_absolute_increase": 0.0
+    },
+    "product_minimum_development_support": {
+      "style_tags": 5,
+      "visible_facilities": 5,
+      "price_range": 5
+    },
+    "schema_decoding": {
+      "scope": "format_only",
+      "max_latency_ratio": 1.25,
+      "max_fallback_failure_rate": 0.02,
+      "semantic_claims_allowed": false,
+      "paired_order": "sample_interleaved_free_then_correct_once"
+    },
+    "dialogue_dimensions": [
+      "historical_image_reference",
+      "requirement_update",
+      "context_carryover",
+      "logical_consistency"
+    ],
+    "human_review_queue_size": 0,
+    "dialogue_automatic_gate": {
+      "enabled": true,
+      "human_input_required": false,
+      "selection_weight": 0.20,
+      "minimum_automatic_composite": 0.75,
+      "minimum_format_compliance": 0.90,
+      "minimum_context_recall": 0.70,
+      "minimum_context_state_value_accuracy": 0.70,
+      "minimum_task_result_key_coverage": 0.75,
+      "minimum_task_result_value_accuracy": 0.65,
+      "minimum_sequential_protocol_coverage": 0.90,
+      "minimum_sequential_semantic_accuracy": 0.80,
+      "maximum_sequential_turn_failure_rate": 0.041666666666666664,
+      "minimum_initial_task_stable_value_accuracy": 0.75,
+      "minimum_anchor_retention": 0.85,
+      "minimum_tool_protocol_compliance": 0.65,
+      "maximum_failure_rate": 0.041666666666666664
+    },
+    "strict_dialogue_gate_remains_historical": true,
+    "must_beat_roles": ["week6_routed", "zero_shot"],
+    "week6_adapter_sha256": {
+      "image_product_search": "8b57961542a5fd82767b6e71a470b08cecd7ed4c2a8c14beda0480b5acaa5df0",
+      "after_sales": "36bcc21bedbb9aad4f58cb0cd1870d97a5d5e83aca2f0580d4e3750b298a2160",
+      "itinerary_planning": "7ab168a0f7073f2fad3369c028f744585362a0668f77c024098d9b27d92c9a6a"
+    }
+  },
+  "experiment_identity": {
+    "development_baseline_run_ids": {
+      "image_product_search": "system_repair_dev_existing_product_20260825_v4",
+      "after_sales": "system_repair_dev_existing_after_sales_20260825_v4",
+      "itinerary_planning": "system_repair_dev_existing_itinerary_20260825_v4"
+    },
+    "week6_dialogue_development_run_id": "system_repair_dev_week6_dialogue_20260825_v4",
+    "week6_combined_development_run_id": "system_repair_dev_existing_combined_20260825_v4",
+    "zero_shot_development_run_id": "system_repair_dev_zero_shot_20260825_v4",
+    "schema_free_run_id": "system_repair_dev_schema_free_20260825_v4",
+    "schema_constrained_run_id": "system_repair_dev_schema_retry_20260825_v4",
+    "multitask_sft_run_id": "system_repair_continuation_sft_20260825_v4",
+    "test_run_id": "system_repair_fresh_test_once_20260825_v4"
+  },
+  "dynamic_adjustment_policy": {
+    "in_place_changes_allowed": false,
+    "test_feedback_allowed": false,
+    "new_config_and_run_id_required": true,
+    "trigger": "development_only_after_completed_run"
+  },
+  "dpo": {
+    "maximum_ablations": 0,
+    "requires_real_quality_review": true,
+    "requires_visual_evidence": true,
+    "requires_schema_validation": true,
+    "self_bootstrap_allowed": false,
+    "status": "DISABLED_FOR_TWO_DAY_REPAIR"
+  }
+}

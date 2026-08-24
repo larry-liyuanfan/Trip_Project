@@ -19,6 +19,7 @@ from src.training.week6_qlora import (
 from src.training.week7_data import (
     ALIGNED_DIALOGUE_CONSTRUCTION_VERSIONS,
     canonical_sha256,
+    evaluation_generation_limit,
     iter_jsonl,
     load_week7_config,
     sha256_file,
@@ -433,7 +434,7 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
                 records = [
                     _generate_record(
                         root, self.model, processor, row, run_id,
-                        int(config["evaluation"].get("generation_max_new_tokens", 2048)),
+                        evaluation_generation_limit(config, row["scenario"]),
                         int(train_config["max_length"]),
                     )
                     for row in development_rows

@@ -14,7 +14,13 @@ from typing import Any
 
 from src.evaluation.schema_validation import load_output_schema
 from src.training.week6_qlora import environment_report
-from src.training.week7_data import CORE_SCENARIOS, iter_jsonl, load_week7_config, sha256_file
+from src.training.week7_data import (
+    CORE_SCENARIOS,
+    evaluation_generation_limit,
+    iter_jsonl,
+    load_week7_config,
+    sha256_file,
+)
 from src.training.week7_evaluation import (
     compare_schema_decoding,
     summarize_dialogue_raw_records,
@@ -68,7 +74,7 @@ def _write_jsonl_new(path: Path, rows: list[dict[str, Any]]) -> None:
 def run_transformers_development(
     root: Path, config_path: Path, output_dir: Path, *, run_id: str,
     adapter_dir: Path | None = None, model_role: str = "zero_shot",
-    max_new_tokens: int = 2048, scenario: str | None = None,
+    max_new_tokens: int | None = None, scenario: str | None = None,
 ) -> dict[str, Any]:
     root, output_dir = Path(root).resolve(), Path(output_dir).resolve()
     if output_dir.exists():
@@ -153,7 +159,11 @@ def run_transformers_development(
                     processor,
                     row,
                     run_id,
-                    max_new_tokens,
+                    evaluation_generation_limit(
+                        config,
+                        row["scenario"],
+                        max_new_tokens,
+                    ),
                     int(config["training"]["max_length"]),
                 )
             )
@@ -183,7 +193,7 @@ def run_system_repair_test_once(
     gate_path: Path,
     output_dir: Path,
     *,
-    max_new_tokens: int = 3072,
+    max_new_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Consume the fresh test split once after the hash-bound development gate."""
 
@@ -289,7 +299,11 @@ def run_system_repair_test_once(
                 processor,
                 row,
                 run_id,
-                max_new_tokens,
+                evaluation_generation_limit(
+                    config,
+                    row["scenario"],
+                    max_new_tokens,
+                ),
                 int(config["training"]["max_length"]),
             )
             for row in rows
@@ -404,7 +418,7 @@ def run_week6_dialogue_development(
     output_dir: Path,
     *,
     adapter_dirs: dict[str, Path],
-    max_new_tokens: int = 2048,
+    max_new_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Route the 24 locked development dialogues to their underlying Week 6 adapter."""
     import gc
@@ -477,7 +491,11 @@ def run_week6_dialogue_development(
             config, processor, model, routed[scenario],
             run_id=run_id,
             model_role="week6_single_task_adapters",
-            max_new_tokens=max_new_tokens,
+            max_new_tokens=evaluation_generation_limit(
+                config,
+                "dialogue",
+                max_new_tokens,
+            ),
         ))
         del model
         gc.collect()

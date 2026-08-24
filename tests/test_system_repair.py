@@ -20,12 +20,18 @@ from src.training.system_repair import (
     run_week5_repair_queue,
     select_system_repair_candidate,
 )
-from src.training.week7_data import _product_target, load_week7_config, sha256_file
+from src.training.week7_data import (
+    _product_target,
+    evaluation_generation_limit,
+    load_week7_config,
+    sha256_file,
+)
 from src.training.week7_inference import run_transformers_development
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SYSTEM_CONFIG = ROOT / "configs/system_repair/qwen3_vl_8b_system_repair_v1.json"
+SYSTEM_CONFIG_V2 = ROOT / "configs/system_repair/qwen3_vl_8b_system_repair_v2.json"
 WEEK5_CONFIG = ROOT / "configs/system_repair/week5_preannotation_repair_v2.json"
 
 
@@ -139,6 +145,35 @@ class SystemRepairTest(unittest.TestCase):
         self.assertEqual(config["training"]["epochs"], 1)
         self.assertEqual(config["dataset"]["silver_weight"], 0.5)
         self.assertFalse(config["continuation"]["overwrite_initial_adapter"])
+
+    def test_system_repair_v2_uses_compact_comparable_generation_budgets(self):
+        config = load_week7_config(SYSTEM_CONFIG_V2)
+
+        self.assertEqual(
+            config["dataset"]["dataset_version"],
+            "system_repair_fresh_multitask_20260825_v2",
+        )
+        self.assertEqual(
+            {
+                scenario: evaluation_generation_limit(config, scenario)
+                for scenario in (
+                    "image_product_search",
+                    "after_sales",
+                    "itinerary_planning",
+                    "dialogue",
+                )
+            },
+            {
+                "image_product_search": 512,
+                "after_sales": 512,
+                "itinerary_planning": 1024,
+                "dialogue": 1024,
+            },
+        )
+        self.assertEqual(
+            evaluation_generation_limit(config, "after_sales", 768),
+            768,
+        )
 
     def test_week5_repair_config_locks_observed_failure_breakdown(self):
         config = load_repair_config(WEEK5_CONFIG)
@@ -463,6 +498,8 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("#SBATCH --time=06:00:00", text)
         self.assertIn("--model-role multitask_existing", text)
         self.assertIn("--model-role zero_shot", text)
+        self.assertIn("qwen3_vl_8b_system_repair_v2.json", text)
+        self.assertNotIn("--max-new-tokens 3072", text)
         self.assertNotIn("final-test", text)
 
     def test_development_baselines_use_candidate_metric_support_protocol(self):

@@ -128,6 +128,19 @@ def load_week7_config(path: Path) -> dict[str, Any]:
             or continuation.get("overwrite_initial_adapter") is not False
         ):
             raise Week7DataError("system repair adapter continuation contract changed")
+        generation_limits = config["evaluation"].get(
+            "generation_max_new_tokens_by_scenario"
+        )
+        if generation_limits is not None and (
+            set(generation_limits) != {*CORE_SCENARIOS, "dialogue"}
+            or any(
+                not 256 <= int(value) <= 2048
+                for value in generation_limits.values()
+            )
+        ):
+            raise Week7DataError(
+                "system repair scenario generation limits are incomplete or invalid"
+            )
     elif float(training["learning_rate"]) != 0.00015 or float(training["weight_decay"]) <= 0.01:
         raise Week7DataError("Week 7 learning rate or weight decay changed")
     if float(training["evaluation_fraction_steps"]) != 0.1 or int(training["early_stopping_patience"]) != 2:
@@ -221,6 +234,24 @@ def load_week7_config(path: Path) -> dict[str, Any]:
                 "balanced experiment run IDs are incomplete, reused, or mis-versioned"
             )
     return config
+
+
+def evaluation_generation_limit(
+    config: dict[str, Any],
+    scenario: str,
+    override: int | None = None,
+) -> int:
+    """Return the locked per-scenario generation budget used by comparable evals."""
+
+    if override is not None:
+        return int(override)
+    limits = config["evaluation"].get("generation_max_new_tokens_by_scenario", {})
+    return int(
+        limits.get(
+            scenario,
+            config["evaluation"].get("generation_max_new_tokens", 2048),
+        )
+    )
 
 
 def _add_identity(sets: dict[str, set[str]], row: dict[str, Any]) -> None:

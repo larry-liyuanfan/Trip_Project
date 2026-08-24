@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     infer.add_argument("--adapter-dir", type=Path)
     infer.add_argument("--model-role", default="zero_shot")
     infer.add_argument("--scenario", choices=("image_product_search", "after_sales", "itinerary_planning"))
-    infer.add_argument("--max-new-tokens", type=int, default=2048)
+    infer.add_argument("--max-new-tokens", type=int)
     dialogue = commands.add_parser("evaluate-week6-dialogue-development")
     dialogue.add_argument("--output-dir", type=Path, required=True)
     dialogue.add_argument("--product-adapter", type=Path, required=True)

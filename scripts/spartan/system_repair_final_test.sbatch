@@ -28,7 +28,7 @@ export HF_HUB_DISABLE_TELEMETRY=1
 export PYTHONUNBUFFERED=1
 source "${TRIP_VENV}/bin/activate"
 
-config="configs/system_repair/qwen3_vl_8b_system_repair_v1.json"
+config="${TRIP_CONFIG:-configs/system_repair/qwen3_vl_8b_system_repair_v2.json}"
 python scripts/manage_week7.py --config "${config}" validate-lock
 python scripts/run_week7.py --config "${config}" check-environment
 python scripts/manage_system_repair.py --config "${config}" run-final-test \
