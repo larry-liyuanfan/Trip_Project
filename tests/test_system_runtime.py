@@ -102,15 +102,15 @@ class SystemRuntimeTest(unittest.TestCase):
         release = ReleaseSettings.load(root=Path.cwd())
         expected = {
             "image_product_search": (
-                "system_repair_product_compact_v1",
+                "system_repair_product_compact_v2",
                 "逐个检查必填键",
             ),
             "after_sales": (
-                "system_repair_after_sales_evidence_v1",
+                "system_repair_after_sales_evidence_v2",
                 "核对证据来源",
             ),
             "itinerary_planning": (
-                "system_repair_itinerary_current_v1",
+                "system_repair_itinerary_current_v2",
                 "保留未知字段",
             ),
         }
@@ -214,11 +214,15 @@ class SystemRuntimeTest(unittest.TestCase):
         backend = FakeBackend(["not-json", "still-not-json"])
         service = ScenarioService(settings(), backend)
 
-        with self.assertRaisesRegex(ModelGenerationError, "after 2 attempts"):
+        with self.assertRaisesRegex(ModelGenerationError, "after 2 attempts") as raised:
             service.run_task(
                 "image_product_search",
                 TaskRequest(image_urls=["https://example.com/product.jpg"]),
             )
+
+        self.assertEqual(len(raised.exception.attempts), 2)
+        self.assertEqual(raised.exception.attempts[0].raw_output, "not-json")
+        self.assertEqual(raised.exception.attempts[1].raw_output, "still-not-json")
 
     def test_readiness_verifies_adapter_file_hash(self):
         with TemporaryDirectory() as tmpdir:

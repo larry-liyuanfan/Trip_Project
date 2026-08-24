@@ -40,6 +40,10 @@ class RuntimeConfigurationError(RuntimeError):
 class ModelGenerationError(RuntimeError):
     """Raised when model generation fails or cannot satisfy its output contract."""
 
+    def __init__(self, message: str, *, attempts: list[Any] | None = None) -> None:
+        super().__init__(message)
+        self.attempts = list(attempts or [])
+
 
 class ModelBackend(Protocol):
     """Small backend boundary used by local Transformers and test doubles."""
@@ -512,7 +516,8 @@ class ScenarioService:
             active_messages = _correction_messages(active_messages, raw, error or "")
         raise ModelGenerationError(
             f"model output failed {scenario} Schema after {len(attempts)} attempts: "
-            f"{attempts[-1].error}"
+            f"{attempts[-1].error}",
+            attempts=attempts,
         )
 
     def _generate_dialogue(
@@ -549,7 +554,8 @@ class ScenarioService:
             active_messages = _correction_messages(active_messages, raw, error or "")
         raise ModelGenerationError(
             f"dialogue output failed Schema after {len(attempts)} attempts: "
-            f"{attempts[-1].error}"
+            f"{attempts[-1].error}",
+            attempts=attempts,
         )
 
 

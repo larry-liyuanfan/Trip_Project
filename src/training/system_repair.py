@@ -236,6 +236,7 @@ def run_week5_repair_queue(
         started = time.perf_counter()
         response_payload = None
         error = None
+        failed_model_attempts: list[dict[str, Any]] = []
         for network_attempt in range(1, int(repair["model"]["max_network_retries"]) + 2):
             try:
                 if service is not None:
@@ -256,6 +257,10 @@ def run_week5_repair_queue(
                 break
             except ModelGenerationError as exc:
                 error = f"{type(exc).__name__}: {exc}"
+                failed_model_attempts = [
+                    attempt.model_dump() if hasattr(attempt, "model_dump") else dict(attempt)
+                    for attempt in exc.attempts
+                ]
                 break
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
@@ -277,7 +282,11 @@ def run_week5_repair_queue(
             "model": response_payload.get("model") if response_payload else repair["model"]["base_model"],
             "adapter": response_payload.get("adapter") if response_payload else None,
             "release_id": response_payload.get("release_id") if response_payload else None,
-            "model_attempts": response_payload.get("attempts") if response_payload else [],
+            "model_attempts": (
+                response_payload.get("attempts")
+                if response_payload
+                else failed_model_attempts
+            ),
             "request_latency_ms": (time.perf_counter() - started) * 1000,
             "error": error if not response_payload else None,
             "label_source": "silver_model_preannotation",
