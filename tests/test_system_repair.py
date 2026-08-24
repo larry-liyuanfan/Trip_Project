@@ -12,6 +12,7 @@ from src.training.system_repair import (
     _validate_historical_failure_contract,
     evaluate_system_release_gates,
     load_repair_config,
+    select_system_repair_candidate,
 )
 from src.training.week7_data import _product_target, load_week7_config, sha256_file
 
@@ -215,6 +216,85 @@ class SystemRepairTest(unittest.TestCase):
                 handle.write("{}\n")
             with self.assertRaises(PromptPilotError):
                 load_completed_prompt_pilot(config, prompts, output)
+
+    def test_candidate_selection_binds_best_step_adapter_and_raw_evidence(self):
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_payload = json.loads(SYSTEM_CONFIG.read_text(encoding="utf-8"))
+            config_payload["dataset"]["output_root"] = "locks"
+            config_payload["dataset"]["dataset_version"] = "repair-lock"
+            config = root / "config.json"
+            config.write_text(json.dumps(config_payload), encoding="utf-8")
+            config_hash = sha256_file(config)
+            lock_dir = root / "locks/repair-lock"
+            lock_dir.mkdir(parents=True)
+            (lock_dir / "dataset_lock.json").write_text(
+                json.dumps({"lock_sha256": "lock-sha"}), encoding="utf-8"
+            )
+            training = root / "training"
+            adapter = training / "adapter"
+            adapter.mkdir(parents=True)
+            adapter_model = adapter / "adapter_model.safetensors"
+            adapter_model.write_bytes(b"candidate")
+            adapter_hash = sha256_file(adapter_model)
+            evidence = training / "development_evaluations/step-000012"
+            evidence.mkdir(parents=True)
+            raw = evidence / "raw_outputs.jsonl"
+            raw.write_text("{}\n", encoding="utf-8")
+            metrics = {
+                "status": "COMPLETED",
+                "global_step": 12,
+                "sample_count": 168,
+                "config_sha256": config_hash,
+                "dataset_lock_sha256": "lock-sha",
+                "scenarios": {
+                    scenario: {}
+                    for scenario in (
+                        "image_product_search",
+                        "after_sales",
+                        "itinerary_planning",
+                    )
+                },
+                "dialogue": {},
+                "raw_outputs": {"sha256": sha256_file(raw)},
+            }
+            (evidence / "metrics.json").write_text(
+                json.dumps(metrics), encoding="utf-8"
+            )
+            summary = {
+                "status": "COMPLETED",
+                "run_id": config_payload["experiment_identity"][
+                    "multitask_sft_run_id"
+                ],
+                "config_sha256": config_hash,
+                "dataset_lock_sha256": "lock-sha",
+                "best_checkpoint": str(training / "checkpoint-12"),
+                "best_metric": 0.8,
+                "adapter_only": True,
+                "adapter_reload_verified": True,
+                "continued_from_adapter": {
+                    "adapter_model_sha256": config_payload["continuation"][
+                        "adapter_model_sha256"
+                    ]
+                },
+                "adapter_hashes": {
+                    "adapter_model.safetensors": adapter_hash
+                },
+            }
+            (training / "run_summary.json").write_text(
+                json.dumps(summary), encoding="utf-8"
+            )
+
+            result = select_system_repair_candidate(
+                root,
+                config,
+                training,
+                root / "selection.json",
+            )
+
+            self.assertEqual(result["best_checkpoint"], "checkpoint-12")
+            self.assertEqual(result["adapter_model_sha256"], adapter_hash)
+            self.assertFalse(result["test_consumed"])
 
     def test_spartan_job_requests_one_gpu_and_six_hours(self):
         text = (ROOT / "scripts/spartan/system_repair_train.sbatch").read_text(

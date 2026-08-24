@@ -26,6 +26,7 @@ from src.training.system_repair import (
     evaluate_system_release_gates,
     merge_week5_repair_results,
     run_week5_repair_queue,
+    select_system_repair_candidate,
 )
 from src.training.week7_data import build_week7_lock, load_week7_config, sha256_file
 from src.training.week7_qlora import run_multitask_training
@@ -61,6 +62,9 @@ def parser() -> argparse.ArgumentParser:
     train = sub.add_parser("train")
     train.add_argument("--output-dir", type=Path, required=True)
     train.add_argument("--resume-from-checkpoint", type=Path)
+    select = sub.add_parser("select-candidate")
+    select.add_argument("--training-dir", type=Path, required=True)
+    select.add_argument("--output", type=Path, required=True)
     gate = sub.add_parser("evaluate-gates")
     gate.add_argument("--candidate", type=Path, required=True)
     gate.add_argument("--existing", type=Path, required=True)
@@ -158,6 +162,13 @@ def main() -> int:
             args.output_dir,
             confirm_dataset_lock=True,
             resume_from_checkpoint=args.resume_from_checkpoint,
+        )
+    elif args.command == "select-candidate":
+        result = select_system_repair_candidate(
+            ROOT,
+            args.config,
+            args.training_dir,
+            args.output,
         )
     elif args.command == "evaluate-gates":
         config = load_week7_config(args.config)

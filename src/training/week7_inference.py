@@ -29,6 +29,35 @@ from src.training.week7_qlora import (
 from src.training.week7_runtime import generate_record, inference_runtime
 
 
+def _validate_system_candidate_adapter(
+    config: dict[str, Any],
+    config_path: Path,
+    dataset_lock: dict[str, Any],
+    adapter_dir: Path,
+    adapter_hashes: dict[str, str],
+) -> None:
+    """Bind a candidate adapter to its completed continuation-SFT run."""
+
+    summary_path = adapter_dir.parent / "run_summary.json"
+    if not summary_path.is_file():
+        raise Week7TrainingError("system-repair candidate has no run summary")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if (
+        summary.get("status") != "COMPLETED"
+        or summary.get("run_id")
+        != config["experiment_identity"]["multitask_sft_run_id"]
+        or summary.get("config_sha256") != sha256_file(config_path)
+        or summary.get("dataset_lock_sha256") != dataset_lock.get("lock_sha256")
+        or summary.get("adapter_only") is not True
+        or summary.get("adapter_reload_verified") is not True
+        or summary.get("adapter_hashes", {}).get("adapter_model.safetensors")
+        != adapter_hashes.get("adapter_model.safetensors")
+        or summary.get("continued_from_adapter", {}).get("adapter_model_sha256")
+        != config["continuation"]["adapter_model_sha256"]
+    ):
+        raise Week7TrainingError("system-repair candidate provenance mismatch")
+
+
 def _write_jsonl_new(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=False)
     with path.open("x", encoding="utf-8", newline="\n") as handle:
@@ -102,6 +131,14 @@ def run_transformers_development(
             != f"{config['experiment_identity']['multitask_sft_run_id']}_development"
         ):
             raise Week7TrainingError("multitask development run identity mismatch")
+        else:
+            _validate_system_candidate_adapter(
+                config,
+                config_path,
+                dataset_lock,
+                adapter_dir,
+                adapter_hashes,
+            )
         model = PeftModel.from_pretrained(model, str(adapter_dir), is_trainable=False)
     elif scenario is not None or model_role != "zero_shot" or run_id != config["experiment_identity"]["zero_shot_development_run_id"]:
         raise Week7TrainingError("zero-shot development run identity mismatch")

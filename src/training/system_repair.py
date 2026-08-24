@@ -27,7 +27,7 @@ from src.data.week5_dataset import (
 from src.evaluation.schema_validation import validate_output
 from src.inference.schemas import TaskRequest
 from src.inference.system_runtime import ModelGenerationError, ScenarioService
-from src.training.week7_data import canonical_sha256, sha256_file
+from src.training.week7_data import canonical_sha256, load_week7_config, sha256_file
 
 
 IDENTITY_FIELDS = (
@@ -439,6 +439,91 @@ def evaluate_system_release_gates(
         "failures": failures,
         "test_consumption_allowed": not failures,
     }
+
+
+def select_system_repair_candidate(
+    root: Path,
+    config_path: Path,
+    training_dir: Path,
+    output_path: Path,
+) -> dict[str, Any]:
+    """Bind the Trainer-selected checkpoint, final adapter, and development metrics."""
+
+    root = Path(root).resolve()
+    config_path = Path(config_path).resolve()
+    training_dir = Path(training_dir).resolve()
+    output_path = Path(output_path).resolve()
+    if output_path.exists():
+        raise SystemRepairError("candidate selection output already exists")
+    config = load_week7_config(config_path)
+    summary_path = training_dir / "run_summary.json"
+    adapter_path = training_dir / "adapter" / "adapter_model.safetensors"
+    if not summary_path.is_file() or not adapter_path.is_file():
+        raise SystemRepairError("completed training summary or adapter is missing")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    best_checkpoint = Path(str(summary.get("best_checkpoint") or "")).name
+    match = re.fullmatch(r"checkpoint-(\d+)", best_checkpoint)
+    if match is None:
+        raise SystemRepairError("training summary has no selected checkpoint")
+    step = int(match.group(1))
+    metrics_path = training_dir / "development_evaluations" / f"step-{step:06d}" / "metrics.json"
+    raw_path = metrics_path.with_name("raw_outputs.jsonl")
+    if not metrics_path.is_file() or not raw_path.is_file():
+        raise SystemRepairError("selected checkpoint development evidence is missing")
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    lock_path = (
+        root
+        / config["dataset"]["output_root"]
+        / config["dataset"]["dataset_version"]
+        / "dataset_lock.json"
+    )
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    adapter_hash = sha256_file(adapter_path)
+    if (
+        summary.get("status") != "COMPLETED"
+        or summary.get("run_id") != config["experiment_identity"]["multitask_sft_run_id"]
+        or summary.get("config_sha256") != sha256_file(config_path)
+        or summary.get("dataset_lock_sha256") != lock.get("lock_sha256")
+        or summary.get("adapter_only") is not True
+        or summary.get("adapter_reload_verified") is not True
+        or summary.get("continued_from_adapter", {}).get("adapter_model_sha256")
+        != config["continuation"]["adapter_model_sha256"]
+        or summary.get("adapter_hashes", {}).get("adapter_model.safetensors")
+        != adapter_hash
+        or metrics.get("status") != "COMPLETED"
+        or metrics.get("global_step") != step
+        or metrics.get("config_sha256") != sha256_file(config_path)
+        or metrics.get("dataset_lock_sha256") != lock.get("lock_sha256")
+        or metrics.get("sample_count")
+        != (
+            int(config["dataset"]["development_per_core_scenario"]) * 3
+            + int(config["dataset"]["development_dialogue_count"])
+        )
+        or set(metrics.get("scenarios", {})) != set(SCENARIOS)
+        or not isinstance(metrics.get("dialogue"), dict)
+        or metrics.get("raw_outputs", {}).get("sha256") != sha256_file(raw_path)
+    ):
+        raise SystemRepairError("selected candidate evidence does not match the locked run")
+    result = {
+        "status": "COMPLETED",
+        "run_id": summary["run_id"],
+        "best_checkpoint": best_checkpoint,
+        "best_metric": summary.get("best_metric"),
+        "adapter_dir": str((training_dir / "adapter").resolve()),
+        "adapter_model_sha256": adapter_hash,
+        "development_metrics": {
+            "path": str(metrics_path.resolve()),
+            "sha256": sha256_file(metrics_path),
+        },
+        "development_raw_outputs": {
+            "path": str(raw_path.resolve()),
+            "sha256": sha256_file(raw_path),
+        },
+        "test_consumed": False,
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json_new(output_path, result)
+    return result
 
 
 def _select_replacements(
