@@ -43,8 +43,15 @@ def canonical_sha256(value: Any) -> str:
 
 
 def sha256_file(path: Path) -> str:
+    path = Path(path)
     digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
+    if path.suffix.lower() in {".json", ".yaml", ".yml"} and "configs" in path.parts:
+        # Versioned config identities are text contracts. Hash their LF form so
+        # Windows checkout policy cannot invalidate evidence produced on Linux.
+        content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        digest.update(content)
+        return digest.hexdigest()
+    with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
