@@ -386,16 +386,22 @@ def evaluate_system_release_gates(
     candidate: dict[str, Any],
     existing: dict[str, Any],
     zero_shot: dict[str, Any],
+    week6_routed: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate predeclared core and DIALOGUE_BETA gates from observed metrics."""
     failures = []
     non_regression = config["evaluation"]["non_regression"]
     for scenario in SCENARIOS:
         current = candidate["scenarios"][scenario]
-        best_baseline = max(
+        baseline_values = [
             float(existing["scenarios"][scenario]["composite"]),
             float(zero_shot["scenarios"][scenario]["composite"]),
-        )
+        ]
+        if week6_routed is not None:
+            baseline_values.append(
+                float(week6_routed["scenarios"][scenario]["composite"])
+            )
+        best_baseline = max(baseline_values)
         if float(current["composite"]) < best_baseline:
             failures.append(f"{scenario}:composite_below_best_baseline")
         aggregate = current.get("aggregate", current)
@@ -457,7 +463,10 @@ def evaluate_system_release_gates(
         passed = value >= float(threshold) if operator == ">=" else value <= float(threshold)
         if not passed:
             failures.append(f"dialogue:{name}_{operator}_{threshold}")
-    for baseline_name, baseline in (("existing", existing), ("zero_shot", zero_shot)):
+    dialogue_baselines = [("existing", existing), ("zero_shot", zero_shot)]
+    if week6_routed is not None:
+        dialogue_baselines.append(("week6_routed", week6_routed))
+    for baseline_name, baseline in dialogue_baselines:
         if float(dialogue["automatic_composite"]) <= float(baseline["dialogue"]["automatic_composite"]):
             failures.append(f"dialogue:not_above_{baseline_name}")
     return {

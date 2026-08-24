@@ -77,6 +77,7 @@ def parser() -> argparse.ArgumentParser:
     gate.add_argument("--candidate", type=Path, required=True)
     gate.add_argument("--existing", type=Path, required=True)
     gate.add_argument("--zero-shot", type=Path, required=True)
+    gate.add_argument("--week6-routed", type=Path, required=True)
     gate.add_argument("--selection", type=Path, required=True)
     gate.add_argument("--output", type=Path, required=True)
     final_test = sub.add_parser("run-final-test")
@@ -208,6 +209,7 @@ def main() -> int:
             json.loads(args.candidate.read_text(encoding="utf-8")),
             json.loads(args.existing.read_text(encoding="utf-8")),
             json.loads(args.zero_shot.read_text(encoding="utf-8")),
+            json.loads(args.week6_routed.read_text(encoding="utf-8")),
         )
         result["evidence"] = {
             "config_sha256": sha256_file(args.config),
@@ -215,6 +217,7 @@ def main() -> int:
             "candidate_metrics_sha256": sha256_file(args.candidate),
             "existing_metrics_sha256": sha256_file(args.existing),
             "zero_shot_metrics_sha256": sha256_file(args.zero_shot),
+            "week6_routed_metrics_sha256": sha256_file(args.week6_routed),
             "adapter_model_sha256": selection["adapter_model_sha256"],
         }
         args.output.write_text(

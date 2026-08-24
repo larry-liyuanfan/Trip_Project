@@ -250,6 +250,24 @@ class SystemRepairTest(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertTrue(result["test_consumption_allowed"])
 
+    def test_release_gate_compares_week6_routed_dialogue(self):
+        config = load_week7_config(SYSTEM_CONFIG)
+        candidate = metrics(composite=0.8, dialogue=0.8)
+        existing = metrics(composite=0.7, dialogue=0.6)
+        zero = metrics(composite=0.5, dialogue=0.4)
+        routed = metrics(composite=0.75, dialogue=0.81)
+
+        result = evaluate_system_release_gates(
+            config,
+            candidate,
+            existing,
+            zero,
+            routed,
+        )
+
+        self.assertEqual(result["status"], "FAIL")
+        self.assertIn("dialogue:not_above_week6_routed", result["failures"])
+
     def test_release_gate_blocks_sparse_product_support(self):
         config = load_week7_config(SYSTEM_CONFIG)
         candidate = metrics(composite=0.8, dialogue=0.8)
@@ -515,6 +533,9 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("#SBATCH --time=06:00:00", text)
         self.assertIn("--model-role multitask_existing", text)
         self.assertIn("--model-role zero_shot", text)
+        self.assertIn("--model-role week6_single_task_adapter", text)
+        self.assertIn("evaluate-week6-dialogue-development", text)
+        self.assertIn("combine-week6-development", text)
         self.assertIn("qwen3_vl_8b_system_repair_v2.json", text)
         self.assertNotIn("--max-new-tokens 3072", text)
         self.assertNotIn("final-test", text)

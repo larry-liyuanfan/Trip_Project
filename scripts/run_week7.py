@@ -61,7 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     dialogue.add_argument("--product-adapter", type=Path, required=True)
     dialogue.add_argument("--after-sales-adapter", type=Path, required=True)
     dialogue.add_argument("--itinerary-adapter", type=Path, required=True)
-    dialogue.add_argument("--max-new-tokens", type=int, default=2048)
+    dialogue.add_argument("--max-new-tokens", type=int)
     schema = commands.add_parser("schema-experiment")
     schema.add_argument("--output-dir", type=Path, required=True)
     schema.add_argument("--endpoint", required=True)
