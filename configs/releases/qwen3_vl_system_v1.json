@@ -4,7 +4,7 @@
   "status": "release_candidate",
   "model": {
     "base_model": "Qwen/Qwen3-VL-8B-Instruct",
-    "base_revision": "60595ebc30ec8e3b1d3b9e65d4943ca011c0006a",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
     "backend": "transformers-peft",
     "adapter_name": "trip-qwen3-vl-8b-unified-v4-fix2",
     "adapter_model_sha256": "ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee",

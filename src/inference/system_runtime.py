@@ -141,6 +141,15 @@ class ReleaseSettings:
         return True, "ok"
 
 
+@dataclass(frozen=True)
+class GenerationResult:
+    """Raw model output and exact token counts for one local generation."""
+
+    content: str
+    input_tokens: int
+    output_tokens: int
+
+
 class OpenAICompatibleBackend:
     """Fail-closed optional backend for a compatible Qwen3-VL server."""
 
@@ -223,6 +232,21 @@ class TransformersPeftBackend:
         response_format: dict[str, Any] | None,
         max_new_tokens: int,
     ) -> str:
+        return self.generate_with_usage(
+            messages,
+            response_format=response_format,
+            max_new_tokens=max_new_tokens,
+        ).content
+
+    def generate_with_usage(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        response_format: dict[str, Any] | None,
+        max_new_tokens: int,
+    ) -> GenerationResult:
+        """Generate once and retain measured input/output token counts."""
+
         del response_format  # Schema is enforced after generation for this backend.
         self._ensure_loaded()
         try:
@@ -247,10 +271,12 @@ class TransformersPeftBackend:
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
             )
+            input_tokens = int(inputs.input_ids.shape[1])
             trimmed = [
                 output[len(input_ids) :]
                 for input_ids, output in zip(inputs.input_ids, generated)
             ]
+            output_tokens = int(trimmed[0].shape[0])
             content = self._processor.batch_decode(
                 trimmed,
                 skip_special_tokens=True,
@@ -260,7 +286,11 @@ class TransformersPeftBackend:
             raise ModelGenerationError("local model generation failed") from exc
         if not content.strip():
             raise ModelGenerationError("model returned empty content")
-        return content
+        return GenerationResult(
+            content=content,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
 
     def _ensure_loaded(self) -> None:
         if self._model is not None:

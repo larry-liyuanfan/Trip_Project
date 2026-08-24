@@ -155,6 +155,19 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("#SBATCH --time=06:00:00", text)
         self.assertNotIn("--gpus=2", text)
 
+    def test_spartan_inference_job_reuses_one_adapter_server(self):
+        text = (
+            ROOT / "scripts/spartan/system_repair_inference.sbatch"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("#SBATCH --gpus=1", text)
+        self.assertIn("#SBATCH --time=06:00:00", text)
+        self.assertIn("src.api.repair_app:app", text)
+        self.assertIn("prompt-pilot", text)
+        self.assertIn("run-week5-repair", text)
+        self.assertIn("merge-week5-repair", text)
+        self.assertNotIn("#SBATCH --array", text)
+
 
 if __name__ == "__main__":
     unittest.main()
