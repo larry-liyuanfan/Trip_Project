@@ -169,6 +169,7 @@ def run_prompt_pilot(
                 )
         else:
             records = []
+            consecutive_failures = 0
             with raw_path.open("x", encoding="utf-8", newline="\n") as handle:
                 for row in core_rows:
                     messages = _render_messages(root, row, spec)
@@ -224,6 +225,15 @@ def run_prompt_pilot(
                     handle.write(
                         json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
                     )
+                    if error is None:
+                        consecutive_failures = 0
+                    else:
+                        consecutive_failures += 1
+                        if consecutive_failures >= 3:
+                            raise PromptPilotError(
+                                "prompt pilot stopped after 3 consecutive model failures: "
+                                f"{error}"
+                            )
         summary = summarize_raw_records(
             root,
             summary_config,

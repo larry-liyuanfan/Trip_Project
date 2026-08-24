@@ -8,6 +8,7 @@ from src.training.system_prompt_pilot import (
     PromptPilotError,
     _prompt_summary_config,
     load_completed_prompt_pilot,
+    run_prompt_pilot,
 )
 from src.training.system_repair import (
     SystemRepairError,
@@ -247,6 +248,11 @@ class SystemRepairTest(unittest.TestCase):
         self.assertTrue(
             config["evaluation"]["dialogue_automatic_gate"]["enabled"]
         )
+
+    def test_prompt_pilot_stops_after_three_consecutive_model_failures(self):
+        source = inspect.getsource(run_prompt_pilot)
+
+        self.assertIn("consecutive_failures >= 3", source)
 
     def test_candidate_selection_binds_best_step_adapter_and_raw_evidence(self):
         with TemporaryDirectory() as tmpdir:

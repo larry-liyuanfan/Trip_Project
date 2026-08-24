@@ -1,5 +1,6 @@
 import hashlib
 import json
+import types
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -19,6 +20,7 @@ from src.inference.system_runtime import (
     ModelGenerationError,
     ReleaseSettings,
     ScenarioService,
+    TransformersPeftBackend,
 )
 
 
@@ -93,6 +95,29 @@ def settings(adapter_path=None, adapter_sha="0" * 64):
 
 
 class SystemRuntimeTest(unittest.TestCase):
+    def test_transformers_backend_preserves_underlying_generation_error(self):
+        backend = TransformersPeftBackend(settings())
+        backend._model = types.SimpleNamespace(device="cpu")
+        backend._processor = types.SimpleNamespace(
+            apply_chat_template=lambda *args, **kwargs: (_ for _ in ()).throw(
+                ValueError("diagnostic failure")
+            )
+        )
+        vision_module = types.SimpleNamespace(
+            process_vision_info=lambda messages: ([], [])
+        )
+
+        with patch.dict("sys.modules", {"qwen_vl_utils": vision_module}):
+            with self.assertRaisesRegex(
+                ModelGenerationError,
+                "ValueError: diagnostic failure",
+            ):
+                backend.generate_with_usage(
+                    [{"role": "user", "content": "test"}],
+                    response_format={"type": "json_object"},
+                    max_new_tokens=8,
+                )
+
     def test_valid_first_output_is_returned_without_retry(self):
         backend = FakeBackend([json.dumps(PRODUCT_OUTPUT, ensure_ascii=False)])
         service = ScenarioService(settings(), backend)

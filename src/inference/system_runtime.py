@@ -283,7 +283,9 @@ class TransformersPeftBackend:
                 clean_up_tokenization_spaces=False,
             )[0]
         except Exception as exc:
-            raise ModelGenerationError("local model generation failed") from exc
+            raise ModelGenerationError(
+                f"local model generation failed: {type(exc).__name__}: {exc}"
+            ) from exc
         if not content.strip():
             raise ModelGenerationError("model returned empty content")
         return GenerationResult(
