@@ -23,7 +23,8 @@ class CoreBehaviorTest(unittest.TestCase):
 
         self.assertEqual(body["status"], "ok")
         self.assertEqual(body["service"], "ota-multimodal-search-planning")
-        self.assertEqual(body["backend"], "vLLM")
+        self.assertEqual(body["backend"], "transformers-peft")
+        self.assertEqual(body["model"], "Qwen/Qwen3-VL-8B-Instruct")
 
     def test_health_endpoint_reports_configured_model_name(self):
         with patch.dict("os.environ", {"VLLM_MODEL_NAME": "Qwen/Qwen2.5-VL-3B-Instruct"}):

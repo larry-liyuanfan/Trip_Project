@@ -48,3 +48,74 @@ class TravelPlanningRequest(BaseModel):
     reviews: list[str] = Field(default_factory=list)
     preferences: dict[str, Any] = Field(default_factory=dict)
 
+
+class TaskRequest(BaseModel):
+    """Input contract shared by the three production scenario endpoints."""
+
+    image_urls: list[str] = Field(min_length=1, max_length=8)
+    text_context: str | None = Field(default=None, max_length=4000)
+
+
+class ModelAttempt(BaseModel):
+    """One immutable raw generation attempt retained for diagnosis."""
+
+    attempt: int
+    raw_output: str
+    error: str | None = None
+    latency_ms: float
+
+
+class TaskResponse(BaseModel):
+    """Validated business result and model provenance."""
+
+    scenario: Literal[
+        "image_product_search",
+        "after_sales",
+        "itinerary_planning",
+    ]
+    result: dict[str, Any]
+    schema_valid: bool
+    prompt_version: str
+    model: str
+    adapter: str
+    release_id: str
+    attempts: list[ModelAttempt]
+    total_latency_ms: float
+
+
+class DialogueTurn(BaseModel):
+    """One bounded dialogue turn supplied by the caller."""
+
+    role: Literal["user", "assistant", "tool"]
+    content: str = Field(min_length=1, max_length=8000)
+
+
+class DialogueRequest(BaseModel):
+    """Caller-managed dialogue history and explicit state."""
+
+    messages: list[DialogueTurn] = Field(min_length=1, max_length=32)
+    image_urls: list[str] = Field(default_factory=list, max_length=8)
+    state: dict[str, Any] = Field(default_factory=dict)
+
+
+class DialogueModelOutput(BaseModel):
+    """Schema enforced on the model's beta dialogue response."""
+
+    reply: str = Field(min_length=1, max_length=8000)
+    state_updates: dict[str, Any] = Field(default_factory=dict)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DialogueResponse(BaseModel):
+    """Validated beta dialogue output with the merged caller-visible state."""
+
+    reply: str
+    state: dict[str, Any]
+    tool_calls: list[dict[str, Any]]
+    quality_tier: Literal["DIALOGUE_BETA"] = "DIALOGUE_BETA"
+    model: str
+    adapter: str
+    release_id: str
+    attempts: list[ModelAttempt]
+    total_latency_ms: float
+
