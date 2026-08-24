@@ -79,6 +79,9 @@ class SystemRepairTest(unittest.TestCase):
         self.assertEqual(config["training"]["learning_rate"], 5e-5)
         self.assertEqual(config["training"]["epochs"], 1)
         self.assertEqual(config["dataset"]["silver_weight"], 0.5)
+        self.assertEqual(
+            config["system_repair"]["prompt_pilot_max_new_tokens"], 512
+        )
         self.assertFalse(config["continuation"]["overwrite_initial_adapter"])
 
     def test_week5_repair_config_locks_observed_failure_breakdown(self):
@@ -181,7 +184,10 @@ class SystemRepairTest(unittest.TestCase):
             prompts = root / "prompts.json"
             output = root / "pilot"
             output.mkdir()
-            config.write_text("{}\n", encoding="utf-8")
+            config.write_text(
+                SYSTEM_CONFIG.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
             prompts.write_text("{}\n", encoding="utf-8")
             identity = {
                 "split": "development",
@@ -195,6 +201,7 @@ class SystemRepairTest(unittest.TestCase):
                 },
                 "endpoint": "in-process://unit-test",
                 "served_model": "unit-test-adapter",
+                "max_new_tokens": 512,
             }
             (output / "pilot_identity.json").write_text(
                 json.dumps(identity), encoding="utf-8"

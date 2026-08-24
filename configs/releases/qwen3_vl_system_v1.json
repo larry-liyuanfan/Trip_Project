@@ -22,7 +22,7 @@
     "itinerary_planning": "v2"
   },
   "generation": {
-    "max_new_tokens": 3072,
+    "max_new_tokens": 512,
     "do_sample": false,
     "temperature": 0.0,
     "max_schema_retries": 1

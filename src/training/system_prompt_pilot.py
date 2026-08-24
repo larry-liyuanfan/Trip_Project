@@ -22,6 +22,13 @@ class PromptPilotError(ValueError):
     """Raised when a prompt pilot is incomplete or attempts to consume test."""
 
 
+def _pilot_max_new_tokens(config: dict[str, Any]) -> int:
+    value = config.get("system_repair", {}).get("prompt_pilot_max_new_tokens")
+    if not isinstance(value, int) or not 1 <= value <= 3072:
+        raise PromptPilotError("prompt_pilot_max_new_tokens must be within 1..3072")
+    return value
+
+
 def _prompt_summary_config(config: dict[str, Any]) -> dict[str, Any]:
     """Score the core-only Prompt pilot without requiring dialogue rows."""
 
@@ -36,12 +43,14 @@ def _validate_pilot_identity(
     candidates_path: Path,
 ) -> None:
     expected_counts = {scenario: 48 for scenario in CORE_SCENARIOS}
+    expected_max_new_tokens = _pilot_max_new_tokens(load_week7_config(config_path))
     if (
         identity.get("split") != "development"
         or identity.get("test_consumed") is not False
         or identity.get("config_sha256") != sha256_file(config_path)
         or identity.get("prompt_candidates_sha256") != sha256_file(candidates_path)
         or identity.get("counts") != expected_counts
+        or identity.get("max_new_tokens") != expected_max_new_tokens
         or not isinstance(identity.get("endpoint"), str)
         or not identity["endpoint"]
         or not isinstance(identity.get("served_model"), str)
@@ -111,6 +120,7 @@ def run_prompt_pilot(
 ) -> dict[str, Any]:
     root = Path(root).resolve()
     config = load_week7_config(config_path)
+    max_new_tokens = _pilot_max_new_tokens(config)
     lock_root = root / config["dataset"]["output_root"] / config["dataset"]["dataset_version"]
     rows = list(iter_jsonl(lock_root / "development.jsonl"))
     core_rows = [row for row in rows if row["scenario"] in CORE_SCENARIOS]
@@ -129,6 +139,7 @@ def run_prompt_pilot(
         "counts": counts,
         "endpoint": endpoint,
         "served_model": served_model,
+        "max_new_tokens": max_new_tokens,
     }
     identity_path = output_dir / "pilot_identity.json"
     if output_dir.exists():
@@ -182,7 +193,7 @@ def run_prompt_pilot(
                             generated = generator(
                                 messages,
                                 response_format={"type": "json_object"},
-                                max_new_tokens=3072,
+                                max_new_tokens=max_new_tokens,
                             )
                             raw_output = generated.content
                             usage = {
@@ -199,7 +210,7 @@ def run_prompt_pilot(
                                     "model": served_model,
                                     "messages": messages,
                                     "temperature": 0.0,
-                                    "max_tokens": 3072,
+                                    "max_tokens": max_new_tokens,
                                     "enable_thinking": False,
                                     "response_format": {"type": "json_object"},
                                 },
@@ -220,6 +231,7 @@ def run_prompt_pilot(
                         "failed": error is not None,
                         "error": error,
                         "usage": usage,
+                        "generation_max_new_tokens": max_new_tokens,
                     }
                     records.append(record)
                     handle.write(
