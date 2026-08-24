@@ -29,6 +29,7 @@ from src.training.system_repair import (
     select_system_repair_candidate,
 )
 from src.training.week7_data import build_week7_lock, load_week7_config, sha256_file
+from src.training.week7_inference import run_system_repair_test_once
 from src.training.week7_qlora import run_multitask_training
 
 
@@ -69,7 +70,12 @@ def parser() -> argparse.ArgumentParser:
     gate.add_argument("--candidate", type=Path, required=True)
     gate.add_argument("--existing", type=Path, required=True)
     gate.add_argument("--zero-shot", type=Path, required=True)
+    gate.add_argument("--selection", type=Path, required=True)
     gate.add_argument("--output", type=Path, required=True)
+    final_test = sub.add_parser("run-final-test")
+    final_test.add_argument("--selection", type=Path, required=True)
+    final_test.add_argument("--gate", type=Path, required=True)
+    final_test.add_argument("--output-dir", type=Path, required=True)
     sub.add_parser("validate-config")
     return command
 
@@ -172,16 +178,39 @@ def main() -> int:
         )
     elif args.command == "evaluate-gates":
         config = load_week7_config(args.config)
+        selection = json.loads(args.selection.read_text(encoding="utf-8"))
+        if (
+            selection.get("status") != "COMPLETED"
+            or selection.get("development_metrics", {}).get("sha256")
+            != sha256_file(args.candidate)
+        ):
+            raise SystemExit("candidate selection does not bind the supplied metrics")
         result = evaluate_system_release_gates(
             config,
             json.loads(args.candidate.read_text(encoding="utf-8")),
             json.loads(args.existing.read_text(encoding="utf-8")),
             json.loads(args.zero_shot.read_text(encoding="utf-8")),
         )
+        result["evidence"] = {
+            "config_sha256": sha256_file(args.config),
+            "selection_sha256": sha256_file(args.selection),
+            "candidate_metrics_sha256": sha256_file(args.candidate),
+            "existing_metrics_sha256": sha256_file(args.existing),
+            "zero_shot_metrics_sha256": sha256_file(args.zero_shot),
+            "adapter_model_sha256": selection["adapter_model_sha256"],
+        }
         args.output.write_text(
             json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
             newline="\n",
+        )
+    elif args.command == "run-final-test":
+        result = run_system_repair_test_once(
+            ROOT,
+            args.config,
+            args.selection,
+            args.gate,
+            args.output_dir,
         )
     else:
         config = load_week7_config(args.config)

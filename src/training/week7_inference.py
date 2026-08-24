@@ -168,6 +168,175 @@ def run_transformers_development(
     return summary
 
 
+def run_system_repair_test_once(
+    root: Path,
+    config_path: Path,
+    selection_path: Path,
+    gate_path: Path,
+    output_dir: Path,
+    *,
+    max_new_tokens: int = 3072,
+) -> dict[str, Any]:
+    """Consume the fresh test split once after the hash-bound development gate."""
+
+    root = Path(root).resolve()
+    config_path = Path(config_path).resolve()
+    selection_path = Path(selection_path).resolve()
+    gate_path = Path(gate_path).resolve()
+    output_dir = Path(output_dir).resolve()
+    if output_dir.exists():
+        raise Week7TrainingError("refusing to overwrite the system-repair test run")
+    config = load_week7_config(config_path)
+    lock_root = root / config["dataset"]["output_root"] / config["dataset"]["dataset_version"]
+    dataset_lock = json.loads((lock_root / "dataset_lock.json").read_text(encoding="utf-8"))
+    if dataset_lock.get("config_sha256") != sha256_file(config_path):
+        raise Week7TrainingError("test config SHA-256 does not match the dataset lock")
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    if (
+        selection.get("status") != "COMPLETED"
+        or selection.get("test_consumed") is not False
+        or gate.get("status") != "PASS"
+        or gate.get("test_consumption_allowed") is not True
+        or gate.get("evidence", {}).get("selection_sha256")
+        != sha256_file(selection_path)
+        or gate.get("evidence", {}).get("candidate_metrics_sha256")
+        != selection.get("development_metrics", {}).get("sha256")
+        or gate.get("evidence", {}).get("adapter_model_sha256")
+        != selection.get("adapter_model_sha256")
+    ):
+        raise Week7TrainingError("system-repair development gate evidence mismatch")
+    adapter_dir = Path(selection["adapter_dir"]).resolve()
+    adapter_hashes = {
+        path.name: sha256_file(path)
+        for path in adapter_dir.iterdir()
+        if path.is_file()
+    }
+    if (
+        adapter_hashes.get("adapter_model.safetensors")
+        != selection["adapter_model_sha256"]
+    ):
+        raise Week7TrainingError("selected system-repair adapter hash changed")
+    _validate_system_candidate_adapter(
+        config,
+        config_path,
+        dataset_lock,
+        adapter_dir,
+        adapter_hashes,
+    )
+    marker_path = lock_root / "system_repair_test_consumption.json"
+    if marker_path.exists():
+        raise Week7TrainingError("system-repair test split has already been consumed")
+    report = environment_report(require_cuda=True)
+    if report["status"] != "ok":
+        raise Week7TrainingError(f"test environment is not ready: {report['status']}")
+    import torch
+    from peft import PeftModel
+    from transformers import AutoProcessor, BitsAndBytesConfig, Qwen3VLForConditionalGeneration
+
+    quant = config["quantization"]
+    model = Qwen3VLForConditionalGeneration.from_pretrained(
+        config["base_model"],
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type=quant["bnb_4bit_quant_type"],
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+        ),
+        torch_dtype=torch.bfloat16,
+        device_map={"": int(os.environ.get("LOCAL_RANK", "0"))},
+        attn_implementation=config["training"]["attn_implementation"],
+    )
+    model = PeftModel.from_pretrained(model, str(adapter_dir), is_trainable=False)
+    processor = AutoProcessor.from_pretrained(config["base_model"])
+
+    # Loading the runtime is reversible; opening the test split is not. Create the
+    # consumption marker atomically immediately before reading any test samples.
+    run_id = config["experiment_identity"]["test_run_id"]
+    marker = {
+        "status": "IN_PROGRESS",
+        "run_id": run_id,
+        "config_sha256": sha256_file(config_path),
+        "dataset_lock_sha256": dataset_lock["lock_sha256"],
+        "selection_sha256": sha256_file(selection_path),
+        "gate_sha256": sha256_file(gate_path),
+        "adapter_model_sha256": selection["adapter_model_sha256"],
+    }
+    output_dir.mkdir(parents=True, exist_ok=False)
+    with marker_path.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(
+            json.dumps(marker, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        )
+    rows = list(iter_jsonl(lock_root / "test.jsonl"))
+    expected = int(config["dataset"]["test_per_core_scenario"]) * 3 + int(
+        config["dataset"]["test_dialogue_count"]
+    )
+    if len(rows) != expected:
+        raise Week7TrainingError("system-repair test support count changed")
+    with inference_runtime(model):
+        records = [
+            generate_training_record(
+                root,
+                model,
+                processor,
+                row,
+                run_id,
+                max_new_tokens,
+                int(config["training"]["max_length"]),
+            )
+            for row in rows
+        ]
+    summary = summarize_raw_records(
+        root,
+        config,
+        rows,
+        records,
+        metric_support_protocol=config["evaluation"].get("metric_support_protocol"),
+    )
+    raw_path = output_dir / "raw_outputs.jsonl"
+    with raw_path.open("x", encoding="utf-8", newline="\n") as handle:
+        for record in records:
+            handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+    summary.update(
+        {
+            "status": "COMPLETED",
+            "run_id": run_id,
+            "model_role": "multitask_candidate",
+            "split": "test",
+            "config_sha256": sha256_file(config_path),
+            "dataset_lock_sha256": dataset_lock["lock_sha256"],
+            "selection_sha256": sha256_file(selection_path),
+            "gate_sha256": sha256_file(gate_path),
+            "adapter_hashes": adapter_hashes,
+            "raw_outputs": {
+                "path": str(raw_path),
+                "sha256": sha256_file(raw_path),
+                "count": len(records),
+            },
+        }
+    )
+    metrics_path = output_dir / "metrics.json"
+    metrics_path.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    marker.update(
+        {
+            "status": "COMPLETED",
+            "output_dir": str(output_dir),
+            "metrics_sha256": sha256_file(metrics_path),
+            "raw_outputs_sha256": sha256_file(raw_path),
+        }
+    )
+    marker_path.write_text(
+        json.dumps(marker, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return summary
+
+
 WEEK6_DIALOGUE_DEVELOPMENT_RUN_ID = "week7_dev_week6_dialogue_routed_20260819_v2"
 WEEK6_COMBINED_DEVELOPMENT_RUN_ID = "week7_dev_week6_adapters_baseline_20260819_v2"
 

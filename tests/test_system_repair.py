@@ -328,6 +328,18 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("--model-role zero_shot", text)
         self.assertNotIn("final-test", text)
 
+    def test_spartan_final_test_is_one_gpu_and_gate_bound(self):
+        text = (
+            ROOT / "scripts/spartan/system_repair_final_test.sbatch"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("#SBATCH --gpus=1", text)
+        self.assertIn("#SBATCH --time=04:00:00", text)
+        self.assertIn("run-final-test", text)
+        self.assertIn("TRIP_SELECTION", text)
+        self.assertIn("TRIP_GATE", text)
+        self.assertNotIn("evaluate-development", text)
+
 
 if __name__ == "__main__":
     unittest.main()
