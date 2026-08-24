@@ -38,6 +38,34 @@ PRODUCT_OUTPUT = {
     "confidence": 0.8,
 }
 
+ITINERARY_OUTPUT = {
+    "style_preferences": [],
+    "hard_constraints": ["2 days"],
+    "soft_constraints": ["public transport"],
+    "required_itinerary_elements": ["daily_schedule"],
+    "itinerary": [
+        {
+            "day_index": 1,
+            "date": None,
+            "summary": "Day 1",
+            "activities": [
+                {
+                    "start_time": None,
+                    "end_time": None,
+                    "place_name": None,
+                    "activity": "Explore",
+                    "transport": "public transport",
+                    "source_evidence": [],
+                }
+            ],
+        }
+    ],
+    "constraint_check": [],
+    "observed_evidence": [],
+    "unknown_fields": [],
+    "confidence": None,
+}
+
 
 class FakeBackend:
     def __init__(self, outputs, ready=True):
@@ -238,6 +266,30 @@ class SystemRuntimeTest(unittest.TestCase):
         self.assertEqual(len(raised.exception.attempts), 2)
         self.assertEqual(raised.exception.attempts[0].raw_output, "not-json")
         self.assertEqual(raised.exception.attempts[1].raw_output, "still-not-json")
+
+    def test_itinerary_retry_uses_minimal_nine_key_contract(self):
+        backend = FakeBackend(
+            [
+                "not-json",
+                json.dumps(ITINERARY_OUTPUT, ensure_ascii=False),
+            ]
+        )
+        service = ScenarioService(settings(), backend)
+
+        result = service.run_task(
+            "itinerary_planning",
+            TaskRequest(
+                image_urls=["https://example.com/trip.jpg"],
+                text_context="2 days, public transport",
+            ),
+        )
+
+        self.assertTrue(result.schema_valid)
+        retry_text = backend.messages[1][-1]["content"]
+        self.assertIn("行程纠错时必须使用以下九键骨架", retry_text)
+        self.assertIn('"itinerary"', retry_text)
+        self.assertIn('"constraint_check":[]', retry_text)
+        self.assertIn("不得在任何 ] 或 } 后插入自然语言", retry_text)
 
     def test_readiness_verifies_adapter_file_hash(self):
         with TemporaryDirectory() as tmpdir:

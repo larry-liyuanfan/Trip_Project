@@ -519,7 +519,12 @@ class ScenarioService:
                 return parsed, attempts
             if attempt_number > self.settings.max_schema_retries:
                 break
-            active_messages = _correction_messages(active_messages, raw, error or "")
+            active_messages = _correction_messages(
+                active_messages,
+                raw,
+                error or "",
+                scenario=scenario,
+            )
         raise ModelGenerationError(
             f"model output failed {scenario} Schema after {len(attempts)} attempts: "
             f"{attempts[-1].error}",
@@ -579,7 +584,22 @@ def _correction_messages(
     messages: list[dict[str, Any]],
     _raw: str,
     error: str,
+    *,
+    scenario: str | None = None,
 ) -> list[dict[str, Any]]:
+    itinerary_contract = ""
+    if scenario == "itinerary_planning":
+        itinerary_contract = (
+            "行程纠错时必须使用以下九键骨架，不得在任何 ] 或 } 后插入自然语言："
+            '{"style_preferences":[],"hard_constraints":[],"soft_constraints":[],'
+            '"required_itinerary_elements":["daily_schedule"],'
+            '"itinerary":[{"day_index":1,"date":null,"summary":"简短摘要",'
+            '"activities":[{"start_time":null,"end_time":null,"place_name":null,'
+            '"activity":"简短活动","transport":null,"source_evidence":[]}]}],'
+            '"constraint_check":[],"observed_evidence":[],"unknown_fields":[],'
+            '"confidence":null}。只替换骨架中的内容值，不改变键、类型或嵌套层级；'
+            "若完整多日内容可能无法闭合，先输出一个 Schema 合法的精简日程。"
+        )
     return [
         *messages,
         {
@@ -593,6 +613,7 @@ def _correction_messages(
                 "若错误包含 maxLength，必须缩短对应字符串；若缺少 required 字段，"
                 "必须从第一个顶层键开始重写完整对象；若 JSON 未闭合，必须从头重写并闭合；"
                 "不得解释、猜测缺失事实或引用本条纠错指令作为证据。"
+                f"{itinerary_contract}"
             ),
         },
     ]
