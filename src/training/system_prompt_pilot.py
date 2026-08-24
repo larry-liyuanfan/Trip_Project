@@ -37,6 +37,29 @@ def _prompt_summary_config(config: dict[str, Any]) -> dict[str, Any]:
     return summary_config
 
 
+def _validate_resumable_prompt_records(
+    records: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+    *,
+    version: str,
+    served_model: str,
+    max_new_tokens: int,
+) -> None:
+    """Require an immutable ordered prefix before appending resumed records."""
+
+    expected_ids = [row["sample_id"] for row in rows]
+    actual_ids = [record.get("sample_id") for record in records]
+    if len(records) > len(rows) or actual_ids != expected_ids[: len(records)]:
+        raise PromptPilotError(f"resumed prompt version prefix changed: {version}")
+    if any(
+        record.get("run_id") != f"system_repair_prompt_pilot_{version}"
+        or record.get("model_name") != served_model
+        or record.get("generation_max_new_tokens") != max_new_tokens
+        for record in records
+    ):
+        raise PromptPilotError(f"resumed prompt version identity changed: {version}")
+
+
 def _validate_pilot_identity(
     identity: dict[str, Any],
     config_path: Path,
@@ -162,27 +185,21 @@ def run_prompt_pilot(
     expected_sample_ids = {row["sample_id"] for row in core_rows}
     for version, spec in versions.items():
         raw_path = output_dir / f"{version}_raw.jsonl"
+        records: list[dict[str, Any]] = []
         if raw_path.exists():
             records = list(iter_jsonl(raw_path))
-            if (
-                len(records) != len(core_rows)
-                or {record.get("sample_id") for record in records}
-                != expected_sample_ids
-                or any(
-                    record.get("run_id")
-                    != f"system_repair_prompt_pilot_{version}"
-                    or record.get("model_name") != served_model
-                    for record in records
-                )
-            ):
-                raise PromptPilotError(
-                    f"resumed prompt version is incomplete or changed: {version}"
-                )
-        else:
-            records = []
+            _validate_resumable_prompt_records(
+                records,
+                core_rows,
+                version=version,
+                served_model=served_model,
+                max_new_tokens=max_new_tokens,
+            )
+        if len(records) < len(core_rows):
             consecutive_failures = 0
-            with raw_path.open("x", encoding="utf-8", newline="\n") as handle:
-                for row in core_rows:
+            mode = "a" if raw_path.exists() else "x"
+            with raw_path.open(mode, encoding="utf-8", newline="\n") as handle:
+                for row in core_rows[len(records) :]:
                     messages = _render_messages(root, row, spec)
                     started = time.perf_counter()
                     error = None
@@ -237,6 +254,7 @@ def run_prompt_pilot(
                     handle.write(
                         json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
                     )
+                    handle.flush()
                     if error is None:
                         consecutive_failures = 0
                     else:
@@ -246,6 +264,12 @@ def run_prompt_pilot(
                                 "prompt pilot stopped after 3 consecutive model failures: "
                                 f"{error}"
                             )
+        if (
+            len(records) != len(core_rows)
+            or {record.get("sample_id") for record in records}
+            != expected_sample_ids
+        ):
+            raise PromptPilotError(f"prompt version is incomplete: {version}")
         summary = summarize_raw_records(
             root,
             summary_config,

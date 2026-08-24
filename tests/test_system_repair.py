@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from src.training.system_prompt_pilot import (
     PromptPilotError,
     _prompt_summary_config,
+    _validate_resumable_prompt_records,
     load_completed_prompt_pilot,
     run_prompt_pilot,
 )
@@ -261,6 +262,34 @@ class SystemRepairTest(unittest.TestCase):
 
         self.assertIn("consecutive_failures >= 3", source)
 
+    def test_prompt_pilot_resume_requires_an_identity_bound_prefix(self):
+        rows = [{"sample_id": "a"}, {"sample_id": "b"}]
+        records = [
+            {
+                "sample_id": "a",
+                "run_id": "system_repair_prompt_pilot_compact_schema_v1",
+                "model_name": "adapter",
+                "generation_max_new_tokens": 512,
+            }
+        ]
+
+        _validate_resumable_prompt_records(
+            records,
+            rows,
+            version="compact_schema_v1",
+            served_model="adapter",
+            max_new_tokens=512,
+        )
+        records[0]["sample_id"] = "b"
+        with self.assertRaises(PromptPilotError):
+            _validate_resumable_prompt_records(
+                records,
+                rows,
+                version="compact_schema_v1",
+                served_model="adapter",
+                max_new_tokens=512,
+            )
+
     def test_candidate_selection_binds_best_step_adapter_and_raw_evidence(self):
         with TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -349,13 +378,13 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("#SBATCH --time=06:00:00", text)
         self.assertNotIn("--gpus=2", text)
 
-    def test_spartan_inference_job_reuses_one_in_process_adapter(self):
+    def test_spartan_inference_job_is_resumable_and_reuses_one_adapter(self):
         text = (
             ROOT / "scripts/spartan/system_repair_inference.sbatch"
         ).read_text(encoding="utf-8")
 
         self.assertIn("#SBATCH --gpus=1", text)
-        self.assertIn("#SBATCH --time=06:00:00", text)
+        self.assertIn("#SBATCH --time=03:00:00", text)
         self.assertIn("run-inference-repair", text)
         self.assertIn("TRIP_ADAPTER_DIR", text)
         self.assertNotIn("uvicorn", text)
