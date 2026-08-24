@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import statistics
 import time
@@ -21,6 +22,34 @@ class PromptPilotError(ValueError):
     """Raised when a prompt pilot is incomplete or attempts to consume test."""
 
 
+def _prompt_summary_config(config: dict[str, Any]) -> dict[str, Any]:
+    """Score the core-only Prompt pilot without requiring dialogue rows."""
+
+    summary_config = copy.deepcopy(config)
+    summary_config["evaluation"]["dialogue_automatic_gate"]["enabled"] = False
+    return summary_config
+
+
+def _validate_pilot_identity(
+    identity: dict[str, Any],
+    config_path: Path,
+    candidates_path: Path,
+) -> None:
+    expected_counts = {scenario: 48 for scenario in CORE_SCENARIOS}
+    if (
+        identity.get("split") != "development"
+        or identity.get("test_consumed") is not False
+        or identity.get("config_sha256") != sha256_file(config_path)
+        or identity.get("prompt_candidates_sha256") != sha256_file(candidates_path)
+        or identity.get("counts") != expected_counts
+        or not isinstance(identity.get("endpoint"), str)
+        or not identity["endpoint"]
+        or not isinstance(identity.get("served_model"), str)
+        or not identity["served_model"]
+    ):
+        raise PromptPilotError("prompt pilot identity is invalid")
+
+
 def load_completed_prompt_pilot(
     config_path: Path,
     candidates_path: Path,
@@ -29,8 +58,16 @@ def load_completed_prompt_pilot(
     """Validate and return an immutable completed pilot for safe resume."""
 
     selection_path = Path(output_dir) / "selection.json"
+    identity_path = Path(output_dir) / "pilot_identity.json"
     if not selection_path.is_file():
         raise PromptPilotError("resumed prompt pilot has no selection.json")
+    if not identity_path.is_file():
+        raise PromptPilotError("resumed prompt pilot has no pilot_identity.json")
+    _validate_pilot_identity(
+        json.loads(identity_path.read_text(encoding="utf-8")),
+        config_path,
+        candidates_path,
+    )
     result = json.loads(selection_path.read_text(encoding="utf-8"))
     if (
         result.get("status") != "COMPLETED"
@@ -70,6 +107,7 @@ def run_prompt_pilot(
     served_model: str,
     timeout_seconds: int = 300,
     generator: Callable[..., GenerationResult] | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     root = Path(root).resolve()
     config = load_week7_config(config_path)
@@ -83,74 +121,120 @@ def run_prompt_pilot(
     versions = candidates.get("versions", {})
     if set(versions) != {"current_week7", "compact_schema_v1", "evidence_state_v1"}:
         raise PromptPilotError("prompt candidate identities changed")
+    identity = {
+        "split": "development",
+        "test_consumed": False,
+        "config_sha256": sha256_file(config_path),
+        "prompt_candidates_sha256": sha256_file(candidates_path),
+        "counts": counts,
+        "endpoint": endpoint,
+        "served_model": served_model,
+    }
+    identity_path = output_dir / "pilot_identity.json"
     if output_dir.exists():
-        raise PromptPilotError(f"prompt pilot output already exists: {output_dir}")
-    output_dir.mkdir(parents=True)
+        if not resume or not identity_path.is_file():
+            raise PromptPilotError(f"prompt pilot output already exists: {output_dir}")
+        stored_identity = json.loads(identity_path.read_text(encoding="utf-8"))
+        _validate_pilot_identity(stored_identity, config_path, candidates_path)
+        if stored_identity != identity:
+            raise PromptPilotError("resumed prompt pilot runtime identity changed")
+    else:
+        output_dir.mkdir(parents=True)
+        identity_path.write_text(
+            json.dumps(identity, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
     session = requests.Session()
     summaries: dict[str, Any] = {}
+    summary_config = _prompt_summary_config(config)
+    expected_sample_ids = {row["sample_id"] for row in core_rows}
     for version, spec in versions.items():
-        records = []
         raw_path = output_dir / f"{version}_raw.jsonl"
-        with raw_path.open("x", encoding="utf-8", newline="\n") as handle:
-            for row in core_rows:
-                messages = _render_messages(root, row, spec)
-                started = time.perf_counter()
-                error = None
-                raw_output = ""
-                usage = {}
-                try:
-                    if generator is not None:
-                        generated = generator(
-                            messages,
-                            response_format={"type": "json_object"},
-                            max_new_tokens=3072,
-                        )
-                        raw_output = generated.content
-                        usage = {
-                            "prompt_tokens": generated.input_tokens,
-                            "completion_tokens": generated.output_tokens,
-                            "total_tokens": (
-                                generated.input_tokens + generated.output_tokens
-                            ),
-                        }
-                    else:
-                        response = session.post(
-                            endpoint,
-                            json={
-                                "model": served_model,
-                                "messages": messages,
-                                "temperature": 0.0,
-                                "max_tokens": 3072,
-                                "enable_thinking": False,
-                                "response_format": {"type": "json_object"},
-                            },
-                            timeout=timeout_seconds,
-                        )
-                        response.raise_for_status()
-                        payload = response.json()
-                        raw_output = payload["choices"][0]["message"]["content"]
-                        usage = payload.get("usage") or {}
-                except Exception as exc:
-                    error = f"{type(exc).__name__}: {exc}"
-                record = {
-                    "sample_id": row["sample_id"],
-                    "run_id": f"system_repair_prompt_pilot_{version}",
-                    "model_name": served_model,
-                    "raw_output": raw_output,
-                    "latency_ms": (time.perf_counter() - started) * 1000,
-                    "failed": error is not None,
-                    "error": error,
-                    "usage": usage,
-                }
-                records.append(record)
-                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+        if raw_path.exists():
+            records = list(iter_jsonl(raw_path))
+            if (
+                len(records) != len(core_rows)
+                or {record.get("sample_id") for record in records}
+                != expected_sample_ids
+                or any(
+                    record.get("run_id")
+                    != f"system_repair_prompt_pilot_{version}"
+                    or record.get("model_name") != served_model
+                    for record in records
+                )
+            ):
+                raise PromptPilotError(
+                    f"resumed prompt version is incomplete or changed: {version}"
+                )
+        else:
+            records = []
+            with raw_path.open("x", encoding="utf-8", newline="\n") as handle:
+                for row in core_rows:
+                    messages = _render_messages(root, row, spec)
+                    started = time.perf_counter()
+                    error = None
+                    raw_output = ""
+                    usage = {}
+                    try:
+                        if generator is not None:
+                            generated = generator(
+                                messages,
+                                response_format={"type": "json_object"},
+                                max_new_tokens=3072,
+                            )
+                            raw_output = generated.content
+                            usage = {
+                                "prompt_tokens": generated.input_tokens,
+                                "completion_tokens": generated.output_tokens,
+                                "total_tokens": (
+                                    generated.input_tokens + generated.output_tokens
+                                ),
+                            }
+                        else:
+                            response = session.post(
+                                endpoint,
+                                json={
+                                    "model": served_model,
+                                    "messages": messages,
+                                    "temperature": 0.0,
+                                    "max_tokens": 3072,
+                                    "enable_thinking": False,
+                                    "response_format": {"type": "json_object"},
+                                },
+                                timeout=timeout_seconds,
+                            )
+                            response.raise_for_status()
+                            payload = response.json()
+                            raw_output = payload["choices"][0]["message"]["content"]
+                            usage = payload.get("usage") or {}
+                    except Exception as exc:
+                        error = f"{type(exc).__name__}: {exc}"
+                    record = {
+                        "sample_id": row["sample_id"],
+                        "run_id": f"system_repair_prompt_pilot_{version}",
+                        "model_name": served_model,
+                        "raw_output": raw_output,
+                        "latency_ms": (time.perf_counter() - started) * 1000,
+                        "failed": error is not None,
+                        "error": error,
+                        "usage": usage,
+                    }
+                    records.append(record)
+                    handle.write(
+                        json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
+                    )
         summary = summarize_raw_records(
             root,
-            config,
+            summary_config,
             core_rows,
             records,
             metric_support_protocol=config["evaluation"].get("metric_support_protocol"),
         )
+        if float(summary["failure_rate"]) > 0.02:
+            raise PromptPilotError(
+                f"prompt version request failure rate exceeds 2%: {version}"
+            )
         summary["prompt_version"] = version
         summary["raw_sha256"] = sha256_file(raw_path)
         summaries[version] = summary

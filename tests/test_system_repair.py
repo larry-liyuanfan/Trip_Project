@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 
 from src.training.system_prompt_pilot import (
     PromptPilotError,
+    _prompt_summary_config,
     load_completed_prompt_pilot,
 )
 from src.training.system_repair import (
@@ -181,6 +182,22 @@ class SystemRepairTest(unittest.TestCase):
             output.mkdir()
             config.write_text("{}\n", encoding="utf-8")
             prompts.write_text("{}\n", encoding="utf-8")
+            identity = {
+                "split": "development",
+                "test_consumed": False,
+                "config_sha256": sha256_file(config),
+                "prompt_candidates_sha256": sha256_file(prompts),
+                "counts": {
+                    "image_product_search": 48,
+                    "after_sales": 48,
+                    "itinerary_planning": 48,
+                },
+                "endpoint": "in-process://unit-test",
+                "served_model": "unit-test-adapter",
+            }
+            (output / "pilot_identity.json").write_text(
+                json.dumps(identity), encoding="utf-8"
+            )
             summaries = {}
             for version in versions:
                 raw = output / f"{version}_raw.jsonl"
@@ -218,6 +235,18 @@ class SystemRepairTest(unittest.TestCase):
                 handle.write("{}\n")
             with self.assertRaises(PromptPilotError):
                 load_completed_prompt_pilot(config, prompts, output)
+
+    def test_prompt_pilot_core_scoring_does_not_disable_release_dialogue_gate(self):
+        config = load_week7_config(SYSTEM_CONFIG)
+
+        pilot_config = _prompt_summary_config(config)
+
+        self.assertFalse(
+            pilot_config["evaluation"]["dialogue_automatic_gate"]["enabled"]
+        )
+        self.assertTrue(
+            config["evaluation"]["dialogue_automatic_gate"]["enabled"]
+        )
 
     def test_candidate_selection_binds_best_step_adapter_and_raw_evidence(self):
         with TemporaryDirectory() as tmpdir:

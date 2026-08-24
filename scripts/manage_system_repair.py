@@ -111,7 +111,11 @@ def main() -> int:
         settings = ReleaseSettings.load(root=ROOT)
         backend = TransformersPeftBackend(settings)
         service = ScenarioService(settings, backend)
-        if args.output_dir.exists() and args.resume:
+        if (
+            args.output_dir.exists()
+            and args.resume
+            and (args.output_dir / "selection.json").is_file()
+        ):
             pilot_result = load_completed_prompt_pilot(
                 args.config,
                 DEFAULT_PROMPTS,
@@ -126,6 +130,7 @@ def main() -> int:
                 endpoint="in-process://transformers-peft",
                 served_model=settings.adapter_name,
                 generator=backend.generate_with_usage,
+                resume=args.resume,
             )
         repair_result = run_week5_repair_queue(
             ROOT,
