@@ -1,4 +1,5 @@
 import json
+import hashlib
 import tarfile
 import unittest
 from pathlib import Path
@@ -83,6 +84,18 @@ class SystemPackageTest(unittest.TestCase):
             (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
             (retrieval / "vectors.npz").write_bytes(b"vectors")
             evidence.write_text("observed evidence", encoding="utf-8")
+            release = workspace / "release_config.json"
+            release.write_text(
+                json.dumps(
+                    {
+                        "release_id": "test-release",
+                        "model": {
+                            "adapter_model_sha256": hashlib.sha256(b"adapter").hexdigest()
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
             output = workspace / "release"
             with patch.object(build_release_bundle, "RUNTIME_PATHS", ["README.md"]):
                 manifest = build_release_bundle.build_bundle(
@@ -90,6 +103,7 @@ class SystemPackageTest(unittest.TestCase):
                     adapter_dir=adapter,
                     retrieval_dir=retrieval,
                     evidence_paths=[evidence],
+                    release_config=release,
                 )
 
             saved = json.loads(
@@ -97,6 +111,7 @@ class SystemPackageTest(unittest.TestCase):
             )
             self.assertEqual(set(manifest["layers"]), {"runtime", "adapter", "retrieval", "evidence"})
             self.assertEqual(saved["visibility"], "private")
+            self.assertEqual(saved["release"]["release_id"], "test-release")
             with tarfile.open(output / "adapter.tar.gz", "r:gz") as archive:
                 self.assertIn("adapter/adapter_model.safetensors", archive.getnames())
 
@@ -108,6 +123,34 @@ class SystemPackageTest(unittest.TestCase):
                 "size mismatch|SHA-256 mismatch",
             ):
                 upload_release_oss.verify_release_dir(output)
+
+    def test_release_builder_rejects_adapter_not_bound_to_config(self):
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            adapter = workspace / "adapter"
+            retrieval = workspace / "retrieval"
+            adapter.mkdir()
+            retrieval.mkdir()
+            (adapter / "adapter_model.safetensors").write_bytes(b"wrong")
+            release = workspace / "release.json"
+            release.write_text(
+                json.dumps(
+                    {
+                        "release_id": "test-release",
+                        "model": {"adapter_model_sha256": "0" * 64},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                build_release_bundle.build_bundle(
+                    workspace / "output",
+                    adapter_dir=adapter,
+                    retrieval_dir=retrieval,
+                    evidence_paths=[],
+                    release_config=release,
+                )
 
     def test_tripctl_validate_rejects_wrong_model(self):
         with TemporaryDirectory() as tmpdir:

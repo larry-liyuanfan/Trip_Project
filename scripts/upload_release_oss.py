@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+import tarfile
 import tempfile
 from pathlib import Path
 
@@ -25,6 +26,14 @@ def verify_release_dir(release_dir: Path) -> dict:
         != {"runtime", "adapter", "retrieval", "evidence"}
     ):
         raise ReleaseVerificationError("release manifest identity is invalid")
+    release = manifest.get("release", {})
+    if (
+        not release.get("release_id")
+        or not release.get("config_member")
+        or len(str(release.get("config_sha256", ""))) != 64
+        or len(str(release.get("adapter_model_sha256", ""))) != 64
+    ):
+        raise ReleaseVerificationError("release model identity is invalid")
     for name, expected in manifest["layers"].items():
         path = Path(release_dir) / str(expected.get("file", ""))
         if not path.is_file():
@@ -33,7 +42,36 @@ def verify_release_dir(release_dir: Path) -> dict:
             raise ReleaseVerificationError(f"release layer size mismatch: {name}")
         if _sha256(path) != expected.get("sha256"):
             raise ReleaseVerificationError(f"release layer SHA-256 mismatch: {name}")
+    _verify_embedded_release(release_dir, manifest)
     return manifest
+
+
+def _verify_embedded_release(release_dir: Path, manifest: dict) -> None:
+    release = manifest["release"]
+    try:
+        with tarfile.open(release_dir / manifest["layers"]["runtime"]["file"], "r:gz") as archive:
+            config_handle = archive.extractfile(release["config_member"])
+            if config_handle is None:
+                raise ReleaseVerificationError("embedded release config is missing")
+            config_bytes = config_handle.read()
+        config = json.loads(config_bytes.decode("utf-8"))
+        if hashlib.sha256(config_bytes).hexdigest() != release["config_sha256"]:
+            raise ReleaseVerificationError("embedded release config SHA-256 mismatch")
+        if (
+            config.get("release_id") != release["release_id"]
+            or config.get("model", {}).get("adapter_model_sha256")
+            != release["adapter_model_sha256"]
+        ):
+            raise ReleaseVerificationError("embedded release identity mismatch")
+        with tarfile.open(release_dir / manifest["layers"]["adapter"]["file"], "r:gz") as archive:
+            adapter_handle = archive.extractfile("adapter/adapter_model.safetensors")
+            if adapter_handle is None:
+                raise ReleaseVerificationError("packaged adapter model is missing")
+            adapter_sha = _sha256_handle(adapter_handle)
+        if adapter_sha != release["adapter_model_sha256"]:
+            raise ReleaseVerificationError("packaged adapter SHA-256 mismatch")
+    except (OSError, KeyError, tarfile.TarError, json.JSONDecodeError) as exc:
+        raise ReleaseVerificationError("release archive identity is invalid") from exc
 
 
 def upload_and_verify(release_dir: Path, destination: str) -> dict:
@@ -83,6 +121,13 @@ def _sha256(path: Path) -> str:
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sha256_handle(handle) -> str:
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        digest.update(chunk)
     return digest.hexdigest()
 
 

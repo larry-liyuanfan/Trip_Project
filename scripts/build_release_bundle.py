@@ -11,6 +11,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_RELEASE_CONFIG = ROOT / "configs/releases/qwen3_vl_system_v1.json"
 RUNTIME_PATHS = [
     "src/api",
     "src/inference",
@@ -34,14 +35,25 @@ def build_bundle(
     adapter_dir: Path,
     retrieval_dir: Path,
     evidence_paths: list[Path],
+    release_config: Path = DEFAULT_RELEASE_CONFIG,
 ) -> dict:
+    release_config = Path(release_config).resolve()
+    adapter_dir = Path(adapter_dir).resolve()
+    release = json.loads(release_config.read_text(encoding="utf-8"))
+    adapter_model = adapter_dir / "adapter_model.safetensors"
+    expected_adapter_sha = release.get("model", {}).get("adapter_model_sha256")
+    if not adapter_model.is_file() or _sha256(adapter_model) != expected_adapter_sha:
+        raise ValueError("adapter does not match the release config SHA-256")
     if output_dir.exists():
         raise FileExistsError(f"release output already exists: {output_dir}")
     output_dir.mkdir(parents=True)
     layers = {
         "runtime": _archive(
             output_dir / "runtime.tar.gz",
-            [(ROOT / path, Path(path)) for path in RUNTIME_PATHS],
+            [
+                *((ROOT / path, Path(path)) for path in RUNTIME_PATHS),
+                (release_config, Path("release/release_config.json")),
+            ],
         ),
         "adapter": _archive(
             output_dir / "adapter.tar.gz",
@@ -59,6 +71,12 @@ def build_bundle(
     manifest = {
         "schema_version": "private_oss_release_v1",
         "visibility": "private",
+        "release": {
+            "release_id": release.get("release_id"),
+            "config_member": "release/release_config.json",
+            "config_sha256": _sha256(release_config),
+            "adapter_model_sha256": expected_adapter_sha,
+        },
         "layers": layers,
     }
     manifest_path = output_dir / "release_manifest.json"
@@ -118,6 +136,7 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--adapter-dir", required=True, type=Path)
     parser.add_argument("--retrieval-dir", required=True, type=Path)
+    parser.add_argument("--release-config", default=DEFAULT_RELEASE_CONFIG, type=Path)
     parser.add_argument("--evidence", action="append", default=[], type=Path)
     args = parser.parse_args()
     manifest = build_bundle(
@@ -125,6 +144,7 @@ def main() -> None:
         adapter_dir=args.adapter_dir,
         retrieval_dir=args.retrieval_dir,
         evidence_paths=args.evidence,
+        release_config=args.release_config,
     )
     print(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True))
 
