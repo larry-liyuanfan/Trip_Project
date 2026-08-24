@@ -157,7 +157,15 @@ def run_transformers_development(
                     int(config["training"]["max_length"]),
                 )
             )
-    summary = summarize_raw_records(root, config, rows, records)
+    summary = summarize_raw_records(
+        root,
+        config,
+        rows,
+        records,
+        metric_support_protocol=config["evaluation"].get(
+            "metric_support_protocol"
+        ),
+    )
     summary.update({
         "status": "COMPLETED", "run_id": run_id, "model_role": model_role,
         "config_sha256": sha256_file(config_path), "dataset_lock_sha256": dataset_lock["lock_sha256"],

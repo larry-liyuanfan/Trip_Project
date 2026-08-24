@@ -1,3 +1,4 @@
+import inspect
 import json
 import unittest
 from pathlib import Path
@@ -15,6 +16,7 @@ from src.training.system_repair import (
     select_system_repair_candidate,
 )
 from src.training.week7_data import _product_target, load_week7_config, sha256_file
+from src.training.week7_inference import run_transformers_development
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -327,6 +329,14 @@ class SystemRepairTest(unittest.TestCase):
         self.assertIn("--model-role multitask_existing", text)
         self.assertIn("--model-role zero_shot", text)
         self.assertNotIn("final-test", text)
+
+    def test_development_baselines_use_candidate_metric_support_protocol(self):
+        source = inspect.getsource(run_transformers_development)
+
+        self.assertIn(
+            'metric_support_protocol=config["evaluation"].get(',
+            source,
+        )
 
     def test_spartan_final_test_is_one_gpu_and_gate_bound(self):
         text = (
