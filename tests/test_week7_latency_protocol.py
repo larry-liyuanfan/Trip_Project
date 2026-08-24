@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import unittest
 from contextlib import nullcontext
@@ -9,7 +10,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from src.evaluation.metrics import WEEK7_GOLD_EVALUABLE_SUPPORT_PROTOCOL
-from src.training.week7_data import iter_jsonl, load_week7_config, sha256_file
+from src.training.week7_data import (
+    canonical_sha256,
+    iter_jsonl,
+    load_week7_config,
+    sha256_file,
+)
 from src.training.week7_evaluation import summarize_raw_records
 from src.training.week7_latency_protocol import validate_latency_protocol_v4
 from src.training.week7_qlora import Week7TrainingError
@@ -23,10 +29,6 @@ from src.training.week7_runtime import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v3.json"
-DEVELOPMENT = (
-    ROOT / "outputs/week7/locked_data/week7_fresh_multitask_context_20260820_v3"
-    / "development.jsonl"
-)
 
 
 class _Flag:
@@ -138,17 +140,82 @@ class Week7LatencyProtocolTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
+        previous = json.loads(
+            (ROOT / "configs/week7/evaluation_protocol_v4.json").read_text(
+                encoding="utf-8"
+            )
+        )
         self.assertEqual(payload["schema_version"], "week7_evaluation_protocol_v5")
         self.assertFalse(payload["dataset"]["test_allowed"])
-        self.assertEqual(payload["dataset"]["development_sha256"], sha256_file(DEVELOPMENT))
+        self.assertEqual(payload["dataset"], previous["dataset"])
         self.assertEqual(payload["inference_precision"], "bf16")
         self.assertEqual(payload["generation"]["cache_implementation"], "static")
         self.assertEqual(payload["timing"]["protocol"], LATENCY_PROTOCOL_V5_VERSION)
         self.assertEqual(payload["max_latency_ratio"], 1.25)
 
-    def _write_protocol(self, root: Path) -> tuple[Path, Path, Path]:
-        config = load_week7_config(CONFIG)
-        rows = list(iter_jsonl(DEVELOPMENT))
+    def _write_fixture(self, root: Path) -> tuple[Path, Path, Path]:
+        config_payload = json.loads(CONFIG.read_text(encoding="utf-8"))
+        config_payload["dataset"]["dataset_version"] = "unit_latency_fixture_v1"
+        config_payload["dataset"]["output_root"] = "outputs/week7/locked_data"
+        config_path = root / "configs/week7/unit_latency_fixture.json"
+        config_path.parent.mkdir(parents=True)
+        shutil.copytree(
+            ROOT / "configs/evaluation",
+            root / "configs/evaluation",
+        )
+        config_path.write_text(
+            json.dumps(config_payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        lock_root = (
+            root
+            / config_payload["dataset"]["output_root"]
+            / config_payload["dataset"]["dataset_version"]
+        )
+        lock_root.mkdir(parents=True)
+        development = lock_root / "development.jsonl"
+        target = {
+            "business_category": "restaurant",
+            "style_tags": ["modern"],
+            "visible_facilities": ["indoor_seating"],
+            "price_range": "mid_range",
+            "observed_evidence": ["tables are visible"],
+            "inferred_attributes": [],
+            "unknown_fields": [],
+            "confidence": 0.9,
+        }
+        row = {
+            "sample_id": "unit-development-product-1",
+            "scenario": "image_product_search",
+            "split": "development",
+            "target": target,
+        }
+        development.write_text(
+            json.dumps(row, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        lock = {
+            "dataset_version": config_payload["dataset"]["dataset_version"],
+            "config_sha256": sha256_file(config_path),
+            "files": {
+                "development.jsonl": {
+                    "count": 1,
+                    "sha256": sha256_file(development),
+                }
+            },
+        }
+        lock["lock_sha256"] = canonical_sha256(lock)
+        lock_path = lock_root / "dataset_lock.json"
+        lock_path.write_text(
+            json.dumps(lock, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return config_path, development, lock_path
+
+    def _write_protocol(self, root: Path) -> tuple[Path, Path, Path, Path, Path]:
+        config_path, development, dataset_lock_path = self._write_fixture(root)
+        config = load_week7_config(config_path)
+        rows = list(iter_jsonl(development))
         run_id = "unit_protocol_v4"
         training_dir = root / "training"
         checkpoint = training_dir / "checkpoint-76"
@@ -193,7 +260,6 @@ class Week7LatencyProtocolTests(unittest.TestCase):
         }
         baseline_evidence = root / "baseline-evidence.json"
         baseline_evidence.write_text("{}", encoding="utf-8")
-        dataset_lock_path = DEVELOPMENT.parent / "dataset_lock.json"
         dataset_lock = json.loads(dataset_lock_path.read_text(encoding="utf-8"))
         order = [
             "week6_image_product_search", "week6_after_sales",
@@ -204,13 +270,13 @@ class Week7LatencyProtocolTests(unittest.TestCase):
             "schema_version": "week7_evaluation_protocol_v4",
             "run_id": run_id,
             "base_config": {
-                "path": "configs/week7/qwen3_vl_8b_multitask_context_v3.json",
-                "sha256": sha256_file(CONFIG),
+                "path": "configs/week7/unit_latency_fixture.json",
+                "sha256": sha256_file(config_path),
             },
             "dataset": {
                 "version": config["dataset"]["dataset_version"],
                 "lock_sha256": dataset_lock["lock_sha256"],
-                "development_sha256": sha256_file(DEVELOPMENT),
+                "development_sha256": sha256_file(development),
                 "development_count": len(rows),
                 "test_allowed": False,
             },
@@ -323,7 +389,7 @@ class Week7LatencyProtocolTests(unittest.TestCase):
             "status": "COMPLETED", "latency_protocol": LATENCY_PROTOCOL_VERSION,
             "run_id": run_id, "protocol_config_path": str(protocol_config),
             "protocol_config_sha256": sha256_file(protocol_config),
-            "config_sha256": sha256_file(CONFIG),
+            "config_sha256": sha256_file(config_path),
             "dataset_lock_path": str(dataset_lock_path.resolve()),
             "dataset_lock_sha256": dataset_lock["lock_sha256"],
             "training_summary_path": str(training_summary.resolve()),
@@ -335,8 +401,8 @@ class Week7LatencyProtocolTests(unittest.TestCase):
             "execution_order": json.loads(protocol_config.read_text())
             ["timing"]["sequential_model_order"],
             "max_new_tokens": 2048, "warmup_max_new_tokens": 1,
-            "development_path": str(DEVELOPMENT),
-            "development_sha256": sha256_file(DEVELOPMENT),
+            "development_path": str(development.resolve()),
+            "development_sha256": sha256_file(development),
             "development_count": len(rows),
             "source_candidates": source_candidates,
             "source_week6_raw_outputs": source_week6,
@@ -351,14 +417,14 @@ class Week7LatencyProtocolTests(unittest.TestCase):
         }
         path = root / "protocol_summary.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
-        return path, training_summary, baseline
+        return path, training_summary, baseline, config_path, development
 
     def test_protocol_validator_recomputes_metrics_and_rejects_raw_tamper(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            protocol, training, baseline = self._write_protocol(root)
+            protocol, training, baseline, config_path, _ = self._write_protocol(root)
             result = validate_latency_protocol_v4(
-                protocol, config_path=CONFIG,
+                protocol, config_path=config_path,
                 training_summary_path=training, week6_baseline_path=baseline,
             )
             self.assertEqual(result["latency_comparison"]["76"]["latency_ratio"], 1.26)
@@ -366,17 +432,17 @@ class Week7LatencyProtocolTests(unittest.TestCase):
             raw_path.write_text(raw_path.read_text(encoding="utf-8") + "{}\n", encoding="utf-8")
             with self.assertRaisesRegex(Week7TrainingError, "artifact mismatch"):
                 validate_latency_protocol_v4(
-                    protocol, config_path=CONFIG,
+                    protocol, config_path=config_path,
                     training_summary_path=training, week6_baseline_path=baseline,
                 )
 
     def test_protocol_validator_rejects_alternate_development_path(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            protocol, training, baseline = self._write_protocol(root)
+            protocol, training, baseline, config_path, development = self._write_protocol(root)
             payload = json.loads(protocol.read_text(encoding="utf-8"))
             alternate = root / "alternate-development.jsonl"
-            alternate.write_bytes(DEVELOPMENT.read_bytes())
+            alternate.write_bytes(development.read_bytes())
             payload["development_path"] = str(alternate.resolve())
             payload["development_sha256"] = sha256_file(alternate)
             protocol.write_text(json.dumps(payload), encoding="utf-8")
@@ -384,7 +450,7 @@ class Week7LatencyProtocolTests(unittest.TestCase):
                 Week7TrainingError, "canonical development binding",
             ):
                 validate_latency_protocol_v4(
-                    protocol, config_path=CONFIG,
+                    protocol, config_path=config_path,
                     training_summary_path=training, week6_baseline_path=baseline,
                 )
 
