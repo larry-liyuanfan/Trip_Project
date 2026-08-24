@@ -25,6 +25,8 @@ from src.training.week7_data import (
     write_jsonl_new,
 )
 from src.training.week7_evaluation import (
+    Week7EvaluationError,
+    evaluate_dialogue_automatic_gate,
     summarize_dialogue_raw_records,
     valid_check_constraints_tool_call,
 )
@@ -775,6 +777,8 @@ def _comparison(config: dict[str, Any], roles: dict[str, dict[str, Any]]) -> dic
         "initial_task_stable_value_accuracy",
         "anchor_retention",
         "tool_protocol_compliance",
+        "sequential_protocol_coverage",
+        "sequential_semantic_accuracy",
     )
     available_optional_metrics = {
         metric_name
@@ -809,45 +813,12 @@ def _comparison(config: dict[str, Any], roles: dict[str, dict[str, Any]]) -> dic
                 "absolute_change": candidate - baseline,
                 "relative_change": _relative_change(candidate, baseline),
             }
-    gate = config["evaluation"]["dialogue_automatic_gate"]
-    dialogue = roles["multitask"]["dialogue"]
-    checks = {
-        "format_compliance": float(dialogue["format_compliance"])
-        >= float(gate["minimum_format_compliance"]),
-        "context_recall": float(dialogue["context_recall"])
-        >= float(gate["minimum_context_recall"]),
-        "context_state_value_accuracy": float(dialogue["context_state_value_accuracy"])
-        >= float(gate["minimum_context_state_value_accuracy"]),
-        "task_result_key_coverage": float(dialogue["task_result_key_coverage"])
-        >= float(gate["minimum_task_result_key_coverage"]),
-        "task_result_value_accuracy": float(dialogue["task_result_value_accuracy"])
-        >= float(gate["minimum_task_result_value_accuracy"]),
-        "sequential_turn_coverage": float(dialogue["sequential_turn_coverage"])
-        >= float(gate["minimum_sequential_turn_coverage"]),
-        "sequential_turn_failure_rate": float(
-            dialogue["sequential_turn_failure_rate"]
-        ) <= float(gate["maximum_sequential_turn_failure_rate"]),
-        "automatic_composite": float(dialogue["automatic_composite"])
-        >= float(gate["minimum_automatic_composite"]),
-        "failure_rate": float(roles["multitask"]["failure_rate"])
-        <= float(gate["maximum_failure_rate"]),
-    }
-    optional_minimum_checks = {
-        "initial_task_stable_value_accuracy": (
-            "minimum_initial_task_stable_value_accuracy"
-        ),
-        "anchor_retention": "minimum_anchor_retention",
-        "tool_protocol_compliance": "minimum_tool_protocol_compliance",
-    }
-    for metric_name, threshold_name in optional_minimum_checks.items():
-        if threshold_name in gate:
-            if metric_name not in available_optional_metrics:
-                raise Week7TrainingError(
-                    f"configured dialogue gate metric is unavailable: {metric_name}"
-                )
-            checks[metric_name] = float(dialogue[metric_name]) >= float(
-                gate[threshold_name]
-            )
+    try:
+        checks = evaluate_dialogue_automatic_gate(
+            config, roles["multitask"]
+        )["checks"]
+    except Week7EvaluationError as exc:
+        raise Week7TrainingError(str(exc)) from exc
     return {
         "status": "PASS" if all(checks.values()) else "FAIL",
         "gate_checks": checks,

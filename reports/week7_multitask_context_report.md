@@ -1,10 +1,32 @@
 # Week 7 多任务混合微调与上下文搭建执行报告
 
-终态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID / V4_FIX1_DEVELOPMENT_GATE_FAILED_TEST_UNCONSUMED`。
+当前状态：`CORE_AUTOMATED_ACCEPTED / CORRECTED_DIALOGUE_DEV_HUMAN_COMPARISON_COMPLETED / V3_TEST_DIALOGUE_INVALID / V4_FIX1_DEVELOPMENT_GATE_FAILED_TEST_UNCONSUMED / V4_FIX2_LOCKED_PENDING_GPU`。
 三个核心场景通过唯一一次正式 test 的自动非回退门禁；后续审计发现 v3 多轮上下文构造
 错位，对话自动指标只保留为历史输出，不作为真实多轮能力结论。独立 development-only
 修复身份和新 raw 已恢复可信人工评分入口，真实单人操作者随后分别完成 multitask 与
 Week 6 routed 各 24/24 条四维评分。
+
+## Corrected-dialogue v4 fix2 门禁修复
+
+fix1 的 selector 正确执行，但评分和训练目标存在两个实现缺陷：嵌套 JSON 使用顶层对象
+全等比较，局部错误会把整块计为 0；自由文本轮次还把 Yelp 主观 caption 当作逐字视觉
+金标。训练 early stopping 使用 `eval_weighted_composite`，而最终 selector 使用自动硬
+门禁，导致 sequential 门禁在早停目标中的实际权重过低。这些问题与模型自身存在的
+商品识别错误同时成立，不能通过直接降低 0.75 阈值解决。
+
+fix2 配置为 `configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json`。新协议
+`gate_aligned_v2` 按叶子字段计算稳定结构值，排除自由文本 evidence 的 hard-gate
+逐字比较，并分别输出 `sequential_protocol_coverage` 与
+`sequential_semantic_accuracy`。`eval_gate_selection_score` 保证全门禁通过候选优先，
+未通过候选按最弱门禁进度排序；最终 selector 的通过后加权裁决保持不变。
+
+新锁 `week7_corrected_multitask_context_20260824_v4_fix2` 为 3000/114/114，train 配比
+600/840/840 + 通用 270（9%）+ 对话 450（15%）；五维跨分区碰撞为 0。canonical
+lock SHA-256 为 `86a4360142c2517e46460cefc575131940989aa8129eca236c68eaaf71e5b14b`，
+train/development/test SHA-256 分别为 `cc21a001...07ced`、`b157eace...025a4`、
+`1c79407f...c8ede`。v3、首版 v4、fix1 identity manifest 均进入排除证据；test 当前
+未消费。fix2 GPU 训练、checkpoint、development 指标和 one-shot test 尚未运行，均为
+`PENDING_GPU`，不得用 fix1 重算值替代。
 
 ## Corrected-dialogue v4 fix1 终态闭环
 

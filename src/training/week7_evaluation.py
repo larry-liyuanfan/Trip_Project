@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import statistics
 import time
 from collections import Counter, defaultdict
@@ -99,27 +100,73 @@ def valid_check_constraints_tool_call(raw_output: str) -> bool:
     )
 
 
+FREE_EVIDENCE_FIELDS = frozenset({
+    "observed_evidence",
+    "source_evidence",
+    "historical_image_reference",
+})
+
+
 def _without_free_evidence(value: Any) -> Any:
     """Remove free-text evidence leaves while preserving task decisions and structure."""
     if isinstance(value, dict):
         return {
             key: _without_free_evidence(child)
             for key, child in value.items()
-            if key not in {"observed_evidence", "source_evidence", "historical_image_reference"}
+            if key not in FREE_EVIDENCE_FIELDS
         }
     if isinstance(value, list):
         return [_without_free_evidence(child) for child in value]
     return value
 
 
+def _leaf_items(value: Any, path: tuple[Any, ...] = ()) -> list[tuple[tuple[Any, ...], Any]]:
+    """Flatten structured targets so one nested mismatch cannot zero an entire object."""
+    if isinstance(value, dict):
+        items: list[tuple[tuple[Any, ...], Any]] = []
+        for key, child in value.items():
+            items.extend(_leaf_items(child, path + (key,)))
+        return items or [(path, {})]
+    if isinstance(value, list):
+        items = []
+        for index, child in enumerate(value):
+            items.extend(_leaf_items(child, path + (index,)))
+        return items or [(path, [])]
+    return [(path, value)]
+
+
+def _value_at_path(value: Any, path: tuple[Any, ...]) -> tuple[bool, Any]:
+    current = value
+    for key in path:
+        if isinstance(key, int):
+            if not isinstance(current, list) or key >= len(current):
+                return False, None
+            current = current[key]
+        else:
+            if not isinstance(current, dict) or key not in current:
+                return False, None
+            current = current[key]
+    return True, current
+
+
+def _leaf_value_accuracy(observed: Any, expected: Any) -> float:
+    leaves = _leaf_items(expected)
+    if not leaves:
+        return 0.0
+    matches = 0
+    for path, expected_value in leaves:
+        present, observed_value = _value_at_path(observed, path)
+        matches += bool(present and observed_value == expected_value)
+    return matches / len(leaves)
+
+
 def _stable_task_value_accuracy(observed: Any, expected: Any) -> float:
     if not isinstance(observed, dict) or not isinstance(expected, dict) or not expected:
         return 0.0
-    observed_stable = _without_free_evidence(observed)
-    expected_stable = _without_free_evidence(expected)
-    return sum(
-        observed_stable.get(key) == value for key, value in expected_stable.items()
-    ) / len(expected_stable)
+    return _leaf_value_accuracy(
+        _without_free_evidence(observed),
+        _without_free_evidence(expected),
+    )
 
 
 def _initial_task(turn_outputs: Any) -> dict[str, Any] | None:
@@ -140,19 +187,22 @@ def _sequential_turn_score(
     turn_outputs: Any,
     *,
     expected_context: dict[str, Any] | None = None,
-) -> tuple[float, float, int, int]:
+    scoring_protocol: str = "gold_exact_v1",
+) -> tuple[float, float, float, int, int]:
     expected_assistants = [
         (index, message.get("content"))
         for index, message in enumerate(row.get("messages", []))
         if message.get("role") == "assistant"
     ]
     if not isinstance(turn_outputs, list) or not expected_assistants:
-        return 0.0, 1.0, len(expected_assistants), 0
-    scores = []
+        return 0.0, 0.0, 1.0, len(expected_assistants), 0
+    protocol_scores = []
+    semantic_scores = []
     failures = 0
     for turn_index, (message_index, expected_output) in enumerate(expected_assistants):
         if turn_index >= len(turn_outputs) or not isinstance(turn_outputs[turn_index], dict):
-            scores.append(0.0)
+            protocol_scores.append(0.0)
+            semantic_scores.append(0.0)
             failures += 1
             continue
         observed = turn_outputs[turn_index]
@@ -161,7 +211,8 @@ def _sequential_turn_score(
             observed.get("assistant_turn_index") != turn_index
             or observed.get("message_index") != message_index
         ):
-            scores.append(0.0)
+            protocol_scores.append(0.0)
+            semantic_scores.append(0.0)
             failures += 1
             continue
         failures += bool(observed.get("failed"))
@@ -169,38 +220,54 @@ def _sequential_turn_score(
             failures += 1
         expected_text = str(expected_output or "")
         if "<tool_call>" in expected_text:
-            scores.append(float(valid_check_constraints_tool_call(raw)))
+            valid = float(valid_check_constraints_tool_call(raw))
+            protocol_scores.append(valid)
+            semantic_scores.append(valid)
             continue
         try:
             expected_json = json.loads(expected_text)
             observed_json = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
+            protocol_scores.append(float(bool(raw.strip())))
+            context_for_semantics = (
+                _without_free_evidence(expected_context or {})
+                if scoring_protocol == "gate_aligned_v2"
+                else expected_context or row.get("context_expectations", {})
+            )
             required = {
                 term for term in _dialogue_terms(
-                    expected_context or row.get("context_expectations", {})
+                    context_for_semantics
                 )
                 if term in expected_text.casefold()
             }
             if "unknown" in expected_text.casefold():
                 required.add("unknown")
-            scores.append(
+            semantic_scores.append(
                 sum(term in raw.casefold() for term in required) / len(required)
                 if required else float(bool(raw.strip()))
             )
         else:
             if isinstance(expected_json, dict) and isinstance(observed_json, dict):
-                scores.append(
-                    sum(observed_json.get(key) == value for key, value in expected_json.items())
-                    / len(expected_json)
-                    if expected_json else 1.0
+                protocol_scores.append(1.0)
+                semantic_scores.append(
+                    _stable_task_value_accuracy(observed_json, expected_json)
+                    if scoring_protocol == "gate_aligned_v2"
+                    else (
+                        sum(observed_json.get(key) == value for key, value in expected_json.items())
+                        / len(expected_json)
+                        if expected_json else 1.0
+                    )
                 )
             else:
-                scores.append(float(observed_json == expected_json))
+                exact = float(observed_json == expected_json)
+                protocol_scores.append(exact)
+                semantic_scores.append(exact)
     observed_count = min(len(turn_outputs), len(expected_assistants))
     if len(turn_outputs) > len(expected_assistants):
         failures += len(turn_outputs) - len(expected_assistants)
     return (
-        statistics.fmean(scores) if scores else 0.0,
+        statistics.fmean(protocol_scores) if protocol_scores else 0.0,
+        statistics.fmean(semantic_scores) if semantic_scores else 0.0,
         min(1.0, failures / len(expected_assistants)),
         len(expected_assistants),
         observed_count,
@@ -219,10 +286,14 @@ def score_dialogue_record(
     expectations = row.get("context_expectations")
     if not isinstance(expectations, dict):
         raise Week7EvaluationError(f"dialogue context expectations are missing: {row.get('sample_id')}")
-    if scoring_protocol not in {"gold_exact_v1", "gold_plus_anchor_v1"}:
+    if scoring_protocol not in {"gold_exact_v1", "gold_plus_anchor_v1", "gate_aligned_v2"}:
         raise Week7EvaluationError("unsupported dialogue scoring protocol")
     initial_task = _initial_task(turn_outputs)
-    expected = _dialogue_terms(expectations)
+    expected = _dialogue_terms(
+        _without_free_evidence(expectations)
+        if scoring_protocol == "gate_aligned_v2"
+        else expectations
+    )
     image_terms = _dialogue_terms(
         expectations.get("historical_image_reference")
     )
@@ -252,8 +323,15 @@ def score_dialogue_record(
         else 0.0
     )
     context_value_accuracy = (
-        sum(parsed_context.get(key) == value for key, value in expected_context.items())
-        / len(expected_context)
+        (
+            _leaf_value_accuracy(
+                _without_free_evidence(parsed_context),
+                _without_free_evidence(expected_context),
+            )
+            if scoring_protocol == "gate_aligned_v2"
+            else sum(parsed_context.get(key) == value for key, value in expected_context.items())
+            / len(expected_context)
+        )
         if expected_context and isinstance(parsed_context, dict)
         else 0.0
     )
@@ -263,8 +341,12 @@ def score_dialogue_record(
         else 0.0
     )
     task_value_accuracy = (
-        sum(parsed_task.get(key) == value for key, value in expected_task.items())
-        / len(expected_task)
+        (
+            _stable_task_value_accuracy(parsed_task, expected_task)
+            if scoring_protocol == "gate_aligned_v2"
+            else sum(parsed_task.get(key) == value for key, value in expected_task.items())
+            / len(expected_task)
+        )
         if expected_task and isinstance(parsed_task, dict)
         else 0.0
     )
@@ -295,13 +377,14 @@ def score_dialogue_record(
         sum(term in normalized for term in anchor_terms) / len(anchor_terms)
         if anchor_terms else 0.0
     )
-    sequential_coverage, sequential_failure_rate, expected_turns, observed_turns = (
+    sequential_coverage, sequential_semantic_accuracy, sequential_failure_rate, expected_turns, observed_turns = (
         _sequential_turn_score(
             row,
             turn_outputs,
             expected_context=expected_context,
+            scoring_protocol=scoring_protocol,
         )
-        if automatic_eligible else (0.0, 0.0, 0, 0)
+        if automatic_eligible else (0.0, 0.0, 0.0, 0, 0)
     )
     automatic_composite = None
     if automatic_eligible:
@@ -312,7 +395,7 @@ def score_dialogue_record(
             context_value_accuracy,
             task_key_coverage,
             task_value_accuracy,
-            sequential_coverage,
+            sequential_semantic_accuracy,
         ))
     return {
         "sample_id": row["sample_id"], "scenario": "dialogue", "latency_ms": latency_ms,
@@ -330,6 +413,8 @@ def score_dialogue_record(
         "anchor_retention": anchor_retention,
         "tool_protocol_compliance": tool_protocol_compliance,
         "sequential_turn_coverage": sequential_coverage,
+        "sequential_protocol_coverage": sequential_coverage,
+        "sequential_semantic_accuracy": sequential_semantic_accuracy,
         "sequential_turn_failure_rate": sequential_failure_rate,
         "sequential_turn_count_expected": expected_turns,
         "sequential_turn_count_observed": observed_turns,
@@ -380,6 +465,12 @@ def _dialogue_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
             "sequential_turn_coverage": statistics.fmean(
                 item["sequential_turn_coverage"] for item in scores
             ),
+            "sequential_protocol_coverage": statistics.fmean(
+                item["sequential_protocol_coverage"] for item in scores
+            ),
+            "sequential_semantic_accuracy": statistics.fmean(
+                item["sequential_semantic_accuracy"] for item in scores
+            ),
             "sequential_turn_failure_rate": statistics.fmean(
                 item["sequential_turn_failure_rate"] for item in scores
             ),
@@ -399,6 +490,134 @@ def _dialogue_summary(scores: list[dict[str, Any]]) -> dict[str, Any]:
         )
         result["tool_protocol_support_count"] = len(tool_scores)
     return result
+
+
+def evaluate_dialogue_automatic_gate(
+    config: dict[str, Any],
+    metrics: dict[str, Any],
+) -> dict[str, Any]:
+    """Evaluate the same preregistered dialogue gates during training and selection."""
+    declared = config["evaluation"].get("dialogue_automatic_gate")
+    dialogue = metrics.get("dialogue")
+    if (
+        not isinstance(declared, dict)
+        or declared.get("enabled") is not True
+        or declared.get("human_input_required") is not False
+        or not isinstance(dialogue, dict)
+        or dialogue.get("human_dimensions_status") != "NOT_REQUIRED_AUTOMATIC_V4"
+    ):
+        raise Week7EvaluationError("automatic dialogue gate identity mismatch")
+    scores = dialogue.get("scores")
+    if not isinstance(scores, list) or not scores or len(scores) != int(dialogue.get("sample_count", -1)):
+        raise Week7EvaluationError("automatic dialogue gate score coverage mismatch")
+    expected_protocol = config["evaluation"].get("dialogue_scoring_protocol", "gold_exact_v1")
+    if dialogue.get("dialogue_scoring_protocol", "gold_exact_v1") != expected_protocol:
+        raise Week7EvaluationError("automatic dialogue scoring protocol mismatch")
+
+    minimums = {
+        "format_compliance": "minimum_format_compliance",
+        "context_recall": "minimum_context_recall",
+        "context_state_value_accuracy": "minimum_context_state_value_accuracy",
+        "task_result_key_coverage": "minimum_task_result_key_coverage",
+        "task_result_value_accuracy": "minimum_task_result_value_accuracy",
+        "automatic_composite": "minimum_automatic_composite",
+        "initial_task_stable_value_accuracy": "minimum_initial_task_stable_value_accuracy",
+        "anchor_retention": "minimum_anchor_retention",
+        "tool_protocol_compliance": "minimum_tool_protocol_compliance",
+        "sequential_turn_coverage": "minimum_sequential_turn_coverage",
+        "sequential_protocol_coverage": "minimum_sequential_protocol_coverage",
+        "sequential_semantic_accuracy": "minimum_sequential_semantic_accuracy",
+    }
+    maximums = {
+        "sequential_turn_failure_rate": "maximum_sequential_turn_failure_rate",
+        "dialogue_failure_rate": "maximum_failure_rate",
+        "overall_failure_rate": "maximum_overall_failure_rate",
+    }
+    values: dict[str, float] = {}
+    thresholds: dict[str, float] = {}
+    directions: dict[str, str] = {}
+    for metric_name, threshold_name in minimums.items():
+        if threshold_name not in declared:
+            continue
+        if metric_name == "tool_protocol_compliance":
+            support = sum(score.get(metric_name) is not None for score in scores)
+            if support <= 0 or int(dialogue.get("tool_protocol_support_count", -1)) != support:
+                raise Week7EvaluationError("tool protocol support identity mismatch")
+        value = float(dialogue.get(metric_name))
+        threshold = float(declared[threshold_name])
+        values[metric_name] = value
+        thresholds[metric_name] = threshold
+        directions[metric_name] = "minimum"
+    derived = {
+        "dialogue_failure_rate": sum(bool(score.get("failed")) for score in scores) / len(scores),
+        "overall_failure_rate": float(metrics.get("failure_rate")),
+    }
+    for metric_name, threshold_name in maximums.items():
+        if metric_name == "overall_failure_rate":
+            threshold = float(
+                declared.get(
+                    threshold_name,
+                    config["evaluation"]["non_regression"]["max_failure_rate"],
+                )
+            )
+        elif threshold_name not in declared:
+            continue
+        else:
+            threshold = float(declared[threshold_name])
+        value = (
+            float(dialogue.get(metric_name))
+            if metric_name == "sequential_turn_failure_rate"
+            else derived[metric_name]
+        )
+        values[metric_name] = value
+        thresholds[metric_name] = threshold
+        directions[metric_name] = "maximum"
+    for name, value in values.items():
+        if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+            raise Week7EvaluationError(f"automatic gate metric outside [0, 1]: {name}")
+    for name, threshold in thresholds.items():
+        if not math.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
+            raise Week7EvaluationError(f"automatic gate threshold outside [0, 1]: {name}")
+    checks = {
+        name: values[name] >= thresholds[name]
+        if directions[name] == "minimum"
+        else values[name] <= thresholds[name]
+        for name in values
+    }
+    return {
+        "values": values,
+        "thresholds": thresholds,
+        "directions": directions,
+        "checks": checks,
+        "passed": all(checks.values()),
+    }
+
+
+def gate_first_selection_score(
+    config: dict[str, Any],
+    metrics: dict[str, Any],
+) -> tuple[float, dict[str, Any]]:
+    """Encode hard-gate feasibility before the ordinary weighted composite."""
+    gate = evaluate_dialogue_automatic_gate(config, metrics)
+    weighted = float(metrics["weighted_composite"])
+    if not math.isfinite(weighted) or not 0.0 <= weighted <= 1.0:
+        raise Week7EvaluationError("weighted composite is outside [0, 1]")
+    if gate["passed"]:
+        return 1.0 + weighted, gate
+    progress = []
+    for name, value in gate["values"].items():
+        threshold = gate["thresholds"][name]
+        if gate["directions"][name] == "minimum":
+            ratio = 1.0 if threshold <= 0.0 else min(1.0, value / threshold)
+        else:
+            ratio = 1.0 if value <= threshold else max(
+                0.0,
+                1.0 - (value - threshold) / max(1e-12, 1.0 - threshold),
+            )
+        progress.append(ratio)
+    bottleneck = min(progress)
+    mean_progress = statistics.fmean(progress)
+    return 0.80 * bottleneck + 0.19 * mean_progress + 0.009 * weighted, gate
 
 
 def summarize_dialogue_raw_records(

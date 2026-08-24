@@ -680,3 +680,15 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   隔离、两份 v4 Slurm shell 语法和 diff 检查全部通过。
 - [ ] fix1 完整验收与 `dev` 快进未完成，真实原因是 development 自动门禁 FAIL；
   不绕过门禁、不进入 `stg`、不打标签。
+
+### Corrected-dialogue v4 fix2 修复增量（2026-08-24）
+
+- [x] 保留 fix1 FAIL/test-unconsumed 证据不可变；接受 ADR-032，不降低既有阈值。
+- [x] 修复嵌套结构顶层全等、silver caption 逐字 hard-gate 和训练/selector 目标错位；
+  新协议与旧 fix1 由 config/data/run identity 隔离。
+- [x] fresh fix2 锁 3000/114/114、五维隔离 PASS；v3、首版 v4、fix1 身份均排除，
+  canonical SHA-256 `86a43601...e5b14b`，test 未消费。
+- [x] 当前定向回归 43/43、完整 unittest 454/454、配置、数据锁、两份 Slurm shell
+  语法和 `git diff --check` PASS。
+- [ ] fix2 GPU 训练、checkpoint selector 和一次性 test 尚未运行；不得用历史结果替代。
+- [ ] 临时 `codex/*` 分支须在本提交安全快进 `dev` 后删除；不进入 `stg`、不打标签。

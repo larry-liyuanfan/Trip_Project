@@ -24,6 +24,7 @@ from src.training.week7_data import (
     sha256_file,
 )
 from src.training.week7_evaluation import (
+    gate_first_selection_score,
     summarize_raw_records,
     valid_check_constraints_tool_call,
 )
@@ -466,6 +467,10 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
                             metrics[f"{metric_key_prefix}_dialogue_{name}"] = float(
                                 summary["dialogue"][name]
                             )
+                if train_config.get("metric_for_best_model") == "eval_gate_selection_score":
+                    gate_score, gate = gate_first_selection_score(config, summary)
+                    metrics[f"{metric_key_prefix}_gate_selection_score"] = gate_score
+                    metrics[f"{metric_key_prefix}_gate_passed"] = float(gate["passed"])
             self.log(metrics)
             self.control = self.callback_handler.on_evaluate(
                 self.args, self.state, self.control, metrics,
@@ -484,7 +489,8 @@ def run_multitask_training(root: Path, config_path: Path, output_dir: Path, *, c
         eval_strategy="steps", eval_steps=1_000_000_000,
         save_strategy="steps", save_steps=1_000_000_000,
         save_total_limit=train_config["save_total_limit"], load_best_model_at_end=True,
-        metric_for_best_model="eval_weighted_composite", greater_is_better=True,
+        metric_for_best_model=train_config["metric_for_best_model"],
+        greater_is_better=bool(train_config["greater_is_better"]),
         report_to=[], remove_unused_columns=False,
     )
     trainer = Week7Trainer(

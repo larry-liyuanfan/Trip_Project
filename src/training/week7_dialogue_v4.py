@@ -15,7 +15,11 @@ from src.training.week7_data import (
     sha256_file,
     validate_week7_lock,
 )
-from src.training.week7_evaluation import summarize_raw_records
+from src.training.week7_evaluation import (
+    Week7EvaluationError,
+    evaluate_dialogue_automatic_gate,
+    summarize_raw_records,
+)
 from src.training.week7_qlora import Week7TrainingError
 
 
@@ -120,123 +124,10 @@ def _validate_and_recompute_metrics(
 
 
 def _automatic_gate(config: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
-    declared = config["evaluation"].get("dialogue_automatic_gate")
-    if not isinstance(declared, dict) or declared.get("enabled") is not True:
-        raise Week7TrainingError("v4 automatic dialogue gate is not enabled")
-    if declared.get("human_input_required") is not False:
-        raise Week7TrainingError("v4 automatic dialogue gate unexpectedly requires human input")
-    dialogue = metrics.get("dialogue")
-    if (
-        not isinstance(dialogue, dict)
-        or dialogue.get("human_dimensions_status") != "NOT_REQUIRED_AUTOMATIC_V4"
-    ):
-        raise Week7TrainingError("v4 automatic dialogue evidence identity mismatch")
-    dialogue_scores = dialogue.get("scores")
-    if (
-        not isinstance(dialogue_scores, list)
-        or len(dialogue_scores) != int(dialogue.get("sample_count", -1))
-        or not dialogue_scores
-    ):
-        raise Week7TrainingError("v4 automatic dialogue score coverage mismatch")
-    expected_scoring_protocol = config["evaluation"].get(
-        "dialogue_scoring_protocol", "gold_exact_v1"
-    )
-    if dialogue.get("dialogue_scoring_protocol", "gold_exact_v1") != expected_scoring_protocol:
-        raise Week7TrainingError("v4 dialogue scoring protocol identity mismatch")
-    values = {
-        "format_compliance": _finite_unit_interval(
-            dialogue.get("format_compliance"), "dialogue.format_compliance"
-        ),
-        "context_recall": _finite_unit_interval(
-            dialogue.get("context_recall"), "dialogue.context_recall"
-        ),
-        "context_state_value_accuracy": _finite_unit_interval(
-            dialogue.get("context_state_value_accuracy"),
-            "dialogue.context_state_value_accuracy",
-        ),
-        "sequential_turn_coverage": _finite_unit_interval(
-            dialogue.get("sequential_turn_coverage"),
-            "dialogue.sequential_turn_coverage",
-        ),
-        "sequential_turn_failure_rate": _finite_unit_interval(
-            dialogue.get("sequential_turn_failure_rate"),
-            "dialogue.sequential_turn_failure_rate",
-        ),
-        "task_result_key_coverage": _finite_unit_interval(
-            dialogue.get("task_result_key_coverage"),
-            "dialogue.task_result_key_coverage",
-        ),
-        "task_result_value_accuracy": _finite_unit_interval(
-            dialogue.get("task_result_value_accuracy"),
-            "dialogue.task_result_value_accuracy",
-        ),
-        "automatic_composite": _finite_unit_interval(
-            dialogue.get("automatic_composite"), "dialogue.automatic_composite"
-        ),
-        "dialogue_failure_rate": sum(
-            bool(score.get("failed")) for score in dialogue_scores
-        ) / len(dialogue_scores),
-        "overall_failure_rate": _finite_unit_interval(
-            metrics.get("failure_rate"), "failure_rate"
-        ),
-    }
-    thresholds = {
-        "format_compliance": float(declared["minimum_format_compliance"]),
-        "context_recall": float(declared["minimum_context_recall"]),
-        "context_state_value_accuracy": float(
-            declared["minimum_context_state_value_accuracy"]
-        ),
-        "sequential_turn_coverage": float(
-            declared["minimum_sequential_turn_coverage"]
-        ),
-        "sequential_turn_failure_rate": float(
-            declared["maximum_sequential_turn_failure_rate"]
-        ),
-        "task_result_key_coverage": float(declared["minimum_task_result_key_coverage"]),
-        "task_result_value_accuracy": float(
-            declared["minimum_task_result_value_accuracy"]
-        ),
-        "automatic_composite": float(declared["minimum_automatic_composite"]),
-        "dialogue_failure_rate": float(declared["maximum_failure_rate"]),
-        "overall_failure_rate": float(
-            config["evaluation"]["non_regression"]["max_failure_rate"]
-        ),
-    }
-    optional_minimums = {
-        "initial_task_stable_value_accuracy": "minimum_initial_task_stable_value_accuracy",
-        "anchor_retention": "minimum_anchor_retention",
-        "tool_protocol_compliance": "minimum_tool_protocol_compliance",
-    }
-    for metric_name, threshold_name in optional_minimums.items():
-        if threshold_name in declared:
-            if metric_name == "tool_protocol_compliance":
-                support_count = sum(
-                    score.get(metric_name) is not None for score in dialogue_scores
-                )
-                if (
-                    support_count <= 0
-                    or int(dialogue.get("tool_protocol_support_count", -1))
-                    != support_count
-                ):
-                    raise Week7TrainingError(
-                        "v4 tool protocol support identity mismatch"
-                    )
-            values[metric_name] = _finite_unit_interval(
-                dialogue.get(metric_name), f"dialogue.{metric_name}"
-            )
-            thresholds[metric_name] = float(declared[threshold_name])
-    for name, threshold in thresholds.items():
-        _finite_unit_interval(threshold, f"dialogue_automatic_gate.{name}")
-    checks = {
-        name: values[name] <= threshold if name.endswith("failure_rate") else values[name] >= threshold
-        for name, threshold in thresholds.items()
-    }
-    return {
-        "values": values,
-        "thresholds": thresholds,
-        "checks": checks,
-        "passed": all(checks.values()),
-    }
+    try:
+        return evaluate_dialogue_automatic_gate(config, metrics)
+    except Week7EvaluationError as exc:
+        raise Week7TrainingError(str(exc)) from exc
 
 
 def select_v4_checkpoint(

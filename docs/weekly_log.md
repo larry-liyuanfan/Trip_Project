@@ -1,5 +1,19 @@
 # Weekly Log
 
+## 2026-08-24：Week 7 fix2 门禁和分支治理修复
+
+- 审计确认 fix1 selector 本身正确；失败同时来自模型错误和评分/训练目标错位。嵌套 JSON
+  顶层全等会放大局部错误，主观 caption 逐字匹配不是可靠视觉金标；early stopping 的
+  weighted composite 又与最终 13 项硬门禁不一致。
+- 新增 `gate_aligned_v2`：稳定结构按叶子值计分，自由文本 evidence 不进入 hard-gate
+  逐字比较，sequential protocol 与 semantic 分开；训练使用 hard-gate-first objective，
+  阈值未按 fix1 结果下调，旧 raw/metrics/selector 未重算或覆盖。
+- 新建 fresh fix2 锁 3000/114/114，配比 600/840/840 + 270（9%）+ 450（15%），
+  canonical SHA-256 `86a43601...e5b14b`；五维跨分区冲突 0，v3、首版 v4、fix1
+  身份均排除，test 未消费。
+- ADR-004/ADR-032 明确仅 `dev`、`stg`、`main` 为长期分支；当前 `codex/*` 仅在内容
+  安全进入 `dev` 前临时保留。fix2 GPU 训练及指标仍为 `PENDING_GPU`，未进入 `stg`。
+
 ## 2026-08-19: Week 6 训练后质量审计与项目收束
 
 - 区分“工程闭环完成”与“业务指标优秀”，保留三场冻结终态指标和已知局限不变。

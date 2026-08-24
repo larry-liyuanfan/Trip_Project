@@ -1,5 +1,23 @@
 # Experiment Notes
 
+## 2026-08-24：Week 7 v4 fix2 门禁对齐与 fresh 数据锁
+
+- 历史输入：fix1 step 151 为 12/13 门禁通过，只有旧 sequential coverage
+  0.725585 < 0.75；这只用于定位缺陷，没有据此降低阈值、选择 fix2 样本或重算 fix1。
+- 实现：`gate_aligned_v2` 将嵌套 JSON 从顶层对象全等改为叶子值准确率；programmatic
+  silver 自由文本 evidence 不再充当 hard-gate 的逐字视觉金标；新增 protocol coverage
+  和 semantic accuracy 独立支持数。训练目标改为 gate-first feasibility，PASS 候选优先，
+  未 PASS 候选由最弱门禁进度主导，最终仍按原 weighted composite/最早 step 裁决。
+- 数据：`week7_corrected_multitask_context_20260824_v4_fix2`，3000/114/114；train 为
+  商品/售后/行程 600/840/840、通用 270（9%）、对话 450（15%）。canonical lock
+  SHA-256 `86a4360142c2517e46460cefc575131940989aa8129eca236c68eaaf71e5b14b`；
+  train/development/test SHA-256 为 `cc21a001...07ced`、`b157eace...025a4`、
+  `1c79407f...c8ede`。五维跨 split 冲突 0，v3/首版 v4/fix1 全量身份排除。
+- 当前结果：定向 Week 7 回归 43/43、完整 unittest 454/454 PASS，fix2 lock
+  validation、两份 v4 Slurm shell 语法和 `git diff --check` PASS，test
+  `test_consumed=false`。GPU job、checkpoint、development 指标与 test 均
+  `PENDING_GPU`；DPO 保持一次 validation FAIL 后关闭。
+
 ## 2026-08-19：Week 6 训练后方法审计（未运行新训练）
 
 - 输入仅为已锁定的 Week 6 汇总指标、错误分类和一手技术资料；没有对冻结

@@ -26,6 +26,7 @@ DIALOGUE_DIMENSIONS = (
 ALIGNED_DIALOGUE_CONSTRUCTION_VERSIONS = {
     "aligned_concrete_turns_v4",
     "aligned_grounded_tool_turns_v4_fix1",
+    "aligned_grounded_tool_turns_v4_fix2",
 }
 
 
@@ -129,7 +130,9 @@ def load_week7_config(path: Path) -> dict[str, Any]:
         scoring_protocol = config["evaluation"].get(
             "dialogue_scoring_protocol", "gold_exact_v1"
         )
-        if scoring_protocol not in {"gold_exact_v1", "gold_plus_anchor_v1"}:
+        if scoring_protocol not in {
+            "gold_exact_v1", "gold_plus_anchor_v1", "gate_aligned_v2",
+        }:
             raise Week7DataError("unsupported v4 dialogue scoring protocol")
         construction = config["sampling"]["dialogue_construction_version"]
         explicit_tool_request = bool(
@@ -145,6 +148,15 @@ def load_week7_config(path: Path) -> dict[str, Any]:
         generation_limit = int(config["evaluation"].get("generation_max_new_tokens", 0))
         if construction == "aligned_grounded_tool_turns_v4_fix1" and not 512 <= generation_limit <= 4096:
             raise Week7DataError("v4 fix1 generation_max_new_tokens must be locked in [512, 4096]")
+        if construction == "aligned_grounded_tool_turns_v4_fix2" and (
+            not explicit_tool_request
+            or scoring_protocol != "gate_aligned_v2"
+            or training.get("metric_for_best_model") != "eval_gate_selection_score"
+            or not 512 <= generation_limit <= 4096
+        ):
+            raise Week7DataError(
+                "v4 fix2 requires explicit tools, gate-aligned scoring, and gate-first selection"
+            )
     if config["schema_version"].endswith(("v3", "v4")):
         expected_dialogue_counts = {
             "train": int(dataset["dialogue_count"]),

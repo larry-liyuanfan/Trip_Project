@@ -22,6 +22,7 @@ from src.training.week7_data import (
     sha256_file,
 )
 from src.training.week7_evaluation import (
+    gate_first_selection_score,
     score_dialogue_record,
     valid_check_constraints_tool_call,
 )
@@ -41,6 +42,7 @@ from src.training.week7_qlora import (
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_V4 = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v4.json"
 CONFIG_V4_FIX1 = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json"
+CONFIG_V4_FIX2 = ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json"
 
 
 def _parent() -> dict:
@@ -186,6 +188,26 @@ def _strict_generated_record(_model, _processor, messages, **kwargs) -> dict:
 
 
 class Week7V4DialogueTests(unittest.TestCase):
+    def test_fix2_config_locks_gate_aligned_identity(self) -> None:
+        config = load_week7_config(CONFIG_V4_FIX2)
+        self.assertEqual(config["dataset"]["identity_namespace"], "v4fix2")
+        self.assertEqual(
+            config["sampling"]["dialogue_construction_version"],
+            "aligned_grounded_tool_turns_v4_fix2",
+        )
+        self.assertEqual(
+            config["evaluation"]["dialogue_scoring_protocol"],
+            "gate_aligned_v2",
+        )
+        self.assertEqual(
+            config["training"]["metric_for_best_model"],
+            "eval_gate_selection_score",
+        )
+        self.assertIn(
+            "outputs/week7/locked_data/week7_corrected_multitask_context_20260823_v4_fix1/identity_manifest.jsonl",
+            config["dataset"]["source_paths"]["superseded_identity_manifests"],
+        )
+
     def test_fix1_config_locks_new_identity_and_support_protocol(self) -> None:
         config = load_week7_config(CONFIG_V4_FIX1)
         self.assertEqual(config["dataset"]["identity_namespace"], "v4fix1")
@@ -603,6 +625,94 @@ class Week7V4DialogueTests(unittest.TestCase):
         self.assertLess(score["task_result_value_accuracy"], 1.0)
         self.assertLess(score["automatic_composite"], 1.0)
 
+    def test_fix2_ignores_non_gold_free_evidence_and_scores_nested_leaves(self) -> None:
+        row = _dialogue_row(
+            _parent(), "development", 1, 0.1, 0.5, aligned=True,
+            construction_version="aligned_grounded_tool_turns_v4_fix2",
+            explicit_tool_request=True,
+        )
+        turns = _perfect_turn_outputs(row)
+        initial = json.loads(turns[0]["raw_output"])
+        initial["observed_evidence"] = ["different free-form visual wording"]
+        turns[0]["raw_output"] = json.dumps(initial, ensure_ascii=False)
+        final = copy.deepcopy(row["target"])
+        final["task_result"]["observed_evidence"] = ["different free-form visual wording"]
+        final["context_state"]["historical_image_reference"] = [
+            "different free-form visual wording"
+        ]
+        turns[-1]["raw_output"] = json.dumps(final, ensure_ascii=False)
+        score = score_dialogue_record(
+            row, turns[-1]["raw_output"], 1.0, False, turns,
+            scoring_protocol="gate_aligned_v2",
+        )
+        self.assertEqual(score["context_state_value_accuracy"], 1.0)
+        self.assertEqual(score["task_result_value_accuracy"], 1.0)
+        final["task_result"]["business_category"] = "restaurant"
+        turns[-1]["raw_output"] = json.dumps(final, ensure_ascii=False)
+        partial = score_dialogue_record(
+            row, turns[-1]["raw_output"], 1.0, False, turns,
+            scoring_protocol="gate_aligned_v2",
+        )
+        self.assertGreater(partial["task_result_value_accuracy"], 0.0)
+        self.assertLess(partial["task_result_value_accuracy"], 1.0)
+
+    def test_fix2_separates_protocol_coverage_from_turn_semantics(self) -> None:
+        row = _dialogue_row(
+            _parent(), "development", 1, 0.1, 0.5, aligned=True,
+            construction_version="aligned_grounded_tool_turns_v4_fix2",
+            explicit_tool_request=True,
+        )
+        turns = _perfect_turn_outputs(row)
+        turns[1]["raw_output"] = "收到。"
+        score = score_dialogue_record(
+            row, turns[-1]["raw_output"], 1.0, False, turns,
+            scoring_protocol="gate_aligned_v2",
+        )
+        self.assertEqual(score["sequential_protocol_coverage"], 1.0)
+        self.assertLess(score["sequential_semantic_accuracy"], 1.0)
+
+    def test_gate_first_score_prioritizes_feasibility_and_bottleneck(self) -> None:
+        config = load_week7_config(CONFIG_V4_FIX2)
+
+        def metrics(sequential_semantic: float) -> dict:
+            scores = [
+                {"failed": False, "tool_protocol_compliance": 1.0 if index < 3 else None}
+                for index in range(24)
+            ]
+            return {
+                "weighted_composite": 0.8,
+                "failure_rate": 0.0,
+                "dialogue": {
+                    "sample_count": 24,
+                    "human_dimensions_status": "NOT_REQUIRED_AUTOMATIC_V4",
+                    "dialogue_scoring_protocol": "gate_aligned_v2",
+                    "scores": scores,
+                    "format_compliance": 1.0,
+                    "context_recall": 1.0,
+                    "context_state_value_accuracy": 1.0,
+                    "task_result_key_coverage": 1.0,
+                    "task_result_value_accuracy": 1.0,
+                    "sequential_protocol_coverage": 1.0,
+                    "sequential_semantic_accuracy": sequential_semantic,
+                    "sequential_turn_failure_rate": 0.0,
+                    "automatic_composite": 1.0,
+                    "initial_task_stable_value_accuracy": 1.0,
+                    "anchor_retention": 1.0,
+                    "tool_protocol_compliance": 1.0,
+                    "tool_protocol_support_count": 3,
+                },
+            }
+
+        far, far_gate = gate_first_selection_score(config, metrics(0.50))
+        near, near_gate = gate_first_selection_score(config, metrics(0.74))
+        passed, passed_gate = gate_first_selection_score(config, metrics(0.75))
+        self.assertFalse(far_gate["passed"])
+        self.assertFalse(near_gate["passed"])
+        self.assertTrue(passed_gate["passed"])
+        self.assertLess(far, near)
+        self.assertLess(near, 1.0)
+        self.assertGreaterEqual(passed, 1.0)
+
     def test_missing_or_misordered_sequential_turns_reduce_score(self) -> None:
         row = _dialogue_row(
             _parent(), "development", 1, 0.1, 0.5, aligned=True,
@@ -682,11 +792,16 @@ class Week7V4DialogueTests(unittest.TestCase):
         config = load_week7_config(CONFIG_V4)
 
         def role(task_value_accuracy: float) -> dict:
+            scores = [{"failed": False} for _ in range(24)]
             return {
                 "sample_count": 24,
                 "failure_rate": 0.0,
                 "latency_ms_mean": 1.0,
                 "dialogue": {
+                    "sample_count": 24,
+                    "human_dimensions_status": "NOT_REQUIRED_AUTOMATIC_V4",
+                    "dialogue_scoring_protocol": "gold_exact_v1",
+                    "scores": scores,
                     "format_compliance": 1.0,
                     "context_recall": 1.0,
                     "context_state_value_accuracy": 1.0,

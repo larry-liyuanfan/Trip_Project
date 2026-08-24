@@ -436,6 +436,23 @@ Record decisions that affect architecture, reproducibility, model serving, data 
   新 test 结果只适用于 v4 corrected-dialogue 口径；不改写 Week 6 终态、v3 原始评测
   或既有真人评分。
 
+## ADR-032：Week 7 fix2 使用门禁对齐评分并收敛临时分支
+
+- **日期**：2026-08-24
+- **状态**：Accepted；来自用户对持续门禁失败和额外执行分支的直接修复要求。
+- **决策**：保留 fix1 全部失败证据不可变，使用新 config/data/run identity 建立 fix2。
+  嵌套结构化结果改为叶子级准确率；自由文本视觉描述不再作为 hard gate 的逐字金标；
+  sequential protocol coverage 与 sequential semantic accuracy 分开统计。
+- **checkpoint 门禁**：训练和最终 selector 共用 hard-gate-first 目标。未通过候选按最弱
+  门禁进度排序；任何全门禁通过候选优先，再以三场景加权综合分和最早 step 选择。
+  fix1 的 0.75 阈值不因已观察结果而下调，fix2 必须使用排除 v3、首版 v4、fix1 的
+  fresh development，参数锁定后才可消费一次 fresh test。
+- **分支**：ADR-004 的长期交付分支仍仅为 `dev`、`stg`、`main`；`feature/*` 或
+  `codex/*` 是临时执行载体。内容经验证并快进 `dev` 后删除已合并临时分支，不把
+  development 自动门禁结果晋级到 `stg`，不打标签。
+- **影响**：该决策修复评分和优化目标错位，不保证模型必然通过门禁，也不把自动结果
+  解释为人工或统计显著结论。DPO 保持既有一次失败后关闭。
+
 ## Decision Template
 
 ```markdown

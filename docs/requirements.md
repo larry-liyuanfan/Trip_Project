@@ -439,6 +439,23 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 
 ## Week 7：多任务混合微调与上下文搭建
 
+### 2026-08-24 门禁与分支修复授权（v4 fix2）
+
+- 用户要求修复 fix1 长期无法过门禁的根因，而不是降低阈值或回溯改写 fix1。fix1 的
+  config、数据锁、raw、checkpoint、selector FAIL 和 test 未消费状态保持不可变。
+- 新身份必须把 v3、首版 v4 和 fix1 的完整 identity manifest 都作为排除来源，建立
+  fresh train/development/test；旧 development 只能用于定位评分缺陷，不得用于 fix2
+  阈值选择、checkpoint 选择或 test 决策。
+- 对话结构化值按叶子字段计分，避免单个嵌套字段错误把整个对象计 0。主观或自由文本
+  caption 保持 programmatic silver，只作非门禁证据；不得把逐字 caption 匹配冒充
+  视觉语义金标。逐轮协议完整性与逐轮语义准确率必须分开报告。
+- 训练 early stopping 与最终 selector 必须使用同一 hard-gate-first 方向；任何通过
+  全门禁的 checkpoint 必须优先于未通过候选，再按原加权综合分及最早 step 裁决。
+  阈值不依据 fix1 结果下调。
+- ADR-004 的长期分支只有 `dev`、`stg`、`main`；执行分支只是临时工作分支。修复代码、
+  锁和真实证据进入 `dev` 后，应删除已合并的 `codex/*` 本地及远端分支。本次仍禁止
+  进入 `stg`、打标签或进入 Week 8。
+
 ### 2026-08-22 用户直接修正授权（v4）
 
 - 用户最新指令取代原 Week 7 对“v3 test 不可重开”和“必须继续人工抽样”的

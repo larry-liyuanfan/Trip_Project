@@ -529,23 +529,25 @@ python scripts/evaluate_week6_adapter.py compare \
 
 ## Week 7 Multitask Context
 
-Week 7 当前终态修复身份固定使用
-`configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json`；此前
+Week 7 当前修复身份固定使用
+`configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json`；fix1、此前
 `qwen3_vl_8b_multitask_context_v4.json` 与 v3 均只作不可改写历史证据。v3 因对话
-assistant/user 错序失效，首版 v4 则未通过 development 门禁。fix1 数据构建必须显式
+assistant/user 错序失效，首版 v4 与 fix1 均未通过 development 门禁。fix2 数据构建必须显式
 指向保留 Week 5/6 历史
 产物的只读来源项目；默认验证只读 train/development，corrected-dialogue test
 只能在 development 自动门禁选定 checkpoint 后消费一次。v4 锁与 v3 完整
 identity manifest 执行五维零重叠审计，不仅排除旧 test，也排除 v3 的训练和
-development 来源。
+development 来源。fix2 还排除 fix1 全量身份，并把嵌套值改为叶子级评分、把 protocol
+coverage 与 semantic accuracy 分开；训练 early stopping 使用与 selector 一致的
+`eval_gate_selection_score`，不降低原门禁阈值。
 
 ```bash
-python scripts/manage_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json build-lock --source-project-root <read-only-week5-week6-project>
-python scripts/manage_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json validate-lock
-python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json check-environment
-python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json train-multitask --help
-python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json select-v4-checkpoint --help
-python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix1.json v4-dialogue-test --help
+python scripts/manage_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json build-lock --source-project-root <read-only-week5-week6-project>
+python scripts/manage_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json validate-lock
+python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json check-environment
+python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json train-multitask --help
+python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json select-v4-checkpoint --help
+python scripts/run_week7.py --config configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json v4-dialogue-test --help
 python scripts/run_week7.py adversarial-audit
 ```
 
@@ -563,6 +565,11 @@ v4 对话对所有 assistant span 计算 SFT loss，不再只训练最后 JSON�
 selected checkpoint；corrected-dialogue fix1 test 保持 `LOCKED_UNCONSUMED`。该终态
 不允许绕过门禁提交 test，也不把 development 最优分解释为一次性 test 结果；完整实证
 见 `reports/week7_multitask_context_report.md`。
+
+fix2 本地锁 `week7_corrected_multitask_context_20260824_v4_fix2` 已生成并验证：
+train/development/test=3000/114/114，五维跨分区碰撞为 0，canonical lock SHA-256 为
+`86a4360142c2517e46460cefc575131940989aa8129eca236c68eaaf71e5b14b`，test 未消费。
+当前尚未产生 fix2 GPU checkpoint 或指标；在 Spartan 作业完成前状态为 `PENDING_GPU`。
 
 以下标注台命令仅用于已完成的历史 v3/corrected-development 真人证据；
 v4 自动闭环不再等待新人工输入：
