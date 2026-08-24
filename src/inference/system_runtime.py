@@ -76,6 +76,7 @@ class ReleaseSettings:
     prompt_versions: dict[str, str]
     schema_versions: dict[str, str]
     max_new_tokens: int
+    max_new_tokens_by_scenario: dict[str, int]
     max_schema_retries: int
 
     @classmethod
@@ -106,6 +107,7 @@ class ReleaseSettings:
         adapter_env = model.get("adapter_path_env")
         adapter_value = os.getenv(str(adapter_env), "") if adapter_env else ""
         adapter_path = Path(adapter_value).resolve() if adapter_value else None
+        max_new_tokens = int(generation.get("max_new_tokens", 3072))
         settings = cls(
             root=project_root,
             release_id=_required_text(payload, "release_id"),
@@ -117,7 +119,11 @@ class ReleaseSettings:
             adapter_model_sha256=_required_sha256(model, "adapter_model_sha256"),
             prompt_versions=_required_scenario_mapping(payload, "prompts"),
             schema_versions=_required_scenario_mapping(payload, "schemas"),
-            max_new_tokens=int(generation.get("max_new_tokens", 3072)),
+            max_new_tokens=max_new_tokens,
+            max_new_tokens_by_scenario=_scenario_token_limits(
+                generation,
+                default=max_new_tokens,
+            ),
             max_schema_retries=int(generation.get("max_schema_retries", 1)),
         )
         if settings.backend_name not in {"transformers-peft", "openai-compatible"}:
@@ -486,7 +492,7 @@ class ScenarioService:
             raw = self.backend.generate(
                 active_messages,
                 response_format=response_format,
-                max_new_tokens=self.settings.max_new_tokens,
+                max_new_tokens=self.settings.max_new_tokens_by_scenario[scenario],
             )
             error: str | None = None
             parsed: Any = None
@@ -584,6 +590,8 @@ def _correction_messages(
                 f"错误：{error}。请重新读取原输入，只输出修正后的完整 JSON；"
                 "保留 Schema 要求的全部字段，数组严格遵守 minItems/maxItems，"
                 "删除重复证据并保持内容紧凑，确保 JSON 在生成上限内完整闭合；"
+                "若错误包含 maxLength，必须缩短对应字符串；若缺少 required 字段，"
+                "必须从第一个顶层键开始重写完整对象；若 JSON 未闭合，必须从头重写并闭合；"
                 "不得解释、猜测缺失事实或引用本条纠错指令作为证据。"
             ),
         },
@@ -656,6 +664,25 @@ def _required_scenario_mapping(
             f"release field {field} must define exactly {sorted(scenarios)}"
         )
     return {scenario: _required_text(value, scenario) for scenario in scenarios}
+
+
+def _scenario_token_limits(
+    generation: dict[str, Any],
+    *,
+    default: int,
+) -> dict[str, int]:
+    scenarios = {"image_product_search", "after_sales", "itinerary_planning"}
+    value = generation.get("max_new_tokens_by_scenario")
+    if value is None:
+        return {scenario: default for scenario in scenarios}
+    if not isinstance(value, dict) or set(value) != scenarios:
+        raise RuntimeConfigurationError(
+            "max_new_tokens_by_scenario must define exactly the three scenarios"
+        )
+    limits = {scenario: int(value[scenario]) for scenario in scenarios}
+    if any(limit <= 0 for limit in limits.values()):
+        raise RuntimeConfigurationError("scenario token limits must be positive")
+    return limits
 
 
 def _sha256_file(path: Path) -> str:

@@ -23,6 +23,11 @@
   },
   "generation": {
     "max_new_tokens": 512,
+    "max_new_tokens_by_scenario": {
+      "image_product_search": 512,
+      "after_sales": 512,
+      "itinerary_planning": 1024
+    },
     "do_sample": false,
     "temperature": 0.0,
     "max_schema_retries": 1

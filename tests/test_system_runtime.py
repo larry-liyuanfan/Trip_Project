@@ -93,6 +93,11 @@ def settings(adapter_path=None, adapter_sha="0" * 64):
             "itinerary_planning": "v2",
         },
         max_new_tokens=512,
+        max_new_tokens_by_scenario={
+            "image_product_search": 512,
+            "after_sales": 512,
+            "itinerary_planning": 1024,
+        },
         max_schema_retries=1,
     )
 
@@ -123,6 +128,14 @@ class SystemRuntimeTest(unittest.TestCase):
             rendered = render_standard_prompt(Path.cwd(), scenario, context, version)
             self.assertEqual(release.prompt_versions[scenario], version)
             self.assertIn(expected_text, rendered["layers"]["task_instruction"])
+        self.assertEqual(
+            release.max_new_tokens_by_scenario,
+            {
+                "image_product_search": 512,
+                "after_sales": 512,
+                "itinerary_planning": 1024,
+            },
+        )
 
     def test_transformers_backend_preserves_underlying_generation_error(self):
         backend = TransformersPeftBackend(settings())
