@@ -39,6 +39,9 @@ def load_milvus_config(path: Path | str) -> dict[str, Any]:
     connection = payload.get("connection")
     if not all(isinstance(value, dict) for value in (collection, index, connection)):
         raise MilvusVectorError("connection, collection, and index mappings are required")
+    configured_uri = os.getenv("MILVUS_URI")
+    if configured_uri:
+        connection["uri"] = configured_uri
     if collection.get("name") != "ota_business_image_vector":
         raise MilvusVectorError("collection name must be ota_business_image_vector")
     if collection.get("vector_dimension") != 512:
