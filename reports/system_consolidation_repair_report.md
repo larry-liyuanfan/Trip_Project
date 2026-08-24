@@ -17,6 +17,7 @@
 | 检索 | 1,000 张真实 OTA 图片完成 CLIP 512 维编码和 Milvus 实测 |
 | 封装 | 统一 Compose、release manifest、四层私有 OSS 打包器和 `tripctl` 已实现 |
 | 测试 | 当前工作树及全新 checkout 的完整 `unittest` 均 482/482；`git diff --check` 通过 |
+| 仓库整理 | 仅保留 `dev/stg/main`；旧 closeout 证据迁入并校验 11,037 个 SHA-256 后移除 |
 
 ## Week 5 修复池
 
@@ -66,3 +67,6 @@
 
 以上任一模型或发布门禁未完成时均不得进入 `stg`。本报告不使用历史 test 结果生成新标签，
 不新增人工标注，也不修改 Week 3、Week 6、Week 7 冻结产物。
+
+核心实现与验证基线为 `2e44125`，已推送 `origin/dev`；`origin/stg` 仍为 `132779b`，
+`origin/main` 仍为 `1e3cdf7`。

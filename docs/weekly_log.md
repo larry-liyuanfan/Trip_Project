@@ -894,3 +894,5 @@ as the current validated dataset or accepted baseline.
   100 查询实测完成，平均/P95 2.2355/2.4097 ms，Recall@10=1.0。
 - 2026-08-24：Week 5 v2 审计为 80,000 候选、64 条修复队列、五维评测冲突 0；因本轮
   Spartan 尚未登录，64 条重推理、Prompt pilot、继续 SFT 和模型门禁保持未完成。
+- 2026-08-24：三路临时 worktree 已合并并删除；旧 closeout 的 11,037 个输出文件与主
+  项目逐文件 SHA-256 一致后移除。当前本地与远端长期分支仅 `dev/stg/main`。

@@ -899,7 +899,7 @@ manifest.
   和 SSH 隧道已停止。迁移不代表全量预标注、人工标注或质检完成。
 ## 2026-08-24：系统收敛修复与 CLIP/Milvus 实测
 
-- Git 基线：`feature/system-consolidation`，模型为
+- Git 基线：`dev` 提交 `2e44125`，模型为
   `Qwen/Qwen3-VL-8B-Instruct` + Week 7 unified adapter；本地未加载该 adapter。
 - fresh 数据：`system_repair_fresh_multitask_20260824_v1`，train/development/test
   1,980/168/120，lock SHA-256
