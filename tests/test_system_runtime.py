@@ -9,6 +9,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from src.api.routes import dialogue, readiness, visual_search
+from src.evaluation.prompting import render_standard_prompt
 from src.inference.client import OpenAICompatibleClient
 from src.inference.schemas import (
     DialogueRequest,
@@ -96,6 +97,32 @@ def settings(adapter_path=None, adapter_sha="0" * 64):
 
 
 class SystemRuntimeTest(unittest.TestCase):
+    def test_release_uses_prompt_pilot_winners(self):
+        release = ReleaseSettings.load(root=Path.cwd())
+        expected = {
+            "image_product_search": (
+                "system_repair_product_compact_v1",
+                "逐个检查必填键",
+            ),
+            "after_sales": (
+                "system_repair_after_sales_evidence_v1",
+                "核对证据来源",
+            ),
+            "itinerary_planning": (
+                "system_repair_itinerary_current_v1",
+                "保留未知字段",
+            ),
+        }
+
+        for scenario, (version, expected_text) in expected.items():
+            context = {
+                "images": [{"path": "sample.jpg"}],
+                "text_constraints": "行程共2天" if scenario == "itinerary_planning" else None,
+            }
+            rendered = render_standard_prompt(Path.cwd(), scenario, context, version)
+            self.assertEqual(release.prompt_versions[scenario], version)
+            self.assertIn(expected_text, rendered["layers"]["task_instruction"])
+
     def test_transformers_backend_preserves_underlying_generation_error(self):
         backend = TransformersPeftBackend(settings())
         backend._model = types.SimpleNamespace(device="cpu")

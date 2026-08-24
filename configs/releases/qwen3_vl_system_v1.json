@@ -12,9 +12,9 @@
     "trust_remote_code": false
   },
   "prompts": {
-    "image_product_search": "standardized_v2",
-    "after_sales": "standardized_v2",
-    "itinerary_planning": "standardized_v4"
+    "image_product_search": "system_repair_product_compact_v1",
+    "after_sales": "system_repair_after_sales_evidence_v1",
+    "itinerary_planning": "system_repair_itinerary_current_v1"
   },
   "schemas": {
     "image_product_search": "v1",
