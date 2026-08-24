@@ -666,8 +666,6 @@ runner 与 mDPO 审计实现加入后，完整 `unittest` 为 428/428。终态�
 读取 test 共 11/11 个反事实均被拒绝。完整 `unittest` 更新为 431/431。审计允许代码
 进入 `dev` 集成，但不允许把已知 v3 test 对话缺陷写成完全通过，也不允许进入 `stg`。
 
-## Aliyun Runtime
-
 ## Unified Qwen3-VL System Runtime
 
 当前统一系统入口使用 `configs/releases/qwen3_vl_system_v1.json`，默认基座为
@@ -680,6 +678,10 @@ python scripts/tripctl.py validate
 python scripts/tripctl.py serve
 python scripts/tripctl.py smoke --base-url http://127.0.0.1:8000
 ```
+
+`smoke` 会依次检查 `/health`、`/ready`、三场景任务、多轮对话和视觉检索；部署主机上的
+样例图片路径可通过 `--image-path` 覆盖。任一模型、Schema 或检索请求失败都会使 smoke
+失败，不使用 mock 或 keyword fallback 冒充真实系统验证。
 
 统一接口：
 
@@ -698,6 +700,8 @@ CLIP、Milvus 和 release identity。Milvus 基准配置位于
 
 系统收敛修复的真实进度、Milvus 实测和未完成模型门禁见
 `reports/system_consolidation_repair_report.md`。
+
+## Aliyun Runtime
 
 The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the
 Singapore workspace-specific OpenAI-compatible endpoint. The ECS deployment
