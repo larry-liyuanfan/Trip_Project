@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from scripts import build_release_bundle, tripctl
+from scripts import build_release_bundle, tripctl, upload_release_oss
 from src.retrieval.clip_embeddings import ClipEmbeddingError, _validate_vectors
 from src.retrieval.visual_search import VisualSearchService
 
@@ -99,6 +99,15 @@ class SystemPackageTest(unittest.TestCase):
             self.assertEqual(saved["visibility"], "private")
             with tarfile.open(output / "adapter.tar.gz", "r:gz") as archive:
                 self.assertIn("adapter/adapter_model.safetensors", archive.getnames())
+
+            verified = upload_release_oss.verify_release_dir(output)
+            self.assertEqual(verified, saved)
+            (output / "adapter.tar.gz").write_bytes(b"tampered")
+            with self.assertRaisesRegex(
+                upload_release_oss.ReleaseVerificationError,
+                "size mismatch|SHA-256 mismatch",
+            ):
+                upload_release_oss.verify_release_dir(output)
 
     def test_tripctl_validate_rejects_wrong_model(self):
         with TemporaryDirectory() as tmpdir:
