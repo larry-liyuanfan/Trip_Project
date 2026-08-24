@@ -10,6 +10,7 @@ from unittest.mock import patch
 from src.api.routes import health, image_understanding
 from src.inference.client import VLLMClient
 from src.inference.client import parse_model_response
+from src.inference.transport_utils import normalize_image_url
 from src.inference.schemas import ImageUnderstandingRequest
 from src.data.yelp_archives import extract_yelp_archives, extract_yelp_photo_files
 from src.planning.itinerary_planner import build_itinerary
@@ -63,6 +64,28 @@ class CoreBehaviorTest(unittest.TestCase):
 
         image_part = payload["messages"][0]["content"][-1]
         self.assertTrue(image_part["image_url"]["url"].startswith("data:image/png;base64,"))
+
+    def test_file_url_can_resolve_from_an_explicit_asset_root(self):
+        with TemporaryDirectory() as tmpdir:
+            asset = Path(tmpdir) / "inputs" / "sample.png"
+            asset.parent.mkdir()
+            asset.write_bytes(b"asset-bytes")
+            with patch.dict("os.environ", {"TRIP_ASSET_ROOTS": tmpdir}, clear=False):
+                normalized = normalize_image_url("file://inputs/sample.png")
+
+        self.assertTrue(normalized.startswith("data:image/png;base64,"))
+
+    def test_asset_root_does_not_allow_parent_traversal(self):
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "assets"
+            root.mkdir()
+            (Path(tmpdir) / "secret.png").write_bytes(b"secret")
+            with patch.dict(
+                "os.environ", {"TRIP_ASSET_ROOTS": str(root)}, clear=False
+            ):
+                normalized = normalize_image_url("file://../secret.png")
+
+        self.assertEqual(normalized, "file://../secret.png")
 
     def test_parse_model_response_accepts_fenced_json_and_scalar_lists(self):
         response = parse_model_response(
