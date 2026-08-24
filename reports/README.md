@@ -1,8 +1,9 @@
 # 项目报告索引
 
-本目录只保存可进入 Git 的导师交付报告。模型原始输出、评分明细、向量、
-数据库卷和大规模数据集保留在 Git 忽略目录中；报告中的数字必须能由对应的
-本地运行产物或已提交实验记录追溯。
+本目录只保存导师可直接阅读的交付报告。当前会议优先阅读
+`week7_multitask_context_report.md`；模型原始输出、逐条评分、checkpoint 和大规模数据
+位于 Git 忽略的 `outputs/`，实验过程与失败证据位于 `docs/experiments.md` 和
+`experiments/`。报告中的数字必须能由这些产物追溯。
 
 ## 综合报告
 
@@ -26,6 +27,6 @@
 | Week 5 | `week5_dataset_quality_report.md` | 全量预标注、单人预算内人工验收与多轮候选质量证据 |
 | Week 6 | `week6_qlora_quality_report.md` | 三场景 QLoRA 终态、行程业务门禁与专项优化结论 |
 | Week 6 后评审 | `week6_post_training_improvement_review.md` | 完成度判断、冻结指标短板、前沿方法映射与非污染改进门禁 |
-| Week 7 | `week7_multitask_context_report.md` | 新锁、混合训练执行链、真实完成状态与未完成门禁 |
+| Week 7 | `week7_multitask_context_report.md` | 会议版周报：核心三场景 PASS、corrected-dialogue FAIL、DPO 拒绝与证据索引 |
 
 `week3_v2_recuration_status.md` 是历史过程状态，不代表当前最终结论。

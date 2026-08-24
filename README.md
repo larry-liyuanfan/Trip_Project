@@ -529,6 +529,9 @@ python scripts/evaluate_week6_adapter.py compare \
 
 ## Week 7 Multitask Context
 
+会议汇报优先阅读 `reports/week7_multitask_context_report.md`。当前准确结论是：三核心场景
+正式 test 通过，corrected-dialogue fix2 一次性 test 未通过，模型不进入 `stg`。
+
 Week 7 当前修复身份固定使用
 `configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json`；fix1、此前
 `qwen3_vl_8b_multitask_context_v4.json` 与 v3 均只作不可改写历史证据。v3 因对话
