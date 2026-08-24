@@ -19,7 +19,7 @@ def main() -> None:
     count = benchmark["vector_count"]
     import numpy as np
     import pyarrow.parquet as pq
-    from src.data.clip_denoising import _TransformersClipScorer
+    from src.retrieval.clip_embeddings import CLIPImageEncoder
 
     print(f"selecting {count} real images from bounded parquet batches", flush=True)
     selected = []
@@ -58,24 +58,14 @@ def main() -> None:
         f"loading {model_name} for {len(selected)} real images on cuda",
         flush=True,
     )
-    scorer = _TransformersClipScorer(
-        {
-            "model_id": model_name,
-            "device": "cuda",
-            "image_batch_size": 20,
-            "text_batch_size": 1,
-        }
+    encoder = CLIPImageEncoder(
+        model_id=model_name,
+        device="cuda",
+        batch_size=20,
     )
     print(f"loaded {model_name}; encoding images", flush=True)
     image_paths = [row["image_path"] for row in selected]
-    encoded = scorer._image_embeddings(image_paths)
-    missing = [path for path in image_paths if path not in encoded]
-    if missing:
-        raise RuntimeError(f"CLIP failed to encode {len(missing)} selected images")
-    matrix = np.stack(
-        [encoded[path].numpy().astype("float32") for path in image_paths],
-        axis=0,
-    )
+    matrix = np.asarray(encoder.encode(image_paths), dtype="float32")
     print(f"encoded {len(selected)}/{len(selected)}", flush=True)
 
     metadata = []
@@ -108,7 +98,7 @@ def main() -> None:
             {
                 "vector_count": len(metadata),
                 "dimension": int(matrix.shape[1]),
-                "device": scorer.device,
+                "device": encoder.device,
                 "model": model_name,
                 "vectors_path": str(vectors_path),
                 "metadata_path": str(metadata_path),
