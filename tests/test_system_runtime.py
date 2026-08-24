@@ -178,6 +178,9 @@ class SystemRuntimeTest(unittest.TestCase):
         self.assertIsNone(result.attempts[1].error)
         retry_text = backend.messages[1][-1]["content"]
         self.assertIn("不得解释", retry_text)
+        self.assertIn("全部字段", retry_text)
+        self.assertIn("minItems/maxItems", retry_text)
+        self.assertIn("完整闭合", retry_text)
 
     def test_two_invalid_outputs_fail_closed(self):
         backend = FakeBackend(["not-json", "still-not-json"])

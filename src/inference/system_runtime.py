@@ -578,6 +578,8 @@ def _correction_messages(
             "content": (
                 "上一次输出未通过 JSON/Schema 校验。"
                 f"错误：{error}。请重新读取原输入，只输出修正后的完整 JSON；"
+                "保留 Schema 要求的全部字段，数组严格遵守 minItems/maxItems，"
+                "删除重复证据并保持内容紧凑，确保 JSON 在生成上限内完整闭合；"
                 "不得解释、猜测缺失事实或引用本条纠错指令作为证据。"
             ),
         },
