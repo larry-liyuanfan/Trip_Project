@@ -16,7 +16,7 @@
 | 新数据锁 | train/development/test=1,980/168/120，五维跨 split 冲突 0，test 未消费 |
 | 检索 | 1,000 张真实 OTA 图片完成 CLIP 512 维编码和 Milvus 实测 |
 | 封装 | 统一 Compose、release manifest、四层私有 OSS 打包器和 `tripctl` 已实现 |
-| 测试 | 完整 `unittest` 482/482，通过；`git diff --check` 通过 |
+| 测试 | 当前工作树及全新 checkout 的完整 `unittest` 均 482/482；`git diff --check` 通过 |
 
 ## Week 5 修复池
 

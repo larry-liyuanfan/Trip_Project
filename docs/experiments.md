@@ -911,6 +911,7 @@ manifest.
   512 维且全部 L2 normalized。
 - Milvus：`2.6.20`，HNSW/COSINE，M=16、efConstruction=128、ef=64；索引 4.6205 秒，
   100 个查询平均/P95 2.2355/2.4097 ms，Recall@10=1.0，CRUD 全部通过。
-- 验证：定向 25/25、完整 unittest 482/482、配置校验和 `git diff --check` 通过。
+- 验证：定向 25/25、当前工作树和全新 checkout 的完整 unittest 均 482/482，配置校验和
+  `git diff --check` 通过；3 个依赖 ignored Week 7 产物的测试已改成自包含 fixture。
 - 未运行：Qwen3-VL Prompt pilot、64 条 Week 5 修复、继续 SFT、fresh test 和 OSS 上传。
   未生成或声称任何新模型提升。

@@ -702,6 +702,6 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   与冻结评测五维冲突 0；历史人工 accepted 不变。
 - [x] fresh 修复锁 1,980/168/120，五维跨 split 冲突 0，test 未消费。
 - [x] 1,000 张真实图片 CLIP/Milvus 基准完成：Recall@10=1.0，平均/P95
-  2.2355/2.4097 ms；完整测试 482/482。
+  2.2355/2.4097 ms；当前工作树和全新 checkout 完整测试均为 482/482。
 - [ ] Week 5 64 条 Qwen3-VL 修复、Prompt pilot、继续 SFT、fresh test、四场景模型
   smoke 和 OSS 下载复验尚未完成；因此只允许代码进入 `dev`，不得进入 `stg`。
