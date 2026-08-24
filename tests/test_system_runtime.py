@@ -107,16 +107,16 @@ class SystemRuntimeTest(unittest.TestCase):
         release = ReleaseSettings.load(root=Path.cwd())
         expected = {
             "image_product_search": (
-                "system_repair_product_compact_v2",
-                "逐个检查必填键",
+                "system_repair_product_compact_v3",
+                "八个顶层键",
             ),
             "after_sales": (
-                "system_repair_after_sales_evidence_v2",
-                "核对证据来源",
+                "system_repair_after_sales_evidence_v3",
+                "ocr_text",
             ),
             "itinerary_planning": (
-                "system_repair_itinerary_current_v2",
-                "保留未知字段",
+                "system_repair_itinerary_current_v3",
+                "九个顶层键",
             ),
         }
 

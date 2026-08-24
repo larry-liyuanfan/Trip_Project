@@ -1,0 +1,6 @@
+scenario: after_sales
+schema_name: after_sales_v1.schema.json
+format_skeleton: >-
+  {"issue_type":"unknown","severity":"unknown","issue_location":null,"key_information":[],"ocr_text":null,"observed_evidence":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  读取视觉证据，判断问题类型、严重度和关键信息。必须且只能输出 issue_type、severity、issue_location、key_information、ocr_text、observed_evidence、unknown_fields、confidence 八个顶层键；没有可见短文字时 ocr_text 使用 null，不得猜测。
