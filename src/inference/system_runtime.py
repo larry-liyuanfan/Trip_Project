@@ -214,6 +214,7 @@ class TransformersPeftBackend:
         self.settings = settings
         self._model: Any = None
         self._processor: Any = None
+        self._torch: Any = None
 
     def ready(self) -> tuple[bool, str]:
         valid, reason = self.settings.validate_adapter()
@@ -264,11 +265,13 @@ class TransformersPeftBackend:
                 key: value.to(device) if hasattr(value, "to") else value
                 for key, value in inputs.items()
             }
-            generated = self._model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,
-            )
+            with self._torch.inference_mode():
+                generated = self._model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                    use_cache=True,
+                )
             input_tokens = int(inputs["input_ids"].shape[1])
             trimmed = [
                 output[len(input_ids) :]
@@ -321,7 +324,7 @@ class TransformersPeftBackend:
             self.settings.base_model,
             revision=self.settings.base_revision,
             device_map="auto",
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             quantization_config=quantization,
             trust_remote_code=False,
         )
@@ -336,6 +339,7 @@ class TransformersPeftBackend:
             revision=self.settings.base_revision,
             trust_remote_code=False,
         )
+        self._torch = torch
 
 
 class ScenarioService:
