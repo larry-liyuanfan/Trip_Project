@@ -360,19 +360,17 @@ class ScenarioService:
         for scenario, version in self.settings.schema_versions.items():
             try:
                 load_output_schema(self.settings.root, scenario, version)
-                prompt_root = (
-                    self.settings.root
-                    / "configs"
-                    / "evaluation"
-                    / "prompts"
-                    / self.settings.prompt_versions[scenario]
+                render_standard_prompt(
+                    self.settings.root,
+                    scenario,
+                    {
+                        "images": [{"path": "readiness-placeholder.jpg"}],
+                        "text_constraints": (
+                            "行程共1天" if scenario == "itinerary_planning" else None
+                        ),
+                    },
+                    self.settings.prompt_versions[scenario],
                 )
-                if not (prompt_root / "common.yaml").is_file() or not (
-                    prompt_root / f"{scenario}.yaml"
-                ).is_file():
-                    raise RuntimeConfigurationError(
-                        f"prompt files are missing for {scenario}"
-                    )
             except Exception as exc:
                 schema_errors.append(f"{scenario}: {exc}")
         contracts_ready = not schema_errors

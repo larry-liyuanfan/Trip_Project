@@ -244,6 +244,7 @@ class SystemRuntimeTest(unittest.TestCase):
 
         self.assertEqual(result["status"], "not_ready")
         self.assertFalse(result["checks"]["adapter"]["ok"])
+        self.assertTrue(result["checks"]["prompt_schema_contracts"]["ok"])
 
     def test_dialogue_state_updates_are_explicit(self):
         output = json.dumps(
