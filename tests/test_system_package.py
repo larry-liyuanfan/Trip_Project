@@ -34,6 +34,53 @@ class FakeStore:
 
 
 class SystemPackageTest(unittest.TestCase):
+    def test_tripctl_smoke_covers_four_model_scenarios_and_visual_search(self):
+        class Response:
+            ok = True
+            status_code = 200
+
+            def __init__(self, payload):
+                self.payload = payload
+
+            def json(self):
+                return self.payload
+
+        posts = []
+
+        def post(url, *, json, timeout):
+            posts.append((url, json, timeout))
+            if url.endswith("image-product-search"):
+                return Response({"scenario": "image_product_search", "schema_valid": True})
+            if url.endswith("after-sales"):
+                return Response({"scenario": "after_sales", "schema_valid": True})
+            if url.endswith("itinerary-planning"):
+                return Response({"scenario": "itinerary_planning", "schema_valid": True})
+            if url.endswith("dialogue"):
+                return Response({"quality_tier": "DIALOGUE_BETA"})
+            return Response({"retrieval_mode": "clip_milvus_hnsw_cosine", "results": []})
+
+        with TemporaryDirectory() as tmpdir:
+            image = Path(tmpdir) / "image.jpg"
+            image.write_bytes(b"image")
+            with patch.object(tripctl.requests, "get", return_value=Response({"status": "ok"})):
+                with patch.object(tripctl.requests, "post", side_effect=post):
+                    result = tripctl.smoke("http://service", image)
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(
+            set(result["checks"]),
+            {
+                "health",
+                "ready",
+                "image_product_search",
+                "after_sales",
+                "itinerary_planning",
+                "dialogue",
+                "visual_search",
+            },
+        )
+        self.assertEqual(len(posts), 5)
+
     def test_clip_vector_validation_rejects_wrong_dimension_and_norm(self):
         with self.assertRaisesRegex(ClipEmbeddingError, "dimension"):
             _validate_vectors([[1.0]], expected_count=1)

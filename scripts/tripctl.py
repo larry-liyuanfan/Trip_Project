@@ -16,6 +16,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RELEASE = ROOT / "configs/releases/qwen3_vl_system_v1.json"
+DEFAULT_SMOKE_IMAGE = ROOT / "data/samples/images/cafe_001.jpg"
 
 
 def doctor() -> dict[str, Any]:
@@ -68,12 +69,19 @@ def serve() -> int:
     )
 
 
-def smoke(base_url: str) -> dict[str, Any]:
-    """Check both liveness and strict readiness of a running release."""
+def smoke(base_url: str, image_path: Path = DEFAULT_SMOKE_IMAGE) -> dict[str, Any]:
+    """Exercise readiness, four model scenarios, and production retrieval."""
+    image_path = Path(image_path).resolve()
+    if not image_path.is_file():
+        return {
+            "status": "failed",
+            "checks": {"smoke_image": {"ok": False, "detail": str(image_path)}},
+        }
+    base_url = base_url.rstrip("/")
     results = {}
     for endpoint in ("health", "ready"):
         try:
-            response = requests.get(f"{base_url.rstrip('/')}/{endpoint}", timeout=15)
+            response = requests.get(f"{base_url}/{endpoint}", timeout=30)
             results[endpoint] = {
                 "ok": response.ok,
                 "status_code": response.status_code,
@@ -81,10 +89,79 @@ def smoke(base_url: str) -> dict[str, Any]:
             }
         except Exception as exc:
             results[endpoint] = {"ok": False, "error": str(exc)}
+    task_specs = {
+        "image_product_search": (
+            "/v1/tasks/image-product-search",
+            "识别业态、风格、核心设施和价位区间。",
+        ),
+        "after_sales": (
+            "/v1/tasks/after-sales",
+            "识别凭证中的问题、严重等级、关键信息和文字。",
+        ),
+        "itinerary_planning": (
+            "/v1/tasks/itinerary-planning",
+            "规划上海两日行程，预算适中，偏好安静的文化体验。",
+        ),
+    }
+    for scenario, (endpoint, text_context) in task_specs.items():
+        _post_smoke(
+            results,
+            scenario,
+            f"{base_url}{endpoint}",
+            {"image_urls": [str(image_path)], "text_context": text_context},
+            lambda body, expected=scenario: (
+                body.get("scenario") == expected and body.get("schema_valid") is True
+            ),
+        )
+    _post_smoke(
+        results,
+        "dialogue",
+        f"{base_url}/v1/dialogue",
+        {
+            "messages": [{"role": "user", "content": "参考这张图，推荐安静的两日行程。"}],
+            "image_urls": [str(image_path)],
+            "state": {"city": "Shanghai", "days": 2},
+        },
+        lambda body: body.get("quality_tier") == "DIALOGUE_BETA",
+    )
+    _post_smoke(
+        results,
+        "visual_search",
+        f"{base_url}/v1/visual-search",
+        {
+            "image_urls": [str(image_path)],
+            "query_text": "安静的咖啡馆",
+            "top_k": 3,
+            "retrieval_mode": "embedding",
+        },
+        lambda body: (
+            body.get("retrieval_mode") == "clip_milvus_hnsw_cosine"
+            and isinstance(body.get("results"), list)
+        ),
+    )
     return {
         "status": "ok" if all(item["ok"] for item in results.values()) else "failed",
         "checks": results,
     }
+
+
+def _post_smoke(
+    results: dict[str, Any],
+    name: str,
+    url: str,
+    payload: dict[str, Any],
+    validator,
+) -> None:
+    try:
+        response = requests.post(url, json=payload, timeout=180)
+        body = response.json()
+        results[name] = {
+            "ok": bool(response.ok and validator(body)),
+            "status_code": response.status_code,
+            "body": body,
+        }
+    except Exception as exc:
+        results[name] = {"ok": False, "error": str(exc)}
 
 
 def main() -> None:
@@ -95,10 +172,15 @@ def main() -> None:
     subparsers.add_parser("serve")
     smoke_parser = subparsers.add_parser("smoke")
     smoke_parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    smoke_parser.add_argument("--image-path", type=Path, default=DEFAULT_SMOKE_IMAGE)
     args = parser.parse_args()
     if args.command == "serve":
         raise SystemExit(serve())
-    result = smoke(args.base_url) if args.command == "smoke" else globals()[args.command]()
+    result = (
+        smoke(args.base_url, args.image_path)
+        if args.command == "smoke"
+        else globals()[args.command]()
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     raise SystemExit(0 if result["status"] == "ok" else 1)
 
