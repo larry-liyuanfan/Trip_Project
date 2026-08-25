@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 
 from src.inference.schemas import DialogueRequest, TaskRequest
 from src.inference.system_runtime import (
+    ModelGenerationError,
     ReleaseSettings,
     ScenarioService,
     TransformersPeftBackend,
@@ -94,7 +95,14 @@ def main() -> None:
         config_path=args.release_config.resolve(),
     )
     service = ScenarioService(settings, TransformersPeftBackend(settings))
-    result = run_model_smoke(service, args.image)
+    try:
+        result = run_model_smoke(service, args.image)
+    except ModelGenerationError as exc:
+        result = {
+            "status": "FAIL",
+            "error": str(exc),
+            "failed_attempts": [item.model_dump() for item in exc.attempts],
+        }
     result["evidence"] = {
         "git_commit": subprocess.run(
             ["git", "rev-parse", "HEAD"],

@@ -571,11 +571,12 @@ class ScenarioService:
     ) -> tuple[DialogueModelOutput, list[ModelAttempt]]:
         attempts: list[ModelAttempt] = []
         active_messages = list(messages)
+        active_response_format: dict[str, Any] = {"type": "json_object"}
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
             raw = self.backend.generate(
                 active_messages,
-                response_format={"type": "json_object"},
+                response_format=active_response_format,
                 max_new_tokens=self.settings.max_new_tokens,
             )
             error: str | None = None
@@ -596,7 +597,13 @@ class ScenarioService:
                 return parsed, attempts
             if attempt_number > self.settings.max_schema_retries:
                 break
-            active_messages = _correction_messages(active_messages, raw, error or "")
+            active_messages = _correction_messages(
+                active_messages,
+                raw,
+                error or "",
+                scenario="dialogue",
+            )
+            active_response_format = _dialogue_schema_response_format()
         raise ModelGenerationError(
             f"dialogue output failed Schema after {len(attempts)} attempts: "
             f"{attempts[-1].error}",
@@ -633,6 +640,13 @@ def _correction_messages(
             '"constraint_check":[],"observed_evidence":[],"unknown_fields":[],'
             '"confidence":null}。只替换骨架中的内容值，不改变键、类型或嵌套层级；'
             "若完整多日内容可能无法闭合，先输出一个 Schema 合法的精简日程。"
+        )
+    elif scenario == "dialogue":
+        itinerary_contract = (
+            "对话纠错必须使用以下三键骨架："
+            '{"reply":"简短直接回复","state_updates":{},"tool_calls":[]}。'
+            "reply 必须是非空字符串；state_updates 必须是对象；tool_calls 必须是数组；"
+            "不得输出场景任务标签、evidence、confidence 或骨架之外的顶层键。"
         )
     return [
         *messages,
@@ -672,6 +686,19 @@ def _json_schema_response_format(
         "type": "json_schema",
         "json_schema": {
             "name": f"{scenario}_{schema_version}",
+            "strict": True,
+            "schema": schema,
+        },
+    }
+
+
+def _dialogue_schema_response_format() -> dict[str, Any]:
+    schema = DialogueModelOutput.model_json_schema()
+    schema["additionalProperties"] = False
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "dialogue_model_output",
             "strict": True,
             "schema": schema,
         },
