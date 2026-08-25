@@ -740,7 +740,7 @@ def summarize_raw_records(
         dialogue_summary = _dialogue_summary(dialogue_scores)
     core_weighted = weighted
     automatic_gate = config["evaluation"].get("dialogue_automatic_gate", {})
-    if automatic_gate.get("enabled") is True:
+    if automatic_gate.get("enabled") is True and dialogue_scores:
         if not dialogue_summary or "automatic_composite" not in dialogue_summary:
             raise Week7EvaluationError("v4 automatic dialogue evidence is missing")
         dialogue_weight = float(automatic_gate["selection_weight"])

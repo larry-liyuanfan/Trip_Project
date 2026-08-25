@@ -168,6 +168,7 @@ def run_transformers_development(
                     int(config["training"]["max_length"]),
                 )
             )
+    _write_jsonl_new(output_dir / "raw_outputs.jsonl", records)
     summary = summarize_raw_records(
         root,
         config,
@@ -182,7 +183,6 @@ def run_transformers_development(
         "config_sha256": sha256_file(config_path), "dataset_lock_sha256": dataset_lock["lock_sha256"],
         "adapter_hashes": adapter_hashes, "split": "development", "scenario_filter": scenario,
     })
-    _write_jsonl_new(output_dir / "raw_outputs.jsonl", records)
     (output_dir / "metrics.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     return summary
 

@@ -28,6 +28,7 @@ from src.training.week7_data import (
     runtime_lock_data_contract,
     sha256_file,
 )
+from src.training.week7_evaluation import summarize_raw_records
 from src.training.week7_inference import run_transformers_development
 
 
@@ -82,6 +83,56 @@ def metrics(composite=0.8, dialogue=0.8):
 
 
 class SystemRepairTest(unittest.TestCase):
+    def test_core_only_development_summary_does_not_require_dialogue(self):
+        config = load_week7_config(SYSTEM_CONFIG_V2)
+        target = {
+            "business_category": "hotel",
+            "style_tags": ["modern"],
+            "visible_facilities": ["pool"],
+            "price_range": "premium",
+            "observed_evidence": ["visible pool"],
+            "inferred_attributes": [],
+            "unknown_fields": [],
+            "confidence": 1.0,
+        }
+        rows = [{
+            "sample_id": "product-only-1",
+            "scenario": "image_product_search",
+            "target": target,
+        }]
+        records = [{
+            "run_id": "product-only",
+            "sample_id": "product-only-1",
+            "model_name": "week6-single-task",
+            "raw_output": json.dumps(target),
+            "latency_ms": 10.0,
+            "failed": False,
+        }]
+
+        result = summarize_raw_records(
+            ROOT,
+            config,
+            rows,
+            records,
+            metric_support_protocol=config["evaluation"][
+                "metric_support_protocol"
+            ],
+        )
+
+        self.assertIsNone(result["dialogue"])
+        self.assertEqual(
+            result["weighted_composite"],
+            result["core_weighted_composite"],
+        )
+
+    def test_development_persists_raw_outputs_before_scoring(self):
+        source = inspect.getsource(run_transformers_development)
+
+        self.assertLess(
+            source.index('_write_jsonl_new(output_dir / "raw_outputs.jsonl"'),
+            source.index("summary = summarize_raw_records("),
+        )
+
     def test_week5_in_process_infrastructure_failure_stops_immediately(self):
         class BrokenService:
             def run_task(self, scenario, request):
