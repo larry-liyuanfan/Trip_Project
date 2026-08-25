@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from scripts import (
     build_release_bundle,
+    load_system_retrieval,
     run_system_model_smoke,
     tripctl,
     upload_release_oss,
@@ -166,8 +167,89 @@ class SystemPackageTest(unittest.TestCase):
         self.assertIn('MODEL_FALLBACK_ENABLED: "false"', text)
         self.assertIn("TRIP_ADAPTER_DIR: /models/adapter", text)
         self.assertIn("milvusdb/milvus:v2.6.20", text)
+        self.assertIn("retrieval-init:", text)
+        self.assertIn("condition: service_completed_successfully", text)
+        self.assertIn("RETRIEVAL_HOST_DIR", text)
         self.assertIn("${MINIO_ROOT_PASSWORD:?", text)
         self.assertNotIn("minioadmin", text.lower())
+
+    def test_retrieval_loader_is_idempotent_and_rejects_partial_state(self):
+        class Client:
+            def __init__(self, count):
+                self.count = count
+
+            def get_collection_stats(self, **_kwargs):
+                return {"row_count": str(self.count)}
+
+            def flush(self, **_kwargs):
+                return None
+
+            def load_collection(self, **_kwargs):
+                return None
+
+        class Store:
+            collection = "ota_business_image_vector"
+
+            def __init__(self, count):
+                self.client = Client(count)
+                self.inserted = None
+
+            def create_collection(self):
+                return None
+
+            def batch_insert(self, rows):
+                self.inserted = rows
+
+            def build_indexes(self):
+                return None
+
+            def count_visible_entities(self):
+                return 2
+
+        config = {
+            "benchmark": {"vector_count": 2},
+            "collection": {"embedding_model": "clip", "vector_dimension": 2},
+            "index": {"index_type": "HNSW", "metric_type": "COSINE"},
+        }
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            vectors = root / "vectors.npz"
+            metadata = root / "metadata.jsonl"
+            import numpy as np
+
+            np.savez(vectors, multimodal_vector=np.array([[1, 0], [0, 1]]))
+            rows = [
+                {
+                    "business_id": f"b-{index}",
+                    "image_id": f"i-{index}",
+                    "business_category": "hotel",
+                    "city": "Shanghai",
+                    "star_rating": 4.0,
+                    "price_range": "mid_range",
+                    "image_type": "inside",
+                    "embedding_model": "clip",
+                }
+                for index in range(2)
+            ]
+            metadata.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows),
+                encoding="utf-8",
+            )
+            empty = Store(0)
+            result = load_system_retrieval.load_release_vectors(
+                config, vectors, metadata, store=empty
+            )
+            self.assertEqual(result["status"], "LOADED")
+            self.assertEqual(len(empty.inserted), 2)
+
+            result = load_system_retrieval.load_release_vectors(
+                config, vectors, metadata, store=Store(2)
+            )
+            self.assertEqual(result["status"], "ALREADY_LOADED")
+            with self.assertRaisesRegex(RuntimeError, "partial data"):
+                load_system_retrieval.load_release_vectors(
+                    config, vectors, metadata, store=Store(1)
+                )
 
     def test_release_builder_creates_four_checksum_layers(self):
         with TemporaryDirectory() as tmpdir:

@@ -23,6 +23,7 @@ RUNTIME_PATHS = [
     "configs/releases",
     "docker/system",
     "scripts/tripctl.py",
+    "scripts/load_system_retrieval.py",
     "requirements-api.txt",
     "requirements-training.txt",
     "requirements-milvus.txt",

@@ -22,8 +22,8 @@ services:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8000}:8000"
     gpus: all
     depends_on:
-      standalone:
-        condition: service_healthy
+      retrieval-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 15s
@@ -31,6 +31,28 @@ services:
       retries: 10
       start_period: 60s
     restart: unless-stopped
+
+  retrieval-init:
+    build:
+      context: ../..
+      dockerfile: docker/system/Dockerfile.qwen3
+    command:
+      - python3
+      - scripts/load_system_retrieval.py
+      - --config
+      - docker/system/milvus_system.yaml
+      - --vectors
+      - /release/retrieval/clip_vectors_1000.npz
+      - --metadata
+      - /release/retrieval/clip_metadata_1000.jsonl
+    environment:
+      MILVUS_URI: http://standalone:19530
+    volumes:
+      - ${RETRIEVAL_HOST_DIR:?set RETRIEVAL_HOST_DIR}:/release/retrieval:ro
+    depends_on:
+      standalone:
+        condition: service_healthy
+    restart: "no"
 
   etcd:
     image: quay.io/coreos/etcd:v3.5.18
