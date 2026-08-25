@@ -713,5 +713,11 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   早停并回载最佳 checkpoint-87，最终 adapter SHA-256 `c2fbb5c7...eaa2a`。
 - [x] 同一 development 集完成候选、旧 unified、zero-shot 和 Week 6 routed 对比；总体
   加权为 0.920725/0.750034/0.084010/0.061806。不可覆盖开发门禁为 `PASS`，失败项 0。
-- [ ] 唯一一次 fresh test job `29569338` 已通过 SSH 提交，等待 Spartan GPU 调度；最终
-  模型 smoke、私有 OSS 上传和下载哈希复验仍受最终门禁控制。
+- [x] 唯一一次 fresh test job `29569338` 在 A100 上 `COMPLETED 0:0`，`00:42:49`；
+  120/120、失败率 0，三场景 JSON/Schema 1.0，对话自动综合 0.973330。
+- [x] fresh-test raw/metrics 与单次消费标记哈希一致；final gate `PASS`、失败项 0，
+  SHA-256 `9574b05b...a77d`。发布配置已绑定 checkpoint-87 adapter。
+- [x] 四层本地私有发布包已构建并复验 runtime/adapter/retrieval/evidence 与 manifest；
+  当前完整 unittest 511/511、Compose 配置验证通过。
+- [ ] 真实四场景生产模型 smoke job `29570866` 等待 GPU；私有 OSS 创建、上传与下载
+  哈希复验尚未执行。因此在这两项完成前仍不得进入 `stg`。

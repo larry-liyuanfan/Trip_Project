@@ -672,6 +672,10 @@ runner 与 mDPO 审计实现加入后，完整 `unittest` 为 428/428。终态�
 `Qwen/Qwen3-VL-8B-Instruct`，adapter 必须通过文件 SHA-256 核验。生产模式没有模型、
 Schema 或检索静默回退。
 
+当前 release candidate 已绑定 system-repair checkpoint-87，adapter SHA-256 为
+`c2fbb5c7...eaa2a`。唯一一次 120 条 fresh test 已完成，三场景 JSON/Schema 均为
+1.0、请求失败率为 0，对话 Beta 综合为 0.973330；不可覆盖 final gate 为 `PASS`。
+
 ```bash
 python scripts/tripctl.py doctor
 python scripts/tripctl.py validate
@@ -698,7 +702,7 @@ CLIP、Milvus 和 release identity。Milvus 基准配置位于
 `docker/system/milvus_system.yaml`，统一 Compose 位于 `docker/system/docker-compose.yml`。
 没有实际 adapter 时 `tripctl doctor` 返回 `not_ready`，这是预期的 fail-closed 行为。
 
-系统收敛修复的真实进度、Milvus 实测和未完成模型门禁见
+系统收敛修复的真实进度、Milvus 实测和发布封装门禁见
 `reports/system_consolidation_repair_report.md`。
 
 ## Aliyun Runtime

@@ -913,3 +913,11 @@ as the current validated dataset or accepted baseline.
   0.061806。开发门禁 `PASS`，失败项 0，SHA-256 `e7ba5bc7...0402`。
 - 2026-08-25：唯一一次 fresh test job `29569338` 已通过 `spartan-trip` SSH 提交，
   申请一个 L40S 或 A100、12 CPU、96 GB、1 小时，等待调度期间未读取 test 内容。
+- 2026-08-25：job `29569338` 在 A100 上 `COMPLETED 0:0`，`00:42:49`；120/120、
+  失败率 0，总体/核心加权 0.936170/0.926880，商品/售后/行程
+  0.780639/1.000000/1.000000，对话自动综合 0.973330，三场景 JSON/Schema 均 1.0。
+- 2026-08-25：fresh-test raw/metrics SHA-256 `34446498...eb19`/`853bd67e...1018`
+  与 completed 消费标记一致；final gate `PASS`、失败项 0，SHA-256
+  `9574b05b...a77d`。发布配置切换到 checkpoint-87，四层本地私有包复验通过。
+- 2026-08-25：真实四场景生产模型 smoke job `29570866` 已提交，等待 GPU；OSS 列表
+  当前为空，创建私有 Bucket 和上传前等待用户对专业项目文件传输及费用的即时确认。

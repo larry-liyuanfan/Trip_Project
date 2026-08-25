@@ -2,7 +2,7 @@
 
 日期：2026-08-25
 当前状态：`PARTIAL`  
-发布结论：代码、检索、Prompt pilot 与 Week 5 修复已通过；模型修复门禁尚未完成，不进入 `stg`
+发布结论：模型开发与 fresh-test 门禁已通过；真实生产模型 smoke 与私有 OSS 下载复验完成前不进入 `stg`
 
 ## 已完成修复
 
@@ -18,7 +18,7 @@
 | continuation SFT | Spartan job `29562078` 完成并早停于 step 112；回载最佳 checkpoint-87 |
 | 检索 | 1,000 张真实 OTA 图片完成 CLIP 512 维编码和 Milvus 实测 |
 | 封装 | 统一 Compose、release manifest、四层私有 OSS 打包器和 `tripctl` 已实现 |
-| 测试 | 当前完整 `unittest` 509/509；`git diff --check` 通过 |
+| 测试 | 当前完整 `unittest` 511/511；Compose 配置与 `git diff --check` 通过 |
 | 仓库整理 | 仅保留 `dev/stg/main`；旧 closeout 证据迁入并校验 11,037 个 SHA-256 后移除 |
 
 ## Week 5 修复池
@@ -113,17 +113,40 @@ fresh test；门禁 SHA-256 为
 完成旧 unified 与 zero-shot 后发现单场景汇总错误要求对话证据，且评分失败前未落盘原始
 输出。修复并补充回归测试后，job `29567157` 完成 Week 6 routed，历史失败日志保持不变。
 
-## 尚未完成的最终门禁
+## Fresh Test
 
-- 唯一一次 fresh test job `29569338` 已通过 SSH 提交，等待 Spartan GPU 调度；提交前
-  已确认输出目录不存在，脚本会再次核对候选、数据锁与门禁哈希。
-- 候选 adapter 已下载到本地 ignored 输出目录并核对 SHA-256；发布配置仍保持旧 adapter，
-  只有 fresh test 通过后才允许切换并构建最终包。
-- 四场景生产 API 模型 smoke 尚未形成最终证据。
-- OSS 目标和真实 adapter 尚不可用，因此私有 OSS 上传与下载哈希复验未执行。
+唯一一次 fresh test job `29569338` 在 A100 上 `COMPLETED 0:0`，耗时 `00:42:49`。
+输出包含 120 条互斥样本，商品、售后、行程、对话各 30 条；没有删除失败或困难样本。
 
-以上任一模型或发布门禁未完成时均不得进入 `stg`。本报告不使用历史 test 结果生成新标签，
+| 指标 | 实测 |
+| --- | ---: |
+| 总体 / 核心三场景加权 | 0.936170 / 0.926880 |
+| 商品 / 售后 / 行程综合 | 0.780639 / 1.000000 / 1.000000 |
+| 三场景 JSON / Schema | 1.000000 / 1.000000 |
+| 商品风格 / 设施 / 价位支持 | 25 / 30 / 5 |
+| 对话自动综合 | 0.973330 |
+| 对话格式 / 上下文召回 / 状态值准确率 | 1.000000 / 0.976667 / 0.955556 |
+| 对话任务 key / value | 0.996296 / 0.923724 |
+| 对话顺序协议 / 语义 / 工具协议 | 1.000000 / 0.977734 / 1.000000 |
+| 请求失败率 | 0.000000 |
+
+原始输出 120 行；raw/metrics SHA-256 分别为
+`3444649815298a82fbae328c521f5b9ee1595ae2dcbf8007311ae043b015eb19` 和
+`853bd67ece5cce91f0b028d992daecabc9b5a701e14e3f92fb73960f69d01018`，均与
+`COMPLETED` 单次消费标记一致。不可覆盖 final gate 为 `PASS`、失败项 0，SHA-256
+`9574b05bccff1e9d988181615937f40e634d9c81e8ea7049bda644652b1da77d`。
+
+该 test 只消费一次，没有基于 test 结果继续训练、改 Prompt、改阈值或重跑。
+
+## 尚未完成的封装门禁
+
+- 发布配置已绑定 checkpoint-87 adapter；本地四层私有包完成 adapter/config/archive
+  哈希复验。真实四场景生产服务 smoke job `29570866` 等待 Spartan GPU。
+- 当前阿里云 OSS Bucket 列表为空；私有 Bucket 创建、约 60 MB 上传和下载哈希复验
+  尚未执行，等待用户对专业项目文件传输及潜在少量费用做即时确认。
+
+以上任一封装门禁未完成时均不得进入 `stg`。本报告不使用历史 test 结果生成新标签，
 不新增人工标注，也不修改 Week 3、Week 6、Week 7 冻结产物。
 
-当前实现基线为 `a11d082`，已推送 `origin/dev`；`origin/stg` 仍为 `132779b`，
+当前实现基线为 `f659301`，已推送 `origin/dev`；`origin/stg` 仍为 `132779b`，
 `origin/main` 仍为 `1e3cdf7`。
