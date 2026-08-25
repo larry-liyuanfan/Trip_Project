@@ -361,7 +361,7 @@ class SystemRuntimeTest(unittest.TestCase):
         self.assertEqual(result.quality_tier, "DIALOGUE_BETA")
         self.assertEqual(result.state, {"city": "上海", "budget": 2000})
 
-    def test_dialogue_retry_uses_three_key_schema_contract(self):
+    def test_dialogue_retry_uses_three_key_contract_without_lmfe(self):
         invalid = json.dumps({"confidence": 0.7, "scene_tags": ["attraction"]})
         valid = json.dumps(
             {
@@ -384,13 +384,7 @@ class SystemRuntimeTest(unittest.TestCase):
         retry_text = backend.messages[1][-1]["content"]
         self.assertIn("对话纠错必须使用以下三键骨架", retry_text)
         self.assertIn('"reply":"简短直接回复"', retry_text)
-        contract = backend.response_formats[1]
-        self.assertEqual(contract["type"], "json_schema")
-        self.assertEqual(
-            set(contract["json_schema"]["schema"]["required"]),
-            {"reply"},
-        )
-        self.assertFalse(contract["json_schema"]["schema"]["additionalProperties"])
+        self.assertEqual(backend.response_formats[1], {"type": "json_object"})
 
     def test_dialogue_endpoint_is_disabled_by_default(self):
         request = DialogueRequest(

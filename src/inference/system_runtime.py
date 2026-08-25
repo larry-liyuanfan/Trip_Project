@@ -603,7 +603,11 @@ class ScenarioService:
                 error or "",
                 scenario="dialogue",
             )
-            active_response_format = _dialogue_schema_response_format()
+            # Dialogue state and tool payloads intentionally allow arbitrary JSON
+            # objects. lm-format-enforcer cannot handle their boolean
+            # additionalProperties contract, so the retry remains model-level and
+            # is validated by DialogueModelOutput after generation.
+            active_response_format = {"type": "json_object"}
         raise ModelGenerationError(
             f"dialogue output failed Schema after {len(attempts)} attempts: "
             f"{attempts[-1].error}",
@@ -686,19 +690,6 @@ def _json_schema_response_format(
         "type": "json_schema",
         "json_schema": {
             "name": f"{scenario}_{schema_version}",
-            "strict": True,
-            "schema": schema,
-        },
-    }
-
-
-def _dialogue_schema_response_format() -> dict[str, Any]:
-    schema = DialogueModelOutput.model_json_schema()
-    schema["additionalProperties"] = False
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "dialogue_model_output",
             "strict": True,
             "schema": schema,
         },
