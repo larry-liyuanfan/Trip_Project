@@ -919,5 +919,12 @@ as the current validated dataset or accepted baseline.
 - 2026-08-25：fresh-test raw/metrics SHA-256 `34446498...eb19`/`853bd67e...1018`
   与 completed 消费标记一致；final gate `PASS`、失败项 0，SHA-256
   `9574b05b...a77d`。发布配置切换到 checkpoint-87，四层本地私有包复验通过。
-- 2026-08-25：真实四场景生产模型 smoke job `29570866` 已提交，等待 GPU；OSS 列表
-  当前为空，创建私有 Bucket 和上传前等待用户对专业项目文件传输及费用的即时确认。
+- 2026-08-25：生产 smoke 前两轮分别暴露任务输入契约和对话纠错契约问题；第三轮
+  `29571065` 进一步确认 `lm-format-enforcer` 不支持 arbitrary-object 对话状态，失败
+  JSON 与原始两次输出完整保留。修复未改变三类固定业务 Schema 约束解码。
+- 2026-08-25：真实四场景生产模型 smoke job `29571134` 在 A100 20 GB MIG 上
+  `COMPLETED 0:0`，`00:01:22`；三场景首轮 Schema-valid，对话一次纠错后达到
+  `DIALOGUE_BETA`，结果 SHA-256 `a256c64a...8f32`。
+- 2026-08-25：Compose 新增幂等且 fail-closed 的 1,000 向量 `retrieval-init`；最终本地
+  私有包四层及 12 份 evidence 校验通过。完整 unittest 和全新 checkout 均为
+  513/513。OSS 创建、上传和下载复验仍等待即时确认，因此未进入 `stg`。

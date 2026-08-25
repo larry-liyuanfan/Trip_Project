@@ -717,7 +717,11 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   120/120、失败率 0，三场景 JSON/Schema 1.0，对话自动综合 0.973330。
 - [x] fresh-test raw/metrics 与单次消费标记哈希一致；final gate `PASS`、失败项 0，
   SHA-256 `9574b05b...a77d`。发布配置已绑定 checkpoint-87 adapter。
-- [x] 四层本地私有发布包已构建并复验 runtime/adapter/retrieval/evidence 与 manifest；
-  当前完整 unittest 511/511、Compose 配置验证通过。
-- [ ] 真实四场景生产模型 smoke job `29570866` 等待 GPU；私有 OSS 创建、上传与下载
-  哈希复验尚未执行。因此在这两项完成前仍不得进入 `stg`。
+- [x] Compose 已增加 fail-closed `retrieval-init`，只接受 Milvus 空集合或完整 1,000 条
+  状态；API 等待初始化成功。四层最终本地包含 12 份 evidence，全部哈希复验通过。
+- [x] 真实四场景生产模型 smoke job `29571134` 在 A100 20 GB MIG 上
+  `COMPLETED 0:0`；三场景首轮 Schema-valid，对话一次纠错后达到 `DIALOGUE_BETA`。
+- [x] 当前工作树和全新 checkout 完整 unittest 均为 513/513；Compose 配置、
+  `tripctl validate/doctor`、tracked secret scan 和 `git diff --check` 通过。
+- [ ] 私有 OSS 创建、上传与下载哈希复验尚未执行，等待用户对专业项目文件传输及
+  潜在少量费用做即时确认。因此在该项完成前仍不得进入 `stg`。

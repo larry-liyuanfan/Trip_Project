@@ -941,5 +941,11 @@ manifest.
   商品风格/设施/价位支持为 25/30/5，没有通过删除困难样本降低支持数。
 - raw/metrics SHA-256 为 `34446498...eb19`/`853bd67e...1018`，与 completed 单次消费
   标记一致。不可覆盖 final gate 为 `PASS`，失败项 0，SHA-256 `9574b05b...a77d`。
-- 发布配置已绑定 checkpoint-87；四层私有发布包本地校验通过。真实四场景生产模型
-  smoke job `29570866` 等待 GPU，OSS 尚未上传。
+- 发布配置已绑定 checkpoint-87。生产 smoke 的前序失败依次定位输入上下文误传和
+  arbitrary-object 对话状态与 `lm-format-enforcer` 不兼容；失败原始输出保持不可覆盖。
+- 最终 smoke job `29571134` 在 A100 20 GB MIG 上 `COMPLETED 0:0`，耗时 `00:01:22`。
+  商品/售后/行程首轮 Schema-valid；对话经一次模型级纠错后达到 `DIALOGUE_BETA`。
+  成功结果 SHA-256 `a256c64a...8f32`，绑定 adapter `c2fbb5c7...eaa2a` 和发布配置。
+- 最终本地私有包 runtime/adapter/retrieval/evidence SHA-256 分别为
+  `ae61fb86...0f72`、`f74c0787...619d`、`3cdb98f4...1a15b`、`3ab0c024...2a7`；
+  evidence 12 份。OSS 尚未上传，未进入 `stg`。

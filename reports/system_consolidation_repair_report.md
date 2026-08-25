@@ -2,7 +2,7 @@
 
 日期：2026-08-25
 当前状态：`PARTIAL`  
-发布结论：模型开发与 fresh-test 门禁已通过；真实生产模型 smoke 与私有 OSS 下载复验完成前不进入 `stg`
+发布结论：模型开发、fresh-test 和真实生产模型 smoke 均通过；私有 OSS 下载复验完成前不进入 `stg`
 
 ## 已完成修复
 
@@ -18,7 +18,7 @@
 | continuation SFT | Spartan job `29562078` 完成并早停于 step 112；回载最佳 checkpoint-87 |
 | 检索 | 1,000 张真实 OTA 图片完成 CLIP 512 维编码和 Milvus 实测 |
 | 封装 | 统一 Compose、release manifest、四层私有 OSS 打包器和 `tripctl` 已实现 |
-| 测试 | 当前完整 `unittest` 511/511；Compose 配置与 `git diff --check` 通过 |
+| 测试 | 当前完整 `unittest` 513/513；全新 checkout 同为 513/513；Compose 配置与 `git diff --check` 通过 |
 | 仓库整理 | 仅保留 `dev/stg/main`；旧 closeout 证据迁入并校验 11,037 个 SHA-256 后移除 |
 
 ## Week 5 修复池
@@ -138,15 +138,44 @@ fresh test；门禁 SHA-256 为
 
 该 test 只消费一次，没有基于 test 结果继续训练、改 Prompt、改阈值或重跑。
 
+## 生产模型 Smoke 与发布包
+
+Spartan job `29571134` 在 A100 20 GB MIG 上 `COMPLETED 0:0`，耗时 `00:01:22`。
+发布配置、adapter 和普通样例图片均由结果内 SHA-256 绑定；smoke 结果 SHA-256 为
+`a256c64a5df286b2db54e0936e098fbf62a3ed42291cbf715491a4b638608f32`。
+
+| 路径 | 结果 | 尝试次数 | 推理耗时 |
+| --- | --- | ---: | ---: |
+| 商品理解 | Schema-valid | 1 | 37,628.92 ms |
+| 智能售后 | Schema-valid | 1 | 4,986.50 ms |
+| 行程规划 | Schema-valid | 1 | 18,286.62 ms |
+| 对话 | `DIALOGUE_BETA` | 2 | 9,478.64 ms |
+
+对话首轮受 adapter 单任务输出习惯影响，未生成 `reply`；一次模型级纠错后通过。
+前序失败证明了 arbitrary-object Schema 与当前 `lm-format-enforcer` 不兼容，因此对话纠错
+保留三键 Prompt 和 Pydantic 校验，不启用该 token 约束；三类固定业务 Schema 的约束解码
+保持不变。失败与成功原始输出均进入本地 evidence 层。
+
+最终不可覆盖本地包为 `trip-qwen3-vl-8b-system-repair-v1-rc1-final-v3`，12 份 evidence
+与四层归档复验通过：
+
+| 层 | SHA-256 | 字节数 |
+| --- | --- | ---: |
+| runtime | `ae61fb867482d3f382572ef166e2b520eba69511e83bb72859dcdc83ec520f72` | 58,617 |
+| adapter | `f74c078738fa0229574114986c58040bbc280e11ba4ec06558c9a488c2de619d` | 57,850,259 |
+| retrieval | `3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b` | 1,951,172 |
+| evidence | `3ab0c0249a55ad006eebebaff65d25412567684ff5fd8702516215f83d2af2a7` | 36,385 |
+
+Compose 已加入 fail-closed `retrieval-init`：只接受 Milvus 物理数量为 0 或完整 1,000，
+拒绝部分状态，并让 API 等待初始化成功。
+
 ## 尚未完成的封装门禁
 
-- 发布配置已绑定 checkpoint-87 adapter；本地四层私有包完成 adapter/config/archive
-  哈希复验。真实四场景生产服务 smoke job `29570866` 等待 Spartan GPU。
 - 当前阿里云 OSS Bucket 列表为空；私有 Bucket 创建、约 60 MB 上传和下载哈希复验
   尚未执行，等待用户对专业项目文件传输及潜在少量费用做即时确认。
 
 以上任一封装门禁未完成时均不得进入 `stg`。本报告不使用历史 test 结果生成新标签，
 不新增人工标注，也不修改 Week 3、Week 6、Week 7 冻结产物。
 
-当前实现基线为 `f659301`，已推送 `origin/dev`；`origin/stg` 仍为 `132779b`，
+当前运行时修复基线为 `f4c3904`，已推送 `origin/dev`；`origin/stg` 仍为 `132779b`，
 `origin/main` 仍为 `1e3cdf7`。

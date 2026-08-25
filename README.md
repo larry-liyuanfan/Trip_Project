@@ -687,6 +687,10 @@ python scripts/tripctl.py smoke --base-url http://127.0.0.1:8000
 样例图片路径可通过 `--image-path` 覆盖。任一模型、Schema 或检索请求失败都会使 smoke
 失败，不使用 mock 或 keyword fallback 冒充真实系统验证。
 
+统一 Compose 还要求将 `RETRIEVAL_HOST_DIR` 指向已解压且通过 manifest 校验的
+`retrieval/` 目录。启动时一次性 `retrieval-init` 会拒绝部分入库状态，仅在集合为空时
+写入固定 1,000 条向量；集合已完整时幂等通过。API 必须等待该初始化成功后才能启动。
+
 统一接口：
 
 - `POST /v1/tasks/image-product-search`
@@ -701,6 +705,8 @@ python scripts/tripctl.py smoke --base-url http://127.0.0.1:8000
 CLIP、Milvus 和 release identity。Milvus 基准配置位于
 `docker/system/milvus_system.yaml`，统一 Compose 位于 `docker/system/docker-compose.yml`。
 没有实际 adapter 时 `tripctl doctor` 返回 `not_ready`，这是预期的 fail-closed 行为。
+Spartan job `29571134` 已用发布配置和 checkpoint-87 adapter 完成真实生产模型 smoke：
+三类任务均 Schema-valid，对话经一次模型级纠错后达到 `DIALOGUE_BETA`。
 
 系统收敛修复的真实进度、Milvus 实测和发布封装门禁见
 `reports/system_consolidation_repair_report.md`。
