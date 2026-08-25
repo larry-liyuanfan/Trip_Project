@@ -30,8 +30,8 @@ def run_model_smoke(service: ScenarioService, image_path: Path) -> dict[str, Any
 
     image = str(Path(image_path).resolve())
     tasks = {
-        "image_product_search": "识别业态、风格、核心设施和价位区间。",
-        "after_sales": "识别凭证中的问题、严重等级、关键信息和文字。",
+        "image_product_search": None,
+        "after_sales": None,
         "itinerary_planning": "规划上海两日行程，预算适中，偏好安静的文化体验。",
     }
     results = {

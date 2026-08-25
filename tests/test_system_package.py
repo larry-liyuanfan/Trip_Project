@@ -70,6 +70,10 @@ class SystemPackageTest(unittest.TestCase):
             {scenario for scenario, _ in service.tasks},
             {"image_product_search", "after_sales", "itinerary_planning"},
         )
+        task_requests = {scenario: request for scenario, request in service.tasks}
+        self.assertIsNone(task_requests["image_product_search"].text_context)
+        self.assertIsNone(task_requests["after_sales"].text_context)
+        self.assertTrue(task_requests["itinerary_planning"].text_context)
         self.assertEqual(len(service.dialogue.messages), 1)
 
     def test_tripctl_smoke_covers_four_model_scenarios_and_visual_search(self):
@@ -118,6 +122,14 @@ class SystemPackageTest(unittest.TestCase):
             },
         )
         self.assertEqual(len(posts), 5)
+        task_payloads = {
+            url.rsplit("/", 1)[-1]: payload
+            for url, payload, _ in posts
+            if "/v1/tasks/" in url
+        }
+        self.assertIsNone(task_payloads["image-product-search"]["text_context"])
+        self.assertIsNone(task_payloads["after-sales"]["text_context"])
+        self.assertTrue(task_payloads["itinerary-planning"]["text_context"])
 
     def test_clip_vector_validation_rejects_wrong_dimension_and_norm(self):
         with self.assertRaisesRegex(ClipEmbeddingError, "dimension"):

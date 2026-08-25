@@ -92,11 +92,11 @@ def smoke(base_url: str, image_path: Path = DEFAULT_SMOKE_IMAGE) -> dict[str, An
     task_specs = {
         "image_product_search": (
             "/v1/tasks/image-product-search",
-            "识别业态、风格、核心设施和价位区间。",
+            None,
         ),
         "after_sales": (
             "/v1/tasks/after-sales",
-            "识别凭证中的问题、严重等级、关键信息和文字。",
+            None,
         ),
         "itinerary_planning": (
             "/v1/tasks/itinerary-planning",
