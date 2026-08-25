@@ -6,7 +6,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from scripts import build_release_bundle, tripctl, upload_release_oss
+from scripts import (
+    build_release_bundle,
+    run_system_model_smoke,
+    tripctl,
+    upload_release_oss,
+)
 from src.retrieval.clip_embeddings import ClipEmbeddingError, _validate_vectors
 from src.retrieval.visual_search import VisualSearchService
 
@@ -34,6 +39,39 @@ class FakeStore:
 
 
 class SystemPackageTest(unittest.TestCase):
+    def test_real_model_smoke_covers_three_tasks_and_dialogue(self):
+        class Result:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def model_dump(self):
+                return dict(self.payload)
+
+        class Service:
+            def __init__(self):
+                self.tasks = []
+
+            def run_task(self, scenario, request):
+                self.tasks.append((scenario, request))
+                return Result({"scenario": scenario, "schema_valid": True})
+
+            def run_dialogue(self, request):
+                self.dialogue = request
+                return Result({"quality_tier": "DIALOGUE_BETA"})
+
+        service = Service()
+        result = run_system_model_smoke.run_model_smoke(
+            service,
+            Path("data/samples/images/cafe_001.jpg"),
+        )
+
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(
+            {scenario for scenario, _ in service.tasks},
+            {"image_product_search", "after_sales", "itinerary_planning"},
+        )
+        self.assertEqual(len(service.dialogue.messages), 1)
+
     def test_tripctl_smoke_covers_four_model_scenarios_and_visual_search(self):
         class Response:
             ok = True

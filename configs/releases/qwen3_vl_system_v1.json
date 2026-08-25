@@ -1,13 +1,13 @@
 {
   "schema_version": "system_release_v1",
-  "release_id": "trip-qwen3-vl-8b-unified-v1-rc1",
+  "release_id": "trip-qwen3-vl-8b-system-repair-v1-rc1",
   "status": "release_candidate",
   "model": {
     "base_model": "Qwen/Qwen3-VL-8B-Instruct",
     "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
     "backend": "transformers-peft",
-    "adapter_name": "trip-qwen3-vl-8b-unified-v4-fix2",
-    "adapter_model_sha256": "ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee",
+    "adapter_name": "trip-qwen3-vl-8b-system-repair-checkpoint-87-v1",
+    "adapter_model_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a",
     "adapter_path_env": "TRIP_ADAPTER_DIR",
     "trust_remote_code": false
   },
