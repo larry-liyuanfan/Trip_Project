@@ -896,3 +896,20 @@ as the current validated dataset or accepted baseline.
   Spartan 尚未登录，64 条重推理、Prompt pilot、继续 SFT 和模型门禁保持未完成。
 - 2026-08-24：三路临时 worktree 已合并并删除；旧 closeout 的 11,037 个输出文件与主
   项目逐文件 SHA-256 一致后移除。当前本地与远端长期分支仅 `dev/stg/main`。
+- 2026-08-25：Prompt pilot 在固定 development 集比较三种候选，商品选择 compact、
+  售后选择 evidence、行程选择 current；发布 Prompt 分别锁定为
+  `system_repair_product_compact_v3`、`system_repair_after_sales_evidence_v3` 和
+  `system_repair_itinerary_structured_v4`。
+- 2026-08-25：Spartan job `29560346` 完成 Week 5 v2 的 64/64 条 Qwen3-VL-8B
+  修复，最终合并 80,000/80,000 Schema-valid silver，人工 accepted 统计不变。
+- 2026-08-25：continuation SFT job `29562078` 在单个 L40S 上 `COMPLETED 0:0`，
+  `04:48:36`；step 112 按 patience=2 早停并回载最佳 checkpoint-87。最终 adapter
+  SHA-256 `c2fbb5c7...eaa2a`，adapter-only 磁盘回载验证通过。
+- 2026-08-25：候选 checkpoint-87 总体加权 0.920725、核心三场景加权 0.905382，
+  商品/售后/行程为 0.716146/1.000000/1.000000，对话自动综合 0.982097，失败率 0。
+- 2026-08-25：job `29565493` 完成旧 unified 与 zero-shot 后暴露单场景汇总和失败前
+  原始输出未持久化问题；代码修复后 job `29567157` 完成 Week 6 routed。同集四路总体
+  加权为候选 0.920725、旧 unified 0.750034、zero-shot 0.084010、Week 6 routed
+  0.061806。开发门禁 `PASS`，失败项 0，SHA-256 `e7ba5bc7...0402`。
+- 2026-08-25：唯一一次 fresh test job `29569338` 已通过 `spartan-trip` SSH 提交，
+  申请一个 L40S 或 A100、12 CPU、96 GB、1 小时，等待调度期间未读取 test 内容。

@@ -915,3 +915,24 @@ manifest.
   `git diff --check` 通过；3 个依赖 ignored Week 7 产物的测试已改成自包含 fixture。
 - 未运行：Qwen3-VL Prompt pilot、64 条 Week 5 修复、继续 SFT、fresh test 和 OSS 上传。
   未生成或声称任何新模型提升。
+
+## 2026-08-25：系统修复 Prompt、Week 5 与 continuation SFT
+
+- Prompt pilot：run `system_repair_prompt_pilot_20260824_v8` 在固定 development 集比较
+  current、compact 和 evidence 三候选；商品/售后/行程分别选择 compact/evidence/current。
+- Week 5 修复：Spartan job `29560346` 完成 64/64，最终合并产物 80,000/80,000
+  Schema-valid；SHA-256 `86b0a158567da3e3b683fd73476d51f1608ad6f59ae5219e7f52354180ff5926`。
+  新结果均为 silver，人工 accepted 统计不变。
+- continuation SFT：job `29562078`，`Qwen/Qwen3-VL-8B-Instruct`，初始 adapter
+  checkpoint-226 SHA-256 `ccc6062f...5f24ee`，单个 L40S，学习率 `5e-5`，最多 1 epoch，
+  development 约每 10% step 评估，patience=2。作业 `COMPLETED 0:0`，`04:48:36`；
+  step 100/112 连续未提升后回载 checkpoint-87。
+- checkpoint-87：总体加权 0.920725、核心三场景加权 0.905382，商品/售后/行程
+  0.716146/1.000000/1.000000，
+  对话自动综合 0.982097，失败率 0；adapter SHA-256 `c2fbb5c7...eaa2a`，回载通过。
+- 同集比较：job `29565493` 完成旧 unified 与 zero-shot 后暴露单场景汇总和失败前原始
+  输出持久化缺陷；修复后 job `29567157` 完成 Week 6 routed。候选/旧 unified/zero-shot/
+  Week 6 routed 总体加权分别为 0.920725/0.750034/0.084010/0.061806。
+- 不可覆盖开发门禁 `system_repair_development_gate_20260825_v4` 为 `PASS`，失败项 0，
+  允许消费一次 fresh test；门禁 SHA-256 `e7ba5bc7...0402`。最终测试 job `29569338`
+  已通过 SSH 提交，等待 Spartan GPU 调度。

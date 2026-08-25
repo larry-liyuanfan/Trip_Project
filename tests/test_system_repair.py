@@ -17,6 +17,7 @@ from src.training.system_prompt_pilot import (
 from src.training.system_repair import (
     SystemRepairError,
     _validate_historical_failure_contract,
+    evaluate_system_final_test_gate,
     evaluate_system_release_gates,
     load_repair_config,
     run_week5_repair_queue,
@@ -350,6 +351,29 @@ class SystemRepairTest(unittest.TestCase):
         self.assertEqual(result["status"], "FAIL")
         self.assertFalse(result["test_consumption_allowed"])
         self.assertTrue(any("price_range_support" in item for item in result["failures"]))
+
+    def test_final_test_gate_requires_absolute_quality_and_support(self):
+        config = load_week7_config(SYSTEM_CONFIG_V2)
+        final = metrics(composite=0.8, dialogue=0.8)
+        final.update({"status": "COMPLETED", "split": "test", "sample_count": 120})
+        for payload in final["scenarios"].values():
+            payload["aggregate"]["sample_count"] = 30
+        final["dialogue"]["sample_count"] = 30
+
+        result = evaluate_system_final_test_gate(config, final)
+
+        self.assertEqual(result["status"], "PASS")
+        self.assertTrue(result["release_allowed"])
+
+        final["scenarios"]["image_product_search"]["metric_support"][
+            "price_range_accuracy"
+        ] = 0
+        result = evaluate_system_final_test_gate(config, final)
+        self.assertEqual(result["status"], "FAIL")
+        self.assertIn(
+            "image_product_search:price_range_accuracy_has_no_test_support",
+            result["failures"],
+        )
 
     def test_prompt_candidates_are_exactly_the_three_approved_versions(self):
         payload = json.loads(

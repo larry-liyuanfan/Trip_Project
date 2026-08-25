@@ -705,3 +705,13 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   2.2355/2.4097 ms；当前工作树和全新 checkout 完整测试均为 482/482。
 - [ ] Week 5 64 条 Qwen3-VL 修复、Prompt pilot、继续 SFT、fresh test、四场景模型
   smoke 和 OSS 下载复验尚未完成；因此只允许代码进入 `dev`，不得进入 `stg`。
+- [x] Prompt pilot 已完成：商品/售后/行程分别选择 compact/evidence/current，选择记录
+  保持不可覆盖，未使用 fresh test 反向选 Prompt。
+- [x] Week 5 v2 64 条修复全部 Schema-valid；最终 80,000/80,000 silver 结果 SHA-256
+  为 `86b0a158...5926`，历史人工 accepted 统计未改变。
+- [x] continuation SFT job `29562078` `COMPLETED 0:0`，`04:48:36`；patience=2
+  早停并回载最佳 checkpoint-87，最终 adapter SHA-256 `c2fbb5c7...eaa2a`。
+- [x] 同一 development 集完成候选、旧 unified、zero-shot 和 Week 6 routed 对比；总体
+  加权为 0.920725/0.750034/0.084010/0.061806。不可覆盖开发门禁为 `PASS`，失败项 0。
+- [ ] 唯一一次 fresh test job `29569338` 已通过 SSH 提交，等待 Spartan GPU 调度；最终
+  模型 smoke、私有 OSS 上传和下载哈希复验仍受最终门禁控制。

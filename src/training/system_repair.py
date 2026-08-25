@@ -476,6 +476,111 @@ def evaluate_system_release_gates(
     }
 
 
+def evaluate_system_final_test_gate(
+    config: dict[str, Any],
+    final_metrics: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply absolute release gates to the single consumed fresh test result."""
+
+    failures: list[str] = []
+    core_scenarios = set(SCENARIOS)
+    expected_core = int(config["dataset"]["test_per_core_scenario"])
+    expected_dialogue = int(config["dataset"]["test_dialogue_count"])
+    expected_total = expected_core * len(core_scenarios) + expected_dialogue
+    if final_metrics.get("status") != "COMPLETED":
+        failures.append("test:status_not_completed")
+    if final_metrics.get("split") != "test":
+        failures.append("test:split_mismatch")
+    if int(final_metrics.get("sample_count", -1)) != expected_total:
+        failures.append(f"test:sample_count_not_{expected_total}")
+
+    scenarios = final_metrics.get("scenarios", {})
+    if set(scenarios) != core_scenarios:
+        failures.append("test:core_scenario_set_mismatch")
+    limits = config["evaluation"]["non_regression"]
+    for scenario in sorted(core_scenarios):
+        payload = scenarios.get(scenario, {})
+        aggregate = payload.get("aggregate", {})
+        if int(aggregate.get("sample_count", -1)) != expected_core:
+            failures.append(f"{scenario}:sample_count_not_{expected_core}")
+        for metric_name, threshold_key in (
+            ("json_compliance", "minimum_json_compliance"),
+            ("schema_pass", "minimum_schema_pass"),
+        ):
+            try:
+                value = float(aggregate[metric_name])
+            except (KeyError, TypeError, ValueError):
+                failures.append(f"{scenario}:{metric_name}_missing")
+                continue
+            threshold = float(limits[threshold_key])
+            if value < threshold:
+                failures.append(f"{scenario}:{metric_name}_below_{threshold}")
+
+    product_support = scenarios.get("image_product_search", {}).get(
+        "metric_support", {}
+    )
+    for field in ("style_f1", "facility_f1", "price_range_accuracy"):
+        if int(product_support.get(field, 0)) <= 0:
+            failures.append(f"image_product_search:{field}_has_no_test_support")
+
+    try:
+        failure_rate = float(final_metrics["failure_rate"])
+    except (KeyError, TypeError, ValueError):
+        failures.append("test:failure_rate_missing")
+    else:
+        maximum = float(limits["max_failure_rate"])
+        if failure_rate > maximum:
+            failures.append(f"test:failure_rate_above_{maximum}")
+
+    dialogue = final_metrics.get("dialogue", {})
+    if int(dialogue.get("sample_count", -1)) != expected_dialogue:
+        failures.append(f"dialogue:sample_count_not_{expected_dialogue}")
+    gate = config["evaluation"]["dialogue_automatic_gate"]
+    dialogue_checks = {
+        "automatic_composite": (">=", gate["minimum_automatic_composite"]),
+        "format_compliance": (">=", gate["minimum_format_compliance"]),
+        "context_recall": (">=", gate["minimum_context_recall"]),
+        "context_state_value_accuracy": (
+            ">=", gate["minimum_context_state_value_accuracy"]
+        ),
+        "task_result_key_coverage": (">=", gate["minimum_task_result_key_coverage"]),
+        "task_result_value_accuracy": (
+            ">=", gate["minimum_task_result_value_accuracy"]
+        ),
+        "sequential_protocol_coverage": (
+            ">=", gate["minimum_sequential_protocol_coverage"]
+        ),
+        "sequential_semantic_accuracy": (
+            ">=", gate["minimum_sequential_semantic_accuracy"]
+        ),
+        "tool_protocol_compliance": (">=", gate["minimum_tool_protocol_compliance"]),
+        "failure_rate": ("<=", gate["maximum_failure_rate"]),
+    }
+    for name, (operator, threshold) in dialogue_checks.items():
+        try:
+            if name == "failure_rate" and name not in dialogue:
+                scores = dialogue.get("scores", [])
+                value = (
+                    sum(bool(item.get("failed")) for item in scores) / len(scores)
+                    if scores
+                    else 1.0
+                )
+            else:
+                value = float(dialogue[name])
+        except (KeyError, TypeError, ValueError):
+            failures.append(f"dialogue:{name}_missing")
+            continue
+        passed = value >= float(threshold) if operator == ">=" else value <= float(threshold)
+        if not passed:
+            failures.append(f"dialogue:{name}_{operator}_{threshold}")
+
+    return {
+        "status": "PASS" if not failures else "FAIL",
+        "failures": failures,
+        "release_allowed": not failures,
+    }
+
+
 def select_system_repair_candidate(
     root: Path,
     config_path: Path,

@@ -33,6 +33,7 @@ from src.inference.system_runtime import (
 )
 from src.training.system_repair import (
     build_week5_repair_v2,
+    evaluate_system_final_test_gate,
     evaluate_system_release_gates,
     merge_week5_repair_results,
     run_week5_repair_queue,
@@ -94,6 +95,11 @@ def parser() -> argparse.ArgumentParser:
     final_test.add_argument("--selection", type=Path, required=True)
     final_test.add_argument("--gate", type=Path, required=True)
     final_test.add_argument("--output-dir", type=Path, required=True)
+    final_gate = sub.add_parser("evaluate-final-test")
+    final_gate.add_argument("--metrics", type=Path, required=True)
+    final_gate.add_argument("--selection", type=Path, required=True)
+    final_gate.add_argument("--development-gate", type=Path, required=True)
+    final_gate.add_argument("--output", type=Path, required=True)
     sub.add_parser("validate-config")
     return command
 
@@ -245,6 +251,61 @@ def main() -> int:
             args.gate,
             args.output_dir,
         )
+    elif args.command == "evaluate-final-test":
+        config = load_week7_config(args.config)
+        metrics = json.loads(args.metrics.read_text(encoding="utf-8"))
+        selection = json.loads(args.selection.read_text(encoding="utf-8"))
+        development_gate = json.loads(
+            args.development_gate.read_text(encoding="utf-8")
+        )
+        lock_root = (
+            ROOT
+            / config["dataset"]["output_root"]
+            / config["dataset"]["dataset_version"]
+        )
+        marker_path = lock_root / "system_repair_test_consumption.json"
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+        evidence_failures = []
+        if (
+            development_gate.get("status") != "PASS"
+            or development_gate.get("test_consumption_allowed") is not True
+        ):
+            evidence_failures.append("development_gate:not_passed")
+        if selection.get("adapter_model_sha256") != metrics.get(
+            "adapter_hashes", {}
+        ).get("adapter_model.safetensors"):
+            evidence_failures.append("test:adapter_hash_mismatch")
+        if metrics.get("config_sha256") != sha256_file(args.config):
+            evidence_failures.append("test:config_hash_mismatch")
+        if metrics.get("selection_sha256") != sha256_file(args.selection):
+            evidence_failures.append("test:selection_hash_mismatch")
+        if metrics.get("gate_sha256") != sha256_file(args.development_gate):
+            evidence_failures.append("test:development_gate_hash_mismatch")
+        if (
+            marker.get("status") != "COMPLETED"
+            or marker.get("metrics_sha256") != sha256_file(args.metrics)
+            or marker.get("adapter_model_sha256")
+            != selection.get("adapter_model_sha256")
+        ):
+            evidence_failures.append("test:consumption_marker_mismatch")
+        result = evaluate_system_final_test_gate(config, metrics)
+        result["failures"] = evidence_failures + result["failures"]
+        result["status"] = "PASS" if not result["failures"] else "FAIL"
+        result["release_allowed"] = not result["failures"]
+        result["evidence"] = {
+            "config_path": str(args.config.resolve()),
+            "config_sha256": sha256_file(args.config),
+            "selection_path": str(args.selection.resolve()),
+            "selection_sha256": sha256_file(args.selection),
+            "development_gate_path": str(args.development_gate.resolve()),
+            "development_gate_sha256": sha256_file(args.development_gate),
+            "test_metrics_path": str(args.metrics.resolve()),
+            "test_metrics_sha256": sha256_file(args.metrics),
+            "test_consumption_marker_path": str(marker_path.resolve()),
+            "test_consumption_marker_sha256": sha256_file(marker_path),
+            "adapter_model_sha256": selection.get("adapter_model_sha256"),
+        }
+        _write_json_new(args.output, result)
     else:
         config = load_week7_config(args.config)
         result = {
