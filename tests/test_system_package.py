@@ -12,6 +12,7 @@ from scripts import (
     run_system_model_smoke,
     tripctl,
     upload_release_oss,
+    verify_model_handoff,
 )
 from src.retrieval.clip_embeddings import ClipEmbeddingError, _validate_vectors
 from src.retrieval.visual_search import VisualSearchService
@@ -330,6 +331,91 @@ class SystemPackageTest(unittest.TestCase):
                     evidence_paths=[],
                     release_config=release,
                 )
+
+    def test_local_handoff_verifier_requires_model_retrieval_and_gate_evidence(self):
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            adapter = workspace / "adapter"
+            retrieval = workspace / "retrieval"
+            evidence = workspace / "evidence"
+            adapter.mkdir()
+            retrieval.mkdir()
+            evidence.mkdir()
+            adapter_bytes = b"adapter"
+            adapter_sha = hashlib.sha256(adapter_bytes).hexdigest()
+            (adapter / "adapter_model.safetensors").write_bytes(adapter_bytes)
+            (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+            (retrieval / "clip_vectors_1000.npz").write_bytes(b"vectors")
+            (retrieval / "clip_metadata_1000.jsonl").write_text("{}\n", encoding="utf-8")
+            (retrieval / "milvus_benchmark_1000.json").write_text(
+                json.dumps(
+                    {
+                        "status": "completed",
+                        "collection": "ota_business_image_vector",
+                        "vector_dimension": 512,
+                        "actual_vector_count_inserted": 1000,
+                        "search": {"recall_at_k": 1.0},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            release_id = "test-release"
+            (evidence / "final_test_gate.json").write_text(
+                json.dumps({"status": "PASS", "release_allowed": True}),
+                encoding="utf-8",
+            )
+            (evidence / "system_release_model_smoke_20260825_v6.json").write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "scenarios": {
+                            scenario: {
+                                "schema_valid": True,
+                                "release_id": release_id,
+                            }
+                            for scenario in (
+                                "image_product_search",
+                                "after_sales",
+                                "itinerary_planning",
+                            )
+                        },
+                        "dialogue": {
+                            "quality_tier": "DIALOGUE_BETA",
+                            "release_id": release_id,
+                        },
+                        "evidence": {"adapter_model_sha256": adapter_sha},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            release = workspace / "release.json"
+            release.write_text(
+                json.dumps(
+                    {
+                        "release_id": release_id,
+                        "model": {"adapter_model_sha256": adapter_sha},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = workspace / "release"
+            with patch.object(build_release_bundle, "RUNTIME_PATHS", ["README.md"]):
+                build_release_bundle.build_bundle(
+                    output,
+                    adapter_dir=adapter,
+                    retrieval_dir=retrieval,
+                    evidence_paths=list(evidence.iterdir()),
+                    release_config=release,
+                )
+
+            result = verify_model_handoff.verify_model_handoff(output)
+
+            self.assertEqual(result["status"], "PASS")
+            self.assertEqual(result["retrieval"]["vector_count"], 1000)
+            self.assertEqual(
+                result["model_smoke"]["dialogue_quality_tier"],
+                "DIALOGUE_BETA",
+            )
 
     def test_tripctl_validate_rejects_wrong_model(self):
         with TemporaryDirectory() as tmpdir:

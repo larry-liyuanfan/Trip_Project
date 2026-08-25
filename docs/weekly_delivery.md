@@ -723,5 +723,9 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   `COMPLETED 0:0`；三场景首轮 Schema-valid，对话一次纠错后达到 `DIALOGUE_BETA`。
 - [x] 当前工作树和全新 checkout 完整 unittest 均为 513/513；Compose 配置、
   `tripctl validate/doctor`、tracked secret scan 和 `git diff --check` 通过。
-- [ ] 私有 OSS 创建、上传与下载哈希复验尚未执行，等待用户对专业项目文件传输及
-  潜在少量费用做即时确认。因此在该项完成前仍不得进入 `stg`。
+- [x] 导师确认交接不要求 Spartan 或 OSS 留存；唯一 59.9 MB 本地交接包通过四层、
+  adapter、release config、final gate、真实 smoke 和 Milvus 基准复验，失败项 0。
+- [x] 清理 21 个 ignored 目标并释放 71,735,466,519 字节；Yelp、模型缓存、中间输出、
+  checkpoint 和迁移目录已删除，唯一交接包和凭据均受保护。
+- [x] 新增接手文档、本地验证命令和导师可选择的 Week 8 优化方向；不将候选方向冒充
+  已确定任务。最终完整 unittest 与全新 checkout 更新为 514/514。

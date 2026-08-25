@@ -588,8 +588,8 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   `evidence_state_v1`；不根据 test 或全量运行反向选 Prompt。
 - 使用 1,000 张真实 OTA 图片生成 CLIP 512 维向量，完成 Milvus HNSW/COSINE CRUD、
   过滤、延迟和 Recall@K 实测。
-- 提供统一 Compose、release manifest、`tripctl doctor/validate/serve/smoke` 和私有 OSS
-  分层包；不得上传密钥、模型缓存或未经许可的原始 Yelp 数据。
+- 提供统一 Compose、release manifest、`tripctl doctor/validate/serve/smoke` 和本地分层
+  交接包；不得打包密钥、模型缓存或未经许可的原始 Yelp 数据。
 
 ### 晋级门禁
 
@@ -599,5 +599,16 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - 对话使用独立 `DIALOGUE_BETA` 门禁，同时必须超过 Week 6 routed 与 zero-shot；旧严格
   研究门禁结论不改写。
 - 只有代码测试、Week 5 80,000/80,000 Schema-valid、Prompt pilot、修复 adapter、四场景
-  smoke、Milvus 实测、Docker/OSS 哈希和干净 checkout 全部通过，才允许快进 `dev` 与
+  smoke、Milvus 实测、Docker/本地交接包哈希和干净 checkout 全部通过，才允许快进 `dev` 与
   `stg`；否则代码和失败证据可进入 `dev`，但不得进入 `stg`。
+
+### 2026-08-25 导师交接口径修正
+
+- 交付目标是让下一位接手者能够验证、解压和运行当前模型，不要求使用 Spartan 或 OSS
+  留存，也不要求保留每周全部原始数据、运行输出、checkpoint 和模型缓存。
+- Git 保存代码、配置、Prompt、Schema、测试、交接说明和汇总报告；Git 外只保留一份
+  通过 SHA-256 复验的 adapter/runtime/retrieval/evidence 本地交接包。
+- 允许清理可下载或可再生成的 Yelp 数据、基座缓存、迁移目录及历史中间输出，但不得
+  删除唯一交接包、修改冻结历史结论或把凭据纳入交付。
+- 导师要求提出若干 Week 8 优化方向供其调整任务。当前只输出证据、候选方向和建议验收
+  指标，不把任何候选写成已确定 Week 8 计划。

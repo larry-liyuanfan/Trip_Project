@@ -467,6 +467,20 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **发布影响**：完整代码修复和失败证据可进入 `dev`；只有模型、检索、Docker、OSS 与
   干净 checkout 门禁全部通过才允许进入 `stg`。`main` 不在本次修改范围。
 
+## ADR-034：模型采用单一本地交接包，不依赖 Spartan 或 OSS 留存
+
+- **日期**：2026-08-25
+- **状态**：Accepted；导师最新口径由用户直接确认，本决策取代 ADR-033 的 OSS 留存
+  与晋级门禁，其模型、检索、Docker 和 fail-closed 质量要求保持有效。
+- **决策**：Git 只保存可复现代码、配置、测试和报告；Git 外保留唯一四层本地交接包。
+  接手者使用本地验证器核验归档、adapter、release config、final gate、真实模型 smoke
+  和 Milvus 基准。Spartan 与 OSS 不作为交付依赖，不要求保留每周全部运行数据。
+- **清理边界**：允许删除 Yelp 原始/解压数据、公开基座缓存、中间 checkpoint、周运行
+  输出和迁移临时目录。必须保留唯一交接包，不删除本地凭据，不向 Git 提交模型权重、
+  原始数据或密钥。
+- **晋级影响**：模型门禁、真实四场景 smoke、本地交接包哈希、完整测试、Compose 和
+  干净 checkout 全部通过后可进入 `stg`；`main` 仍不变。
+
 ## Decision Template
 
 ```markdown

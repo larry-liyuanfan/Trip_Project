@@ -928,3 +928,9 @@ as the current validated dataset or accepted baseline.
 - 2026-08-25：Compose 新增幂等且 fail-closed 的 1,000 向量 `retrieval-init`；最终本地
   私有包四层及 12 份 evidence 校验通过。完整 unittest 和全新 checkout 均为
   513/513。OSS 创建、上传和下载复验仍等待即时确认，因此未进入 `stg`。
+- 2026-08-25：导师交接口径修正为只需下一位能够接手模型，不要求 Spartan、OSS 或逐周
+  全量数据留存。新增本地 handoff verifier，四层归档、adapter、release config、final
+  gate、真实 smoke 和 Milvus 基准复验 `PASS`。
+- 2026-08-25：安全清理 21 个 ignored 目标，释放 71,735,466,519 字节；删除 Yelp、公开
+  基座缓存、中间输出/checkpoint 和迁移目录，仅保留 59.9 MB 唯一交接包、代码文档、
+  轻量样例和未交付凭据。新增 Week 8 优化方向候选供导师选择，不写成已确定任务。

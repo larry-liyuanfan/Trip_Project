@@ -1,8 +1,8 @@
 # 系统收敛修复与统一封装报告
 
 日期：2026-08-25
-当前状态：`PARTIAL`  
-发布结论：模型开发、fresh-test 和真实生产模型 smoke 均通过；私有 OSS 下载复验完成前不进入 `stg`
+当前状态：`HANDOFF_READY`
+发布结论：模型开发、fresh-test、真实生产模型 smoke 和单一本地交接包复验均通过；不依赖 Spartan 或 OSS 留存
 
 ## 已完成修复
 
@@ -17,8 +17,8 @@
 | 新数据锁 | train/development/test=1,980/168/120，五维跨 split 冲突 0，test 未消费 |
 | continuation SFT | Spartan job `29562078` 完成并早停于 step 112；回载最佳 checkpoint-87 |
 | 检索 | 1,000 张真实 OTA 图片完成 CLIP 512 维编码和 Milvus 实测 |
-| 封装 | 统一 Compose、release manifest、四层私有 OSS 打包器和 `tripctl` 已实现 |
-| 测试 | 当前完整 `unittest` 513/513；全新 checkout 同为 513/513；Compose 配置与 `git diff --check` 通过 |
+| 封装 | 统一 Compose、release manifest、四层本地交接包和 `tripctl` 已实现 |
+| 测试 | 当前完整 `unittest` 514/514；全新 checkout 同为 514/514；Compose 配置与 `git diff --check` 通过 |
 | 仓库整理 | 仅保留 `dev/stg/main`；旧 closeout 证据迁入并校验 11,037 个 SHA-256 后移除 |
 
 ## Week 5 修复池
@@ -169,13 +169,19 @@ Spartan job `29571134` 在 A100 20 GB MIG 上 `COMPLETED 0:0`，耗时 `00:01:22
 Compose 已加入 fail-closed `retrieval-init`：只接受 Milvus 物理数量为 0 或完整 1,000，
 拒绝部分状态，并让 API 等待初始化成功。
 
-## 尚未完成的封装门禁
+## 交接与目录清理
 
-- 当前阿里云 OSS Bucket 列表为空；私有 Bucket 创建、约 60 MB 上传和下载哈希复验
-  尚未执行，等待用户对专业项目文件传输及潜在少量费用做即时确认。
+导师最新口径只要求下一位接手者能够验证、解压和运行模型，不要求 Spartan、OSS 或逐周
+全量数据留存。`python scripts/verify_model_handoff.py <release-dir>` 已对四层归档、嵌入
+release config、adapter、final gate、真实 smoke 和 Milvus 基准执行本地复验，状态为
+`PASS`、失败项 0。
 
-以上任一封装门禁未完成时均不得进入 `stg`。本报告不使用历史 test 结果生成新标签，
-不新增人工标注，也不修改 Week 3、Week 6、Week 7 冻结产物。
+清理脚本先复验唯一交接包，再删除 21 个已确认 ignored 目标，实际释放
+`71,735,466,519` 字节（约 66.8 GiB）。已删除 Yelp 原始压缩包和解压数据、Hugging Face
+基座缓存、各周中间输出、checkpoint 和迁移目录。当前只保留约 59.9 MB 的最终本地交接包、
+Git 代码文档、轻量样例和未纳入交付的本地凭据。
 
-当前运行时修复基线为 `f4c3904`，已推送 `origin/dev`；`origin/stg` 仍为 `132779b`，
-`origin/main` 仍为 `1e3cdf7`。
+模型二进制不进入 Git，移交仓库时必须同时移交
+`outputs/releases/trip-qwen3-vl-8b-system-repair-v1-rc1-final-v3`。详细步骤见
+`docs/model_handoff.md`。本轮不新增人工标注，不修改 Week 3、Week 6、Week 7 冻结结论，
+满足本地交接门禁后允许进入 `stg`；`main` 不变。

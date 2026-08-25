@@ -949,3 +949,8 @@ manifest.
 - 最终本地私有包 runtime/adapter/retrieval/evidence SHA-256 分别为
   `ae61fb86...0f72`、`f74c0787...619d`、`3cdb98f4...1a15b`、`3ab0c024...2a7`；
   evidence 12 份。OSS 尚未上传，未进入 `stg`。
+- 导师随后明确只要求模型可交接，不要求 Spartan、OSS 或逐周全量运行数据留存。
+  `verify_model_handoff.py` 对唯一交接包复验 `PASS`；该结论只验证已封装身份和证据，
+  不生成新模型指标。
+- 清理 21 个 ignored 目标、释放 71,735,466,519 字节；保留唯一约 59.9 MB 交接包。
+  历史报告与哈希结论不改写，原始大数据和中间 checkpoint 不再作为接手依赖。

@@ -711,6 +711,33 @@ Spartan job `29571134` 已用发布配置和 checkpoint-87 adapter 完成真实�
 系统收敛修复的真实进度、Milvus 实测和发布封装门禁见
 `reports/system_consolidation_repair_report.md`。
 
+### Local Model Handoff
+
+导师最新口径不要求 Spartan 或 OSS 留存。当前只保留一份 Git 外本地交接包：
+
+`outputs/releases/trip-qwen3-vl-8b-system-repair-v1-rc1-final-v3`
+
+交接前执行：
+
+```bash
+python scripts/verify_model_handoff.py \
+  outputs/releases/trip-qwen3-vl-8b-system-repair-v1-rc1-final-v3
+```
+
+该命令核验四层归档、release config、adapter、final gate、真实模型 smoke 和 Milvus
+基准，不连接 Spartan 或 OSS。模型二进制不进入 Git，因此移交仓库时必须同时移交这一
+目录。基座模型按 release config 中固定的 Hugging Face model/revision 下载。完整接手
+步骤见 `docs/model_handoff.md`。
+
+可再生成的本地资产可先预览再清理：
+
+```powershell
+.\scripts\cleanup_local_assets.ps1
+.\scripts\cleanup_local_assets.ps1 -Apply
+```
+
+脚本会先复验唯一交接包并保护凭据；当前清理已释放约 66.8 GiB，只留下轻量样例和交接包。
+
 ## Aliyun Runtime
 
 The cloud runtime uses Alibaba Cloud Model Studio `qwen3.7-plus` through the
