@@ -9,6 +9,16 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _write_json_new(path: Path, payload: dict) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
+            + "\n"
+        )
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -226,11 +236,7 @@ def main() -> int:
             "week6_routed_metrics_sha256": sha256_file(args.week6_routed),
             "adapter_model_sha256": selection["adapter_model_sha256"],
         }
-        args.output.write_text(
-            json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        _write_json_new(args.output, result)
     elif args.command == "run-final-test":
         result = run_system_repair_test_once(
             ROOT,

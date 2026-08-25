@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from scripts.manage_system_repair import _write_json_new
 from src.training.system_prompt_pilot import (
     PromptPilotError,
     _prompt_summary_config,
@@ -83,6 +84,19 @@ def metrics(composite=0.8, dialogue=0.8):
 
 
 class SystemRepairTest(unittest.TestCase):
+    def test_gate_writer_creates_parent_and_refuses_overwrite(self):
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "gates" / "gate.json"
+
+            _write_json_new(output, {"status": "PASS"})
+
+            self.assertEqual(
+                json.loads(output.read_text(encoding="utf-8")),
+                {"status": "PASS"},
+            )
+            with self.assertRaises(FileExistsError):
+                _write_json_new(output, {"status": "FAIL"})
+
     def test_core_only_development_summary_does_not_require_dialogue(self):
         config = load_week7_config(SYSTEM_CONFIG_V2)
         target = {
