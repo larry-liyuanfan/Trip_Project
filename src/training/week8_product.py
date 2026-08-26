@@ -79,6 +79,8 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
         "week8_product_understanding_v3",
         "week8_product_understanding_v4",
         "week8_product_understanding_v5",
+        "week8_product_understanding_v6",
+        "week8_product_understanding_v7",
     }:
         raise Week8ProductError("unsupported Week 8 product config")
     dataset = payload.get("dataset", {})
@@ -95,9 +97,16 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
     if payload.get("schema_version") != "week8_product_understanding_v1":
         fresh = payload.get("fresh_source", {})
         expected_source_version = (
-            "week8_product_fresh_20260827_v2"
-            if payload.get("schema_version") == "week8_product_understanding_v5"
-            else "week8_product_fresh_20260826_v1"
+            "week8_product_fresh_20260827_v3"
+            if payload.get("schema_version") in {
+                "week8_product_understanding_v6",
+                "week8_product_understanding_v7",
+            }
+            else (
+                "week8_product_fresh_20260827_v2"
+                if payload.get("schema_version") == "week8_product_understanding_v5"
+                else "week8_product_fresh_20260826_v1"
+            )
         )
         if (
             payload.get("week8", {}).get("source_version")
@@ -114,6 +123,8 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
     if payload.get("schema_version") in {
         "week8_product_understanding_v4",
         "week8_product_understanding_v5",
+        "week8_product_understanding_v6",
+        "week8_product_understanding_v7",
     }:
         support = dataset.get("split_field_support_minimums", {})
         split_sizes = {
@@ -128,7 +139,11 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
             for field in ("style", "facility")
         ):
             raise Week8ProductError("Week 8 v4 field support contract is incomplete")
-    if payload.get("schema_version") == "week8_product_understanding_v5":
+    if payload.get("schema_version") in {
+        "week8_product_understanding_v5",
+        "week8_product_understanding_v6",
+        "week8_product_understanding_v7",
+    }:
         expected_categories = {"hotel", "attraction", "restaurant"}
         fresh_minimums = payload.get("fresh_source", {}).get(
             "minimum_per_ota_category_by_category"
@@ -162,6 +177,8 @@ def _validate_fresh_source_manifest(
             "week8_product_understanding_v3",
             "week8_product_understanding_v4",
             "week8_product_understanding_v5",
+            "week8_product_understanding_v6",
+            "week8_product_understanding_v7",
         }:
             raise Week8ProductError("v3 fresh-source manifest identity is missing")
         return {}

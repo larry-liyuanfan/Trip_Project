@@ -32,6 +32,18 @@ def evidence(**changes):
 
 
 class Week8ProductTwoStageTests(unittest.TestCase):
+    def test_gpu_jobs_use_available_public_gpu_qos(self):
+        for name in (
+            "week8_product_two_stage_development.sbatch",
+            "week8_product_two_stage_sft.sbatch",
+        ):
+            script = (ROOT / "scripts" / "spartan" / name).read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("#SBATCH --partition=gpu-l40s,gpu-a100", script)
+            self.assertIn("#SBATCH --qos=publicgpu", script)
+            self.assertIn("#SBATCH --gres=gpu:1", script)
+
     def test_config_forbids_all_human_states_and_final_test_access(self):
         config = load_two_stage_config(CONFIG)
         self.assertFalse(config["policy"]["human_annotation"])

@@ -13,7 +13,6 @@ from scripts.build_week8_product_fresh_sources import (
     build_fresh_sources,
     caption_signals,
     collect_fresh_candidates,
-    load_fresh_source_config,
     ota_category,
     select_extraction_candidates,
     select_ranked_candidates,
@@ -231,7 +230,7 @@ class Week8ProductFreshSourceTests(unittest.TestCase):
         )
 
     def test_v6_records_observed_post_hash_category_ceiling(self):
-        config = load_fresh_source_config(
+        config = load_week8_product_config(
             Path("configs/week8/product_understanding_v6.json")
         )
 

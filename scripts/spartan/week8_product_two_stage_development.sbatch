@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=trip-w8-two-stage
 #SBATCH --account=punim2936
-#SBATCH --partition=deeplearn
+#SBATCH --partition=gpu-l40s,gpu-a100
+#SBATCH --qos=publicgpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=01:15:00
