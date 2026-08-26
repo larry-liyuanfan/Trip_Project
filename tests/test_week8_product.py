@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from src.evaluation.prompting import render_standard_prompt
 from src.training.week8_product import (
+    _category_from_description,
     _collect_week8_v2_sources,
     load_week8_product_config,
     product_error_slices,
@@ -43,6 +44,20 @@ def summary(composite: float, latency: float = 1000.0) -> dict:
 
 
 class Week8ProductTests(unittest.TestCase):
+    def test_lock_category_mapping_matches_fresh_source_taxonomy(self):
+        self.assertEqual(
+            _category_from_description("name | Tours, Botanical Gardens | attrs"),
+            "attraction",
+        )
+        self.assertEqual(
+            _category_from_description("name | Bed & Breakfast | attrs"),
+            "hotel",
+        )
+        self.assertEqual(
+            _category_from_description("name | Coffee & Tea | attrs"),
+            "restaurant",
+        )
+
     def test_v7_config_pins_completed_post_hash_fresh_source(self):
         config = load_week8_product_config(
             ROOT / "configs/week8/product_understanding_v7.json"
