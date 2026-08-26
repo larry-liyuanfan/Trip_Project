@@ -2,7 +2,7 @@
 #SBATCH --job-name=trip-system-model-smoke
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=96G
 #SBATCH --time=00:30:00
