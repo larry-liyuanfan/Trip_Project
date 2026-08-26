@@ -91,6 +91,24 @@ def settings() -> ReleaseSettings:
 
 
 class Week8RuntimeOptimizationTest(unittest.TestCase):
+    def test_v4_release_binds_selected_product_and_dialogue_prompts(self):
+        release = ReleaseSettings.load(
+            root=Path.cwd(),
+            config_path=Path("configs/releases/qwen3_vl_system_week8_v4.json"),
+        )
+
+        self.assertEqual(
+            release.prompt_versions["image_product_search"],
+            "week8_product_field_check_v1",
+        )
+        self.assertEqual(
+            release.dialogue_prompt_version,
+            "week8_dialogue_first_turn_v2",
+        )
+        self.assertEqual(
+            release.max_new_tokens_by_scenario["image_product_search"], 384
+        )
+
     def test_release_binds_candidate_dialogue_prompt_and_bounded_output(self):
         release = ReleaseSettings.load(
             root=Path.cwd(),
