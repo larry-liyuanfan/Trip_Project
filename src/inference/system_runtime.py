@@ -34,6 +34,7 @@ DEFAULT_RELEASE_CONFIG = "configs/releases/qwen3_vl_system_v1.json"
 DIALOGUE_PROMPT_VERSIONS = {
     "system_repair_dialogue_v1",
     "week8_dialogue_first_turn_v1",
+    "week8_dialogue_first_turn_v2",
 }
 
 
@@ -596,6 +597,13 @@ class ScenarioService:
             error: str | None = None
             parsed: DialogueModelOutput | None = None
             try:
+                if (
+                    self.dialogue_prompt_version == "week8_dialogue_first_turn_v2"
+                    and not raw.startswith("{")
+                ):
+                    raise ValueError(
+                        "week8 dialogue v2 output must start with the JSON object"
+                    )
                 dialogue_payload = json.loads(strip_json_fence(raw))
                 required_keys = {"reply", "state_updates", "tool_calls"}
                 if not isinstance(dialogue_payload, dict) or set(dialogue_payload) != required_keys:
@@ -686,7 +694,10 @@ def _dialogue_messages(
             "你是专业 OTA 多模态对话助手。承接已确认状态，不编造图片或业务事实。"
             "仅输出 JSON：reply、state_updates、tool_calls。"
         )
-    elif prompt_version == "week8_dialogue_first_turn_v1":
+    elif prompt_version in {
+        "week8_dialogue_first_turn_v1",
+        "week8_dialogue_first_turn_v2",
+    }:
         system_content = (
             "你正在处理 OTA 多轮对话端点，而不是商品理解、售后抽取或行程抽取端点。"
             "即使用户上传图片，也不得输出 business_category、scene_tags、itinerary、"
@@ -723,6 +734,17 @@ def _dialogue_messages(
             )
             first_user_has_image = True
         messages.append({"role": turn.role, "content": content})
+    if prompt_version == "week8_dialogue_first_turn_v2":
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "路由控制：这是对话端点。下一个输出的首字符必须是 {，且只能输出"
+                    '三键骨架 {"reply":"简短直接回复","state_updates":{},"tool_calls":[]}；'
+                    "替换值即可，不得输出任务标签、Markdown 或解释。"
+                ),
+            }
+        )
     if prompt_version == "system_repair_dialogue_v1":
         # 保留正式历史基线的尾部状态消息，确保固定样本对比只改变候选 Prompt。
         messages.append(

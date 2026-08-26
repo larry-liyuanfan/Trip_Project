@@ -35,7 +35,10 @@ def load_runtime_benchmark_config(root: Path, path: Path) -> dict[str, Any]:
         raise Week8RuntimeBenchmarkError(
             f"invalid runtime benchmark config: {selected}"
         ) from exc
-    if payload.get("schema_version") != "week8_runtime_optimization_config_v1":
+    if payload.get("schema_version") not in {
+        "week8_runtime_optimization_config_v1",
+        "week8_runtime_optimization_config_v2",
+    }:
         raise Week8RuntimeBenchmarkError("unexpected runtime benchmark schema_version")
     profiles = payload.get("dialogue", {}).get("profiles", [])
     if not isinstance(profiles, list) or len(profiles) != 2:

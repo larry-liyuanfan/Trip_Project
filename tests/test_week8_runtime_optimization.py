@@ -100,6 +100,20 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         )
         self.assertEqual(release.dialogue_max_new_tokens, 384)
 
+    def test_v2_release_binds_new_prompt_without_mutating_v1(self):
+        v1 = ReleaseSettings.load(
+            root=Path.cwd(),
+            config_path=Path("configs/releases/qwen3_vl_system_week8_v1.json"),
+        )
+        v2 = ReleaseSettings.load(
+            root=Path.cwd(),
+            config_path=Path("configs/releases/qwen3_vl_system_week8_v2.json"),
+        )
+
+        self.assertEqual(v1.dialogue_prompt_version, "week8_dialogue_first_turn_v1")
+        self.assertEqual(v2.dialogue_prompt_version, "week8_dialogue_first_turn_v2")
+        self.assertNotEqual(v1.release_id, v2.release_id)
+
     def test_dialogue_contract_rejects_extra_single_task_keys(self):
         self.assertTrue(
             first_attempt_is_three_key_json(
@@ -133,6 +147,47 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         self.assertEqual(messages[1]["content"], "承接历史")
         self.assertEqual(messages[2]["content"][1]["type"], "image_url")
         self.assertEqual(len(messages), 3)
+
+    def test_v2_appends_short_route_control_after_image_bound_user(self):
+        request = DialogueRequest(
+            messages=[
+                DialogueTurn(role="assistant", content="承接历史"),
+                DialogueTurn(role="user", content="结合新图片继续"),
+            ],
+            image_urls=["image.jpg"],
+            state={"city": "Shanghai"},
+        )
+
+        messages = _dialogue_messages(
+            request,
+            prompt_version="week8_dialogue_first_turn_v2",
+        )
+
+        self.assertEqual(messages[2]["content"][1]["type"], "image_url")
+        self.assertEqual(messages[-1]["role"], "user")
+        self.assertIn("首字符必须是 {", messages[-1]["content"])
+        self.assertIn('"reply":"简短直接回复"', messages[-1]["content"])
+        self.assertEqual(len(messages), 4)
+
+    def test_v2_rejects_non_object_first_character_and_corrects_once(self):
+        valid = json.dumps(
+            {"reply": "已按对话处理。", "state_updates": {}, "tool_calls": []},
+            ensure_ascii=False,
+        )
+        backend = FakeBackend([f"```json\n{valid}\n```", valid])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_first_turn_v2",
+        )
+
+        response = service.run_dialogue(
+            DialogueRequest(messages=[DialogueTurn(role="user", content="继续")])
+        )
+
+        self.assertEqual(len(response.attempts), 2)
+        self.assertIn("must start", response.attempts[0].error)
+        self.assertIsNone(response.attempts[1].error)
 
     def test_fixed_dialogue_comparison_reports_first_turn_correction(self):
         valid = json.dumps(
@@ -243,13 +298,31 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         self.assertEqual(backend.max_new_tokens[4:], [384] * 4)
 
     def test_tracked_runtime_config_is_valid(self):
-        config = load_runtime_benchmark_config(
+        v1 = load_runtime_benchmark_config(
             Path.cwd(),
             Path("configs/week8/runtime_optimization_v1.json"),
         )
+        v2 = load_runtime_benchmark_config(
+            Path.cwd(),
+            Path("configs/week8/runtime_optimization_v2.json"),
+        )
 
-        self.assertEqual(len(config["dialogue"]["cases"]), 4)
-        self.assertEqual(config["product_latency"]["measured_runs"], 5)
+        self.assertEqual(len(v1["dialogue"]["cases"]), 4)
+        self.assertEqual(v1["product_latency"]["measured_runs"], 5)
+        self.assertEqual(v1["dialogue"]["cases"], v2["dialogue"]["cases"])
+        self.assertEqual(
+            v2["dialogue"]["profiles"][1]["prompt_version"],
+            "week8_dialogue_first_turn_v2",
+        )
+
+    def test_spartan_job_allows_versioned_config_overrides(self):
+        script = Path("scripts/spartan/week8_runtime_optimization.sbatch").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('TRIP_RELEASE_CONFIG="${TRIP_RELEASE_CONFIG:-', script)
+        self.assertIn('TRIP_RUNTIME_CONFIG="${TRIP_RUNTIME_CONFIG:-', script)
+        self.assertIn('--benchmark-config "${TRIP_RUNTIME_CONFIG}"', script)
 
 
 if __name__ == "__main__":

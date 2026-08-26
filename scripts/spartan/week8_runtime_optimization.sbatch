@@ -18,6 +18,8 @@ set -euo pipefail
 : "${TRIP_HF_HOME:?set the existing model cache}"
 : "${TRIP_ADAPTER_DIR:?set the formal release adapter directory}"
 : "${TRIP_RUNTIME_OUTPUT:?set the immutable Week 8 runtime evidence path}"
+TRIP_RELEASE_CONFIG="${TRIP_RELEASE_CONFIG:-configs/releases/qwen3_vl_system_week8_v1.json}"
+TRIP_RUNTIME_CONFIG="${TRIP_RUNTIME_CONFIG:-configs/week8/runtime_optimization_v1.json}"
 
 cd "${TRIP_PROJECT_ROOT}"
 module purge
@@ -37,6 +39,7 @@ python scripts/run_week7.py \
   check-environment
 python scripts/benchmark_week8_runtime.py \
   --adapter-dir "${TRIP_ADAPTER_DIR}" \
-  --release-config configs/releases/qwen3_vl_system_week8_v1.json \
+  --release-config "${TRIP_RELEASE_CONFIG}" \
+  --benchmark-config "${TRIP_RUNTIME_CONFIG}" \
   --output "${TRIP_RUNTIME_OUTPUT}"
 sync
