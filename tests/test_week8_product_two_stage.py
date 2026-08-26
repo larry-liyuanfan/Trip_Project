@@ -43,6 +43,10 @@ class Week8ProductTwoStageTests(unittest.TestCase):
             self.assertIn("#SBATCH --partition=gpu-l40s,gpu-a100", script)
             self.assertIn("#SBATCH --qos=publicgpu", script)
             self.assertIn("#SBATCH --gres=gpu:1", script)
+        training = (
+            ROOT / "scripts" / "spartan" / "week8_product_two_stage_sft.sbatch"
+        ).read_text(encoding="utf-8")
+        self.assertIn("#SBATCH --time=02:00:00", training)
 
     def test_config_forbids_all_human_states_and_final_test_access(self):
         config = load_two_stage_config(CONFIG)
