@@ -16,6 +16,7 @@ from src.training.week8_product import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "configs/week8/product_understanding_v1.json"
+ACTIVE_CONFIG = ROOT / "configs/week8/product_understanding_v3.json"
 
 
 def summary(composite: float, latency: float = 1000.0) -> dict:
@@ -42,6 +43,17 @@ def summary(composite: float, latency: float = 1000.0) -> dict:
 
 
 class Week8ProductTests(unittest.TestCase):
+    def test_v3_config_pins_completed_fresh_source_manifest(self):
+        config = load_week8_product_config(ACTIVE_CONFIG)
+        self.assertEqual(config["schema_version"], "week8_product_understanding_v3")
+        self.assertEqual(
+            config["fresh_source"]["manifest_sha256"],
+            "582f7e4700078f41234082d16043a09c59f248a36f9300995663c705525ce195",
+        )
+        self.assertEqual(
+            config["dataset"]["split_category_minimums"]["test"]["hotel"], 1
+        )
+
     @patch("src.training.week8_product._collect_repair_public_sources")
     def test_v2_split_allocation_preserves_scarce_category_support(self, collect):
         pool = []

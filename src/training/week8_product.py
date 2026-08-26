@@ -74,6 +74,7 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
     if payload.get("schema_version") not in {
         "week8_product_understanding_v1",
         "week8_product_understanding_v2",
+        "week8_product_understanding_v3",
     }:
         raise Week8ProductError("unsupported Week 8 product config")
     dataset = payload.get("dataset", {})
@@ -87,7 +88,7 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
         "current_release", "compact_field_check", "visual_evidence_guard"
     }:
         raise Week8ProductError("Week 8 must compare exactly the three approved Prompt roles")
-    if payload.get("schema_version") == "week8_product_understanding_v2":
+    if payload.get("schema_version") != "week8_product_understanding_v1":
         fresh = payload.get("fresh_source", {})
         if (
             payload.get("week8", {}).get("source_version")
@@ -102,6 +103,35 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
         ):
             raise Week8ProductError("Week 8 v2 fresh-source identity is incomplete")
     return payload
+
+
+def _validate_fresh_source_manifest(
+    source_root: Path, config: dict[str, Any]
+) -> dict[str, Any]:
+    fresh = config["fresh_source"]
+    relative = fresh.get("manifest_path")
+    expected_sha = fresh.get("manifest_sha256")
+    if not relative or not expected_sha:
+        if config["schema_version"] == "week8_product_understanding_v3":
+            raise Week8ProductError("v3 fresh-source manifest identity is missing")
+        return {}
+    path = source_root / str(relative)
+    if not path.is_file() or sha256_file(path) != expected_sha:
+        raise Week8ProductError("fresh-source manifest hash changed")
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        manifest.get("status") != "COMPLETED"
+        or manifest.get("source_version") != config["week8"]["source_version"]
+        or manifest.get("config_sha256") != fresh.get("source_config_sha256")
+        or int(manifest.get("selected_photo_count", 0))
+        != int(fresh["selected_photo_count"])
+        or any(
+            int(value) != 0
+            for value in manifest.get("historical_identity_overlap_counts", {}).values()
+        )
+    ):
+        raise Week8ProductError("fresh-source manifest contract changed")
+    return manifest
 
 
 def _git_commit(root: Path) -> str:
@@ -267,6 +297,11 @@ def build_week8_product_lock(
         },
         "system_repair": {"enabled": True},
     }
+    fresh_source_manifest = (
+        _validate_fresh_source_manifest(source_root, config)
+        if config["schema_version"] != "week8_product_understanding_v1"
+        else {}
+    )
     try:
         consumed, exclusion_evidence = load_consumed_identities(source_root, compatibility)
         add_superseded_identities(source_root, compatibility, consumed, exclusion_evidence)
@@ -275,7 +310,7 @@ def build_week8_product_lock(
             "test": int(dataset["test_count"]),
             "train": int(dataset["continuation_train_count"]),
         }
-        if config["schema_version"] == "week8_product_understanding_v2":
+        if config["schema_version"] != "week8_product_understanding_v1":
             sources = _collect_week8_v2_sources(
                 source_root,
                 compatibility,
@@ -311,7 +346,7 @@ def build_week8_product_lock(
             }
             sample_namespace = (
                 "week8-product-v2"
-                if config["schema_version"] == "week8_product_understanding_v2"
+                if config["schema_version"] != "week8_product_understanding_v1"
                 else "week8-product"
             )
             row = _row(
@@ -377,7 +412,7 @@ def build_week8_product_lock(
     lock_core = {
         "schema_version": (
             "week8_product_lock_v2"
-            if config["schema_version"] == "week8_product_understanding_v2"
+            if config["schema_version"] != "week8_product_understanding_v1"
             else "week8_product_lock_v1"
         ),
         "dataset_version": config["week8"]["dataset_version"],
@@ -391,6 +426,11 @@ def build_week8_product_lock(
         },
         "isolation": isolation,
         "historical_exclusion_evidence": exclusion_evidence,
+        "fresh_source_manifest_sha256": (
+            config.get("fresh_source", {}).get("manifest_sha256")
+            if fresh_source_manifest
+            else None
+        ),
         "files": file_evidence,
         "test_status": "LOCKED_UNCONSUMED",
     }
