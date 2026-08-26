@@ -12,29 +12,12 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
-from src.inference.system_runtime import ReleaseSettings, TransformersPeftBackend
 from src.inference.transport_utils import strip_json_fence
-from src.training.week6_qlora import (
-    _trainable_parameter_report,
-    environment_report,
-    resolve_lora_targets,
-)
 from src.training.week7_data import (
     canonical_sha256,
     iter_jsonl,
     sha256_file,
     write_jsonl_new,
-)
-from src.training.week7_qlora import (
-    IndexedWeek7Dataset,
-    assistant_span_labels,
-    decile_evaluation_steps,
-    structure_aware_messages,
-)
-from src.training.week7_runtime import inference_runtime
-from src.training.week8_product import (
-    load_week8_product_config,
-    summarize_product_run,
 )
 
 
@@ -102,6 +85,20 @@ def _write_json_new(path: Path, payload: dict[str, Any]) -> None:
     with path.open("x", encoding="utf-8", newline="\n") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
         handle.write("\n")
+
+
+def _load_product_config(path: Path) -> dict[str, Any]:
+    """Read only the locked data identity needed by the CPU silver builder."""
+
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    schema = str(payload.get("schema_version", ""))
+    if not schema.startswith("week8_product_understanding_v"):
+        raise Week8TwoStageError("unsupported Week 8 product config")
+    if not isinstance(payload.get("week8"), dict) or not isinstance(
+        payload.get("dataset"), dict
+    ):
+        raise Week8TwoStageError("Week 8 product data identity is missing")
+    return payload
 
 
 def load_two_stage_config(path: Path) -> dict[str, Any]:
@@ -343,7 +340,7 @@ def _product_lock_development(
 
 def _generate_evidence(
     root: Path,
-    backend: TransformersPeftBackend,
+    backend: Any,
     row: dict[str, Any],
     config: dict[str, Any],
     run_id: str,
@@ -438,7 +435,10 @@ def run_two_stage_development(
         raise Week8TwoStageError("refusing to overwrite two-stage development")
     config = load_two_stage_config(config_path)
     product_config_path = root / config["product_config_path"]
-    product_config = load_week8_product_config(product_config_path)
+    from src.inference.system_runtime import ReleaseSettings, TransformersPeftBackend
+    from src.training.week8_product import summarize_product_run
+
+    product_config = _load_product_config(product_config_path)
     lock_root, lock = _product_lock_development(
         root, product_config_path, product_config
     )
@@ -568,7 +568,7 @@ def build_hard_slice_silver_lock(
     config_path = Path(config_path).resolve()
     config = load_two_stage_config(config_path)
     product_config_path = root / config["product_config_path"]
-    product_config = load_week8_product_config(product_config_path)
+    product_config = _load_product_config(product_config_path)
     lock_root, source_lock = _product_lock_development(
         root, product_config_path, product_config
     )
@@ -706,12 +706,16 @@ def _evidence_training_messages(
 
 def _in_memory_backend(
     model: Any, processor: Any, torch_module: Any
-) -> TransformersPeftBackend:
+) -> Any:
+    from src.inference.processor_cache import ProcessorInputCache
+    from src.inference.system_runtime import TransformersPeftBackend
+
     backend = TransformersPeftBackend.__new__(TransformersPeftBackend)
     backend.settings = None
     backend._model = model
     backend._processor = processor
     backend._torch = torch_module
+    backend._processor_cache = ProcessorInputCache()
     return backend
 
 
@@ -723,6 +727,20 @@ def run_two_stage_continuation_sft(
     resume_from_checkpoint: Path | None = None,
 ) -> dict[str, Any]:
     """Continue checkpoint-87 on evidence targets and select only on development."""
+
+    from src.training.week6_qlora import (
+        _trainable_parameter_report,
+        environment_report,
+        resolve_lora_targets,
+    )
+    from src.training.week7_qlora import (
+        IndexedWeek7Dataset,
+        assistant_span_labels,
+        decile_evaluation_steps,
+        structure_aware_messages,
+    )
+    from src.training.week7_runtime import inference_runtime
+    from src.training.week8_product import summarize_product_run
 
     root = Path(root).resolve()
     config_path = Path(config_path).resolve()
