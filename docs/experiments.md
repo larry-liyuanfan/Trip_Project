@@ -998,3 +998,71 @@ manifest.
 - final CLIP→rerank：NDCG@10 `0.125654→0.506740`、Recall@10
   `0.018090→0.133046`、过滤正确率 `1`、失败率 `0`、可追溯率 `1`；mean latency
   `1.3768→1.5697 ms`。这是离线银标基准，不代表 Milvus 网络路径。
+
+## 2026-08-27：Week 8 全自动扩展实验
+
+### 商品 fresh v7 与 Prompt
+
+- 身份：`Qwen/Qwen3-VL-8B-Instruct` revision `0c351d...`，正式 checkpoint-87
+  adapter SHA-256 `c2fbb5c7...eaa2a`；新数据和 target 全部为 `programmatic_silver`，
+  human annotation/review/acceptance=`0/0/0`。
+- source build jobs `29637053/29637170`：v2 因 post-hash 酒店支持不足 fail-closed；v3
+  根据实际合法上限完成 1,000 条 source，餐饮/景点/酒店=`992/7/1`，manifest SHA-256
+  `5c538740...a6e`。v7 lock job `29637462` 完成 `400/60/60`，五维隔离 PASS，test
+  初始为 `LOCKED_UNCONSUMED`。
+- Prompt development job `29637779`，A100 20 GB MIG，`00:14:40`。current/field-check/
+  evidence composite=`0.782941/0.836536/0.740866`；field-check 的业态、风格 micro-F1、
+  设施 micro-F1、完整性分别为 `0.916667/0.734375/0.820809/0.803333`，JSON/Schema
+  `1/1`、失败率 `0`。selection SHA-256 `35abf1b6...c4fae6`，test 未消费。
+
+### 可观察证据与 continuation SFT 负实验
+
+- hard-slice lock job `29637171`：train/dev=`400/60`、test 不包含且未访问、lock SHA-256
+  `cdd56c66...0401e`。caption proxy 很稀疏：train unknown category/style/facility/price
+  `385/400/387/400`，dev `58/60/58/60`，因此不具备替代商品正标签的支持。
+- 两阶段 development 首个 15 分钟 job `29637294` 超时且无结果目录；以同一 identity、
+  45 分钟恢复的 job `29637921` `COMPLETED 0:0`，`00:19:16`。composite `0.352974`、
+  evidence Schema pass `0.266667`、failure `0.733333`，明确拒绝。
+- continuation SFT job `29637514` 从正式 adapter 继续，LoRA r/alpha/dropout=`16/32/0.08`、
+  LR `1e-5`、silver weight `0.5`、最多 1 epoch。首个 10% checkpoint-5 composite
+  `0.369804`、failure `0.683333`；同一 hard-slice development 的未训练两阶段基线为
+  `0.352974/0.733333`，改善不足以解决高失败率。结合 silver target 支持方向错配，在
+  step 10、第二次评测前主动停止，未读取 final test；不与其他数据身份的 Prompt 分数作
+  同口径比较。
+- checkpoint-5 adapter SHA-256 `a94f9f75...e2249`；CPU adapter-only 回载 `PASS`，292
+  个 LoRA tensor，结构与正式 adapter 一致。该 checkpoint 仅作失败证据，最终 adapter
+  继续选择正式 checkpoint-87。
+
+### 对话、商品延迟与检索
+
+- runtime v7 job `29637886`，固定 5 条 dialogue + 600x400 商品真实图片。确定性候选的
+  三键合规、状态召回/值准确率/精确率/整状态准确率=`1/1/1/1/1`，纠错/失败/fallback
+  `0/0/0`；current 分别为合规 `0.4`、召回/值准确 `0.5/0.5`、纠错/失败 `0.6/0.6`。
+- 商品 current→selected release：mean/P50/P95
+  `5006.81/5006.33/5028.50→5000.55/5002.16/5009.02 ms`，tokens 相同、Schema `1`、
+  failure `0`、5/5 exact match。v6 图片 cap + cache 虽有 `5/6` cache hit，但 mean
+  `4871.60→4874.44 ms`，因此不进入 v7 release。
+- retrieval v3 development job `29636996` 锁定真实 Milvus Lite `hybrid_weighted`；唯一
+  final job `29637070`。final NDCG@10/Recall@10
+  `0.125654/0.018090→0.564459/0.142734`，P95 `12.756→14.905 ms`，无 offline
+  fallback、失败率 `0`、过滤正确率/可追溯率 `1/1`。
+
+### 单次商品 final 与 release smoke
+
+- 唯一 final job `29638144`，A100 20 GB MIG，`00:09:58`。current→field-check：
+  composite `0.819003→0.857729`、业态 `0.966667→0.950000`、风格 micro-F1
+  `0.755906→0.753846`、设施 micro-F1 `0.695652→0.834286`、label completeness
+  `0.749167→0.819722`、price unknown `0.033333→1.0`、unknown exact
+  `0→0.033333`。JSON/Schema `1/1`、failure `0`，metric support
+  business/style/facility/known-price=`60/60/60/0`，price-unknown=`60`。
+- mean/P50/P95 `4701.94/4713.56/4993.48→4609.50/4606.05/4733.06 ms`；input/output
+  tokens `40215/3544→39975/3467`。comparison SHA-256 `5dc83953...f3829`，marker
+  `COMPLETED`；没有重跑或 test 后调参。
+- release smoke job `29638236`，A100 20 GB MIG，`00:01:07`，状态 `PASS`。商品/售后/
+  行程首轮 Schema-valid；对话 `DETERMINISTIC_CONTRACT`、无 fallback/attempt，达到
+  `DIALOGUE_BETA`。smoke SHA-256 `086133ec...85030`，release config SHA-256
+  `9defb3e7...ef749`，adapter SHA-256 `c2fbb5c7...eaa2a`。
+- 终态复验：完整 unittest `594/594 PASS`；远端 v7 lock validator 为 `PASS`，唯一
+  `test_consumption.json` 为 `COMPLETED`，其 comparison SHA-256 与 final 输出一致。
+  Python `compileall`、`git diff --check`、tracked secret signature scan 和大于 10 MiB
+  的 tracked file scan 均为 `PASS`。

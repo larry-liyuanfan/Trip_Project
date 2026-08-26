@@ -749,3 +749,33 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
 - [ ] 商品 known-price support 为 `0`；原因是合法隔离池没有可靠可见价位证据。
 - [ ] 纯延迟优化只有 `0.24%` mean 改善；不以质量回退或量化换取更大数字。
 - [ ] 阿里云历史数据盘未能认证读取；未进行任何云资源或安全组变更。
+
+### Week 8 全自动扩展交付（2026-08-27）
+
+- [x] 将后续人工标注、人工复核和人工验收数量固定为 `0`；新增数据全部显式标记为
+  `programmatic_silver`，没有把自动标签伪装为 human gold。
+- [x] official Yelp fresh source v3：6,000 候选、1,291 validated、1,000 selected；
+  source/group/image 历史重叠 `0/0/0`，manifest SHA-256 `5c538740...a6e`。
+- [x] 商品 v7 锁 train/development/test=`400/60/60`，五维隔离 PASS；候选选择期间 test
+  保持未消费，内部 lock SHA-256 `321bea49...b0301`。
+- [x] fresh development 三 Prompt 比较完成；`week8_product_field_check_v1` 以
+  `0.836536` 对 current `0.782941` 锁定，JSON/Schema `1/1`、失败率 `0`、字段支持不变。
+- [x] 可观察证据 Schema、确定性映射、hard-slice silver lock 与 continuation SFT 实现；
+  human annotation/review/acceptance 均为 `0`，最终 test 未纳入训练或 development。
+- [x] 对话预算/天数/城市/偏好/节奏确定性更新与安全 fallback；5 条固定样本三键合规、
+  状态召回/值准确率/精确率/整状态准确率均为 `1`，纠错率和失败率均为 `0`。
+- [x] 真实 600x400 图片重复基准；选择 384 token cap，5/5 输出完全一致，mean/P95
+  `5006.81/5028.50→5000.55/5009.02 ms`。未选择 mean 变慢的图片 cap + cache 候选。
+- [x] Milvus Lite `hybrid_weighted` development selection 与唯一 final；NDCG@10
+  `0.125654→0.564459`、Recall@10 `0.018090→0.142734`，无 fallback、失败率 `0`。
+- [x] release candidate 更新为 `configs/releases/qwen3_vl_system_week8_v7.json`；正式
+  release、`dev/stg/main` 和历史冻结包未覆盖。
+- [x] 两阶段基线与 SFT 首个 10% development 实际执行；checkpoint-5 adapter-only
+  回载通过但因 composite `0.369804`、failure `0.683333` 被拒绝，未选为最终 adapter。
+- [x] v7 商品 final test 唯一消费并完成：composite `0.819003→0.857729`，JSON/Schema
+  `1/1`、失败率 `0`；comparison/marker 绑定 SHA-256 `5dc83953...f3829`。
+- [x] release v7 四场景真实 smoke job `29638236` 通过；三任务首轮 Schema-valid，
+  dialogue 无模型纠错达到 `DIALOGUE_BETA`，证据 SHA-256 `086133ec...85030`。
+- [x] 终态完整 unittest `594/594 PASS`；远端锁复验、唯一 test consumption marker、
+  release/adapter/smoke 哈希均一致；`compileall`、`git diff --check`、tracked secret
+  signature scan 和 tracked large-file scan 均为 `PASS`。

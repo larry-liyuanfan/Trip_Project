@@ -787,26 +787,31 @@ The consolidated Week 1-4 report after migration to Alibaba Cloud
 Use `reports/README.md` as the report index; historical process snapshots are
 kept separate from current conclusions.
 
-## Week 8 商品、对话、延迟与检索候选
+## Week 8 全自动商品、对话、延迟与检索候选
 
 Week 8 的正式候选配置为：
 
-- 商品实验与数据锁：`configs/week8/product_understanding_v4.json`
-- 商品 continuation SFT 门禁：`configs/week8/product_continuation_sft_v1.json`
-- 对话/延迟基准：`configs/week8/runtime_optimization_v2.json`
-- 检索相关性：`configs/week8/retrieval_relevance_v1.json`
-- 合并后的 release candidate：`configs/releases/qwen3_vl_system_week8_v4.json`
+- 商品 fresh 实验与数据锁：`configs/week8/product_understanding_v7.json`
+- 商品可观察证据与 continuation SFT：`configs/week8/product_two_stage_v1.json`
+- 对话/真实图片延迟基准：`configs/week8/runtime_optimization_v7.json`
+- Milvus Lite 混合检索：`configs/week8/retrieval_relevance_v3.json`
+- 合并后的 release candidate：`configs/releases/qwen3_vl_system_week8_v7.json`
 
-商品 fresh source 先由 v2 source config 从官方 Yelp Photos ZIP 构建，再由 v4 config 绑定
-成功 manifest。常用验证命令：
+商品 fresh source 从官方 Yelp Photos ZIP 重建，v7 只绑定 post-hash 已完成的 v3 source
+manifest；train/development/test 按五维身份隔离。新增标签、review 和 acceptance 全部为
+`programmatic_silver`，人工计数固定为 `0`。常用验证命令：
 
 ```bash
 python scripts/manage_week8_product.py \
-  --config configs/week8/product_understanding_v4.json validate-lock
+  --config configs/week8/product_understanding_v7.json validate-lock
+python scripts/manage_week8_product_two_stage.py \
+  --config configs/week8/product_two_stage_v1.json validate-hard-slice
 python scripts/manage_week8_retrieval.py validate-lock \
-  --lock-dir outputs/week8/retrieval/week8_retrieval_query_index_20260826_v1
-python -m unittest tests.test_week8_product tests.test_week8_product_fresh_sources -v
-python -m unittest tests.test_week8_runtime_optimization tests.test_week8_retrieval -v
+  --lock-dir outputs/week8/retrieval/week8_retrieval_query_index_20260827_v3
+python -m unittest tests.test_week8_product tests.test_week8_product_fresh_sources \
+  tests.test_week8_product_two_stage tests.test_week8_product_sft -v
+python -m unittest tests.test_week8_runtime_optimization tests.test_week8_retrieval \
+  tests.test_processor_cache tests.test_system_runtime -v
 python -m unittest discover -s tests -v
 ```
 

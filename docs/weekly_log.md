@@ -957,3 +957,42 @@ as the current validated dataset or accepted baseline.
 - 检索唯一 final job `29628157`：metadata rerank 的 NDCG@10
   `0.125654→0.506740`，Recall@10 `0.018090→0.133046`，失败率 `0`，可追溯率 `1`。
 - 完整 unittest `561/561 PASS`。详细证据见 Week 8 报告。
+
+## 2026-08-27：Week 8 全自动扩展优化
+
+- 用户明确后续不再有人工标注、人工复核或人工验收；新增 target、review 与 acceptance
+  一律保留 `programmatic_silver` 身份，三类人工计数均为 `0`。
+- 从官方 Yelp Photos ZIP 的 6,000 个分层候选重建 fresh source v3：1,291 个通过图片
+  哈希/可读性验证，锁定 1,000 个；与历史 source/group/image 重叠均为 `0`。合法可用
+  业态上限为餐饮/景点/酒店 `992/7/1`，没有虚构酒店支持。
+- 商品 v7 锁 train/development/test=`400/60/60`，五维隔离 PASS，内部 lock SHA-256
+  `321bea49...b0301`；test 在候选选择期间保持 `LOCKED_UNCONSUMED`。
+- fresh development job `29637779` 在 A100 20 GB MIG 上 `COMPLETED 0:0`：紧凑字段
+  Prompt 的商品综合 `0.782941→0.836536`，业态 `0.883333→0.916667`，风格/设施
+  micro-F1 `0.714286→0.734375` / `0.709677→0.820809`，JSON/Schema `1/1`、失败率
+  `0`、支持不变；selection SHA-256 `35abf1b6...c4fae6`。
+- 对话确定性三键契约在 5 条固定样本上将合规率 `0.4→1.0`、纠错率 `0.6→0`、
+  失败率 `0.6→0`、状态召回/值准确率/精确率/整状态准确率提高到 `1/1/1/1`；明确的
+  预算、天数、城市、偏好与节奏更新不再调用模型，真正模糊更新才进入安全 fallback。
+- 600x400 固定真实图片基准中，最终选择的 384 token cap 与 512 cap 输出 5/5 完全一致，
+  mean/P95 `5006.81/5028.50→5000.55/5009.02 ms`；图片 cap + processor cache 候选
+  mean 反而增加 `2.84 ms`，因此最终 release 不启用这两个未证明有收益的开关。
+- Milvus Lite v3 的 development 从 CLIP 中锁定 `hybrid_weighted`；唯一 final 的
+  NDCG@10 `0.125654→0.564459`、Recall@10 `0.018090→0.142734`，失败率 `0`、过滤
+  正确率和可追溯率均为 `1`，P95 增加约 `2.15 ms`。未回退到离线 NumPy fallback。
+- 两阶段 development job `29637921` 的 composite/evidence Schema pass/failure 为
+  `0.352974/0.266667/0.733333`。SFT job `29637514` 在首个 10% checkpoint-5 为
+  `0.369804/0.316667/0.683333`，结合 hard-slice 正标签支持不足于 step 10 主动停止；
+  checkpoint-5 adapter-only 回载通过但被拒绝，正式 checkpoint-87 保持最终选择。
+- v7 唯一 final job `29638144` `COMPLETED 0:0`：composite
+  `0.819003→0.857729`，设施 micro-F1 `0.695652→0.834286`，price unknown
+  `0.033333→1.0`，完整性 `0.749167→0.819722`；业态 `0.966667→0.950000`、风格
+  micro-F1 `0.755906→0.753846` 的轻微回退如实保留。JSON/Schema `1/1`、失败率 `0`，
+  comparison SHA-256 `5dc83953...f3829`，没有根据 test 继续调参。
+- release v7 四场景真实 smoke job `29638236` `COMPLETED 0:0`：商品/售后/行程首轮
+  Schema-valid，对话确定性三键路径直接达到 `DIALOGUE_BETA`；证据 SHA-256
+  `086133ec...85030`，绑定 release config `9defb3e7...ef749` 和正式 adapter。
+- 终态验证：完整 `python -m unittest discover -s tests -v` 为 `594/594 PASS`；远端 v7
+  数据锁复验为 `PASS`，唯一 test consumption marker 为 `COMPLETED`。`compileall`、
+  `git diff --check`、tracked secret signature scan 和大于 10 MiB 的 tracked file scan
+  均为 `PASS`；正式 adapter 文件哈希复算为 `c2fbb5c7...eaa2a`。
