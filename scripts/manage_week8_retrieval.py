@@ -34,7 +34,7 @@ from src.retrieval.week8_hybrid import (
 )
 
 
-DEFAULT_CONFIG = ROOT / "configs/week8/retrieval_relevance_v1.json"
+DEFAULT_CONFIG = ROOT / "configs/week8/retrieval_relevance_v2.json"
 
 
 def build_parser() -> argparse.ArgumentParser:
