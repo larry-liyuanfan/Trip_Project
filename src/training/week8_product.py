@@ -585,10 +585,39 @@ def validate_week8_product_lock(root: Path, config_path: Path) -> dict[str, Any]
     root = Path(root).resolve()
     config_path = Path(config_path).resolve()
     config = load_week8_product_config(config_path)
+    lock_config_path = config_path
+    lock_config_relative = config.get("development_lock_config")
+    if lock_config_relative:
+        if config.get("week8", {}).get("development_only") is not True:
+            raise Week8ProductError(
+                "alternate lock configs are restricted to development-only overlays"
+            )
+        lock_config_path = (root / str(lock_config_relative)).resolve()
+        try:
+            lock_config_path.relative_to(root)
+        except ValueError as exc:
+            raise Week8ProductError(
+                "development lock config must stay inside the repository"
+            ) from exc
+        lock_config = load_week8_product_config(lock_config_path)
+        identity_fields = (
+            "output_root", "development_count", "test_count",
+            "continuation_train_count",
+        )
+        if (
+            config["week8"]["dataset_version"]
+            != lock_config["week8"]["dataset_version"]
+            or any(
+                config["dataset"].get(field) != lock_config["dataset"].get(field)
+                for field in identity_fields
+            )
+            or config["model"] != lock_config["model"]
+        ):
+            raise Week8ProductError("development overlay changed the locked identity")
     output = root / config["dataset"]["output_root"] / config["week8"]["dataset_version"]
     lock = json.loads((output / "dataset_lock.json").read_text(encoding="utf-8"))
     failures = []
-    if lock.get("config_sha256") != sha256_file(config_path):
+    if lock.get("config_sha256") != sha256_file(lock_config_path):
         failures.append("config_sha256_changed")
     core = {key: value for key, value in lock.items() if key != "lock_sha256"}
     if lock.get("lock_sha256") != canonical_sha256(core):
@@ -845,7 +874,14 @@ def run_prompt_development(
         "metrics_sha256": {
             role: sha256_file(output_dir / role / "metrics.json") for role in summaries
         },
-        "test_consumed": False,
+        "test_consumed": (
+            None if config.get("week8", {}).get("development_only") is True else False
+        ),
+        "test_policy": (
+            "DISABLED_DEVELOPMENT_ONLY"
+            if config.get("week8", {}).get("development_only") is True
+            else "LOCKED_UNCONSUMED"
+        ),
     })
     _write_json_new(output_dir / "selection.json", comparison)
     return comparison
@@ -909,6 +945,10 @@ def run_final_test_once(
     development_dir = Path(development_dir).resolve()
     output_dir = Path(output_dir).resolve()
     config = load_week8_product_config(config_path)
+    if config.get("week8", {}).get("development_only") is True:
+        raise Week8ProductError(
+            "development-only Prompt overlays cannot consume a final test"
+        )
     lock_root = root / config["dataset"]["output_root"] / config["week8"]["dataset_version"]
     marker_path = lock_root / "test_consumption.json"
     if marker_path.exists() or output_dir.exists():

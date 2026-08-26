@@ -1,0 +1,6 @@
+scenario: image_product_search
+schema_name: image_product_search_v1.schema.json
+format_skeleton: >-
+  {"business_category":"unknown","style_tags":[],"visible_facilities":[],"price_range":"unknown","observed_evidence":[],"inferred_attributes":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  逐字段检查并立即输出 JSON。业态按主视觉主体判断：客房床铺、前台或酒店大堂才支持 hotel；展品、地标、游乐或明确景区设施才支持 attraction；菜品、菜单、用餐座位、吧台或餐饮服务区支持 restaurant；只有通用建筑、街景、人群或主体不清时使用 unknown。style_tags 只使用 casual、classy、cozy、historic、modern、romantic、rustic、trendy、upscale、vintage，并列出全部直接可见风格；visible_facilities 只列真实可见设施，不把装饰、食物或普通家具当设施。价格只有可读价格文字且足以判断整体档位时才输出 budget、mid_range、premium 或 luxury，否则必须为 unknown。unknown_fields 精确列出证据不足的字段；非 unknown 标签均须有 observed_evidence 中的短视觉事实支持。

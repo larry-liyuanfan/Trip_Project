@@ -76,6 +76,10 @@ def main() -> None:
         config_path=args.release_config.resolve(),
     )
     config = load_runtime_benchmark_config(ROOT, args.benchmark_config.resolve())
+    sections = config.get(
+        "benchmark_sections",
+        ["dialogue", "product_latency"],
+    )
     fixed_image = (
         args.product_image.resolve()
         if args.product_image is not None
@@ -92,12 +96,11 @@ def main() -> None:
     if not ready:
         raise SystemExit(f"runtime backend is not ready: {reason}")
 
-    result = {
+    result: dict[str, Any] = {
         "schema_version": "week8_runtime_optimization_evidence_v1",
         "status": "COMPLETED",
+        "benchmark_sections": sections,
         "cold_start_ms": cold_start_ms,
-        "dialogue": run_dialogue_first_turn_comparison(settings, backend, config),
-        "product_latency": run_product_latency_benchmark(settings, backend, config),
         "environment": _environment(backend),
         "identity": {
             "git_commit": subprocess.run(
@@ -122,6 +125,18 @@ def main() -> None:
             "fixed_image_override": args.product_image is not None,
         },
     }
+    if "dialogue" in sections:
+        result["dialogue"] = run_dialogue_first_turn_comparison(
+            settings,
+            backend,
+            config,
+        )
+    if "product_latency" in sections:
+        result["product_latency"] = run_product_latency_benchmark(
+            settings,
+            backend,
+            config,
+        )
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("x", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

@@ -124,6 +124,7 @@ class ReleaseSettings:
     dialogue_execution_mode: str = "model_generated_contract"
     dialogue_semantic_fallback_enabled: bool = False
     processor_cache_max_entries: int = 0
+    prepared_input_cache_max_entries: int = 0
     visual_max_pixels: int | None = None
 
     @classmethod
@@ -188,6 +189,9 @@ class ReleaseSettings:
             processor_cache_max_entries=int(
                 generation.get("processor_cache_max_entries", 0)
             ),
+            prepared_input_cache_max_entries=int(
+                generation.get("prepared_input_cache_max_entries", 0)
+            ),
             visual_max_pixels=(
                 int(generation["visual_max_pixels"])
                 if generation.get("visual_max_pixels") is not None
@@ -219,6 +223,10 @@ class ReleaseSettings:
         if settings.processor_cache_max_entries < 0:
             raise RuntimeConfigurationError(
                 "generation processor_cache_max_entries cannot be negative"
+            )
+        if settings.prepared_input_cache_max_entries < 0:
+            raise RuntimeConfigurationError(
+                "generation prepared_input_cache_max_entries cannot be negative"
             )
         if settings.visual_max_pixels is not None and settings.visual_max_pixels <= 0:
             raise RuntimeConfigurationError(
@@ -327,6 +335,9 @@ class TransformersPeftBackend:
         self._processor_cache = ProcessorInputCache(
             settings.processor_cache_max_entries
         )
+        self._prepared_input_cache = ProcessorInputCache(
+            settings.prepared_input_cache_max_entries
+        )
 
     def configure_processor_cache(self, max_entries: int) -> None:
         """Reset and resize the bounded CPU preprocessing cache."""
@@ -337,6 +348,16 @@ class TransformersPeftBackend:
         """Return cache observability without exposing cached tensors."""
 
         return self._processor_cache.snapshot()
+
+    def configure_prepared_input_cache(self, max_entries: int) -> None:
+        """Reset and resize the bounded model-device input cache."""
+
+        self._prepared_input_cache.clear(max_entries=max_entries)
+
+    def prepared_input_cache_snapshot(self) -> dict[str, int | float | None]:
+        """Return prepared-cache observability without exposing device tensors."""
+
+        return self._prepared_input_cache.snapshot()
 
     def ready(self) -> tuple[bool, str]:
         valid, reason = self.settings.validate_adapter()
@@ -377,22 +398,42 @@ class TransformersPeftBackend:
                 normalized,
                 processor_signature(self._processor),
             )
-            inputs = self._processor_cache.get(cache_key)
-            if inputs is None:
-                inputs = self._processor.apply_chat_template(
+            device: Any = None
+            prepared_key: str | None = None
+            inputs: dict[str, Any] | None = None
+            if (
+                self._prepared_input_cache.max_entries
+                and _prepared_input_cache_eligible(normalized)
+            ):
+                device = next(self._model.parameters()).device
+                prepared_key = ProcessorInputCache.key(
                     normalized,
-                    tokenize=True,
-                    add_generation_prompt=True,
-                    return_dict=True,
-                    return_tensors="pt",
-                    truncation=False,
+                    {
+                        **processor_signature(self._processor),
+                        "model_input_device": str(device),
+                    },
                 )
-                self._processor_cache.put(cache_key, inputs)
-            device = next(self._model.parameters()).device
-            inputs = {
-                key: value.to(device) if hasattr(value, "to") else value
-                for key, value in inputs.items()
-            }
+                inputs = self._prepared_input_cache.get(prepared_key)
+            if inputs is None:
+                inputs = self._processor_cache.get(cache_key)
+                if inputs is None:
+                    inputs = self._processor.apply_chat_template(
+                        normalized,
+                        tokenize=True,
+                        add_generation_prompt=True,
+                        return_dict=True,
+                        return_tensors="pt",
+                        truncation=False,
+                    )
+                    self._processor_cache.put(cache_key, inputs)
+                if device is None:
+                    device = next(self._model.parameters()).device
+                inputs = {
+                    key: value.to(device) if hasattr(value, "to") else value
+                    for key, value in inputs.items()
+                }
+                if prepared_key is not None:
+                    self._prepared_input_cache.put(prepared_key, inputs)
             generation_constraints: dict[str, Any] = {}
             if response_format and response_format.get("type") == "json_schema":
                 try:
@@ -1391,6 +1432,22 @@ def _transformers_messages(
                 )
             content[index] = {"type": "image", "image": url}
     return normalized
+
+
+def _prepared_input_cache_eligible(messages: list[dict[str, Any]]) -> bool:
+    """Cache only immutable inline media; remote URLs may change at the same URL."""
+
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if part.get("type") != "image":
+                continue
+            image = part.get("image")
+            if not isinstance(image, str) or not image.startswith("data:"):
+                return False
+    return True
 
 
 def _required_text(payload: dict[str, Any], field: str) -> str:

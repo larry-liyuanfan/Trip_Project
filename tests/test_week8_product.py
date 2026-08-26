@@ -6,11 +6,13 @@ from unittest.mock import patch
 
 from src.evaluation.prompting import render_standard_prompt
 from src.training.week8_product import (
+    Week8ProductError,
     _category_from_description,
     _collect_week8_v2_sources,
     load_week8_product_config,
     product_error_slices,
     product_silver_target,
+    run_final_test_once,
     select_prompt,
 )
 
@@ -75,6 +77,29 @@ class Week8ProductTests(unittest.TestCase):
             "attraction": 2,
             "restaurant": 20,
         })
+
+    def test_v8_prompt_refinement_is_development_only(self):
+        path = ROOT / "configs/week8/product_prompt_refinement_v8_development.json"
+        config = load_week8_product_config(path)
+
+        self.assertTrue(config["week8"]["development_only"])
+        self.assertEqual(
+            config["development_lock_config"],
+            "configs/week8/product_understanding_v7.json",
+        )
+        self.assertEqual(config["prompts"], {
+            "current_release": "week8_product_field_check_v1",
+            "compact_field_check": "week8_product_field_check_v2",
+            "visual_evidence_guard": "week8_product_uncertainty_calibrated_v1",
+        })
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(Week8ProductError, "development-only"):
+                run_final_test_once(
+                    ROOT,
+                    path,
+                    Path(temp_dir) / "development",
+                    Path(temp_dir) / "final",
+                )
 
     def test_v3_config_pins_completed_fresh_source_manifest(self):
         config = load_week8_product_config(ACTIVE_CONFIG)
@@ -175,6 +200,8 @@ class Week8ProductTests(unittest.TestCase):
         for version in (
             "week8_product_field_check_v1",
             "week8_product_evidence_guard_v1",
+            "week8_product_field_check_v2",
+            "week8_product_uncertainty_calibrated_v1",
         ):
             rendered = render_standard_prompt(
                 ROOT,
@@ -188,6 +215,28 @@ class Week8ProductTests(unittest.TestCase):
             combined = json.dumps(rendered["messages"], ensure_ascii=False)
             self.assertIn("observed_evidence", combined)
             self.assertNotIn("思维链", combined)
+
+    def test_refined_prompts_lock_visual_taxonomy_and_unknown_contract(self):
+        field_check = render_standard_prompt(
+            ROOT,
+            "image_product_search",
+            {"images": [{"path": "data/samples/images/cafe_001.jpg"}], "text_constraints": None},
+            "week8_product_field_check_v2",
+        )
+        uncertainty = render_standard_prompt(
+            ROOT,
+            "image_product_search",
+            {"images": [{"path": "data/samples/images/cafe_001.jpg"}], "text_constraints": None},
+            "week8_product_uncertainty_calibrated_v1",
+        )
+
+        field_text = json.dumps(field_check["messages"], ensure_ascii=False)
+        uncertainty_text = json.dumps(uncertainty["messages"], ensure_ascii=False)
+        self.assertIn("客房床铺", field_text)
+        self.assertIn("casual、classy", field_text)
+        self.assertIn("可读价格文字", field_text)
+        self.assertIn("unknown_fields 必须与输出一致", uncertainty_text)
+        self.assertIn("不得为提高完整度而猜测", uncertainty_text)
 
     def test_selection_requires_strict_improvement_and_non_regression(self):
         config = load_week8_product_config(CONFIG)

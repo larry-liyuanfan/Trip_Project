@@ -43,8 +43,25 @@ def load_runtime_benchmark_config(root: Path, path: Path) -> dict[str, Any]:
         "week8_runtime_optimization_config_v5",
         "week8_runtime_optimization_config_v6",
         "week8_runtime_optimization_config_v7",
+        "week8_runtime_optimization_config_v8",
     }:
         raise Week8RuntimeBenchmarkError("unexpected runtime benchmark schema_version")
+    sections = payload.get(
+        "benchmark_sections",
+        ["dialogue", "product_latency"],
+    )
+    if (
+        not isinstance(sections, list)
+        or not sections
+        or len(set(sections)) != len(sections)
+        or any(item not in {"dialogue", "product_latency"} for item in sections)
+    ):
+        raise Week8RuntimeBenchmarkError("benchmark_sections is invalid")
+    if (
+        payload.get("schema_version") == "week8_runtime_optimization_config_v8"
+        and sections != ["product_latency"]
+    ):
+        raise Week8RuntimeBenchmarkError("v8 runs product latency only")
     profiles = payload.get("dialogue", {}).get("profiles", [])
     if not isinstance(profiles, list) or len(profiles) != 2:
         raise Week8RuntimeBenchmarkError("dialogue benchmark requires two profiles")
@@ -68,7 +85,39 @@ def load_runtime_benchmark_config(root: Path, path: Path) -> dict[str, Any]:
     image = root / str(latency.get("image", ""))
     if not image.is_file():
         raise Week8RuntimeBenchmarkError(f"fixed product image is missing: {image}")
+    if payload.get("schema_version") == "week8_runtime_optimization_config_v8":
+        _validate_v8_latency_profiles(latency)
     return payload
+
+
+def _validate_v8_latency_profiles(latency: dict[str, Any]) -> None:
+    """Require v8 to change caching only, never semantic generation settings."""
+
+    profiles = latency.get("profiles", [])
+    if not isinstance(profiles, list) or len(profiles) != 2:
+        raise Week8RuntimeBenchmarkError("v8 product latency requires two profiles")
+    by_role = {item.get("role"): item for item in profiles}
+    if set(by_role) != {"current", "prepared_input_cached"}:
+        raise Week8RuntimeBenchmarkError(
+            "v8 profiles must define current and prepared_input_cached"
+        )
+    current = by_role["current"]
+    candidate = by_role["prepared_input_cached"]
+    semantic_fields = ("max_new_tokens", "visual_max_pixels")
+    if any(current.get(field) != candidate.get(field) for field in semantic_fields):
+        raise Week8RuntimeBenchmarkError(
+            "v8 prepared-input candidate cannot change token or visual limits"
+        )
+    if int(current.get("prepared_input_cache_entries", 0)) != 0:
+        raise Week8RuntimeBenchmarkError("v8 current prepared-input cache must be off")
+    if int(candidate.get("prepared_input_cache_entries", 0)) <= 0:
+        raise Week8RuntimeBenchmarkError(
+            "v8 candidate prepared-input cache must be bounded and enabled"
+        )
+    if any(int(item.get("processor_cache_entries", 0)) != 0 for item in profiles):
+        raise Week8RuntimeBenchmarkError(
+            "v8 profiles keep the earlier CPU processor cache disabled"
+        )
 
 
 def run_dialogue_first_turn_comparison(
@@ -194,6 +243,16 @@ def run_product_latency_benchmark(
         configure_cache = getattr(backend, "configure_processor_cache", None)
         if callable(configure_cache):
             configure_cache(cache_entries)
+        prepared_cache_entries = int(
+            profile.get("prepared_input_cache_entries", 0)
+        )
+        configure_prepared_cache = getattr(
+            backend,
+            "configure_prepared_input_cache",
+            None,
+        )
+        if callable(configure_prepared_cache):
+            configure_prepared_cache(prepared_cache_entries)
         max_pixels = profile.get("visual_max_pixels")
         if image_processor is not None and max_pixels is not None:
             image_processor.max_pixels = int(max_pixels)
@@ -249,6 +308,13 @@ def run_product_latency_benchmark(
             "processor_cache": (
                 backend.processor_cache_snapshot()
                 if callable(getattr(backend, "processor_cache_snapshot", None))
+                else None
+            ),
+            "prepared_input_cache": (
+                backend.prepared_input_cache_snapshot()
+                if callable(
+                    getattr(backend, "prepared_input_cache_snapshot", None)
+                )
                 else None
             ),
             "peak_gpu_memory_allocated_bytes": peak_allocated,

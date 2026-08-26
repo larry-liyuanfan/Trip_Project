@@ -23,6 +23,7 @@ from src.inference.system_runtime import (
     ReleaseSettings,
     ScenarioService,
     TransformersPeftBackend,
+    _prepared_input_cache_eligible,
     _transformers_messages,
 )
 
@@ -133,6 +134,115 @@ def settings(adapter_path=None, adapter_sha="0" * 64):
 
 
 class SystemRuntimeTest(unittest.TestCase):
+    def test_prepared_input_cache_rejects_mutable_remote_media(self):
+        remote = _transformers_messages(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "https://example.com/image.jpg"},
+                        }
+                    ],
+                }
+            ]
+        )
+        inline = _transformers_messages(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "data:image/jpeg;base64,AA=="},
+                        }
+                    ],
+                }
+            ]
+        )
+
+        self.assertFalse(_prepared_input_cache_eligible(remote))
+        self.assertTrue(_prepared_input_cache_eligible(inline))
+
+    def test_transformers_backend_reuses_model_device_inputs(self):
+        class Vector:
+            def __init__(self, values):
+                self.values = list(values)
+
+            def __len__(self):
+                return len(self.values)
+
+            def __getitem__(self, item):
+                selected = self.values[item]
+                return Vector(selected) if isinstance(item, slice) else selected
+
+            @property
+            def shape(self):
+                return (len(self.values),)
+
+        class Batch:
+            def __init__(self, rows):
+                self.rows = rows
+                self.transfer_calls = 0
+
+            def __iter__(self):
+                return iter(self.rows)
+
+            def to(self, _device):
+                self.transfer_calls += 1
+                return self
+
+            @property
+            def shape(self):
+                return (len(self.rows), len(self.rows[0]))
+
+        class InferenceMode:
+            def __enter__(self):
+                return None
+
+            def __exit__(self, *_args):
+                return False
+
+        class Processor:
+            tokenizer = None
+            image_processor = types.SimpleNamespace(max_pixels=1024)
+
+            def __init__(self):
+                self.calls = 0
+                self.batch = Batch([Vector([1, 2, 3])])
+
+            def apply_chat_template(self, *_args, **_kwargs):
+                self.calls += 1
+                return {"input_ids": self.batch}
+
+            def batch_decode(self, *_args, **_kwargs):
+                return ["prepared"]
+
+        processor = Processor()
+        backend = TransformersPeftBackend(settings())
+        backend.configure_prepared_input_cache(1)
+        backend._processor = processor
+        backend._model = types.SimpleNamespace(
+            parameters=lambda: iter([types.SimpleNamespace(device="cuda:0")]),
+            generate=lambda **_kwargs: [Vector([1, 2, 3, 4])],
+        )
+        backend._torch = types.SimpleNamespace(
+            inference_mode=lambda: InferenceMode()
+        )
+
+        for _ in range(2):
+            result = backend.generate_with_usage(
+                [{"role": "user", "content": "same request"}],
+                response_format=None,
+                max_new_tokens=8,
+            )
+
+        self.assertEqual(result.content, "prepared")
+        self.assertEqual(processor.calls, 1)
+        self.assertEqual(processor.batch.transfer_calls, 1)
+        self.assertEqual(backend.prepared_input_cache_snapshot()["hits"], 1)
+
     def test_transformers_backend_reuses_bounded_processor_outputs(self):
         class Vector:
             def __init__(self, values):

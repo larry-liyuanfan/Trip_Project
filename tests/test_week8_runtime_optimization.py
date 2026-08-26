@@ -3,6 +3,8 @@ import unittest
 from pathlib import Path
 
 from src.evaluation.week8_runtime_optimization import (
+    Week8RuntimeBenchmarkError,
+    _validate_v8_latency_profiles,
     first_attempt_is_three_key_json,
     load_runtime_benchmark_config,
     run_dialogue_first_turn_comparison,
@@ -51,6 +53,8 @@ class FakeUsageBackend(FakeBackend):
         super().__init__(outputs)
         self.cache_configurations = []
         self.active_cache_entries = 0
+        self.prepared_cache_configurations = []
+        self.active_prepared_cache_entries = 0
 
     def configure_processor_cache(self, max_entries):
         self.active_cache_entries = max_entries
@@ -58,6 +62,13 @@ class FakeUsageBackend(FakeBackend):
 
     def processor_cache_snapshot(self):
         return {"max_entries": self.active_cache_entries}
+
+    def configure_prepared_input_cache(self, max_entries):
+        self.active_prepared_cache_entries = max_entries
+        self.prepared_cache_configurations.append(max_entries)
+
+    def prepared_input_cache_snapshot(self):
+        return {"max_entries": self.active_prepared_cache_entries}
 
     def generate_with_usage(self, messages, *, response_format, max_new_tokens):
         self.messages.append(messages)
@@ -639,6 +650,7 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             result["profiles"]["bounded_output"]["processor_cache"],
             {"max_entries": 4},
         )
+        self.assertEqual(backend.prepared_cache_configurations, [0, 0])
 
     def test_tracked_runtime_config_is_valid(self):
         v1 = load_runtime_benchmark_config(
@@ -664,6 +676,10 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         v7 = load_runtime_benchmark_config(
             Path.cwd(),
             Path("configs/week8/runtime_optimization_v7.json"),
+        )
+        v8 = load_runtime_benchmark_config(
+            Path.cwd(),
+            Path("configs/week8/runtime_optimization_v8.json"),
         )
 
         self.assertEqual(len(v1["dialogue"]["cases"]), 4)
@@ -702,6 +718,61 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             v7["dialogue"]["cases"][-1]["expected_state"]["pace"],
             "relaxed",
         )
+        self.assertEqual(v8["benchmark_sections"], ["product_latency"])
+        self.assertEqual(
+            v8["product_latency"]["profiles"][1][
+                "prepared_input_cache_entries"
+            ],
+            1,
+        )
+
+    def test_v8_benchmark_enables_only_prepared_input_cache(self):
+        outputs = [json.dumps(PRODUCT_OUTPUT, ensure_ascii=False)] * 24
+        backend = FakeUsageBackend(outputs)
+        config = load_runtime_benchmark_config(
+            Path.cwd(),
+            Path("configs/week8/runtime_optimization_v8.json"),
+        )
+
+        result = run_product_latency_benchmark(settings(), backend, config)
+
+        self.assertEqual(backend.cache_configurations, [0, 0])
+        self.assertEqual(backend.prepared_cache_configurations, [0, 1])
+        self.assertEqual(
+            result["profiles"]["prepared_input_cached"]["prepared_input_cache"],
+            {"max_entries": 1},
+        )
+        self.assertEqual(
+            result["profiles"]["prepared_input_cached"]["quality_consistency"]
+            ["exact_result_match_rate"],
+            1.0,
+        )
+
+    def test_v8_benchmark_rejects_semantic_parameter_change(self):
+        latency = {
+            "profiles": [
+                {
+                    "role": "current",
+                    "max_new_tokens": 384,
+                    "visual_max_pixels": None,
+                    "processor_cache_entries": 0,
+                    "prepared_input_cache_entries": 0,
+                },
+                {
+                    "role": "prepared_input_cached",
+                    "max_new_tokens": 256,
+                    "visual_max_pixels": None,
+                    "processor_cache_entries": 0,
+                    "prepared_input_cache_entries": 1,
+                },
+            ]
+        }
+
+        with self.assertRaisesRegex(
+            Week8RuntimeBenchmarkError,
+            "cannot change token or visual limits",
+        ):
+            _validate_v8_latency_profiles(latency)
 
     def test_v6_release_binds_bounded_visual_processor_cache(self):
         release = ReleaseSettings.load(
