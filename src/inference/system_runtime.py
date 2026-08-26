@@ -31,6 +31,10 @@ from src.inference.transport_utils import normalize_image_url, strip_json_fence
 
 
 DEFAULT_RELEASE_CONFIG = "configs/releases/qwen3_vl_system_v1.json"
+DIALOGUE_PROMPT_VERSIONS = {
+    "system_repair_dialogue_v1",
+    "week8_dialogue_first_turn_v1",
+}
 
 
 class RuntimeConfigurationError(RuntimeError):
@@ -78,6 +82,8 @@ class ReleaseSettings:
     max_new_tokens: int
     max_new_tokens_by_scenario: dict[str, int]
     max_schema_retries: int
+    dialogue_prompt_version: str = "system_repair_dialogue_v1"
+    dialogue_max_new_tokens: int = 512
 
     @classmethod
     def load(
@@ -104,6 +110,7 @@ class ReleaseSettings:
 
         model = payload.get("model", {})
         generation = payload.get("generation", {})
+        dialogue = payload.get("dialogue", {})
         adapter_env = model.get("adapter_path_env")
         adapter_value = os.getenv(str(adapter_env), "") if adapter_env else ""
         adapter_path = Path(adapter_value).resolve() if adapter_value else None
@@ -125,6 +132,12 @@ class ReleaseSettings:
                 default=max_new_tokens,
             ),
             max_schema_retries=int(generation.get("max_schema_retries", 1)),
+            dialogue_prompt_version=(
+                _required_text(dialogue, "prompt_version")
+                if dialogue
+                else "system_repair_dialogue_v1"
+            ),
+            dialogue_max_new_tokens=int(dialogue.get("max_new_tokens", 512)),
         )
         if settings.backend_name not in {"transformers-peft", "openai-compatible"}:
             raise RuntimeConfigurationError(
@@ -132,6 +145,13 @@ class ReleaseSettings:
             )
         if settings.max_schema_retries != 1:
             raise RuntimeConfigurationError("release must allow exactly one Schema retry")
+        if settings.dialogue_prompt_version not in DIALOGUE_PROMPT_VERSIONS:
+            raise RuntimeConfigurationError(
+                "unsupported dialogue prompt version: "
+                f"{settings.dialogue_prompt_version}"
+            )
+        if settings.dialogue_max_new_tokens <= 0:
+            raise RuntimeConfigurationError("dialogue max_new_tokens must be positive")
         return settings
 
     def validate_adapter(self) -> tuple[bool, str]:
@@ -387,9 +407,25 @@ class ScenarioService:
         self,
         settings: ReleaseSettings,
         backend: ModelBackend,
+        *,
+        dialogue_prompt_version: str | None = None,
+        dialogue_max_new_tokens: int | None = None,
     ) -> None:
         self.settings = settings
         self.backend = backend
+        self.dialogue_prompt_version = (
+            dialogue_prompt_version or settings.dialogue_prompt_version
+        )
+        self.dialogue_max_new_tokens = int(
+            dialogue_max_new_tokens or settings.dialogue_max_new_tokens
+        )
+        if self.dialogue_prompt_version not in DIALOGUE_PROMPT_VERSIONS:
+            raise RuntimeConfigurationError(
+                "unsupported dialogue prompt version: "
+                f"{self.dialogue_prompt_version}"
+            )
+        if self.dialogue_max_new_tokens <= 0:
+            raise RuntimeConfigurationError("dialogue max_new_tokens must be positive")
 
     def ready(self) -> dict[str, Any]:
         adapter_ready, adapter_reason = self.settings.validate_adapter()
@@ -461,35 +497,9 @@ class ScenarioService:
         )
 
     def run_dialogue(self, request: DialogueRequest) -> DialogueResponse:
-        messages: list[dict[str, Any]] = [
-            {
-                "role": "system",
-                "content": (
-                    "你是专业 OTA 多模态对话助手。承接已确认状态，不编造图片或业务事实。"
-                    "仅输出 JSON：reply、state_updates、tool_calls。"
-                ),
-            }
-        ]
-        for index, turn in enumerate(request.messages):
-            content: Any = turn.content
-            if turn.role == "user" and index == 0 and request.image_urls:
-                content = [{"type": "text", "text": turn.content}]
-                content.extend(
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_url},
-                    }
-                    for image_url in request.image_urls
-                )
-            messages.append({"role": turn.role, "content": content})
-        messages.append(
-            {
-                "role": "user",
-                "content": (
-                    "当前结构化状态："
-                    + json.dumps(request.state, ensure_ascii=False, sort_keys=True)
-                ),
-            }
+        messages = _dialogue_messages(
+            request,
+            prompt_version=self.dialogue_prompt_version,
         )
         parsed, attempts = self._generate_dialogue(messages)
         state = dict(request.state)
@@ -518,7 +528,8 @@ class ScenarioService:
         active_response_format = response_format
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
-            raw = self.backend.generate(
+            raw, input_tokens, output_tokens = _generate_once(
+                self.backend,
                 active_messages,
                 response_format=active_response_format,
                 max_new_tokens=self.settings.max_new_tokens_by_scenario[scenario],
@@ -542,6 +553,8 @@ class ScenarioService:
                     raw_output=raw,
                     error=error,
                     latency_ms=latency_ms,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                 )
             )
             if error is None and isinstance(parsed, dict):
@@ -574,16 +587,29 @@ class ScenarioService:
         active_response_format: dict[str, Any] = {"type": "json_object"}
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
-            raw = self.backend.generate(
+            raw, input_tokens, output_tokens = _generate_once(
+                self.backend,
                 active_messages,
                 response_format=active_response_format,
-                max_new_tokens=self.settings.max_new_tokens,
+                max_new_tokens=self.dialogue_max_new_tokens,
             )
             error: str | None = None
             parsed: DialogueModelOutput | None = None
             try:
-                parsed = DialogueModelOutput.model_validate_json(strip_json_fence(raw))
-            except ValidationError as exc:
+                dialogue_payload = json.loads(strip_json_fence(raw))
+                required_keys = {"reply", "state_updates", "tool_calls"}
+                if not isinstance(dialogue_payload, dict) or set(dialogue_payload) != required_keys:
+                    actual_keys = (
+                        sorted(dialogue_payload)
+                        if isinstance(dialogue_payload, dict)
+                        else type(dialogue_payload).__name__
+                    )
+                    raise ValueError(
+                        "dialogue output must contain exactly "
+                        f"{sorted(required_keys)}; got {actual_keys}"
+                    )
+                parsed = DialogueModelOutput.model_validate(dialogue_payload)
+            except (json.JSONDecodeError, ValidationError, ValueError) as exc:
                 error = str(exc)
             attempts.append(
                 ModelAttempt(
@@ -591,6 +617,8 @@ class ScenarioService:
                     raw_output=raw,
                     error=error,
                     latency_ms=(time.perf_counter() - started) * 1000,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                 )
             )
             if parsed is not None:
@@ -613,6 +641,97 @@ class ScenarioService:
             f"{attempts[-1].error}",
             attempts=attempts,
         )
+
+
+def _generate_once(
+    backend: ModelBackend,
+    messages: list[dict[str, Any]],
+    *,
+    response_format: dict[str, Any] | None,
+    max_new_tokens: int,
+) -> tuple[str, int | None, int | None]:
+    """Use measured token counts when the backend exposes them."""
+
+    generate_with_usage = getattr(backend, "generate_with_usage", None)
+    if callable(generate_with_usage):
+        generated = generate_with_usage(
+            messages,
+            response_format=response_format,
+            max_new_tokens=max_new_tokens,
+        )
+        if isinstance(generated, GenerationResult):
+            return generated.content, generated.input_tokens, generated.output_tokens
+        raise ModelGenerationError("backend returned an invalid measured generation")
+    return (
+        backend.generate(
+            messages,
+            response_format=response_format,
+            max_new_tokens=max_new_tokens,
+        ),
+        None,
+        None,
+    )
+
+
+def _dialogue_messages(
+    request: DialogueRequest,
+    *,
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Render the versioned dialogue route without mutating caller history."""
+
+    state_json = json.dumps(request.state, ensure_ascii=False, sort_keys=True)
+    if prompt_version == "system_repair_dialogue_v1":
+        system_content = (
+            "你是专业 OTA 多模态对话助手。承接已确认状态，不编造图片或业务事实。"
+            "仅输出 JSON：reply、state_updates、tool_calls。"
+        )
+    elif prompt_version == "week8_dialogue_first_turn_v1":
+        system_content = (
+            "你正在处理 OTA 多轮对话端点，而不是商品理解、售后抽取或行程抽取端点。"
+            "即使用户上传图片，也不得输出 business_category、scene_tags、itinerary、"
+            "evidence、confidence 等单任务结构。只输出一个 JSON 对象，且顶层必须恰好"
+            "包含 reply、state_updates、tool_calls 三个键：reply 是面向用户的简短非空回复；"
+            "state_updates 只记录本轮明确新增或修改的状态，没有变化时为 {}；tool_calls 只在"
+            "确需外部工具时填写对象数组，否则为 []。不得输出 Markdown、解释或额外顶层键。"
+            "承接已确认状态，不编造图片、历史结果或业务事实。"
+            f"当前结构化状态为：{state_json}。"
+        )
+    else:
+        raise RuntimeConfigurationError(
+            f"unsupported dialogue prompt version: {prompt_version}"
+        )
+
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": system_content}
+    ]
+    first_user_has_image = False
+    for turn in request.messages:
+        content: Any = turn.content
+        if (
+            turn.role == "user"
+            and not first_user_has_image
+            and request.image_urls
+        ):
+            content = [{"type": "text", "text": turn.content}]
+            content.extend(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_url},
+                }
+                for image_url in request.image_urls
+            )
+            first_user_has_image = True
+        messages.append({"role": turn.role, "content": content})
+    if prompt_version == "system_repair_dialogue_v1":
+        # 保留正式历史基线的尾部状态消息，确保固定样本对比只改变候选 Prompt。
+        messages.append(
+            {
+                "role": "user",
+                "content": f"当前结构化状态：{state_json}",
+            }
+        )
+    return messages
 
 
 def build_service(root: Path | None = None) -> ScenarioService:

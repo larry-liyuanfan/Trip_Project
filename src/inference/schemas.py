@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ImageUnderstandingRequest(BaseModel):
@@ -63,6 +63,8 @@ class ModelAttempt(BaseModel):
     raw_output: str
     error: str | None = None
     latency_ms: float
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 class TaskResponse(BaseModel):
@@ -100,6 +102,8 @@ class DialogueRequest(BaseModel):
 
 class DialogueModelOutput(BaseModel):
     """Schema enforced on the model's beta dialogue response."""
+
+    model_config = ConfigDict(extra="forbid")
 
     reply: str = Field(min_length=1, max_length=8000)
     state_updates: dict[str, Any] = Field(default_factory=dict)
