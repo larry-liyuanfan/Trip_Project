@@ -27,14 +27,30 @@ from src.training.week7_data import (  # noqa: E402
     load_consumed_identities,
     sha256_file,
 )
-from src.training.week8_product import (  # noqa: E402
-    Week8ProductError,
-    load_week8_product_config,
-)
-
-
 class Week8FreshSourceError(ValueError):
     """Raised when the fresh-source overlay cannot satisfy its locked identity."""
+
+
+def load_fresh_source_config(path: Path) -> dict[str, Any]:
+    """Load only the data-build contract without importing the GPU runtime stack."""
+
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise Week8FreshSourceError(f"invalid Week 8 fresh-source config: {path}") from exc
+    fresh = payload.get("fresh_source", {})
+    if (
+        payload.get("schema_version") != "week8_product_understanding_v2"
+        or payload.get("week8", {}).get("source_version")
+        != "week8_product_fresh_20260826_v1"
+        or int(fresh.get("selected_photo_count", 0)) < 2000
+        or int(fresh.get("minimum_eligible_count", 0)) < 2000
+        or not str(fresh.get("output_root") or "").startswith(
+            "data/yelp/week8_product_fresh_20260826_v1"
+        )
+    ):
+        raise Week8FreshSourceError("Week 8 v2 fresh-source identity is incomplete")
+    return payload
 
 
 OTA_CATEGORY_TERMS = {
@@ -367,12 +383,7 @@ def build_fresh_sources(
     rebuilt_yelp_root = Path(rebuilt_yelp_root).resolve()
     historical_root = Path(historical_root).resolve()
     photos_zip = Path(photos_zip).resolve()
-    try:
-        config = load_week8_product_config(config_path)
-    except Week8ProductError as exc:
-        raise Week8FreshSourceError(str(exc)) from exc
-    if config["schema_version"] != "week8_product_understanding_v2":
-        raise Week8FreshSourceError("fresh-source build requires the Week 8 v2 config")
+    config = load_fresh_source_config(config_path)
     fresh = config["fresh_source"]
     output_root = (root / fresh["output_root"]).resolve()
     try:
