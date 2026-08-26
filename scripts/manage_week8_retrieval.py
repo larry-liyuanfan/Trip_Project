@@ -28,6 +28,10 @@ from src.retrieval.week8_relevance import (
     validate_development_selection,
     write_evaluation,
 )
+from src.retrieval.week8_hybrid import (
+    build_preferred_image_channel,
+    load_locked_index_into_milvus,
+)
 
 
 DEFAULT_CONFIG = ROOT / "configs/week8/retrieval_relevance_v1.json"
@@ -49,6 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_source_arguments(development)
     development.add_argument("--lock-dir", required=True, type=Path)
     development.add_argument("--output-dir", required=True, type=Path)
+    development.add_argument(
+        "--retrieval-backend",
+        choices=("auto", "milvus", "offline"),
+        default=None,
+    )
 
     final_test = subparsers.add_parser("evaluate-final-test")
     _add_common_source_arguments(final_test)
@@ -56,6 +65,15 @@ def build_parser() -> argparse.ArgumentParser:
     final_test.add_argument("--selection", required=True, type=Path)
     final_test.add_argument("--output-dir", required=True, type=Path)
     final_test.add_argument("--consumption-marker", required=True, type=Path)
+    final_test.add_argument(
+        "--retrieval-backend",
+        choices=("auto", "milvus", "offline"),
+        default=None,
+    )
+
+    load_milvus = subparsers.add_parser("load-milvus-index")
+    _add_common_source_arguments(load_milvus)
+    load_milvus.add_argument("--lock-dir", required=True, type=Path)
     return parser
 
 
@@ -103,6 +121,23 @@ def main() -> None:
     if manifest.get("source_hashes") != source_hashes:
         raise Week8RetrievalError("runtime retrieval source does not match the locked source")
 
+    if args.command == "load-milvus-index":
+        _print(
+            load_locked_index_into_milvus(
+                config,
+                vectors,
+                rows_by_partition["index"],
+            )
+        )
+        return
+
+    image_channel = build_preferred_image_channel(
+        config,
+        rows_by_partition["index"],
+        vectors,
+        backend=args.retrieval_backend,
+    )
+
     if args.command == "evaluate-development":
         metrics, results, references = evaluate_partition(
             config,
@@ -110,6 +145,7 @@ def main() -> None:
             metadata,
             rows_by_partition,
             "development_query",
+            image_channel=image_channel,
         )
         selection = select_development_method(config, metrics)
         hashes = write_evaluation(
@@ -132,6 +168,15 @@ def main() -> None:
         source_hashes=source_hashes,
     )
     selected_method = selection.get("selected_method")
+    backend_identity = image_channel.describe()
+    if (
+        selection.get("selected_backend") != backend_identity["backend"]
+        or selection.get("selected_offline_fallback")
+        != backend_identity["offline_fallback"]
+    ):
+        raise Week8RetrievalError(
+            "final retrieval backend does not match the development selection"
+        )
     claim_final_test(
         args.consumption_marker,
         selection,
@@ -145,6 +190,7 @@ def main() -> None:
         rows_by_partition,
         "final_test_query",
         methods=methods,
+        image_channel=image_channel,
     )
     hashes = write_evaluation(
         args.output_dir,

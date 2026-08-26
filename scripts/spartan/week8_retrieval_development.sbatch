@@ -31,7 +31,11 @@ python scripts/manage_week8_retrieval.py build-lock \
   --output-dir "$TRIP_RETRIEVAL_LOCK_DIR"
 python scripts/manage_week8_retrieval.py validate-lock \
   --lock-dir "$TRIP_RETRIEVAL_LOCK_DIR"
+python scripts/manage_week8_retrieval.py load-milvus-index \
+  --retrieval-dir "$TRIP_RETRIEVAL_DIR" \
+  --lock-dir "$TRIP_RETRIEVAL_LOCK_DIR"
 python scripts/manage_week8_retrieval.py evaluate-development \
   --retrieval-dir "$TRIP_RETRIEVAL_DIR" \
   --lock-dir "$TRIP_RETRIEVAL_LOCK_DIR" \
-  --output-dir "$TRIP_RETRIEVAL_DEVELOPMENT_DIR"
+  --output-dir "$TRIP_RETRIEVAL_DEVELOPMENT_DIR" \
+  --retrieval-backend auto

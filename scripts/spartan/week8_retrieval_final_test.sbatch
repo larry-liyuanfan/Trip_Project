@@ -32,4 +32,5 @@ python scripts/manage_week8_retrieval.py evaluate-final-test \
   --lock-dir "$TRIP_RETRIEVAL_LOCK_DIR" \
   --selection "$TRIP_RETRIEVAL_SELECTION" \
   --output-dir "$TRIP_RETRIEVAL_FINAL_DIR" \
-  --consumption-marker "$TRIP_RETRIEVAL_TEST_MARKER"
+  --consumption-marker "$TRIP_RETRIEVAL_TEST_MARKER" \
+  --retrieval-backend auto

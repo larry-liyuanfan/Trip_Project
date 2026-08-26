@@ -52,9 +52,30 @@
     ],
     "consumer_paths": ["image_product_search", "itinerary_planning"]
   },
+  "hybrid": {
+    "backend_preference": "auto",
+    "offline_fallback_enabled": true,
+    "milvus_config": "docker/system/milvus_system.yaml",
+    "milvus_uri": "outputs/week8/retrieval/milvus_lite_v1.db",
+    "milvus_token_env": "MILVUS_TOKEN",
+    "milvus_timeout_seconds": 30,
+    "milvus_collection": "ota_business_image_vector_week8_retrieval_v1",
+    "milvus_ef": 64,
+    "milvus_lite_index_type": "FLAT",
+    "milvus_remote_index_type": "HNSW",
+    "rrf_k": 60,
+    "weighted_fusion": {
+      "image": 0.7,
+      "metadata": 0.3
+    }
+  },
   "selection": {
     "baseline_method": "clip",
-    "candidate_method": "metadata_rerank",
+    "candidate_methods": [
+      "metadata_rerank",
+      "hybrid_rrf",
+      "hybrid_weighted"
+    ],
     "primary_metric": "ndcg_at_10",
     "non_regression_metrics": [
       "recall_at_10",

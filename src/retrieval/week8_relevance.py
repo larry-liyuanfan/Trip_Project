@@ -12,9 +12,15 @@ import time
 from pathlib import Path
 from typing import Any, Iterable
 
+from src.retrieval.week8_hybrid import (
+    OfflineImageChannel,
+    fuse_rankings,
+    metadata_ranking,
+)
+
 
 PARTITIONS = ("index", "development_query", "final_test_query")
-METHODS = ("clip", "metadata_rerank")
+METHODS = ("clip", "metadata_rerank", "hybrid_rrf", "hybrid_weighted")
 REQUIRED_METADATA_FIELDS = {
     "business_id",
     "image_id",
@@ -49,9 +55,14 @@ def load_config(path: Path | str) -> dict[str, Any]:
     source = config.get("source")
     split = config.get("split")
     evaluation = config.get("evaluation")
+    hybrid = config.get("hybrid")
     selection = config.get("selection")
-    if not all(isinstance(item, dict) for item in (source, split, evaluation, selection)):
-        raise Week8RetrievalError("source, split, evaluation, and selection are required")
+    if not all(
+        isinstance(item, dict) for item in (source, split, evaluation, hybrid, selection)
+    ):
+        raise Week8RetrievalError(
+            "source, split, evaluation, hybrid, and selection are required"
+        )
     dev_fraction = _finite_number(split.get("development_query_group_fraction"))
     test_fraction = _finite_number(split.get("final_test_query_group_fraction"))
     if dev_fraction <= 0 or test_fraction <= 0 or dev_fraction + test_fraction >= 1:
@@ -85,6 +96,33 @@ def load_config(path: Path | str) -> dict[str, Any]:
         raise Week8RetrievalError("partition template identities must be complete and distinct")
     if int(evaluation.get("candidate_pool_size", 0)) < max(top_k_values):
         raise Week8RetrievalError("candidate_pool_size must cover the largest top_k")
+    if hybrid.get("backend_preference") not in {"auto", "milvus", "offline"}:
+        raise Week8RetrievalError("hybrid backend preference is unsupported")
+    if not isinstance(hybrid.get("offline_fallback_enabled"), bool):
+        raise Week8RetrievalError("offline_fallback_enabled must be boolean")
+    if (
+        hybrid.get("milvus_lite_index_type") != "FLAT"
+        or hybrid.get("milvus_remote_index_type") != "HNSW"
+    ):
+        raise Week8RetrievalError("Milvus Lite/remote index types must be FLAT/HNSW")
+    fusion_weights = hybrid.get("weighted_fusion")
+    if (
+        not isinstance(fusion_weights, dict)
+        or set(fusion_weights) != {"image", "metadata"}
+        or not math.isclose(
+            sum(_finite_number(value) for value in fusion_weights.values()),
+            1.0,
+            abs_tol=1e-9,
+        )
+    ):
+        raise Week8RetrievalError("weighted fusion weights must sum to one")
+    candidate_methods = selection.get("candidate_methods")
+    if (
+        not isinstance(candidate_methods, list)
+        or not candidate_methods
+        or set(candidate_methods) - (set(METHODS) - {"clip"})
+    ):
+        raise Week8RetrievalError("selection candidate methods are invalid")
     return config
 
 
@@ -254,6 +292,7 @@ def evaluate_partition(
     partition: str,
     *,
     methods: Iterable[str] = METHODS,
+    image_channel: Any | None = None,
 ) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Compare pure CLIP and lightweight metadata rerank on one locked query split."""
     if partition not in {"development_query", "final_test_query"}:
@@ -266,13 +305,14 @@ def evaluate_partition(
     method_names = list(dict.fromkeys(methods))
     if not method_names or any(method not in METHODS for method in method_names):
         raise Week8RetrievalError("unsupported or empty retrieval method list")
+    active_image_channel = image_channel or OfflineImageChannel(vectors)
 
     metrics: dict[str, dict[str, Any]] = {}
     all_results: list[dict[str, Any]] = []
     all_references: list[dict[str, Any]] = []
     for method in method_names:
         measured, results, references = _evaluate_method(
-            config, vectors, index_rows, query_rows, method
+            config, vectors, index_rows, query_rows, method, active_image_channel
         )
         metrics[method] = measured
         all_results.extend(results)
@@ -286,33 +326,62 @@ def select_development_method(
     """Lock rerank only after a strict primary improvement and all gates pass."""
     selection = config["selection"]
     baseline_name = selection["baseline_method"]
-    candidate_name = selection["candidate_method"]
+    candidate_names = selection.get("candidate_methods") or [selection["candidate_method"]]
     baseline = metrics.get(baseline_name)
-    candidate = metrics.get(candidate_name)
-    if not isinstance(baseline, dict) or not isinstance(candidate, dict):
-        raise Week8RetrievalError("development metrics require baseline and candidate")
+    if not isinstance(baseline, dict):
+        raise Week8RetrievalError("development metrics require the baseline")
     primary = selection["primary_metric"]
-    failures: list[str] = []
-    if _finite_number(candidate.get(primary)) <= _finite_number(baseline.get(primary)):
-        failures.append(f"{primary}_not_improved")
-    for metric in selection["non_regression_metrics"]:
-        if _finite_number(candidate.get(metric)) < _finite_number(baseline.get(metric)):
-            failures.append(f"{metric}_regressed")
     required_failure = _finite_number(selection["required_failure_rate"])
-    if _finite_number(candidate.get("failure_rate")) != required_failure:
-        failures.append("candidate_failure_rate_gate")
     if _finite_number(baseline.get("failure_rate")) != required_failure:
-        failures.append("baseline_failure_rate_gate")
-    selected = candidate_name if not failures else baseline_name
+        raise Week8RetrievalError("baseline failure rate gate failed")
+
+    evaluations: dict[str, dict[str, Any]] = {}
+    eligible: list[str] = []
+    for candidate_name in candidate_names:
+        candidate = metrics.get(candidate_name)
+        if not isinstance(candidate, dict):
+            raise Week8RetrievalError(f"development metrics missing candidate: {candidate_name}")
+        candidate_failures: list[str] = []
+        if _finite_number(candidate.get(primary)) <= _finite_number(baseline.get(primary)):
+            candidate_failures.append(f"{primary}_not_improved")
+        for metric in selection["non_regression_metrics"]:
+            if _finite_number(candidate.get(metric)) < _finite_number(baseline.get(metric)):
+                candidate_failures.append(f"{metric}_regressed")
+        if _finite_number(candidate.get("failure_rate")) != required_failure:
+            candidate_failures.append("candidate_failure_rate_gate")
+        evaluations[candidate_name] = {
+            "value": candidate.get(primary),
+            "eligible": not candidate_failures,
+            "failures": candidate_failures,
+        }
+        if not candidate_failures:
+            eligible.append(candidate_name)
+    best_candidate = max(
+        candidate_names,
+        key=lambda name: (_finite_number(metrics[name].get(primary)), name),
+    )
+    selected = (
+        max(eligible, key=lambda name: (_finite_number(metrics[name].get(primary)), name))
+        if eligible
+        else baseline_name
+    )
+    failures = [] if eligible else sorted(
+        {failure for result in evaluations.values() for failure in result["failures"]}
+    )
     return {
         "schema_version": "week8_retrieval_development_selection_v1",
         "experiment_id": config["experiment_id"],
         "selected_method": selected,
-        "candidate_locked": not failures,
+        "candidate_locked": bool(eligible),
         "failures": failures,
         "primary_metric": primary,
         "baseline_value": baseline.get(primary),
-        "candidate_value": candidate.get(primary),
+        "candidate_value": metrics[best_candidate].get(primary),
+        "best_candidate": best_candidate,
+        "candidate_evaluations": evaluations,
+        "selected_backend": metrics[selected].get("retrieval_backend"),
+        "selected_offline_fallback": metrics[selected].get("offline_fallback"),
+        "selected_fallback_reason": metrics[selected].get("fallback_reason"),
     }
 
 
@@ -436,6 +505,11 @@ def validate_development_selection(
         "primary_metric",
         "baseline_value",
         "candidate_value",
+        "best_candidate",
+        "candidate_evaluations",
+        "selected_backend",
+        "selected_offline_fallback",
+        "selected_fallback_reason",
     )
     if any(selection.get(field) != recomputed.get(field) for field in decision_fields):
         raise Week8RetrievalError("development selection decision mismatch")
@@ -462,6 +536,8 @@ def claim_final_test(
         "schema_version": "week8_retrieval_final_test_consumption_v1",
         "experiment_id": selection.get("experiment_id"),
         "selected_method": selection.get("selected_method"),
+        "selected_backend": selection.get("selected_backend"),
+        "selected_offline_fallback": selection.get("selected_offline_fallback"),
         "selection_sha256": selection_sha256,
         "data_lock_sha256": selection.get("data_lock_sha256"),
         "source_hashes": selection.get("source_hashes"),
@@ -522,6 +598,7 @@ def _evaluate_method(
     index_rows: list[dict[str, Any]],
     query_rows: list[dict[str, Any]],
     method: str,
+    image_channel: Any,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     evaluation = config["evaluation"]
     top_k_values = sorted(set(evaluation["top_k_values"]))
@@ -529,18 +606,33 @@ def _evaluate_method(
     recalls: dict[int, list[float]] = {k: [] for k in top_k_values}
     ndcgs: dict[int, list[float]] = {k: [] for k in top_k_values}
     latencies: list[float] = []
+    image_latencies: list[float] = []
     results: list[dict[str, Any]] = []
     references: list[dict[str, Any]] = []
     failures = 0
     filter_requests = filter_no_results = filter_hits = filter_correct = 0
     traceable = trace_total = 0
+    source_attributed = source_total = 0
+    source_channel_counts = {"image": 0, "metadata": 0}
+    backend = image_channel.describe()
 
     for query in query_rows:
         try:
             query_vector = vectors[query["vector_index"]]
             started = time.perf_counter()
-            ranked = _rank(config, vectors, index_rows, query, query_vector, method, maximum_k)
+            ranked = _rank(
+                config,
+                vectors,
+                index_rows,
+                query,
+                query_vector,
+                method,
+                maximum_k,
+                image_channel=image_channel,
+            )
             latencies.append((time.perf_counter() - started) * 1000.0)
+            if isinstance(image_channel.last_latency_ms, (int, float)):
+                image_latencies.append(float(image_channel.last_latency_ms))
             grades = {
                 row["sample_id"]: _relevance_grade(config, query["metadata"], row["metadata"])
                 for row in index_rows
@@ -569,6 +661,9 @@ def _evaluate_method(
                         "image_id": hit["row"]["metadata"]["image_id"],
                         "clip_score": hit["clip_score"],
                         "ranking_score": hit["ranking_score"],
+                        "source_channels": hit.get("source_channels", []),
+                        "component_ranks": hit.get("component_ranks", {}),
+                        "component_scores": hit.get("component_scores", {}),
                         "relevance_grade": grades[hit["row"]["sample_id"]],
                     }
                     for rank, hit in enumerate(ranked, start=1)
@@ -578,6 +673,8 @@ def _evaluate_method(
             for consumer in evaluation["consumer_paths"]:
                 for rank, hit in enumerate(ranked, start=1):
                     reference = _traceable_reference(query, hit["row"], method, consumer, rank)
+                    reference["source_channels"] = hit.get("source_channels", [])
+                    reference["retrieval_backend"] = backend["backend"]
                     query_references.append(reference)
 
             for fields in evaluation["filter_scenarios"]:
@@ -594,6 +691,7 @@ def _evaluate_method(
                     method,
                     maximum_k,
                     filters=filters,
+                    image_channel=image_channel,
                 )
                 if not filtered:
                     filter_no_results += 1
@@ -614,6 +712,12 @@ def _evaluate_method(
             references.extend(query_references)
             trace_total += len(query_references)
             traceable += sum(int(reference["traceable"]) for reference in query_references)
+            for hit in ranked:
+                channels = hit.get("source_channels", [])
+                source_total += 1
+                source_attributed += int(bool(channels))
+                for channel in source_channel_counts:
+                    source_channel_counts[channel] += int(channel in channels)
         except Exception as exc:  # 每个查询保留真实失败率，不静默丢弃。
             failures += 1
             results.append(
@@ -639,9 +743,20 @@ def _evaluate_method(
         "traceable_reference_count": traceable,
         "reference_count": trace_total,
         "traceable_reference_rate": traceable / trace_total if trace_total else 1.0,
+        "source_attribution_count": source_attributed,
+        "source_result_count": source_total,
+        "source_attribution_rate": source_attributed / source_total if source_total else 1.0,
+        "source_channel_counts": source_channel_counts,
+        "retrieval_backend": backend["backend"],
+        "offline_fallback": backend["offline_fallback"],
+        "fallback_reason": backend["fallback_reason"],
         "latency_mean_ms": statistics.fmean(latencies) if latencies else None,
         "latency_p50_ms": statistics.median(latencies) if latencies else None,
         "latency_p95_ms": _percentile(latencies, 0.95),
+        "image_channel_latency_mean_ms": statistics.fmean(image_latencies)
+        if image_latencies
+        else None,
+        "image_channel_latency_p95_ms": _percentile(image_latencies, 0.95),
     }
     for k in top_k_values:
         metrics[f"recall_at_{k}"] = statistics.fmean(recalls[k]) if recalls[k] else 0.0
@@ -659,36 +774,65 @@ def _rank(
     top_k: int,
     *,
     filters: dict[str, str] | None = None,
+    image_channel: Any,
 ) -> list[dict[str, Any]]:
-    candidates = [
-        row for row in index_rows if not filters or _matches_filters(row["metadata"], filters)
-    ]
+    pool_size = int(config["evaluation"]["candidate_pool_size"])
+    image_hits = image_channel.search(
+        query_vector,
+        index_rows,
+        top_k=max(pool_size, top_k),
+        filters=filters,
+    )
     scored = [
         {
-            "row": row,
-            "clip_score": _dot(query_vector, vectors[row["vector_index"]]),
+            "row": hit["row"],
+            "clip_score": hit["image_score"],
+            "source_channels": ["image"],
+            "component_ranks": {"image": rank, "metadata": None},
+            "component_scores": {"image": hit["image_score"], "metadata": None},
         }
-        for row in candidates
+        for rank, hit in enumerate(image_hits, start=1)
     ]
-    scored.sort(key=lambda hit: (-hit["clip_score"], hit["row"]["sample_id"]))
     if method == "clip":
         for hit in scored[:top_k]:
             hit["ranking_score"] = hit["clip_score"]
         return scored[:top_k]
-    if method != "metadata_rerank":
-        raise Week8RetrievalError(f"unsupported retrieval method: {method}")
-    pool_size = int(config["evaluation"]["candidate_pool_size"])
-    rerank_weights = config["evaluation"]["rerank_weights"]
-    pool = scored[:pool_size]
-    for hit in pool:
-        bonus = 0.0
-        for field, weight in rerank_weights.items():
-            query_value = query["metadata"].get(field)
-            if query_value != "unknown" and query_value == hit["row"]["metadata"].get(field):
-                bonus += _finite_number(weight)
-        hit["ranking_score"] = hit["clip_score"] + bonus
-    pool.sort(key=lambda hit: (-hit["ranking_score"], -hit["clip_score"], hit["row"]["sample_id"]))
-    return pool[:top_k]
+    if method == "metadata_rerank":
+        rerank_weights = config["evaluation"]["rerank_weights"]
+        pool = scored[:pool_size]
+        for hit in pool:
+            bonus = 0.0
+            for field, weight in rerank_weights.items():
+                query_value = query["metadata"].get(field)
+                if query_value != "unknown" and query_value == hit["row"]["metadata"].get(field):
+                    bonus += _finite_number(weight)
+            hit["ranking_score"] = hit["clip_score"] + bonus
+            hit["source_channels"] = ["image", "metadata"]
+            hit["component_scores"]["metadata"] = bonus
+        pool.sort(
+            key=lambda hit: (
+                -hit["ranking_score"],
+                -hit["clip_score"],
+                hit["row"]["sample_id"],
+            )
+        )
+        return pool[:top_k]
+    if method in {"hybrid_rrf", "hybrid_weighted"}:
+        metadata_hits = metadata_ranking(
+            config,
+            query["metadata"],
+            index_rows,
+            top_k=max(pool_size, top_k),
+            filters=filters,
+        )
+        return fuse_rankings(
+            config,
+            image_hits,
+            metadata_hits,
+            method=method,
+            top_k=top_k,
+        )
+    raise Week8RetrievalError(f"unsupported retrieval method: {method}")
 
 
 def _assign_partitions(

@@ -20,6 +20,10 @@ from src.retrieval.week8_relevance import (
     validate_development_selection,
     write_evaluation,
 )
+from src.retrieval.week8_hybrid import (
+    MilvusImageChannel,
+    build_preferred_image_channel,
+)
 
 
 class Week8RetrievalTests(unittest.TestCase):
@@ -33,7 +37,11 @@ class Week8RetrievalTests(unittest.TestCase):
             "openai/clip-vit-base-patch32",
         )
         self.assertEqual(config["selection"]["baseline_method"], "clip")
-        self.assertEqual(config["selection"]["candidate_method"], "metadata_rerank")
+        self.assertEqual(
+            config["selection"]["candidate_methods"],
+            ["metadata_rerank", "hybrid_rrf", "hybrid_weighted"],
+        )
+        self.assertEqual(config["hybrid"]["backend_preference"], "auto")
 
     def test_lock_is_deterministic_and_isolates_five_dimensions(self):
         config = self._config(count=40, dimension=2)
@@ -163,11 +171,74 @@ class Week8RetrievalTests(unittest.TestCase):
         self.assertGreater(metrics["metadata_rerank"]["ndcg_at_1"], metrics["clip"]["ndcg_at_1"])
         self.assertEqual(metrics["metadata_rerank"]["filter_correctness"], 1.0)
         self.assertEqual(metrics["metadata_rerank"]["traceable_reference_rate"], 1.0)
+        self.assertEqual(metrics["hybrid_rrf"]["source_attribution_rate"], 1.0)
+        self.assertEqual(metrics["hybrid_weighted"]["retrieval_backend"], "offline_cosine")
+        self.assertFalse(metrics["hybrid_weighted"]["offline_fallback"])
+        self.assertIsNotNone(metrics["hybrid_weighted"]["image_channel_latency_p95_ms"])
         self.assertTrue(results)
         self.assertTrue(references)
         self.assertEqual({row["consumer_path"] for row in references}, {
             "image_product_search", "itinerary_planning"
         })
+
+    def test_real_milvus_is_preferred_and_unavailability_is_explicit_fallback(self):
+        config = self._config(count=2, dimension=2)
+        config["hybrid"]["milvus_uri"] = "fixture-week8.db"
+        vectors = np.asarray([[1.0, 0.0], [0.0, 1.0]], dtype="float32")
+        metadata = [self._metadata(0), self._metadata(1)]
+        index_rows = [
+            self._locked_row(metadata[index], vectors, index, "index")
+            for index in range(2)
+        ]
+
+        class FakeMilvusClient:
+            def has_collection(self, **kwargs):
+                return True
+
+            def query(self, **kwargs):
+                if kwargs["output_fields"] == ["count(*)"]:
+                    return [{"count(*)": 2}]
+                return [{"image_id": row["metadata"]["image_id"]} for row in index_rows]
+
+            def search(self, **kwargs):
+                return [[{
+                    "distance": 0.91,
+                    "entity": {"image_id": metadata[0]["image_id"]},
+                }]]
+
+        channel = build_preferred_image_channel(
+            config,
+            index_rows,
+            vectors,
+            backend="auto",
+            milvus_factory=lambda: MilvusImageChannel(
+                config,
+                index_rows,
+                client=FakeMilvusClient(),
+            ),
+        )
+        self.assertEqual(channel.describe()["backend"], "milvus_lite_flat_cosine")
+        hits = channel.search(vectors[1], index_rows, top_k=1)
+        self.assertEqual(hits[0]["row"]["metadata"]["image_id"], metadata[0]["image_id"])
+
+        fallback = build_preferred_image_channel(
+            config,
+            index_rows,
+            vectors,
+            backend="auto",
+            milvus_factory=lambda: (_ for _ in ()).throw(ConnectionError("service down")),
+        )
+        self.assertEqual(fallback.describe()["backend"], "offline_cosine")
+        self.assertTrue(fallback.describe()["offline_fallback"])
+        self.assertIn("service down", fallback.describe()["fallback_reason"])
+        with self.assertRaisesRegex(Exception, "Milvus backend unavailable"):
+            build_preferred_image_channel(
+                config,
+                index_rows,
+                vectors,
+                backend="milvus",
+                milvus_factory=lambda: (_ for _ in ()).throw(ConnectionError("service down")),
+            )
 
     def test_selection_binds_development_evidence_and_rejects_tamper(self):
         config = self._config(count=1, dimension=2)
@@ -301,6 +372,36 @@ class Week8RetrievalTests(unittest.TestCase):
             payload = json.loads(marker.read_text(encoding="utf-8"))
             self.assertEqual(payload["status"], "COMPLETED")
 
+    def test_multi_candidate_selection_locks_best_eligible_hybrid(self):
+        config = load_config("configs/week8/retrieval_relevance_v1.json")
+
+        def measured(ndcg):
+            return {
+                "ndcg_at_10": ndcg,
+                "recall_at_10": 0.2,
+                "filter_correctness": 1.0,
+                "traceable_reference_rate": 1.0,
+                "failure_rate": 0.0,
+                "retrieval_backend": "milvus_remote_hnsw_cosine",
+                "offline_fallback": False,
+                "fallback_reason": None,
+            }
+
+        selection = select_development_method(
+            config,
+            {
+                "clip": measured(0.40),
+                "metadata_rerank": measured(0.51),
+                "hybrid_rrf": measured(0.62),
+                "hybrid_weighted": measured(0.58),
+            },
+        )
+
+        self.assertEqual(selection["selected_method"], "hybrid_rrf")
+        self.assertTrue(selection["candidate_locked"])
+        self.assertTrue(selection["candidate_evaluations"]["hybrid_rrf"]["eligible"])
+        self.assertEqual(selection["selected_backend"], "milvus_remote_hnsw_cosine")
+
     def _config(self, *, count: int, dimension: int):
         return {
             "schema_version": "week8_retrieval_relevance_config_v1",
@@ -343,6 +444,20 @@ class Week8RetrievalTests(unittest.TestCase):
                 },
                 "filter_scenarios": [["city"], ["price_range"]],
                 "consumer_paths": ["image_product_search", "itinerary_planning"],
+            },
+            "hybrid": {
+                "backend_preference": "auto",
+                "offline_fallback_enabled": True,
+                "milvus_config": "docker/system/milvus_system.yaml",
+                "milvus_uri": "http://localhost:19530",
+                "milvus_token_env": "MILVUS_TOKEN",
+                "milvus_timeout_seconds": 30,
+                "milvus_collection": "ota_business_image_vector_week8_retrieval_v1",
+                "milvus_ef": 64,
+                "milvus_lite_index_type": "FLAT",
+                "milvus_remote_index_type": "HNSW",
+                "rrf_k": 60,
+                "weighted_fusion": {"image": 0.7, "metadata": 0.3},
             },
             "selection": {
                 "baseline_method": "clip",
