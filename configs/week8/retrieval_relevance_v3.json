@@ -1,0 +1,87 @@
+{
+  "schema_version": "week8_retrieval_relevance_config_v3",
+  "experiment_id": "week8_retrieval_relevance_20260827_v3",
+  "dataset_version": "week8_retrieval_query_index_20260827_v3",
+  "source": {
+    "release_id": "trip-qwen3-vl-8b-system-repair-v1-rc1",
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "vector_dimension": 512,
+    "archive_vectors_member": "retrieval/clip_vectors_1000.npz",
+    "archive_metadata_member": "retrieval/clip_metadata_1000.jsonl",
+    "vectors_filename": "clip_vectors_1000.npz",
+    "metadata_filename": "clip_metadata_1000.jsonl",
+    "expected_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "expected_vectors_sha256": "021f09d764038a3ce53d28d348b4c1b6f5b50ba82f51d69ccd2b1acfeee059ee",
+    "expected_metadata_sha256": "7a79894fb027e2f0e6e6aa943a5af21c10c72b084f0dd866c931405debfcd42d",
+    "expected_count": 1000
+  },
+  "split": {
+    "seed": 20260826,
+    "development_query_group_fraction": 0.15,
+    "final_test_query_group_fraction": 0.15,
+    "minimum_counts": {
+      "index": 600,
+      "development_query": 100,
+      "final_test_query": 100
+    },
+    "template_ids": {
+      "index": "week8_retrieval_index_metadata_v3",
+      "development_query": "week8_retrieval_development_query_v3",
+      "final_test_query": "week8_retrieval_final_test_query_v3"
+    }
+  },
+  "evaluation": {
+    "top_k_values": [5, 10],
+    "candidate_pool_size": 100,
+    "minimum_relevance_grade": 5.0,
+    "relevance_weights": {
+      "city": 4.0,
+      "business_category": 2.0,
+      "price_range": 1.0
+    },
+    "rerank_weights": {
+      "city": 0.12,
+      "business_category": 0.08,
+      "price_range": 0.05
+    },
+    "filter_scenarios": [
+      ["city"],
+      ["business_category"],
+      ["price_range"],
+      ["city", "business_category", "price_range"]
+    ],
+    "consumer_paths": ["image_product_search", "itinerary_planning"]
+  },
+  "hybrid": {
+    "backend_preference": "auto",
+    "offline_fallback_enabled": true,
+    "milvus_config": "docker/system/milvus_system.yaml",
+    "milvus_uri": "outputs/week8/retrieval/milvus_lite_v3.db",
+    "milvus_token_env": "MILVUS_TOKEN",
+    "milvus_timeout_seconds": 30,
+    "milvus_collection": "ota_business_image_vector_week8_retrieval_v3",
+    "milvus_ef": 64,
+    "milvus_lite_index_type": "FLAT",
+    "milvus_remote_index_type": "HNSW",
+    "rrf_k": 60,
+    "weighted_fusion": {
+      "image": 0.7,
+      "metadata": 0.3
+    }
+  },
+  "selection": {
+    "baseline_method": "clip",
+    "candidate_methods": [
+      "metadata_rerank",
+      "hybrid_rrf",
+      "hybrid_weighted"
+    ],
+    "primary_metric": "ndcg_at_10",
+    "non_regression_metrics": [
+      "recall_at_10",
+      "filter_correctness",
+      "traceable_reference_rate"
+    ],
+    "required_failure_rate": 0.0
+  }
+}

@@ -50,7 +50,10 @@ def load_config(path: Path | str) -> dict[str, Any]:
         config = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise Week8RetrievalError(f"cannot load retrieval config: {exc}") from exc
-    if config.get("schema_version") != "week8_retrieval_relevance_config_v2":
+    if config.get("schema_version") not in {
+        "week8_retrieval_relevance_config_v2",
+        "week8_retrieval_relevance_config_v3",
+    }:
         raise Week8RetrievalError("unsupported Week 8 retrieval config schema")
     source = config.get("source")
     split = config.get("split")

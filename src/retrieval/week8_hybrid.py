@@ -107,6 +107,8 @@ class MilvusImageChannel:
     def _verify_collection_identity(self) -> None:
         if not self.client.has_collection(collection_name=self.collection):
             raise Week8HybridError(f"Milvus collection is missing: {self.collection}")
+        # Milvus Lite 文件由新进程打开时集合默认处于 released 状态。
+        self.client.load_collection(collection_name=self.collection)
         count_rows = self.client.query(
             collection_name=self.collection,
             filter="",

@@ -28,7 +28,7 @@ from src.retrieval.week8_hybrid import (
 
 class Week8RetrievalTests(unittest.TestCase):
     def test_repository_config_has_fixed_release_and_silver_isolated_protocol(self):
-        config = load_config("configs/week8/retrieval_relevance_v2.json")
+        config = load_config("configs/week8/retrieval_relevance_v3.json")
         legacy = json.loads(
             Path("configs/week8/retrieval_relevance_v1.json").read_text(encoding="utf-8")
         )
@@ -42,8 +42,13 @@ class Week8RetrievalTests(unittest.TestCase):
             legacy["split"]["template_ids"]["final_test_query"],
             "week8_retrieval_final_test_query_v1",
         )
-        self.assertEqual(config["schema_version"], "week8_retrieval_relevance_config_v2")
-        self.assertEqual(config["dataset_version"], "week8_retrieval_query_index_20260827_v2")
+        v2 = json.loads(
+            Path("configs/week8/retrieval_relevance_v2.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(v2["schema_version"], "week8_retrieval_relevance_config_v2")
+        self.assertEqual(v2["experiment_id"], "week8_retrieval_relevance_20260827_v2")
+        self.assertEqual(config["schema_version"], "week8_retrieval_relevance_config_v3")
+        self.assertEqual(config["dataset_version"], "week8_retrieval_query_index_20260827_v3")
         self.assertEqual(config["source"]["expected_count"], 1000)
         self.assertEqual(config["source"]["vector_dimension"], 512)
         self.assertEqual(
@@ -56,6 +61,9 @@ class Week8RetrievalTests(unittest.TestCase):
             ["metadata_rerank", "hybrid_rrf", "hybrid_weighted"],
         )
         self.assertEqual(config["hybrid"]["backend_preference"], "auto")
+        requirements = Path("requirements-milvus.txt").read_text(encoding="utf-8")
+        self.assertIn("pymilvus[milvus_lite]==2.6.16", requirements)
+        self.assertIn("milvus-lite==3.2.1", requirements)
 
     def test_lock_is_deterministic_and_isolates_five_dimensions(self):
         config = self._config(count=40, dimension=2)
@@ -206,10 +214,17 @@ class Week8RetrievalTests(unittest.TestCase):
         ]
 
         class FakeMilvusClient:
+            loaded = False
+
             def has_collection(self, **kwargs):
                 return True
 
+            def load_collection(self, **kwargs):
+                self.loaded = True
+
             def query(self, **kwargs):
+                if not self.loaded:
+                    raise RuntimeError("collection is released")
                 if kwargs["output_fields"] == ["count(*)"]:
                     return [{"count(*)": 2}]
                 return [{"image_id": row["metadata"]["image_id"]} for row in index_rows]
@@ -387,7 +402,7 @@ class Week8RetrievalTests(unittest.TestCase):
             self.assertEqual(payload["status"], "COMPLETED")
 
     def test_multi_candidate_selection_locks_best_eligible_hybrid(self):
-        config = load_config("configs/week8/retrieval_relevance_v2.json")
+        config = load_config("configs/week8/retrieval_relevance_v3.json")
 
         def measured(ndcg):
             return {
