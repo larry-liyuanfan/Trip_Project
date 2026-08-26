@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ DIALOGUE_PROMPT_VERSIONS = {
     "system_repair_dialogue_v1",
     "week8_dialogue_first_turn_v1",
     "week8_dialogue_first_turn_v2",
+    "week8_dialogue_first_turn_v3",
 }
 
 
@@ -585,7 +587,11 @@ class ScenarioService:
     ) -> tuple[DialogueModelOutput, list[ModelAttempt]]:
         attempts: list[ModelAttempt] = []
         active_messages = list(messages)
-        active_response_format: dict[str, Any] = {"type": "json_object"}
+        active_response_format: dict[str, Any] = (
+            _dialogue_v3_response_format()
+            if self.dialogue_prompt_version == "week8_dialogue_first_turn_v3"
+            else {"type": "json_object"}
+        )
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
             raw, input_tokens, output_tokens = _generate_once(
@@ -598,11 +604,14 @@ class ScenarioService:
             parsed: DialogueModelOutput | None = None
             try:
                 if (
-                    self.dialogue_prompt_version == "week8_dialogue_first_turn_v2"
+                    self.dialogue_prompt_version in {
+                        "week8_dialogue_first_turn_v2",
+                        "week8_dialogue_first_turn_v3",
+                    }
                     and not raw.startswith("{")
                 ):
                     raise ValueError(
-                        "week8 dialogue v2 output must start with the JSON object"
+                        "week8 dialogue v2/v3 output must start with the JSON object"
                     )
                 dialogue_payload = json.loads(strip_json_fence(raw))
                 required_keys = {"reply", "state_updates", "tool_calls"}
@@ -617,8 +626,11 @@ class ScenarioService:
                         f"{sorted(required_keys)}; got {actual_keys}"
                     )
                 parsed = DialogueModelOutput.model_validate(dialogue_payload)
+                if self.dialogue_prompt_version == "week8_dialogue_first_turn_v3":
+                    _validate_dialogue_v3_payload(dialogue_payload)
             except (json.JSONDecodeError, ValidationError, ValueError) as exc:
                 error = str(exc)
+                parsed = None
             attempts.append(
                 ModelAttempt(
                     attempt=attempt_number,
@@ -639,11 +651,12 @@ class ScenarioService:
                 error or "",
                 scenario="dialogue",
             )
-            # Dialogue state and tool payloads intentionally allow arbitrary JSON
-            # objects. lm-format-enforcer cannot handle their boolean
-            # additionalProperties contract, so the retry remains model-level and
-            # is validated by DialogueModelOutput after generation.
-            active_response_format = {"type": "json_object"}
+            # v1/v2 保持历史自由 JSON 纠错路径；v3 的有限值 Schema 可继续约束重试。
+            active_response_format = (
+                _dialogue_v3_response_format()
+                if self.dialogue_prompt_version == "week8_dialogue_first_turn_v3"
+                else {"type": "json_object"}
+            )
         raise ModelGenerationError(
             f"dialogue output failed Schema after {len(attempts)} attempts: "
             f"{attempts[-1].error}",
@@ -681,6 +694,102 @@ def _generate_once(
     )
 
 
+def _dialogue_v3_response_format() -> dict[str, Any]:
+    """Return the bounded dialogue contract accepted by LMFE's JSON parser."""
+
+    finite_value = {"type": ["string", "number", "boolean", "null"]}
+    arguments = {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": dict(finite_value),
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "reply": {"type": "string", "minLength": 1, "maxLength": 2000},
+            "state_updates": {
+                "type": "object",
+                "maxProperties": 16,
+                "additionalProperties": dict(finite_value),
+            },
+            "tool_calls": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "function": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128,
+                        },
+                        "arguments": arguments,
+                    },
+                    "required": ["function", "arguments"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["reply", "state_updates", "tool_calls"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "dialogue_week8_first_turn_v3",
+            "strict": True,
+            "schema": schema,
+        },
+    }
+
+
+def _validate_dialogue_v3_payload(payload: dict[str, Any]) -> None:
+    """Validate the same bounded value/tool subset even if a backend ignores LMFE."""
+
+    if len(payload["reply"]) > 2000:
+        raise ValueError("dialogue v3 reply exceeds maxLength")
+    state_updates = payload["state_updates"]
+    if len(state_updates) > 16:
+        raise ValueError("dialogue v3 state_updates exceeds maxProperties")
+    for key, value in state_updates.items():
+        if not isinstance(key, str) or not _is_finite_dialogue_value(value):
+            raise ValueError(
+                "dialogue v3 state_updates values must be finite JSON scalars"
+            )
+    tool_calls = payload["tool_calls"]
+    if len(tool_calls) > 4:
+        raise ValueError("dialogue v3 tool_calls exceeds maxItems")
+    for tool_call in tool_calls:
+        if not isinstance(tool_call, dict) or set(tool_call) != {
+            "function",
+            "arguments",
+        }:
+            raise ValueError(
+                "dialogue v3 tool_calls items require function and arguments"
+            )
+        function = tool_call["function"]
+        arguments = tool_call["arguments"]
+        if not isinstance(function, str) or not 1 <= len(function) <= 128:
+            raise ValueError("dialogue v3 tool function must be non-empty text")
+        if not isinstance(arguments, dict) or len(arguments) > 16:
+            raise ValueError("dialogue v3 tool arguments must be a bounded object")
+        if any(
+            not isinstance(key, str) or not _is_finite_dialogue_value(value)
+            for key, value in arguments.items()
+        ):
+            raise ValueError(
+                "dialogue v3 tool argument values must be finite JSON scalars"
+            )
+
+
+def _is_finite_dialogue_value(value: Any) -> bool:
+    if value is None or isinstance(value, (str, bool)):
+        return True
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return not isinstance(value, float) or math.isfinite(value)
+    return False
+
+
 def _dialogue_messages(
     request: DialogueRequest,
     *,
@@ -697,6 +806,7 @@ def _dialogue_messages(
     elif prompt_version in {
         "week8_dialogue_first_turn_v1",
         "week8_dialogue_first_turn_v2",
+        "week8_dialogue_first_turn_v3",
     }:
         system_content = (
             "你正在处理 OTA 多轮对话端点，而不是商品理解、售后抽取或行程抽取端点。"
@@ -734,7 +844,10 @@ def _dialogue_messages(
             )
             first_user_has_image = True
         messages.append({"role": turn.role, "content": content})
-    if prompt_version == "week8_dialogue_first_turn_v2":
+    if prompt_version in {
+        "week8_dialogue_first_turn_v2",
+        "week8_dialogue_first_turn_v3",
+    }:
         messages.append(
             {
                 "role": "user",

@@ -34,6 +34,7 @@ class FakeBackend:
         self.outputs = list(outputs)
         self.messages = []
         self.max_new_tokens = []
+        self.response_formats = []
 
     def ready(self):
         return True, "ok"
@@ -41,6 +42,7 @@ class FakeBackend:
     def generate(self, messages, *, response_format, max_new_tokens):
         self.messages.append(messages)
         self.max_new_tokens.append(max_new_tokens)
+        self.response_formats.append(response_format)
         return self.outputs.pop(0)
 
 
@@ -48,6 +50,7 @@ class FakeUsageBackend(FakeBackend):
     def generate_with_usage(self, messages, *, response_format, max_new_tokens):
         self.messages.append(messages)
         self.max_new_tokens.append(max_new_tokens)
+        self.response_formats.append(response_format)
         return GenerationResult(
             content=self.outputs.pop(0),
             input_tokens=10,
@@ -113,6 +116,27 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         self.assertEqual(v1.dialogue_prompt_version, "week8_dialogue_first_turn_v1")
         self.assertEqual(v2.dialogue_prompt_version, "week8_dialogue_first_turn_v2")
         self.assertNotEqual(v1.release_id, v2.release_id)
+
+    def test_v3_release_binds_strict_schema_prompt_without_mutating_v1_v2(self):
+        versions = [
+            ReleaseSettings.load(
+                root=Path.cwd(),
+                config_path=Path(
+                    f"configs/releases/qwen3_vl_system_week8_v{version}.json"
+                ),
+            )
+            for version in (1, 2, 3)
+        ]
+
+        self.assertEqual(
+            [item.dialogue_prompt_version for item in versions],
+            [
+                "week8_dialogue_first_turn_v1",
+                "week8_dialogue_first_turn_v2",
+                "week8_dialogue_first_turn_v3",
+            ],
+        )
+        self.assertEqual(len({item.release_id for item in versions}), 3)
 
     def test_dialogue_contract_rejects_extra_single_task_keys(self):
         self.assertTrue(
@@ -188,6 +212,110 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         self.assertEqual(len(response.attempts), 2)
         self.assertIn("must start", response.attempts[0].error)
         self.assertIsNone(response.attempts[1].error)
+
+    def test_v3_passes_lmfe_compatible_strict_schema_to_backend(self):
+        valid = json.dumps(
+            {
+                "reply": "正在查询。",
+                "state_updates": {"budget": 2000},
+                "tool_calls": [
+                    {
+                        "function": "search_itinerary",
+                        "arguments": {"city": "Shanghai", "days": 2},
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        )
+        backend = FakeBackend([valid])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_first_turn_v3",
+        )
+
+        response = service.run_dialogue(
+            DialogueRequest(messages=[DialogueTurn(role="user", content="继续")])
+        )
+
+        self.assertEqual(len(response.attempts), 1)
+        response_format = backend.response_formats[0]
+        self.assertEqual(response_format["type"], "json_schema")
+        contract = response_format["json_schema"]
+        self.assertTrue(contract["strict"])
+        schema = contract["schema"]
+        self.assertEqual(
+            schema["required"],
+            ["reply", "state_updates", "tool_calls"],
+        )
+        self.assertFalse(schema["additionalProperties"])
+        state_values = schema["properties"]["state_updates"][
+            "additionalProperties"
+        ]
+        self.assertIsInstance(state_values, dict)
+        self.assertEqual(
+            state_values["type"],
+            ["string", "number", "boolean", "null"],
+        )
+        tool_item = schema["properties"]["tool_calls"]["items"]
+        self.assertEqual(tool_item["required"], ["function", "arguments"])
+        self.assertIsInstance(
+            tool_item["properties"]["arguments"]["additionalProperties"],
+            dict,
+        )
+
+    def test_v3_keeps_strict_schema_during_model_level_correction(self):
+        invalid = json.dumps(
+            {
+                "reply": "继续",
+                "state_updates": {"tool_calls": []},
+                "tool_calls": [],
+            },
+            ensure_ascii=False,
+        )
+        valid = json.dumps(
+            {"reply": "继续", "state_updates": {}, "tool_calls": []},
+            ensure_ascii=False,
+        )
+        backend = FakeBackend([invalid, valid])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_first_turn_v3",
+        )
+
+        response = service.run_dialogue(
+            DialogueRequest(messages=[DialogueTurn(role="user", content="继续")])
+        )
+
+        self.assertEqual(len(response.attempts), 2)
+        self.assertIn("finite JSON scalars", response.attempts[0].error)
+        self.assertEqual(
+            [item["type"] for item in backend.response_formats],
+            ["json_schema", "json_schema"],
+        )
+
+    def test_v1_v2_keep_unconstrained_json_object_response_format(self):
+        valid = json.dumps(
+            {"reply": "继续", "state_updates": {}, "tool_calls": []},
+            ensure_ascii=False,
+        )
+        for prompt_version in (
+            "week8_dialogue_first_turn_v1",
+            "week8_dialogue_first_turn_v2",
+        ):
+            backend = FakeBackend([valid])
+            service = ScenarioService(
+                settings(),
+                backend,
+                dialogue_prompt_version=prompt_version,
+            )
+
+            service.run_dialogue(
+                DialogueRequest(messages=[DialogueTurn(role="user", content="继续")])
+            )
+
+            self.assertEqual(backend.response_formats, [{"type": "json_object"}])
 
     def test_fixed_dialogue_comparison_reports_first_turn_correction(self):
         valid = json.dumps(
@@ -306,13 +434,22 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             Path.cwd(),
             Path("configs/week8/runtime_optimization_v2.json"),
         )
+        v3 = load_runtime_benchmark_config(
+            Path.cwd(),
+            Path("configs/week8/runtime_optimization_v3.json"),
+        )
 
         self.assertEqual(len(v1["dialogue"]["cases"]), 4)
         self.assertEqual(v1["product_latency"]["measured_runs"], 5)
         self.assertEqual(v1["dialogue"]["cases"], v2["dialogue"]["cases"])
+        self.assertEqual(v2["dialogue"]["cases"], v3["dialogue"]["cases"])
         self.assertEqual(
             v2["dialogue"]["profiles"][1]["prompt_version"],
             "week8_dialogue_first_turn_v2",
+        )
+        self.assertEqual(
+            v3["dialogue"]["profiles"][1]["prompt_version"],
+            "week8_dialogue_first_turn_v3",
         )
 
     def test_spartan_job_allows_versioned_config_overrides(self):
