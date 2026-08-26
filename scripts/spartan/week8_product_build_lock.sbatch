@@ -16,9 +16,11 @@ set -euo pipefail
 : "${TRIP_VENV:?TRIP_VENV is required}"
 
 cd "$TRIP_PROJECT_ROOT"
+module purge
+module load GCCcore/11.3.0
+module load Python/3.11.3
 source "$TRIP_VENV/bin/activate"
 python -m unittest tests.test_week8_product -v
 python scripts/manage_week8_product.py build-lock \
   --source-project-root "$TRIP_SOURCE_PROJECT_ROOT"
 python scripts/manage_week8_product.py validate-lock
-

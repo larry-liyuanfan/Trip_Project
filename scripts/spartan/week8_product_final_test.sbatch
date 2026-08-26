@@ -18,6 +18,9 @@ set -euo pipefail
 : "${HF_HOME:?HF_HOME is required}"
 
 cd "$TRIP_PROJECT_ROOT"
+module purge
+module load GCCcore/11.3.0
+module load Python/3.11.3
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_DISABLE_TELEMETRY=1
