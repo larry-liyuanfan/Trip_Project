@@ -40,11 +40,11 @@ class Week8YelpRebuildTests(unittest.TestCase):
             with self.assertRaisesRegex(Week8YelpRebuildError, "found 2"):
                 extract_unique_member(archive, "photos.json", root / "photos.json")
 
-    def test_streams_one_member_from_official_nested_tar_layout(self):
+    def test_streams_one_member_from_official_nested_gzip_tar_layout(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             nested_bytes = io.BytesIO()
-            with tarfile.open(fileobj=nested_bytes, mode="w") as nested:
+            with tarfile.open(fileobj=nested_bytes, mode="w:gz") as nested:
                 for name, content in (
                     ("dataset/yelp_academic_dataset_business.json", b'{"id": 1}\n'),
                     ("dataset/large-unused.json", b"unused"),

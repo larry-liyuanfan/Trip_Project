@@ -82,7 +82,7 @@ def extract_unique_tar_member_from_zip(
         matches: list[dict[str, Any]] = []
         try:
             with source.open(tar_member) as tar_stream, tarfile.open(
-                fileobj=tar_stream, mode="r|"
+                fileobj=tar_stream, mode="r|*"
             ) as nested:
                 for info in nested:
                     if not info.isfile() or Path(info.name).name != member_basename:
