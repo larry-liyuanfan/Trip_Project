@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
-#SBATCH --time=01:30:00
+#SBATCH --time=01:00:00
 #SBATCH --output=slurm-trip-w8-yelp-source-%j.out
 #SBATCH --error=slurm-trip-w8-yelp-source-%j.err
 
@@ -27,17 +27,9 @@ module load GCCcore/11.3.0
 module load Python/3.11.3
 export PYTHONUNBUFFERED=1
 source "$TRIP_DATA_VENV/bin/activate"
-mkdir -p "$TRIP_YELP_ARCHIVE_ROOT"
 
 json_zip="$TRIP_YELP_ARCHIVE_ROOT/Yelp-JSON-20250115.zip"
 photos_zip="$TRIP_YELP_ARCHIVE_ROOT/Yelp-Photos-20250115.zip"
-curl --fail --location --retry 5 --continue-at - \
-  --output "$json_zip" \
-  https://business.yelp.com/external-assets/files/Yelp-JSON.zip
-curl --fail --location --retry 5 --continue-at - \
-  --output "$photos_zip" \
-  https://business.yelp.com/external-assets/files/Yelp-Photos.zip
-
 test "$(stat -c %s "$json_zip")" = 4345335132
 test "$(stat -c %s "$photos_zip")" = 7447210067
 
