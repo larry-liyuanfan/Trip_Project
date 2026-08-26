@@ -46,7 +46,9 @@ def summary(composite: float, latency: float = 1000.0) -> dict:
 class Week8ProductTests(unittest.TestCase):
     def test_lock_category_mapping_matches_fresh_source_taxonomy(self):
         self.assertEqual(
-            _category_from_description("name | Tours, Botanical Gardens | attrs"),
+            _category_from_description(
+                "name | Hotels & Travel, Tours, Botanical Gardens | attrs"
+            ),
             "attraction",
         )
         self.assertEqual(

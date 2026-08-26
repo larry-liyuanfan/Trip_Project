@@ -216,19 +216,24 @@ def _write_json_new(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _category_from_description(description: str) -> str:
-    category_text = description.split("|", 2)[1].casefold() if "|" in description else description.casefold()
-    if any(term in category_text for term in (
-        "hotel", "resort", "lodging", "bed & breakfast", "guest houses", "hostels"
-    )):
+    category_text = (
+        description.split("|", 2)[1].casefold()
+        if "|" in description
+        else description.casefold()
+    )
+    categories = {item.strip() for item in category_text.split(",") if item.strip()}
+    if categories & {
+        "hotels", "resorts", "bed & breakfast", "guest houses", "hostels"
+    }:
         return "hotel"
-    if any(term in category_text for term in (
-        "museum", "park", "attraction", "landmark", "zoo", "aquarium",
-        "botanical garden", "tour",
-    )):
+    if categories & {
+        "museums", "parks", "landmarks & historical buildings",
+        "amusement parks", "zoos", "aquariums", "botanical gardens", "tours",
+    }:
         return "attraction"
-    if any(term in category_text for term in (
-        "restaurant", "food", "cafe", "coffee & tea", "bar", "bakery", "bakeries"
-    )):
+    if categories & {
+        "restaurants", "food", "cafes", "coffee & tea", "bars", "bakeries"
+    }:
         return "restaurant"
     return "unknown"
 
