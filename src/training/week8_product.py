@@ -33,6 +33,8 @@ from src.training.week7_data import (
     _collect_repair_public_sources,
     _copy_image,
     _product_target,
+    _repair_business_tags,
+    _repair_support_flags,
     _row,
     _validate_partition_isolation,
     add_superseded_identities,
@@ -75,6 +77,7 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
         "week8_product_understanding_v1",
         "week8_product_understanding_v2",
         "week8_product_understanding_v3",
+        "week8_product_understanding_v4",
     }:
         raise Week8ProductError("unsupported Week 8 product config")
     dataset = payload.get("dataset", {})
@@ -102,6 +105,20 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
             )
         ):
             raise Week8ProductError("Week 8 v2 fresh-source identity is incomplete")
+    if payload.get("schema_version") == "week8_product_understanding_v4":
+        support = dataset.get("split_field_support_minimums", {})
+        split_sizes = {
+            "development": int(dataset.get("development_count", 0)),
+            "test": int(dataset.get("test_count", 0)),
+            "train": int(dataset.get("continuation_train_count", 0)),
+        }
+        if any(
+            int(support.get(split, {}).get(field, 0)) <= 0
+            or int(support[split][field]) > split_sizes[split]
+            for split in split_sizes
+            for field in ("style", "facility")
+        ):
+            raise Week8ProductError("Week 8 v4 field support contract is incomplete")
     return payload
 
 
@@ -112,7 +129,10 @@ def _validate_fresh_source_manifest(
     relative = fresh.get("manifest_path")
     expected_sha = fresh.get("manifest_sha256")
     if not relative or not expected_sha:
-        if config["schema_version"] == "week8_product_understanding_v3":
+        if config["schema_version"] in {
+            "week8_product_understanding_v3",
+            "week8_product_understanding_v4",
+        }:
             raise Week8ProductError("v3 fresh-source manifest identity is missing")
         return {}
     path = source_root / str(relative)
@@ -172,9 +192,30 @@ def product_silver_target(source: dict[str, Any]) -> dict[str, Any]:
             target["inferred_attributes"].append(
                 "业态来自商家元数据弱标签，不作为图片直接证据"
             )
+    metadata_styles, metadata_facilities = _repair_business_tags(
+        str(source.get("business_description") or "")
+    )
+    target["style_tags"] = sorted(set(target["style_tags"]) | set(metadata_styles))
+    target["visible_facilities"] = sorted(
+        set(target["visible_facilities"]) | set(metadata_facilities)
+    )
+    if metadata_styles or metadata_facilities:
+        target["inferred_attributes"].append(
+            "风格或设施包含 Yelp 商家元数据弱银标，不作为图片直接证据"
+        )
     # Existing source captions do not support a reliable visual price tier.
     target["price_range"] = "unknown"
     target["unknown_fields"] = sorted(set(target["unknown_fields"]) | {"price_range"})
+    if target["style_tags"]:
+        target["unknown_fields"] = [
+            field for field in target["unknown_fields"] if field != "style_tags"
+        ]
+    if target["visible_facilities"]:
+        target["unknown_fields"] = [
+            field
+            for field in target["unknown_fields"]
+            if field != "visible_facilities"
+        ]
     target["confidence"] = 0.5
     return target
 
@@ -208,6 +249,7 @@ def _collect_week8_v2_sources(
     consumed: dict[str, set[str]],
     split_needs: dict[str, int],
     split_minimums: dict[str, dict[str, int]],
+    field_minimums: dict[str, dict[str, int]],
     source_count: int,
 ) -> dict[str, list[dict[str, Any]]]:
     """Allocate scarce OTA business categories explicitly without duplicating groups."""
@@ -238,6 +280,46 @@ def _collect_week8_v2_sources(
                 raise Week8ProductError(
                     f"fresh {category} support shortfall for {split}: "
                     f"{len(matching)}/{need}"
+                )
+            selected[split].extend(matching)
+            matching_ids = {row["source_id"] for row in matching}
+            remaining = [
+                row for row in remaining if row["source_id"] not in matching_ids
+            ]
+        for field in ("style", "facility"):
+            target_support = int(field_minimums.get(split, {}).get(field, 0))
+            if target_support <= 0:
+                continue
+            current_support = sum(
+                bool(_repair_support_flags(row)[field]) for row in selected[split]
+            )
+            need = max(0, target_support - current_support)
+            future_category_minimums = {
+                category: sum(
+                    int(split_minimums.get(future_split, {}).get(category, 0))
+                    for future_split in split_order[split_index + 1 :]
+                )
+                for category in ("hotel", "attraction", "restaurant")
+            }
+            available_category_counts = Counter(
+                _category_from_description(row["business_description"])
+                for row in remaining
+            )
+            matching = []
+            for row in remaining:
+                category = _category_from_description(row["business_description"])
+                if (
+                    len(matching) < need
+                    and _repair_support_flags(row)[field]
+                    and available_category_counts[category]
+                    > future_category_minimums.get(category, 0)
+                ):
+                    matching.append(row)
+                    available_category_counts[category] -= 1
+            if len(matching) != need:
+                raise Week8ProductError(
+                    f"fresh {field} support shortfall for {split}: "
+                    f"{current_support + len(matching)}/{target_support}"
                 )
             selected[split].extend(matching)
             matching_ids = {row["source_id"] for row in matching}
@@ -317,6 +399,7 @@ def build_week8_product_lock(
                 consumed,
                 split_needs,
                 dataset["split_category_minimums"],
+                dataset.get("split_field_support_minimums", {}),
                 int(config["fresh_source"]["selected_photo_count"]),
             )
         else:
