@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=96G
-#SBATCH --time=02:30:00
+#SBATCH --time=01:00:00
 #SBATCH --output=slurm-trip-w8-product-dev-%j.out
 #SBATCH --error=slurm-trip-w8-product-dev-%j.err
 
@@ -26,6 +26,8 @@ export TRANSFORMERS_OFFLINE=1
 export HF_HUB_DISABLE_TELEMETRY=1
 export PYTHONUNBUFFERED=1
 source "$TRIP_VENV/bin/activate"
-python scripts/manage_week8_product.py validate-lock
-python scripts/manage_week8_product.py prompt-development \
-  --output-dir outputs/week8/development/week8_product_prompt_development_20260826_v1
+config="${TRIP_CONFIG:-configs/week8/product_understanding_v1.json}"
+development_dir="${TRIP_DEVELOPMENT_DIR:-outputs/week8/development/week8_product_prompt_development_20260826_v1}"
+python scripts/manage_week8_product.py --config "$config" validate-lock
+python scripts/manage_week8_product.py --config "$config" prompt-development \
+  --output-dir "$development_dir"

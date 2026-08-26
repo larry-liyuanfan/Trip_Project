@@ -71,7 +71,10 @@ MULTI_SUBJECT_RE = re.compile(
 
 def load_week8_product_config(path: Path) -> dict[str, Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    if payload.get("schema_version") != "week8_product_understanding_v1":
+    if payload.get("schema_version") not in {
+        "week8_product_understanding_v1",
+        "week8_product_understanding_v2",
+    }:
         raise Week8ProductError("unsupported Week 8 product config")
     dataset = payload.get("dataset", {})
     if any(int(dataset.get(key, 0)) <= 0 for key in (
@@ -84,6 +87,18 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
         "current_release", "compact_field_check", "visual_evidence_guard"
     }:
         raise Week8ProductError("Week 8 must compare exactly the three approved Prompt roles")
+    if payload.get("schema_version") == "week8_product_understanding_v2":
+        fresh = payload.get("fresh_source", {})
+        if (
+            payload.get("week8", {}).get("source_version")
+            != "week8_product_fresh_20260826_v1"
+            or int(fresh.get("selected_photo_count", 0)) < 2000
+            or int(fresh.get("minimum_eligible_count", 0)) < 2000
+            or not str(fresh.get("output_root") or "").startswith(
+                "data/yelp/week8_product_fresh_20260826_v1"
+            )
+        ):
+            raise Week8ProductError("Week 8 v2 fresh-source identity is incomplete")
     return payload
 
 
@@ -209,8 +224,13 @@ def build_week8_product_lock(
                 "constraint_template_id": None,
                 "image_path": image_path,
             }
+            sample_namespace = (
+                "week8-product-v2"
+                if config["schema_version"] == "week8_product_understanding_v2"
+                else "week8-product"
+            )
             row = _row(
-                f"week8-product-{split}-{index:04d}",
+                f"{sample_namespace}-{split}-{index:04d}",
                 "image_product_search",
                 split,
                 identity,
@@ -270,7 +290,11 @@ def build_week8_product_lock(
             "sha256": sha256_file(path),
         }
     lock_core = {
-        "schema_version": "week8_product_lock_v1",
+        "schema_version": (
+            "week8_product_lock_v2"
+            if config["schema_version"] == "week8_product_understanding_v2"
+            else "week8_product_lock_v1"
+        ),
         "dataset_version": config["week8"]["dataset_version"],
         "config_sha256": sha256_file(config_path),
         "git_commit": _git_commit(root),

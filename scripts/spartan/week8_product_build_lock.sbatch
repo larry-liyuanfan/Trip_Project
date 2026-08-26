@@ -22,7 +22,8 @@ module load GCCcore/11.3.0
 module load Python/3.11.3
 source "$TRIP_VENV/bin/activate"
 export PYTHONPATH="$TRIP_RUNTIME_VENV/lib/python3.11/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+config="${TRIP_CONFIG:-configs/week8/product_understanding_v1.json}"
 python -m unittest tests.test_week8_product -v
-python scripts/manage_week8_product.py build-lock \
+python scripts/manage_week8_product.py --config "$config" build-lock \
   --source-project-root "$TRIP_SOURCE_PROJECT_ROOT"
-python scripts/manage_week8_product.py validate-lock
+python scripts/manage_week8_product.py --config "$config" validate-lock
