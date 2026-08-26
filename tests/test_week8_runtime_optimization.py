@@ -47,6 +47,18 @@ class FakeBackend:
 
 
 class FakeUsageBackend(FakeBackend):
+    def __init__(self, outputs):
+        super().__init__(outputs)
+        self.cache_configurations = []
+        self.active_cache_entries = 0
+
+    def configure_processor_cache(self, max_entries):
+        self.active_cache_entries = max_entries
+        self.cache_configurations.append(max_entries)
+
+    def processor_cache_snapshot(self):
+        return {"max_entries": self.active_cache_entries}
+
     def generate_with_usage(self, messages, *, response_format, max_new_tokens):
         self.messages.append(messages)
         self.max_new_tokens.append(max_new_tokens)
@@ -565,8 +577,16 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
                 "warmup_runs": 1,
                 "measured_runs": 3,
                 "profiles": [
-                    {"role": "current", "max_new_tokens": 512},
-                    {"role": "bounded_output", "max_new_tokens": 384},
+                    {
+                        "role": "current",
+                        "max_new_tokens": 512,
+                        "processor_cache_entries": 0,
+                    },
+                    {
+                        "role": "bounded_output",
+                        "max_new_tokens": 384,
+                        "processor_cache_entries": 4,
+                    },
                 ],
             }
         }
@@ -589,6 +609,11 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             )
         self.assertEqual(backend.max_new_tokens[:4], [512] * 4)
         self.assertEqual(backend.max_new_tokens[4:], [384] * 4)
+        self.assertEqual(backend.cache_configurations, [0, 4])
+        self.assertEqual(
+            result["profiles"]["bounded_output"]["processor_cache"],
+            {"max_entries": 4},
+        )
 
     def test_tracked_runtime_config_is_valid(self):
         v1 = load_runtime_benchmark_config(
@@ -606,6 +631,10 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         v5 = load_runtime_benchmark_config(
             Path.cwd(),
             Path("configs/week8/runtime_optimization_v5.json"),
+        )
+        v6 = load_runtime_benchmark_config(
+            Path.cwd(),
+            Path("configs/week8/runtime_optimization_v6.json"),
         )
 
         self.assertEqual(len(v1["dialogue"]["cases"]), 4)
@@ -632,6 +661,24 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             v5["dialogue"]["profiles"][1]["execution_mode"],
             "deterministic_contract_v1",
         )
+        self.assertEqual(
+            v6["product_latency"]["profiles"][1]["processor_cache_entries"],
+            4,
+        )
+        self.assertEqual(
+            v6["product_latency"]["profiles"][1]["visual_max_pixels"],
+            1003520,
+        )
+
+    def test_v6_release_binds_bounded_visual_processor_cache(self):
+        release = ReleaseSettings.load(
+            root=Path.cwd(),
+            config_path=Path("configs/releases/qwen3_vl_system_week8_v6.json"),
+        )
+
+        self.assertEqual(release.max_new_tokens_by_scenario["image_product_search"], 384)
+        self.assertEqual(release.visual_max_pixels, 1003520)
+        self.assertEqual(release.processor_cache_max_entries, 8)
 
     def test_v5_fixed_comparison_scores_code_assembled_contract(self):
         release = ReleaseSettings.load(

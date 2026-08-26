@@ -37,9 +37,14 @@ source "${TRIP_VENV}/bin/activate"
 python scripts/run_week7.py \
   --config configs/system_repair/qwen3_vl_8b_system_repair_v2.json \
   check-environment
-python scripts/benchmark_week8_runtime.py \
-  --adapter-dir "${TRIP_ADAPTER_DIR}" \
-  --release-config "${TRIP_RELEASE_CONFIG}" \
-  --benchmark-config "${TRIP_RUNTIME_CONFIG}" \
+benchmark_args=(
+  --adapter-dir "${TRIP_ADAPTER_DIR}"
+  --release-config "${TRIP_RELEASE_CONFIG}"
+  --benchmark-config "${TRIP_RUNTIME_CONFIG}"
   --output "${TRIP_RUNTIME_OUTPUT}"
+)
+if [[ -n "${TRIP_PRODUCT_IMAGE:-}" ]]; then
+  benchmark_args+=(--product-image "${TRIP_PRODUCT_IMAGE}")
+fi
+python scripts/benchmark_week8_runtime.py "${benchmark_args[@]}"
 sync

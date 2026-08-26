@@ -133,6 +133,89 @@ def settings(adapter_path=None, adapter_sha="0" * 64):
 
 
 class SystemRuntimeTest(unittest.TestCase):
+    def test_transformers_backend_reuses_bounded_processor_outputs(self):
+        class Vector:
+            def __init__(self, values):
+                self.values = list(values)
+
+            def __len__(self):
+                return len(self.values)
+
+            def __getitem__(self, item):
+                selected = self.values[item]
+                return Vector(selected) if isinstance(item, slice) else selected
+
+            @property
+            def shape(self):
+                return (len(self.values),)
+
+        class Batch:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def __iter__(self):
+                return iter(self.rows)
+
+            def to(self, _device):
+                return self
+
+            @property
+            def shape(self):
+                return (len(self.rows), len(self.rows[0]))
+
+        class InferenceMode:
+            def __enter__(self):
+                return None
+
+            def __exit__(self, *_args):
+                return False
+
+        class Processor:
+            tokenizer = None
+            image_processor = types.SimpleNamespace(max_pixels=1024)
+
+            def __init__(self):
+                self.calls = 0
+
+            def apply_chat_template(self, *_args, **_kwargs):
+                self.calls += 1
+                return {"input_ids": Batch([Vector([1, 2, 3])])}
+
+            def batch_decode(self, *_args, **_kwargs):
+                return ["cached"]
+
+        processor = Processor()
+        backend = TransformersPeftBackend(settings())
+        backend.configure_processor_cache(2)
+        backend._processor = processor
+        backend._model = types.SimpleNamespace(
+            parameters=lambda: iter([types.SimpleNamespace(device="cpu")]),
+            generate=lambda **_kwargs: [Vector([1, 2, 3, 4])],
+        )
+        backend._torch = types.SimpleNamespace(
+            inference_mode=lambda: InferenceMode()
+        )
+
+        for _ in range(2):
+            result = backend.generate_with_usage(
+                [{"role": "user", "content": "same request"}],
+                response_format=None,
+                max_new_tokens=8,
+            )
+
+        self.assertEqual(result.content, "cached")
+        self.assertEqual(processor.calls, 1)
+        self.assertEqual(
+            backend.processor_cache_snapshot(),
+            {
+                "max_entries": 2,
+                "entries": 1,
+                "hits": 1,
+                "misses": 1,
+                "hit_rate": 0.5,
+            },
+        )
+
     def test_release_uses_prompt_pilot_winners(self):
         release = ReleaseSettings.load(root=Path.cwd())
         expected = {

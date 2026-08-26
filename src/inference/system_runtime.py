@@ -29,6 +29,7 @@ from src.inference.schemas import (
     TaskRequest,
     TaskResponse,
 )
+from src.inference.processor_cache import ProcessorInputCache, processor_signature
 from src.inference.transport_utils import normalize_image_url, strip_json_fence
 
 
@@ -118,6 +119,8 @@ class ReleaseSettings:
     dialogue_max_new_tokens: int = 512
     dialogue_execution_mode: str = "model_generated_contract"
     dialogue_semantic_fallback_enabled: bool = False
+    processor_cache_max_entries: int = 0
+    visual_max_pixels: int | None = None
 
     @classmethod
     def load(
@@ -178,6 +181,14 @@ class ReleaseSettings:
             dialogue_semantic_fallback_enabled=dialogue.get(
                 "semantic_fallback_enabled", False
             ),
+            processor_cache_max_entries=int(
+                generation.get("processor_cache_max_entries", 0)
+            ),
+            visual_max_pixels=(
+                int(generation["visual_max_pixels"])
+                if generation.get("visual_max_pixels") is not None
+                else None
+            ),
         )
         if settings.backend_name not in {"transformers-peft", "openai-compatible"}:
             raise RuntimeConfigurationError(
@@ -200,6 +211,14 @@ class ReleaseSettings:
         if not isinstance(settings.dialogue_semantic_fallback_enabled, bool):
             raise RuntimeConfigurationError(
                 "dialogue semantic_fallback_enabled must be boolean"
+            )
+        if settings.processor_cache_max_entries < 0:
+            raise RuntimeConfigurationError(
+                "generation processor_cache_max_entries cannot be negative"
+            )
+        if settings.visual_max_pixels is not None and settings.visual_max_pixels <= 0:
+            raise RuntimeConfigurationError(
+                "generation visual_max_pixels must be positive"
             )
         if (
             settings.dialogue_prompt_version == "week8_dialogue_deterministic_v4"
@@ -301,6 +320,19 @@ class TransformersPeftBackend:
         self._model: Any = None
         self._processor: Any = None
         self._torch: Any = None
+        self._processor_cache = ProcessorInputCache(
+            settings.processor_cache_max_entries
+        )
+
+    def configure_processor_cache(self, max_entries: int) -> None:
+        """Reset and resize the bounded CPU preprocessing cache."""
+
+        self._processor_cache.clear(max_entries=max_entries)
+
+    def processor_cache_snapshot(self) -> dict[str, int | float | None]:
+        """Return cache observability without exposing cached tensors."""
+
+        return self._processor_cache.snapshot()
 
     def ready(self) -> tuple[bool, str]:
         valid, reason = self.settings.validate_adapter()
@@ -337,14 +369,21 @@ class TransformersPeftBackend:
         self._ensure_loaded()
         try:
             normalized = _transformers_messages(messages)
-            inputs = self._processor.apply_chat_template(
+            cache_key = ProcessorInputCache.key(
                 normalized,
-                tokenize=True,
-                add_generation_prompt=True,
-                return_dict=True,
-                return_tensors="pt",
-                truncation=False,
+                processor_signature(self._processor),
             )
+            inputs = self._processor_cache.get(cache_key)
+            if inputs is None:
+                inputs = self._processor.apply_chat_template(
+                    normalized,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_dict=True,
+                    return_tensors="pt",
+                    truncation=False,
+                )
+                self._processor_cache.put(cache_key, inputs)
             device = next(self._model.parameters()).device
             inputs = {
                 key: value.to(device) if hasattr(value, "to") else value
@@ -453,6 +492,9 @@ class TransformersPeftBackend:
             revision=self.settings.base_revision,
             trust_remote_code=False,
         )
+        image_processor = getattr(self._processor, "image_processor", None)
+        if image_processor is not None and self.settings.visual_max_pixels is not None:
+            image_processor.max_pixels = self.settings.visual_max_pixels
         self._torch = torch
 
 

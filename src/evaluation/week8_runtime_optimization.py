@@ -41,6 +41,7 @@ def load_runtime_benchmark_config(root: Path, path: Path) -> dict[str, Any]:
         "week8_runtime_optimization_config_v3",
         "week8_runtime_optimization_config_v4",
         "week8_runtime_optimization_config_v5",
+        "week8_runtime_optimization_config_v6",
     }:
         raise Week8RuntimeBenchmarkError("unexpected runtime benchmark schema_version")
     profiles = payload.get("dialogue", {}).get("profiles", [])
@@ -188,6 +189,10 @@ def run_product_latency_benchmark(
     image_processor = getattr(getattr(backend, "_processor", None), "image_processor", None)
     original_max_pixels = getattr(image_processor, "max_pixels", None)
     for profile in protocol["profiles"]:
+        cache_entries = int(profile.get("processor_cache_entries", 0))
+        configure_cache = getattr(backend, "configure_processor_cache", None)
+        if callable(configure_cache):
+            configure_cache(cache_entries)
         max_pixels = profile.get("visual_max_pixels")
         if image_processor is not None and max_pixels is not None:
             image_processor.max_pixels = int(max_pixels)
@@ -240,6 +245,11 @@ def run_product_latency_benchmark(
         results[profile["role"]] = {
             "settings": profile,
             "metrics": _summarize_latency_records(records),
+            "processor_cache": (
+                backend.processor_cache_snapshot()
+                if callable(getattr(backend, "processor_cache_snapshot", None))
+                else None
+            ),
             "peak_gpu_memory_allocated_bytes": peak_allocated,
             "peak_gpu_memory_reserved_bytes": peak_reserved,
             "records": records,

@@ -59,6 +59,11 @@ def main() -> None:
         default=ROOT / "configs/week8/runtime_optimization_v1.json",
         type=Path,
     )
+    parser.add_argument(
+        "--product-image",
+        type=Path,
+        help="optional untracked fixed image override for a real-size benchmark",
+    )
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
 
@@ -71,6 +76,15 @@ def main() -> None:
         config_path=args.release_config.resolve(),
     )
     config = load_runtime_benchmark_config(ROOT, args.benchmark_config.resolve())
+    fixed_image = (
+        args.product_image.resolve()
+        if args.product_image is not None
+        else (ROOT / config["product_latency"]["image"]).resolve()
+    )
+    if not fixed_image.is_file():
+        raise SystemExit(f"fixed product image is missing: {fixed_image}")
+    if args.product_image is not None:
+        config["product_latency"]["image"] = str(fixed_image)
     backend = TransformersPeftBackend(settings)
     started = time.perf_counter()
     ready, reason = backend.ready()
@@ -103,8 +117,9 @@ def main() -> None:
             "release_config_sha256": _sha256(args.release_config),
             "benchmark_config_sha256": _sha256(args.benchmark_config),
             "fixed_image_sha256": _sha256(
-                ROOT / config["product_latency"]["image"]
+                fixed_image
             ),
+            "fixed_image_override": args.product_image is not None,
         },
     }
     output.parent.mkdir(parents=True, exist_ok=True)
