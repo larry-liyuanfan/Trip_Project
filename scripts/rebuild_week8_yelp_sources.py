@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,63 @@ def extract_unique_member(archive: Path, suffix: str, destination: Path) -> dict
     }
 
 
+def extract_unique_tar_member_from_zip(
+    archive: Path,
+    *,
+    tar_basename: str,
+    member_basename: str,
+    destination: Path,
+) -> dict[str, Any]:
+    """Stream one file from the official ZIP -> TAR layout without unpacking either archive."""
+
+    with zipfile.ZipFile(archive) as source:
+        tar_matches = [
+            name for name in source.namelist() if Path(name).name == tar_basename
+        ]
+        if len(tar_matches) != 1:
+            raise Week8YelpRebuildError(
+                f"expected one {tar_basename} member in {archive}, found {len(tar_matches)}"
+            )
+        tar_member = tar_matches[0]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        partial = destination.with_name(f"{destination.name}.partial")
+        if destination.exists() or partial.exists():
+            raise Week8YelpRebuildError(f"refusing to overwrite extracted member: {destination}")
+        matches: list[dict[str, Any]] = []
+        try:
+            with source.open(tar_member) as tar_stream, tarfile.open(
+                fileobj=tar_stream, mode="r|"
+            ) as nested:
+                for info in nested:
+                    if not info.isfile() or Path(info.name).name != member_basename:
+                        continue
+                    matches.append({"member": info.name, "uncompressed_size": info.size})
+                    extracted = nested.extractfile(info)
+                    if extracted is None:
+                        raise Week8YelpRebuildError(
+                            f"cannot read {info.name} from {tar_member}"
+                        )
+                    if len(matches) == 1:
+                        with partial.open("xb") as writer:
+                            shutil.copyfileobj(extracted, writer, length=1024 * 1024)
+            if len(matches) != 1:
+                raise Week8YelpRebuildError(
+                    f"expected one {member_basename} member in {tar_member}, found {len(matches)}"
+                )
+            partial.replace(destination)
+        except Exception:
+            partial.unlink(missing_ok=True)
+            raise
+    return {
+        "archive": str(archive),
+        "outer_member": tar_member,
+        "member": matches[0]["member"],
+        "uncompressed_size": matches[0]["uncompressed_size"],
+        "output": str(destination),
+        "output_sha256": sha256_file(destination),
+    }
+
+
 def rebuild(args: argparse.Namespace) -> dict[str, Any]:
     json_zip = args.json_zip.resolve()
     photos_zip = args.photos_zip.resolve()
@@ -82,10 +140,18 @@ def rebuild(args: argparse.Namespace) -> dict[str, Any]:
     photo_json = raw / "photos.json"
     empty_review_json = raw / "week8_empty_reviews.json"
     extracted = [
-        extract_unique_member(
-            json_zip, "yelp_academic_dataset_business.json", business_json
+        extract_unique_tar_member_from_zip(
+            json_zip,
+            tar_basename="yelp_dataset.tar",
+            member_basename="yelp_academic_dataset_business.json",
+            destination=business_json,
         ),
-        extract_unique_member(photos_zip, "photos.json", photo_json),
+        extract_unique_tar_member_from_zip(
+            photos_zip,
+            tar_basename="yelp_photos.tar",
+            member_basename="photos.json",
+            destination=photo_json,
+        ),
     ]
     empty_review_json.open("x", encoding="utf-8").close()
     raw.mkdir(parents=True, exist_ok=True)
@@ -175,4 +241,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
