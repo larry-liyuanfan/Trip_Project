@@ -42,6 +42,10 @@ class Week8ProductFreshSourceTests(unittest.TestCase):
         self.assertEqual(config["dataset"]["test_count"], 60)
         self.assertEqual(config["dataset"]["continuation_train_count"], 400)
         self.assertGreaterEqual(config["fresh_source"]["selected_photo_count"], 2000)
+        self.assertGreater(
+            config["fresh_source"]["candidate_extract_count"],
+            config["fresh_source"]["selected_photo_count"],
+        )
         for name in ("photos", "strong_pairs", "medium_pairs"):
             self.assertIn(
                 "data/yelp/week8_product_fresh_20260826_v1/",

@@ -94,6 +94,8 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
             != "week8_product_fresh_20260826_v1"
             or int(fresh.get("selected_photo_count", 0)) < 2000
             or int(fresh.get("minimum_eligible_count", 0)) < 2000
+            or int(fresh.get("candidate_extract_count", 0))
+            < int(fresh.get("selected_photo_count", 0))
             or not str(fresh.get("output_root") or "").startswith(
                 "data/yelp/week8_product_fresh_20260826_v1"
             )

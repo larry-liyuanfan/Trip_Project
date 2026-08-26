@@ -45,6 +45,8 @@ def load_fresh_source_config(path: Path) -> dict[str, Any]:
         != "week8_product_fresh_20260826_v1"
         or int(fresh.get("selected_photo_count", 0)) < 2000
         or int(fresh.get("minimum_eligible_count", 0)) < 2000
+        or int(fresh.get("candidate_extract_count", 0))
+        < int(fresh.get("selected_photo_count", 0))
         or not str(fresh.get("output_root") or "").startswith(
             "data/yelp/week8_product_fresh_20260826_v1"
         )
@@ -426,9 +428,9 @@ def build_fresh_sources(
         consumed,
         seed=int(config["week8"]["seed"]),
     )
-    selected = select_ranked_candidates(
+    candidate_pool = select_ranked_candidates(
         candidates,
-        selected_count=int(fresh["selected_photo_count"]),
+        selected_count=int(fresh["candidate_extract_count"]),
         minimum_eligible_count=int(fresh["minimum_eligible_count"]),
         minimum_per_category=int(fresh["minimum_per_ota_category"]),
         retain_all_categories_below=int(fresh["retain_all_categories_below"]),
@@ -445,7 +447,7 @@ def build_fresh_sources(
         },
     )
     raw_dir = output_root / "raw"
-    requested_ids = {row["photo_id"] for row in selected}
+    requested_ids = {row["photo_id"] for row in candidate_pool}
     extracted = extract_yelp_photo_files(photos_zip, raw_dir, requested_ids)
     photos_dir = raw_dir / "photos"
     extracted_ids = {
@@ -453,11 +455,38 @@ def build_fresh_sources(
     }
     if (
         extracted_ids != requested_ids
-        or int(extracted.get("extracted_photo_count", -1)) != len(selected)
+        or int(extracted.get("extracted_photo_count", -1)) != len(candidate_pool)
     ):
         raise Week8FreshSourceError(
-            f"fresh photo extraction incomplete: {len(extracted_ids)}/{len(selected)}"
+            f"fresh photo extraction incomplete: {len(extracted_ids)}/{len(candidate_pool)}"
         )
+
+    validated_candidates = []
+    hash_rejections: Counter[str] = Counter()
+    seen_candidate_hashes: set[str] = set()
+    for row in candidate_pool:
+        image = photos_dir / f"{row['photo_id']}.jpg"
+        width, height = _validate_image(image)
+        digest = sha256_file(image)
+        if digest in consumed["image_sha256"]:
+            hash_rejections["historically_consumed"] += 1
+            continue
+        if digest in seen_candidate_hashes:
+            hash_rejections["candidate_duplicate"] += 1
+            continue
+        seen_candidate_hashes.add(digest)
+        row = dict(row)
+        row["image_sha256"] = digest
+        row["image_width"] = width
+        row["image_height"] = height
+        validated_candidates.append(row)
+    selected = select_ranked_candidates(
+        validated_candidates,
+        selected_count=int(fresh["selected_photo_count"]),
+        minimum_eligible_count=int(fresh["minimum_eligible_count"]),
+        minimum_per_category=int(fresh["minimum_per_ota_category"]),
+        retain_all_categories_below=int(fresh["retain_all_categories_below"]),
+    )
 
     photo_rows = []
     image_index = []
@@ -466,12 +495,11 @@ def build_fresh_sources(
     for row in selected:
         photo_id = row["photo_id"]
         image = photos_dir / f"{photo_id}.jpg"
-        width, height = _validate_image(image)
-        digest = sha256_file(image)
-        if digest in consumed["image_sha256"] or digest in seen_hashes:
-            raise Week8FreshSourceError(
-                f"fresh photo hash is consumed or duplicated: {photo_id}"
-            )
+        width = int(row["image_width"])
+        height = int(row["image_height"])
+        digest = str(row["image_sha256"])
+        if digest in seen_hashes:
+            raise Week8FreshSourceError(f"selected fresh photo hash duplicated: {photo_id}")
         seen_hashes.add(digest)
         relative_image = (
             Path(fresh["output_root"]) / "raw" / "photos" / f"{photo_id}.jpg"
@@ -617,6 +645,9 @@ def build_fresh_sources(
             field: len(consumed[field]) for field in IDENTITY_FIELDS
         },
         "filter_statistics": filter_stats,
+        "candidate_extract_count": len(candidate_pool),
+        "validated_candidate_count": len(validated_candidates),
+        "candidate_hash_rejection_counts": dict(sorted(hash_rejections.items())),
         "selected_photo_count": len(selected),
         "minimum_eligible_count": int(fresh["minimum_eligible_count"]),
         "category_counts": category_counts,
