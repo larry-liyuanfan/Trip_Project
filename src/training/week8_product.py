@@ -1,0 +1,700 @@
+"""Week 8 product-understanding data lock, Prompt comparison, and one-shot test."""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import os
+import re
+import statistics
+import subprocess
+import time
+from collections import Counter
+from dataclasses import replace
+from pathlib import Path
+from typing import Any, Iterable
+
+from pydantic import ValidationError
+
+from src.evaluation.prompting import render_standard_prompt
+from src.evaluation.schema_validation import SchemaValidationError, validate_output
+from src.inference.system_runtime import (
+    ModelGenerationError,
+    ReleaseSettings,
+    TransformersPeftBackend,
+    _correction_messages,
+    _json_schema_response_format,
+)
+from src.inference.transport_utils import strip_json_fence
+from src.training.week7_data import (
+    IDENTITY_FIELDS,
+    Week7DataError,
+    _collect_repair_public_sources,
+    _copy_image,
+    _product_target,
+    _row,
+    _validate_partition_isolation,
+    add_superseded_identities,
+    canonical_sha256,
+    iter_jsonl,
+    load_consumed_identities,
+    sha256_file,
+    write_jsonl_new,
+)
+from src.training.week7_evaluation import summarize_raw_records
+
+
+class Week8ProductError(ValueError):
+    """Raised when the Week 8 product contract or immutable evidence is invalid."""
+
+
+PRODUCT_METRIC_WEIGHTS = {
+    "business_category_accuracy": 0.20,
+    "price_range_accuracy": 0.15,
+    "style_f1": 0.20,
+    "facility_f1": 0.20,
+    "label_completeness": 0.15,
+    "json_compliance": 0.05,
+    "schema_pass": 0.05,
+}
+
+PRICE_EVIDENCE_RE = re.compile(
+    r"(?:[$€£¥]\s*\d|\d\s*(?:dollars?|usd|aud|cny)|price(?:s|d)?|menu board)",
+    re.IGNORECASE,
+)
+MULTI_SUBJECT_RE = re.compile(
+    r"\b(?:multiple|several|various|many|crowd|group|people|customers|tables)\b",
+    re.IGNORECASE,
+)
+
+
+def load_week8_product_config(path: Path) -> dict[str, Any]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if payload.get("schema_version") != "week8_product_understanding_v1":
+        raise Week8ProductError("unsupported Week 8 product config")
+    dataset = payload.get("dataset", {})
+    if any(int(dataset.get(key, 0)) <= 0 for key in (
+        "development_count", "test_count", "continuation_train_count"
+    )):
+        raise Week8ProductError("Week 8 split counts must be positive")
+    if payload.get("week8", {}).get("label_policy") != "programmatic_silver_only":
+        raise Week8ProductError("Week 8 automatic labels must remain silver")
+    if set(payload.get("prompts", {})) != {
+        "current_release", "compact_field_check", "visual_evidence_guard"
+    }:
+        raise Week8ProductError("Week 8 must compare exactly the three approved Prompt roles")
+    return payload
+
+
+def _git_commit(root: Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    ).stdout.strip()
+
+
+def _write_json_new(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8", newline="\n") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
+def _category_from_description(description: str) -> str:
+    category_text = description.split("|", 2)[1].casefold() if "|" in description else description.casefold()
+    if any(term in category_text for term in ("hotel", "resort", "lodging")):
+        return "hotel"
+    if any(term in category_text for term in ("museum", "park", "attraction", "landmark")):
+        return "attraction"
+    if any(term in category_text for term in ("restaurant", "food", "cafe", "bar")):
+        return "restaurant"
+    return "unknown"
+
+
+def product_silver_target(source: dict[str, Any]) -> dict[str, Any]:
+    """Create conservative silver labels; business metadata never becomes visual evidence."""
+    caption_only = dict(source)
+    caption_only["repair_mode"] = False
+    target = _product_target(caption_only)
+    if target["business_category"] == "unknown":
+        target["business_category"] = _category_from_description(
+            str(source.get("business_description") or "")
+        )
+        if target["business_category"] != "unknown":
+            target["inferred_attributes"].append(
+                "业态来自商家元数据弱标签，不作为图片直接证据"
+            )
+    # Existing source captions do not support a reliable visual price tier.
+    target["price_range"] = "unknown"
+    target["unknown_fields"] = sorted(set(target["unknown_fields"]) | {"price_range"})
+    target["confidence"] = 0.5
+    return target
+
+
+def product_error_slices(source: dict[str, Any], target: dict[str, Any]) -> list[str]:
+    caption = str(source.get("caption") or "")
+    slices = ["semantic_label_even_when_schema_complete", "price_without_visual_evidence"]
+    if target["business_category"] == "unknown":
+        slices.append("business_category_unknown")
+    else:
+        slices.append(f"business_category_{target['business_category']}")
+    if MULTI_SUBJECT_RE.search(caption) or target["business_category"] == "unknown":
+        slices.append("multiple_or_ambiguous_subject")
+    if len(target["style_tags"]) >= 2:
+        slices.append("style_multilabel")
+    elif target["style_tags"]:
+        slices.append("style_single_label")
+    else:
+        slices.append("style_should_be_empty")
+    if target["visible_facilities"]:
+        slices.append("facility_visible")
+    else:
+        slices.append("facility_should_be_empty")
+    slices.append("should_use_unknown")
+    return sorted(set(slices))
+
+
+def build_week8_product_lock(
+    root: Path,
+    config_path: Path,
+    *,
+    source_root: Path | None = None,
+) -> dict[str, Any]:
+    root = Path(root).resolve()
+    source_root = Path(source_root or root).resolve()
+    config_path = Path(config_path).resolve()
+    config = load_week8_product_config(config_path)
+    dataset = config["dataset"]
+    output = root / dataset["output_root"] / config["week8"]["dataset_version"]
+    if output.exists():
+        raise Week8ProductError(f"refusing to overwrite Week 8 lock: {output}")
+
+    compatibility = {
+        "dataset": {
+            "seed": int(config["week8"]["seed"]),
+            "source_paths": dataset["source_paths"],
+        },
+        "system_repair": {"enabled": True},
+    }
+    try:
+        consumed, exclusion_evidence = load_consumed_identities(source_root, compatibility)
+        add_superseded_identities(source_root, compatibility, consumed, exclusion_evidence)
+        split_needs = {
+            "development": int(dataset["development_count"]),
+            "test": int(dataset["test_count"]),
+            "train": int(dataset["continuation_train_count"]),
+        }
+        sources = _collect_repair_public_sources(
+            source_root, compatibility, consumed, split_needs
+        )
+    except Week7DataError as exc:
+        raise Week8ProductError(str(exc)) from exc
+
+    rows_by_split: dict[str, list[dict[str, Any]]] = {}
+    slice_counts: dict[str, Counter[str]] = {}
+    for split in ("train", "development", "test"):
+        rows = []
+        counts: Counter[str] = Counter()
+        for index, source in enumerate(sources[split]):
+            digest = source["image_sha256"]
+            image_path = _copy_image(root, output, source["source_image"], digest)
+            target = product_silver_target(source)
+            slices = product_error_slices(source, target)
+            counts.update(slices)
+            identity = {
+                "source_id": source["source_id"],
+                "image_sha256": digest,
+                "group_id": source["group_id"],
+                "constraint_template_id": None,
+                "image_path": image_path,
+            }
+            row = _row(
+                f"week8-product-{split}-{index:04d}",
+                "image_product_search",
+                split,
+                identity,
+                [
+                    {
+                        "role": "system",
+                        "content": "你是专业 OTA 多模态助手。只依据输入证据回答，不确定时标记 unknown。",
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image", "path": image_path},
+                            {"type": "text", "text": "识别图片中的 OTA 商品属性并输出指定 JSON。"},
+                        ],
+                    },
+                ],
+                target,
+                "programmatic_silver",
+                0.5,
+            )
+            row["error_slices"] = slices
+            row["target_provenance"] = {
+                "category": "caption_or_business_metadata_silver",
+                "style_tags": "caption_lexical_silver",
+                "visible_facilities": "caption_lexical_silver",
+                "price_range": "visual_evidence_absent_unknown_silver",
+                "human_completed": False,
+            }
+            rows.append(row)
+        rows_by_split[split] = rows
+        slice_counts[split] = counts
+
+    try:
+        isolation = _validate_partition_isolation(rows_by_split, consumed)
+    except Week7DataError as exc:
+        raise Week8ProductError(str(exc)) from exc
+    if isolation["status"] != "PASS":
+        raise Week8ProductError("Week 8 five-dimensional isolation failed")
+
+    for split, rows in rows_by_split.items():
+        write_jsonl_new(output / split / "image_product_search.jsonl", rows)
+    manifest_rows = [
+        {field: row.get(field) for field in IDENTITY_FIELDS}
+        | {
+            "split": split,
+            "scenario": row["scenario"],
+            "label_source": row["label_source"],
+        }
+        for split, rows in rows_by_split.items()
+        for row in rows
+    ]
+    write_jsonl_new(output / "identity_manifest.jsonl", manifest_rows)
+    file_evidence = {}
+    for path in sorted(output.rglob("*.jsonl")):
+        file_evidence[path.relative_to(output).as_posix()] = {
+            "count": sum(1 for _ in iter_jsonl(path)),
+            "sha256": sha256_file(path),
+        }
+    lock_core = {
+        "schema_version": "week8_product_lock_v1",
+        "dataset_version": config["week8"]["dataset_version"],
+        "config_sha256": sha256_file(config_path),
+        "git_commit": _git_commit(root),
+        "label_source": "programmatic_silver",
+        "human_count": 0,
+        "split_counts": {split: len(rows) for split, rows in rows_by_split.items()},
+        "error_slice_counts": {
+            split: dict(sorted(counts.items())) for split, counts in slice_counts.items()
+        },
+        "isolation": isolation,
+        "historical_exclusion_evidence": exclusion_evidence,
+        "files": file_evidence,
+        "test_status": "LOCKED_UNCONSUMED",
+    }
+    lock = {**lock_core, "lock_sha256": canonical_sha256(lock_core)}
+    _write_json_new(output / "dataset_lock.json", lock)
+    return lock
+
+
+def validate_week8_product_lock(root: Path, config_path: Path) -> dict[str, Any]:
+    root = Path(root).resolve()
+    config_path = Path(config_path).resolve()
+    config = load_week8_product_config(config_path)
+    output = root / config["dataset"]["output_root"] / config["week8"]["dataset_version"]
+    lock = json.loads((output / "dataset_lock.json").read_text(encoding="utf-8"))
+    failures = []
+    if lock.get("config_sha256") != sha256_file(config_path):
+        failures.append("config_sha256_changed")
+    core = {key: value for key, value in lock.items() if key != "lock_sha256"}
+    if lock.get("lock_sha256") != canonical_sha256(core):
+        failures.append("lock_sha256_changed")
+    expected = {
+        "train": int(config["dataset"]["continuation_train_count"]),
+        "development": int(config["dataset"]["development_count"]),
+        "test": int(config["dataset"]["test_count"]),
+    }
+    for split, count in expected.items():
+        rows = list(iter_jsonl(output / split / "image_product_search.jsonl"))
+        if len(rows) != count:
+            failures.append(f"{split}_count_changed")
+        if any(row.get("label_source") != "programmatic_silver" for row in rows):
+            failures.append(f"{split}_non_silver_label")
+    for relative, evidence in lock.get("files", {}).items():
+        path = output / relative
+        if not path.is_file() or sha256_file(path) != evidence.get("sha256"):
+            failures.append(f"artifact_changed:{relative}")
+    return {
+        "status": "PASS" if not failures else "FAIL",
+        "failures": failures,
+        "dataset_version": lock.get("dataset_version"),
+        "lock_sha256": lock.get("lock_sha256"),
+        "split_counts": lock.get("split_counts"),
+        "test_status": lock.get("test_status"),
+    }
+
+
+def _scoring_config() -> dict[str, Any]:
+    return {
+        "evaluation": {
+            "metric_weights": {"image_product_search": PRODUCT_METRIC_WEIGHTS},
+            "scenario_weights": {"image_product_search": 1.0},
+            "dialogue_scoring_protocol": "gate_aligned_v2",
+            "dialogue_automatic_gate": {"enabled": False},
+        }
+    }
+
+
+def _render_product_messages(root: Path, row: dict[str, Any], prompt_version: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rendered = render_standard_prompt(
+        root,
+        "image_product_search",
+        {"images": [{"path": row["image_path"]}], "text_constraints": None},
+        prompt_version,
+    )
+    return rendered["messages"], rendered.get("response_format") or {"type": "json_object"}
+
+
+def _run_one_product(
+    root: Path,
+    backend: TransformersPeftBackend,
+    row: dict[str, Any],
+    *,
+    run_id: str,
+    prompt_version: str,
+    max_new_tokens: int,
+) -> dict[str, Any]:
+    messages, response_format = _render_product_messages(root, row, prompt_version)
+    attempts = []
+    active_messages = messages
+    active_response_format = response_format
+    total_input_tokens = 0
+    total_output_tokens = 0
+    for attempt_number in (1, 2):
+        started = time.perf_counter()
+        raw = ""
+        error = None
+        try:
+            generated = backend.generate_with_usage(
+                active_messages,
+                response_format=active_response_format,
+                max_new_tokens=max_new_tokens,
+            )
+            raw = generated.content
+            total_input_tokens += generated.input_tokens
+            total_output_tokens += generated.output_tokens
+            parsed = json.loads(strip_json_fence(raw))
+            validate_output(root, "image_product_search", parsed, "v1")
+        except (ModelGenerationError, json.JSONDecodeError, SchemaValidationError, ValidationError) as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        latency_ms = (time.perf_counter() - started) * 1000
+        attempts.append({
+            "attempt": attempt_number,
+            "raw_output": raw,
+            "error": error,
+            "latency_ms": latency_ms,
+        })
+        if error is None:
+            return {
+                "run_id": run_id,
+                "sample_id": row["sample_id"],
+                "scenario": "image_product_search",
+                "prompt_version": prompt_version,
+                "model_name": "Qwen3-VL-8B+system-repair-checkpoint-87",
+                "raw_output": raw,
+                "latency_ms": sum(item["latency_ms"] for item in attempts),
+                "failed": False,
+                "error": None,
+                "attempts": attempts,
+                "input_token_count": total_input_tokens,
+                "generated_token_count": total_output_tokens,
+                "generation_max_new_tokens": max_new_tokens,
+            }
+        if attempt_number == 1:
+            active_messages = _correction_messages(
+                active_messages, raw, error or "", scenario="image_product_search"
+            )
+            active_response_format = _json_schema_response_format(
+                root, "image_product_search", "v1"
+            )
+    return {
+        "run_id": run_id,
+        "sample_id": row["sample_id"],
+        "scenario": "image_product_search",
+        "prompt_version": prompt_version,
+        "model_name": "Qwen3-VL-8B+system-repair-checkpoint-87",
+        "raw_output": attempts[-1]["raw_output"],
+        "latency_ms": sum(item["latency_ms"] for item in attempts),
+        "failed": True,
+        "error": attempts[-1]["error"],
+        "attempts": attempts,
+        "input_token_count": total_input_tokens,
+        "generated_token_count": total_output_tokens,
+        "generation_max_new_tokens": max_new_tokens,
+    }
+
+
+def _percentile(values: list[float], percentile: float) -> float:
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    index = min(len(ordered) - 1, max(0, round((len(ordered) - 1) * percentile)))
+    return ordered[index]
+
+
+def _unknown_and_slice_metrics(rows: list[dict[str, Any]], records: list[dict[str, Any]]) -> dict[str, Any]:
+    by_id = {row["sample_id"]: row for row in rows}
+    unknown_scores = []
+    price_unknown_scores = []
+    slice_totals: Counter[str] = Counter()
+    slice_correct: Counter[str] = Counter()
+    for record in records:
+        row = by_id[record["sample_id"]]
+        try:
+            parsed = json.loads(strip_json_fence(str(record.get("raw_output") or "")))
+        except json.JSONDecodeError:
+            parsed = {}
+        expected_unknown = set(row["target"].get("unknown_fields", []))
+        observed_unknown = set(parsed.get("unknown_fields", [])) if isinstance(parsed.get("unknown_fields"), list) else set()
+        score = float(expected_unknown == observed_unknown)
+        unknown_scores.append(score)
+        price_score = float(
+            parsed.get("price_range") == "unknown"
+            and "price_range" in observed_unknown
+        )
+        price_unknown_scores.append(price_score)
+        semantic_correct = float(
+            parsed.get("business_category") == row["target"]["business_category"]
+            and set(parsed.get("style_tags", [])) == set(row["target"]["style_tags"])
+            and set(parsed.get("visible_facilities", [])) == set(row["target"]["visible_facilities"])
+            and price_score == 1.0
+        )
+        for name in row.get("error_slices", []):
+            slice_totals[name] += 1
+            slice_correct[name] += semantic_correct
+    return {
+        "unknown_usage_accuracy": statistics.fmean(unknown_scores),
+        "unknown_usage_support": len(unknown_scores),
+        "price_unknown_accuracy": statistics.fmean(price_unknown_scores),
+        "price_unknown_support": len(price_unknown_scores),
+        "known_price_support": 0,
+        "error_slices": {
+            name: {
+                "support": slice_totals[name],
+                "strict_semantic_accuracy": slice_correct[name] / slice_totals[name],
+            }
+            for name in sorted(slice_totals)
+        },
+    }
+
+
+def summarize_product_run(root: Path, rows: list[dict[str, Any]], records: list[dict[str, Any]]) -> dict[str, Any]:
+    summary = summarize_raw_records(root, _scoring_config(), rows, records)
+    latencies = [float(row.get("latency_ms", 0.0)) for row in records]
+    inputs = [int(row.get("input_token_count") or 0) for row in records]
+    outputs = [int(row.get("generated_token_count") or 0) for row in records]
+    summary.update(_unknown_and_slice_metrics(rows, records))
+    summary["latency_ms_p50"] = statistics.median(latencies)
+    summary["latency_ms_p95"] = _percentile(latencies, 0.95)
+    summary["input_tokens_total"] = sum(inputs)
+    summary["output_tokens_total"] = sum(outputs)
+    summary["input_tokens_mean"] = statistics.fmean(inputs)
+    summary["output_tokens_mean"] = statistics.fmean(outputs)
+    summary["retry_count"] = sum(max(0, len(row.get("attempts", [])) - 1) for row in records)
+    return summary
+
+
+def run_prompt_development(
+    root: Path,
+    config_path: Path,
+    output_dir: Path,
+) -> dict[str, Any]:
+    root = Path(root).resolve()
+    config_path = Path(config_path).resolve()
+    output_dir = Path(output_dir).resolve()
+    if output_dir.exists():
+        raise Week8ProductError(f"refusing to overwrite development run: {output_dir}")
+    config = load_week8_product_config(config_path)
+    validation = validate_week8_product_lock(root, config_path)
+    if validation["status"] != "PASS" or validation["test_status"] != "LOCKED_UNCONSUMED":
+        raise Week8ProductError("Week 8 lock is not eligible for development")
+    lock_root = root / config["dataset"]["output_root"] / config["week8"]["dataset_version"]
+    rows = list(iter_jsonl(lock_root / "development" / "image_product_search.jsonl"))
+    release = ReleaseSettings.load(root=root)
+    if release.adapter_model_sha256 != config["model"]["adapter_model_sha256"]:
+        raise Week8ProductError("release adapter differs from Week 8 baseline")
+    backend = TransformersPeftBackend(release)
+    ready, reason = backend.ready()
+    if not ready:
+        raise Week8ProductError(f"release backend is not ready: {reason}")
+    output_dir.mkdir(parents=True)
+    summaries = {}
+    for role, prompt_version in config["prompts"].items():
+        run_id = f"{config['experiment_identity']['development_run_id']}__{role}"
+        records = [
+            _run_one_product(
+                root, backend, row, run_id=run_id, prompt_version=prompt_version,
+                max_new_tokens=int(config["generation"]["max_new_tokens"]),
+            )
+            for row in rows
+        ]
+        role_dir = output_dir / role
+        write_jsonl_new(role_dir / "raw_outputs.jsonl", records)
+        summary = summarize_product_run(root, rows, records)
+        summary.update({
+            "status": "COMPLETED",
+            "run_id": run_id,
+            "role": role,
+            "prompt_version": prompt_version,
+            "config_sha256": sha256_file(config_path),
+            "dataset_lock_sha256": validation["lock_sha256"],
+            "raw_outputs_sha256": sha256_file(role_dir / "raw_outputs.jsonl"),
+        })
+        _write_json_new(role_dir / "metrics.json", summary)
+        summaries[role] = summary
+    comparison = select_prompt(config, summaries)
+    comparison.update({
+        "selection_id": config["experiment_identity"]["selection_id"],
+        "config_sha256": sha256_file(config_path),
+        "dataset_lock_sha256": validation["lock_sha256"],
+        "development_sample_ids_sha256": canonical_sha256([row["sample_id"] for row in rows]),
+        "metrics_sha256": {
+            role: sha256_file(output_dir / role / "metrics.json") for role in summaries
+        },
+        "test_consumed": False,
+    })
+    _write_json_new(output_dir / "selection.json", comparison)
+    return comparison
+
+
+def select_prompt(config: dict[str, Any], summaries: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    if set(summaries) != set(config["prompts"]):
+        raise Week8ProductError("Prompt summaries do not cover all approved roles")
+    baseline = summaries["current_release"]
+    baseline_product = baseline["scenarios"]["image_product_search"]
+    eligible = []
+    reasons = {}
+    for role, summary in summaries.items():
+        product = summary["scenarios"]["image_product_search"]
+        aggregate = product["aggregate"]
+        failures = []
+        if role != "current_release" and float(product["composite"]) <= float(baseline_product["composite"]):
+            failures.append("composite_not_strictly_above_current_release")
+        if float(aggregate["json_compliance"]) < float(config["selection"]["minimum_json_compliance"]):
+            failures.append("json_compliance_below_gate")
+        if float(aggregate["schema_pass"]) < float(config["selection"]["minimum_schema_pass"]):
+            failures.append("schema_pass_below_gate")
+        if float(summary["failure_rate"]) > float(config["selection"]["maximum_failure_rate"]):
+            failures.append("failure_rate_above_gate")
+        if product.get("metric_support") != baseline_product.get("metric_support"):
+            failures.append("metric_support_changed")
+        reasons[role] = failures
+        if role != "current_release" and not failures:
+            eligible.append(role)
+    if not eligible:
+        return {
+            "status": "SFT_ALLOWED_NO_PROMPT_WINNER",
+            "selected_role": None,
+            "selected_prompt_version": None,
+            "candidate_failures": reasons,
+        }
+    selected = min(
+        eligible,
+        key=lambda role: (
+            -float(summaries[role]["scenarios"]["image_product_search"]["composite"]),
+            float(summaries[role]["latency_ms_mean"]),
+            role,
+        ),
+    )
+    return {
+        "status": "PROMPT_LOCKED",
+        "selected_role": selected,
+        "selected_prompt_version": config["prompts"][selected],
+        "candidate_failures": reasons,
+    }
+
+
+def run_final_test_once(
+    root: Path,
+    config_path: Path,
+    development_dir: Path,
+    output_dir: Path,
+) -> dict[str, Any]:
+    root = Path(root).resolve()
+    config_path = Path(config_path).resolve()
+    development_dir = Path(development_dir).resolve()
+    output_dir = Path(output_dir).resolve()
+    config = load_week8_product_config(config_path)
+    lock_root = root / config["dataset"]["output_root"] / config["week8"]["dataset_version"]
+    marker_path = lock_root / "test_consumption.json"
+    if marker_path.exists() or output_dir.exists():
+        raise Week8ProductError("Week 8 final test has already been consumed or started")
+    validation = validate_week8_product_lock(root, config_path)
+    selection_path = development_dir / "selection.json"
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    if selection.get("status") != "PROMPT_LOCKED" or selection.get("test_consumed") is not False:
+        raise Week8ProductError("Prompt must be locked before final test")
+    if selection.get("config_sha256") != sha256_file(config_path) or selection.get("dataset_lock_sha256") != validation["lock_sha256"]:
+        raise Week8ProductError("development selection identity changed")
+    for role, digest in selection.get("metrics_sha256", {}).items():
+        path = development_dir / role / "metrics.json"
+        if not path.is_file() or sha256_file(path) != digest:
+            raise Week8ProductError("development metric evidence changed")
+    marker = {
+        "status": "STARTED",
+        "run_id": config["experiment_identity"]["final_test_run_id"],
+        "config_sha256": sha256_file(config_path),
+        "dataset_lock_sha256": validation["lock_sha256"],
+        "selection_sha256": sha256_file(selection_path),
+        "started_at_epoch_seconds": time.time(),
+    }
+    _write_json_new(marker_path, marker)
+    output_dir.mkdir(parents=True)
+    rows = list(iter_jsonl(lock_root / "test" / "image_product_search.jsonl"))
+    release = ReleaseSettings.load(root=root)
+    backend = TransformersPeftBackend(release)
+    ready, reason = backend.ready()
+    if not ready:
+        raise Week8ProductError(f"release backend is not ready: {reason}")
+    roles = {
+        "current_release": config["prompts"]["current_release"],
+        selection["selected_role"]: selection["selected_prompt_version"],
+    }
+    summaries = {}
+    for role, prompt_version in roles.items():
+        run_id = f"{config['experiment_identity']['final_test_run_id']}__{role}"
+        records = [
+            _run_one_product(
+                root, backend, row, run_id=run_id, prompt_version=prompt_version,
+                max_new_tokens=int(config["generation"]["max_new_tokens"]),
+            )
+            for row in rows
+        ]
+        role_dir = output_dir / role
+        write_jsonl_new(role_dir / "raw_outputs.jsonl", records)
+        summary = summarize_product_run(root, rows, records)
+        summary.update({
+            "status": "COMPLETED", "run_id": run_id, "role": role,
+            "prompt_version": prompt_version,
+            "raw_outputs_sha256": sha256_file(role_dir / "raw_outputs.jsonl"),
+        })
+        _write_json_new(role_dir / "metrics.json", summary)
+        summaries[role] = summary
+    baseline = summaries["current_release"]
+    chosen = summaries[selection["selected_role"]]
+    comparison = {
+        "status": "COMPLETED",
+        "run_id": config["experiment_identity"]["final_test_run_id"],
+        "selected_role": selection["selected_role"],
+        "sample_count": len(rows),
+        "label_source": "programmatic_silver",
+        "human_count": 0,
+        "composite_before": baseline["scenarios"]["image_product_search"]["composite"],
+        "composite_after": chosen["scenarios"]["image_product_search"]["composite"],
+        "composite_delta": chosen["scenarios"]["image_product_search"]["composite"] - baseline["scenarios"]["image_product_search"]["composite"],
+        "baseline": baseline,
+        "selected": chosen,
+        "selection_sha256": sha256_file(selection_path),
+    }
+    _write_json_new(output_dir / "comparison.json", comparison)
+    marker["status"] = "COMPLETED"
+    marker["completed_at_epoch_seconds"] = time.time()
+    marker["comparison_sha256"] = sha256_file(output_dir / "comparison.json")
+    marker_path.write_text(
+        json.dumps(marker, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8", newline="\n",
+    )
+    return comparison

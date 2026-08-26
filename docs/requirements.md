@@ -612,3 +612,33 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   删除唯一交接包、修改冻结历史结论或把凭据纳入交付。
 - 导师要求提出若干 Week 8 优化方向供其调整任务。当前只输出证据、候选方向和建议验收
   指标，不把任何候选写成已确定 Week 8 计划。
+
+## Week 8：商品理解专项优化（2026-08-26）
+
+### 导师确认范围
+
+- 主任务是实际优化商品理解，先建立新的版本化实验、development/test 身份和五维隔离，
+  再在固定 development 集比较当前 release Prompt、紧凑字段检查 Prompt 和视觉证据约束
+  Prompt；最终 test 仅在方案锁定后消费一次。
+- 主要评估业态分类、风格与设施多标签、价位、`unknown` 使用、标签完整度、JSON/Schema、
+  请求失败、延迟和 token；不得删除困难样本或降低字段支持数来制造提升。
+- 只能复用合法现有数据，不新增人工标注。自动或模型标签保持 `silver` 身份；训练、
+  development、test 必须按 `sample_id`、`source_id`、`image_sha256`、`group_id` 和模板身份
+  隔离，并排除已用于历史训练、development 或最终 test 的来源。
+- 若 Prompt 已在同一 development 集提高商品综合指标且格式、失败率和支持数不回退，
+  则锁定 Prompt；仅当主要语义错误仍未解决时，允许从当前正式 adapter 进行一次低学习率、
+  最多 1 epoch、LoRA 结构不变的商品 continuation SFT，`silver` 权重不高于 0.5，并只用
+  development 选择 checkpoint。
+- 商品主任务产生可复现结果后，才允许小范围修复对话首轮路由，并在固定模型、adapter、
+  Prompt、硬件和图片上建立商品延迟基准与低风险优化；质量不得回退。
+- 不实现检索重标注、复杂重排、新检索数据集、模型换代、训练框架重写、Web UI、云迁移、
+  Spartan/OSS 留存或其他扩展，也不生成导师未要求的新方向或后续周计划。
+
+### 交付边界
+
+- 保持 Week 3、Week 6、Week 7 和 system repair 的冻结数据、原始输出、adapter、评测和
+  发布包不可变；历史 fresh test 只作基线，不参与 Week 8 调参或 checkpoint 选择。
+- 使用临时分支 `feature/week8-product-understanding`，只提交并推送该分支；未经用户批准
+  不合并到 `dev`、`stg` 或 `main`，不打标签。
+- 报告必须分开呈现历史正式基线、Week 8 development、Week 8 单次最终 test、human 与
+  silver 身份，以及已完成和仍待优化内容；未实际运行的结果不得声称完成。
