@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=trip-w8-product-dev
 #SBATCH --account=punim2936
-#SBATCH --partition=gpu-l40s,gpu-a100
+#SBATCH --partition=gpu-l40s-preempt,gpu-a100-preempt
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=12
