@@ -774,6 +774,13 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         self.assertIn('TRIP_RUNTIME_CONFIG="${TRIP_RUNTIME_CONFIG:-', script)
         self.assertIn('--benchmark-config "${TRIP_RUNTIME_CONFIG}"', script)
 
+        smoke = Path("scripts/spartan/system_release_model_smoke.sbatch").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('release_config="${TRIP_RELEASE_CONFIG:-', smoke)
+        self.assertIn('--release-config "${release_config}"', smoke)
+        self.assertIn('--image "${smoke_image}"', smoke)
+
 
 if __name__ == "__main__":
     unittest.main()
