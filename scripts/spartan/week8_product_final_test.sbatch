@@ -18,6 +18,10 @@ set -euo pipefail
 : "${HF_HOME:?HF_HOME is required}"
 
 cd "$TRIP_PROJECT_ROOT"
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HF_HUB_DISABLE_TELEMETRY=1
+export PYTHONUNBUFFERED=1
 source "$TRIP_VENV/bin/activate"
 python scripts/manage_week8_product.py validate-lock
 python scripts/manage_week8_product.py final-test-once \
