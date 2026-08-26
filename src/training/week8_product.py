@@ -190,7 +190,8 @@ def _collect_week8_v2_sources(
     selected: dict[str, list[dict[str, Any]]] = {
         split: [] for split in split_needs
     }
-    for split in ("development", "test", "train"):
+    split_order = ("development", "test", "train")
+    for split_index, split in enumerate(split_order):
         minimums = split_minimums.get(split, {})
         if sum(int(value) for value in minimums.values()) > split_needs[split]:
             raise Week8ProductError(f"category minimums exceed {split} size")
@@ -212,8 +213,31 @@ def _collect_week8_v2_sources(
                 row for row in remaining if row["source_id"] not in matching_ids
             ]
         fill = split_needs[split] - len(selected[split])
-        selected[split].extend(remaining[:fill])
-        remaining = remaining[fill:]
+        future_minimums = {
+            category: sum(
+                int(split_minimums.get(future_split, {}).get(category, 0))
+                for future_split in split_order[split_index + 1 :]
+            )
+            for category in ("hotel", "attraction", "restaurant")
+        }
+        available_counts = Counter(
+            _category_from_description(row["business_description"])
+            for row in remaining
+        )
+        fill_rows = []
+        deferred_rows = []
+        for row in remaining:
+            category = _category_from_description(row["business_description"])
+            if (
+                len(fill_rows) < fill
+                and available_counts[category] > future_minimums.get(category, 0)
+            ):
+                fill_rows.append(row)
+                available_counts[category] -= 1
+            else:
+                deferred_rows.append(row)
+        selected[split].extend(fill_rows)
+        remaining = deferred_rows
         if len(selected[split]) != split_needs[split]:
             raise Week8ProductError(f"fresh source shortfall for {split}")
     return selected
