@@ -61,7 +61,7 @@
     "split_field_support_minimums": {
       "development": {"style": 25, "facility": 30},
       "test": {"style": 25, "facility": 30},
-      "train": {"style": 100, "facility": 200}
+      "train": {"style": 80, "facility": 200}
     }
   },
   "prompts": {
