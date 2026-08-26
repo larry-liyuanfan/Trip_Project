@@ -3,9 +3,9 @@
 #SBATCH --account=punim2936
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=20
-#SBATCH --mem=64G
-#SBATCH --time=04:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=32G
+#SBATCH --time=01:30:00
 #SBATCH --output=slurm-trip-w8-yelp-source-%j.out
 #SBATCH --error=slurm-trip-w8-yelp-source-%j.err
 
@@ -49,4 +49,3 @@ python scripts/rebuild_week8_yelp_sources.py \
   --output-yelp-root "$TRIP_OUTPUT_YELP_ROOT" \
   --manifest "$TRIP_REBUILD_MANIFEST" \
   --workers "$SLURM_CPUS_PER_TASK"
-
