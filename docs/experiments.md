@@ -954,3 +954,47 @@ manifest.
   不生成新模型指标。
 - 清理 21 个 ignored 目标、释放 71,735,466,519 字节；保留唯一约 59.9 MB 交接包。
   历史报告与哈希结论不改写，原始大数据和中间 checkpoint 不再作为接手依赖。
+
+## 2026-08-26：Week 8 商品理解、对话、延迟与检索
+
+### 商品 fresh source 与数据锁
+
+- Git：source build `5b97a2c`，正式 v4 锁代码/config `995f43d`。
+- 官方重建：download `29627585`、source rebuild `29627942`，均 `COMPLETED`。
+- 正式 source build `29628987`：3,000 candidates、851 validated、800 selected；
+  historical hash/unreadable/internal duplicate 拒绝 `2140/6/3`；manifest SHA-256
+  `582f7e47...ce195`。
+- 正式 v4 lock `29629630`：train/dev/test=`400/60/60`，五维隔离 PASS，lock SHA-256
+  `49d238b0...11e7f`，全部 `programmatic_silver`、human=0。
+- 失败证据：`29628510` 缺 pydantic、`29628573` 类别配额不符合实际源、`29628676`
+  暴露历史图片哈希冲突、`29628863` 暴露不可读图、`29628924` 暴露合法候选短缺；均在
+  正式锁或 test 前失败，未消费 test。`29629051`/`29629506` 暴露切片支持设计短缺；
+  v3 中间锁 test 保持未消费。
+
+### 商品 Prompt development 与 final
+
+- 模型/adapter：正式 `Qwen/Qwen3-VL-8B-Instruct` + checkpoint-87，adapter SHA-256
+  `c2fbb5c7...eaa2a`；max_new_tokens=384，deterministic。
+- dev job `29632502`，L40S，`00:07:21`：current/field-check/evidence composite
+  `0.766765/0.815131/0.698464`。field-check 通过严格提高、JSON/Schema/失败/支持非回退
+  门禁并锁定；selection SHA-256 `db60824a...5c90e`。SFT=`SKIPPED_NOT_NEEDED`。
+- 唯一 final job `29632815`，L40S，`00:04:45`：composite
+  `0.804239→0.861085`，comparison SHA-256 `2d01ec7a...944a7`，marker=`COMPLETED`。
+  没有根据 test 继续调参或重跑。
+
+### 对话与延迟
+
+- jobs `29627793/29628024/29628215` 分别对应 v1/v2/v3。v2 最优：首轮三键合规
+  `0.5`、纠错 `0.5`、上下文召回/值准确率 `0.8182/0.8182`、失败 `0.25`；v3 严格
+  schema 产生未终止字符串，失败 `1.0`，拒绝。
+- 固定 L40S 商品 latency：current/bounded mean `1907.79/1903.28 ms`，P95
+  `1918.50/1914.19 ms`，5/5 exact match，tokens 不变。冷启动 `24.67 s`，峰值
+  allocated/reserved `6.69/8.43 GB`。结论：无实质延迟提升。
+
+### 检索
+
+- 正式图像 overlay job `29628014`，1,000/1,000；development `29628015` 锁定
+  metadata rerank；唯一 final `29628157` 完成。
+- final CLIP→rerank：NDCG@10 `0.125654→0.506740`、Recall@10
+  `0.018090→0.133046`、过滤正确率 `1`、失败率 `0`、可追溯率 `1`；mean latency
+  `1.3768→1.5697 ms`。这是离线银标基准，不代表 Milvus 网络路径。

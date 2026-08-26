@@ -934,3 +934,26 @@ as the current validated dataset or accepted baseline.
 - 2026-08-25：安全清理 21 个 ignored 目标，释放 71,735,466,519 字节；删除 Yelp、公开
   基座缓存、中间输出/checkpoint 和迁移目录，仅保留 59.9 MB 唯一交接包、代码文档、
   轻量样例和未交付凭据。新增 Week 8 优化方向候选供导师选择，不写成已确定任务。
+
+## 2026-08-26：Week 8 四方向并行优化
+
+- 在独立 worktree 和 `feature/week8-product-understanding` 上执行；主 `dev` 工作树既有文档
+  改动未暂存、覆盖或格式化。
+- 本地/Spartan/阿里云审计后确认旧 65K Yelp 图片池不足；从官方 ZIP 重建 business
+  150,346、photos 200,100。商品 fresh source 从 3,000 候选中保留 800 个三维历史隔离
+  silver 身份，历史 source/group/image 重叠均为 0。
+- v4 商品锁 train/dev/test=`400/60/60`，五维隔离 PASS；dev/test 风格非空支持
+  `51/58`、设施 `60/60`，价位应 unknown `60/60`。
+- Prompt dev job `29632502` 完成，`week8_product_field_check_v1` 以
+  `0.815131` 对 `0.766765` 胜出；格式/失败/支持不回退，因此 SFT 未执行。
+- 唯一商品 final job `29632815` 完成：综合 `0.804239→0.861085`，业态
+  `0.900000→0.933333`，风格 micro-F1 `0.787402→0.796875`，设施 micro-F1
+  `0.675159→0.806630`，price unknown `0.05→1.0`，JSON/Schema `1/1`，失败率 `0`。
+- 对话 v2 在固定 4 条真实模型样本上首轮合规 `0→0.5`、纠错 `1→0.5`、失败
+  `0.75→0.25`、上下文召回 `0.2727→0.8182`；v3 严格 schema 失败率 `1.0`，被拒绝。
+- 固定商品延迟 512→384 cap 的 mean `1907.79→1903.28 ms`，质量完全一致但收益仅
+  `0.24%`，不宣称实质改善。冷启动 `24.67 s`，峰值 allocated/reserved
+  `6.69/8.43 GB`。
+- 检索唯一 final job `29628157`：metadata rerank 的 NDCG@10
+  `0.125654→0.506740`，Recall@10 `0.018090→0.133046`，失败率 `0`，可追溯率 `1`。
+- 完整 unittest `561/561 PASS`。详细证据见 Week 8 报告。

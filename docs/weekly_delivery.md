@@ -729,3 +729,23 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
   checkpoint 和迁移目录已删除，唯一交接包和凭据均受保护。
 - [x] 新增接手文档、本地验证命令和导师可选择的 Week 8 优化方向；不将候选方向冒充
   已确定任务。最终完整 unittest 与全新 checkout 更新为 514/514。
+
+## Week 8 交付（2026-08-26）
+
+- [x] 临时 feature 分支和独立 worktree；主工作树既有改动未触碰。
+- [x] 本地、Spartan、阿里云资产审计及官方 Yelp JSON/Photos 重建。
+- [x] 版本化 fresh source、拒绝清单、human/silver 身份和 source/group/image 历史隔离。
+- [x] 商品 v4 `400/60/60` 锁、错误切片统计和五维跨 split 隔离。
+- [x] 三 Prompt 同 development 比较、不可覆盖 selection 和明确失败候选。
+- [x] Prompt 门禁通过；按预注册规则跳过不必要的 continuation SFT。
+- [x] Week 8 商品最终 test 唯一消费、marker/comparison/raw/metrics 哈希证据。
+- [x] 对话首轮路由 v1/v2/v3 真实模型比较；v2 部分改善，剩余失败如实保留。
+- [x] 固定输入冷启动/P50/P95/token/s/显存/失败率与质量一致性基准。
+- [x] 检索 1,000 原图补齐、独立 query/index、development selection 和唯一 final test。
+- [x] `configs/releases/qwen3_vl_system_week8_v4.json` 合并候选身份；正式 release 未改写。
+- [x] 定向测试和完整 unittest `561/561 PASS`。
+- [x] Week 8 报告、README、weekly log、delivery 和 experiments 更新。
+- [ ] 对话仍有 `25%` 固定样本失败率；原因是模型尾部路由仍可能输出单任务附加键。
+- [ ] 商品 known-price support 为 `0`；原因是合法隔离池没有可靠可见价位证据。
+- [ ] 纯延迟优化只有 `0.24%` mean 改善；不以质量回退或量化换取更大数字。
+- [ ] 阿里云历史数据盘未能认证读取；未进行任何云资源或安全组变更。
