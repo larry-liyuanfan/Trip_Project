@@ -43,6 +43,22 @@ def summary(composite: float, latency: float = 1000.0) -> dict:
 
 
 class Week8ProductTests(unittest.TestCase):
+    def test_v7_config_pins_completed_post_hash_fresh_source(self):
+        config = load_week8_product_config(
+            ROOT / "configs/week8/product_understanding_v7.json"
+        )
+
+        self.assertEqual(config["schema_version"], "week8_product_understanding_v7")
+        self.assertEqual(
+            config["fresh_source"]["manifest_sha256"],
+            "5c5387409e617492370b40ce515f9d99e59c187ede243d721fc95499f4309a6e",
+        )
+        self.assertEqual(config["dataset"]["split_category_minimums"]["test"], {
+            "hotel": 1,
+            "attraction": 2,
+            "restaurant": 20,
+        })
+
     def test_v3_config_pins_completed_fresh_source_manifest(self):
         config = load_week8_product_config(ACTIVE_CONFIG)
         self.assertEqual(config["schema_version"], "week8_product_understanding_v4")
