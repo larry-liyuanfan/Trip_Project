@@ -463,16 +463,48 @@ def build_fresh_sources(
 
     validated_candidates = []
     hash_rejections: Counter[str] = Counter()
+    candidate_rejection_rows = []
     seen_candidate_hashes: set[str] = set()
     for row in candidate_pool:
         image = photos_dir / f"{row['photo_id']}.jpg"
-        width, height = _validate_image(image)
+        try:
+            width, height = _validate_image(image)
+        except Week8FreshSourceError:
+            hash_rejections["unreadable_image"] += 1
+            candidate_rejection_rows.append(
+                {
+                    "photo_id": row["photo_id"],
+                    "source_id": row["source_id"],
+                    "group_id": row["group_id"],
+                    "reason": "unreadable_image",
+                    "image_sha256": None,
+                }
+            )
+            continue
         digest = sha256_file(image)
         if digest in consumed["image_sha256"]:
             hash_rejections["historically_consumed"] += 1
+            candidate_rejection_rows.append(
+                {
+                    "photo_id": row["photo_id"],
+                    "source_id": row["source_id"],
+                    "group_id": row["group_id"],
+                    "reason": "historically_consumed_image_sha256",
+                    "image_sha256": digest,
+                }
+            )
             continue
         if digest in seen_candidate_hashes:
             hash_rejections["candidate_duplicate"] += 1
+            candidate_rejection_rows.append(
+                {
+                    "photo_id": row["photo_id"],
+                    "source_id": row["source_id"],
+                    "group_id": row["group_id"],
+                    "reason": "candidate_duplicate_image_sha256",
+                    "image_sha256": digest,
+                }
+            )
             continue
         seen_candidate_hashes.add(digest)
         row = dict(row)
@@ -600,6 +632,8 @@ def build_fresh_sources(
     }
     identity_path = output_root / "fresh_identity_manifest.jsonl"
     _write_jsonl_new(identity_path, identity_rows)
+    rejection_path = output_root / "candidate_rejections.jsonl"
+    _write_jsonl_new(rejection_path, candidate_rejection_rows)
     category_counts = dict(
         sorted(Counter(row["ota_category"] for row in identity_rows).items())
     )
@@ -647,7 +681,12 @@ def build_fresh_sources(
         "filter_statistics": filter_stats,
         "candidate_extract_count": len(candidate_pool),
         "validated_candidate_count": len(validated_candidates),
-        "candidate_hash_rejection_counts": dict(sorted(hash_rejections.items())),
+        "candidate_rejection_counts": dict(sorted(hash_rejections.items())),
+        "candidate_rejections": {
+            "path": rejection_path.relative_to(output_root).as_posix(),
+            "count": len(candidate_rejection_rows),
+            "sha256": sha256_file(rejection_path),
+        },
         "selected_photo_count": len(selected),
         "minimum_eligible_count": int(fresh["minimum_eligible_count"]),
         "category_counts": category_counts,
