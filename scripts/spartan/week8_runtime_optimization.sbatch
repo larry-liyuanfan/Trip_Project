@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=trip-w8-runtime-opt
+#SBATCH --account=punim2936
+#SBATCH --partition=gpu-l40s,gpu-a100
+#SBATCH --qos=publicgpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=96G
 #SBATCH --time=01:30:00
