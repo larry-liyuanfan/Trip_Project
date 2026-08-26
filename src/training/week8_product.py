@@ -170,6 +170,55 @@ def product_error_slices(source: dict[str, Any], target: dict[str, Any]) -> list
     return sorted(set(slices))
 
 
+def _collect_week8_v2_sources(
+    source_root: Path,
+    compatibility: dict[str, Any],
+    consumed: dict[str, set[str]],
+    split_needs: dict[str, int],
+    split_minimums: dict[str, dict[str, int]],
+    source_count: int,
+) -> dict[str, list[dict[str, Any]]]:
+    """Allocate scarce OTA business categories explicitly without duplicating groups."""
+
+    complete_pool = _collect_repair_public_sources(
+        source_root,
+        compatibility,
+        consumed,
+        {"development": source_count, "test": 0, "train": 0},
+    )["development"]
+    remaining = list(complete_pool)
+    selected: dict[str, list[dict[str, Any]]] = {
+        split: [] for split in split_needs
+    }
+    for split in ("development", "test", "train"):
+        minimums = split_minimums.get(split, {})
+        if sum(int(value) for value in minimums.values()) > split_needs[split]:
+            raise Week8ProductError(f"category minimums exceed {split} size")
+        for category in ("hotel", "attraction", "restaurant"):
+            need = int(minimums.get(category, 0))
+            matching = [
+                row
+                for row in remaining
+                if _category_from_description(row["business_description"]) == category
+            ][:need]
+            if len(matching) != need:
+                raise Week8ProductError(
+                    f"fresh {category} support shortfall for {split}: "
+                    f"{len(matching)}/{need}"
+                )
+            selected[split].extend(matching)
+            matching_ids = {row["source_id"] for row in matching}
+            remaining = [
+                row for row in remaining if row["source_id"] not in matching_ids
+            ]
+        fill = split_needs[split] - len(selected[split])
+        selected[split].extend(remaining[:fill])
+        remaining = remaining[fill:]
+        if len(selected[split]) != split_needs[split]:
+            raise Week8ProductError(f"fresh source shortfall for {split}")
+    return selected
+
+
 def build_week8_product_lock(
     root: Path,
     config_path: Path,
@@ -200,9 +249,19 @@ def build_week8_product_lock(
             "test": int(dataset["test_count"]),
             "train": int(dataset["continuation_train_count"]),
         }
-        sources = _collect_repair_public_sources(
-            source_root, compatibility, consumed, split_needs
-        )
+        if config["schema_version"] == "week8_product_understanding_v2":
+            sources = _collect_week8_v2_sources(
+                source_root,
+                compatibility,
+                consumed,
+                split_needs,
+                dataset["split_category_minimums"],
+                int(config["fresh_source"]["selected_photo_count"]),
+            )
+        else:
+            sources = _collect_repair_public_sources(
+                source_root, compatibility, consumed, split_needs
+            )
     except Week7DataError as exc:
         raise Week8ProductError(str(exc)) from exc
 

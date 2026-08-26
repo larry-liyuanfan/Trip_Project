@@ -2,9 +2,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.evaluation.prompting import render_standard_prompt
 from src.training.week8_product import (
+    _collect_week8_v2_sources,
     load_week8_product_config,
     product_error_slices,
     product_silver_target,
@@ -40,6 +42,46 @@ def summary(composite: float, latency: float = 1000.0) -> dict:
 
 
 class Week8ProductTests(unittest.TestCase):
+    @patch("src.training.week8_product._collect_repair_public_sources")
+    def test_v2_split_allocation_preserves_scarce_category_support(self, collect):
+        pool = []
+        for category, count in (("hotel", 13), ("attraction", 7), ("restaurant", 30)):
+            category_text = {
+                "hotel": "Hotels",
+                "attraction": "Museums",
+                "restaurant": "Restaurants",
+            }[category]
+            pool.extend(
+                {
+                    "source_id": f"{category}-{index}",
+                    "business_description": f"name | {category_text} | attrs",
+                }
+                for index in range(count)
+            )
+        collect.return_value = {"development": pool, "test": [], "train": []}
+        selected = _collect_week8_v2_sources(
+            Path("."),
+            {},
+            {},
+            {"development": 14, "test": 14, "train": 12},
+            {
+                "development": {"hotel": 5, "attraction": 3, "restaurant": 2},
+                "test": {"hotel": 5, "attraction": 3, "restaurant": 2},
+                "train": {"hotel": 3, "attraction": 1, "restaurant": 2},
+            },
+            50,
+        )
+        all_ids = [row["source_id"] for rows in selected.values() for row in rows]
+        self.assertEqual(len(all_ids), len(set(all_ids)))
+        self.assertEqual(
+            sum("Hotels" in row["business_description"] for row in selected["test"]),
+            5,
+        )
+        self.assertEqual(
+            sum("Museums" in row["business_description"] for row in selected["train"]),
+            1,
+        )
+
     def test_config_locks_three_approved_prompt_roles_and_release_adapter(self):
         config = load_week8_product_config(CONFIG)
         self.assertEqual(

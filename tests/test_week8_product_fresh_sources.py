@@ -88,6 +88,22 @@ class Week8ProductFreshSourceTests(unittest.TestCase):
             selected[0]["caption_richness"], selected[-1]["caption_richness"]
         )
 
+    def test_selection_retains_every_scarce_category_candidate(self):
+        rows = [candidate(index, "restaurant", richness=3) for index in range(2100)]
+        rows.extend(candidate(3000 + index, "hotel") for index in range(13))
+        rows.extend(candidate(4000 + index, "attraction") for index in range(7))
+        selected = select_ranked_candidates(
+            rows,
+            selected_count=2000,
+            minimum_eligible_count=2000,
+            minimum_per_category=1,
+            retain_all_categories_below=200,
+        )
+        self.assertEqual(sum(row["ota_category"] == "hotel" for row in selected), 13)
+        self.assertEqual(
+            sum(row["ota_category"] == "attraction" for row in selected), 7
+        )
+
     def test_candidate_collection_uses_one_best_unconsumed_photo_per_business(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -132,6 +148,12 @@ class Week8ProductFreshSourceTests(unittest.TestCase):
                     "caption": "cozy cafe bar",
                     "label": "inside",
                 },
+                {
+                    "photo_id": "p4",
+                    "business_id": "b2",
+                    "caption": "",
+                    "label": "inside",
+                },
             ]
             business_path = root / "business.parquet"
             photo_path = root / "photos.parquet"
@@ -147,8 +169,12 @@ class Week8ProductFreshSourceTests(unittest.TestCase):
             rows, stats = collect_fresh_candidates(
                 photo_path, business_path, consumed, seed=20260826
             )
-            self.assertEqual([row["photo_id"] for row in rows], ["p2"])
-            self.assertEqual(rows[0]["ota_category"], "hotel")
+            self.assertEqual({row["photo_id"] for row in rows}, {"p2", "p4"})
+            hotel = next(row for row in rows if row["photo_id"] == "p2")
+            restaurant = next(row for row in rows if row["photo_id"] == "p4")
+            self.assertEqual(hotel["ota_category"], "hotel")
+            self.assertEqual(restaurant["caption"], "photo type: inside")
+            self.assertEqual(restaurant["caption_source"], "photo_label_fallback")
             self.assertEqual(stats["photo_filter_counts"]["consumed_source"], 1)
 
     def test_builder_refuses_to_overwrite_versioned_output(self):

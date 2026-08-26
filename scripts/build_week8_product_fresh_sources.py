@@ -203,6 +203,7 @@ def select_ranked_candidates(
     selected_count: int,
     minimum_eligible_count: int,
     minimum_per_category: int,
+    retain_all_categories_below: int = 0,
 ) -> list[dict[str, Any]]:
     """Select unique businesses with deterministic category coverage and richness rank."""
 
@@ -226,7 +227,10 @@ def select_ranked_candidates(
     selected: list[dict[str, Any]] = []
     selected_ids: set[str] = set()
     for category in ("hotel", "attraction", "restaurant"):
-        for row in by_category[category][:minimum_per_category]:
+        reserve_count = minimum_per_category
+        if 0 < len(by_category[category]) < retain_all_categories_below:
+            reserve_count = len(by_category[category])
+        for row in by_category[category][:reserve_count]:
             selected.append(row)
             selected_ids.add(row["photo_id"])
     remaining = sorted(
@@ -291,7 +295,7 @@ def collect_fresh_candidates(
         photo_id = str(row.get("photo_id") or "")
         business_id = str(row.get("business_id") or "")
         business = businesses.get(business_id)
-        caption = str(row.get("caption") or "").strip()
+        native_caption = str(row.get("caption") or "").strip()
         if not photo_id or business is None:
             photo_counts["non_ota_or_ineligible_business"] += 1
             continue
@@ -299,9 +303,10 @@ def collect_fresh_candidates(
         if source_id in consumed["source_id"]:
             photo_counts["consumed_source"] += 1
             continue
-        if not caption:
-            photo_counts["empty_caption"] += 1
-            continue
+        label = str(row.get("label") or "unknown").strip() or "unknown"
+        caption = native_caption or f"photo type: {label}"
+        if not native_caption:
+            photo_counts["fallback_label_caption"] += 1
         signals = caption_signals(caption)
         candidate = {
             "photo_id": photo_id,
@@ -309,7 +314,8 @@ def collect_fresh_candidates(
             "source_id": source_id,
             "group_id": f"yelp-business:{business_id}",
             "caption": caption,
-            "label": str(row.get("label") or ""),
+            "label": label,
+            "caption_source": "native" if native_caption else "photo_label_fallback",
             "ota_category": business["ota_category"],
             "caption_styles": signals["styles"],
             "caption_facilities": signals["facilities"],
@@ -425,6 +431,7 @@ def build_fresh_sources(
         selected_count=int(fresh["selected_photo_count"]),
         minimum_eligible_count=int(fresh["minimum_eligible_count"]),
         minimum_per_category=int(fresh["minimum_per_ota_category"]),
+        retain_all_categories_below=int(fresh["retain_all_categories_below"]),
     )
 
     output_root.mkdir(parents=True, exist_ok=False)
@@ -497,6 +504,7 @@ def build_fresh_sources(
                 "caption_richness": row["caption_richness"],
                 "caption_styles": row["caption_styles"],
                 "caption_facilities": row["caption_facilities"],
+                "caption_source": row["caption_source"],
                 "seed_rank": row["seed_rank"],
                 "image_path": relative_image,
                 "image_width": width,
@@ -612,6 +620,9 @@ def build_fresh_sources(
         "selected_photo_count": len(selected),
         "minimum_eligible_count": int(fresh["minimum_eligible_count"]),
         "category_counts": category_counts,
+        "caption_source_counts": dict(
+            sorted(Counter(row["caption_source"] for row in identity_rows).items())
+        ),
         "identity_unique_counts": dimension_counts,
         "historical_identity_overlap_counts": {
             "source_id": 0,

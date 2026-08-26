@@ -21,7 +21,8 @@
     "output_root": "data/yelp/week8_product_fresh_20260826_v1",
     "selected_photo_count": 2400,
     "minimum_eligible_count": 2000,
-    "minimum_per_ota_category": 200,
+    "minimum_per_ota_category": 1,
+    "retain_all_categories_below": 200,
     "official_photos_zip_size": 7447210067
   },
   "dataset": {
@@ -47,6 +48,11 @@
         "outputs/system_repair/locked_data/system_repair_fresh_multitask_20260824_v1/identity_manifest.jsonl",
         "outputs/system_repair/locked_data/system_repair_fresh_multitask_20260825_v2/identity_manifest.jsonl"
       ]
+    },
+    "split_category_minimums": {
+      "development": {"hotel": 5, "attraction": 3, "restaurant": 20},
+      "test": {"hotel": 5, "attraction": 3, "restaurant": 20},
+      "train": {"hotel": 3, "attraction": 1, "restaurant": 100}
     }
   },
   "prompts": {
