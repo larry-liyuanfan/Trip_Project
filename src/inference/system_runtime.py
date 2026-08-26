@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,7 +38,35 @@ DIALOGUE_PROMPT_VERSIONS = {
     "week8_dialogue_first_turn_v1",
     "week8_dialogue_first_turn_v2",
     "week8_dialogue_first_turn_v3",
+    "week8_dialogue_deterministic_v4",
 }
+DIALOGUE_EXECUTION_MODES = {
+    "model_generated_contract",
+    "deterministic_contract_v1",
+}
+_BUDGET_UPDATE_RE = re.compile(
+    r"预算(?:改成|调整为|设为|改为|换成)?\s*"
+    r"(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>万|千|[kK]|元)?"
+)
+_DAYS_UPDATE_RE = re.compile(
+    r"(?:行程|天数|安排)?(?:改成|调整为|设为|改为|延长到|缩短到)\s*"
+    r"(?P<value>\d+|[一二两三四五六七八九十]+)\s*天"
+)
+_CITY_UPDATE_RE = re.compile(
+    r"(?:城市|目的地)(?:改成|调整为|设为|改为|换成)\s*"
+    r"(?P<value>[\u4e00-\u9fffA-Za-z .-]{2,32}?)(?=[，。；,;]|$)"
+)
+_PREFERENCE_UPDATE_RE = re.compile(
+    r"偏好(?:改成|调整为|设为|改为|换成)\s*"
+    r"(?P<value>[^，。；,;]{1,48})"
+)
+_POSITIVE_UPDATE_CUE_RE = re.compile(
+    r"改成|调整为|设为|改为|换成|延长到|缩短到|增加|删除|取消|改得"
+)
+_NEGATED_POSITIVE_UPDATE_RE = re.compile(
+    r"(?:不要|别|无需|不需要).{0,8}"
+    r"(?:改成|调整为|设为|改为|换成|延长到|缩短到|增加|删除|取消|改得)"
+)
 
 
 class RuntimeConfigurationError(RuntimeError):
@@ -87,6 +116,8 @@ class ReleaseSettings:
     max_schema_retries: int
     dialogue_prompt_version: str = "system_repair_dialogue_v1"
     dialogue_max_new_tokens: int = 512
+    dialogue_execution_mode: str = "model_generated_contract"
+    dialogue_semantic_fallback_enabled: bool = False
 
     @classmethod
     def load(
@@ -141,6 +172,12 @@ class ReleaseSettings:
                 else "system_repair_dialogue_v1"
             ),
             dialogue_max_new_tokens=int(dialogue.get("max_new_tokens", 512)),
+            dialogue_execution_mode=str(
+                dialogue.get("execution_mode", "model_generated_contract")
+            ),
+            dialogue_semantic_fallback_enabled=dialogue.get(
+                "semantic_fallback_enabled", False
+            ),
         )
         if settings.backend_name not in {"transformers-peft", "openai-compatible"}:
             raise RuntimeConfigurationError(
@@ -155,6 +192,22 @@ class ReleaseSettings:
             )
         if settings.dialogue_max_new_tokens <= 0:
             raise RuntimeConfigurationError("dialogue max_new_tokens must be positive")
+        if settings.dialogue_execution_mode not in DIALOGUE_EXECUTION_MODES:
+            raise RuntimeConfigurationError(
+                "unsupported dialogue execution mode: "
+                f"{settings.dialogue_execution_mode}"
+            )
+        if not isinstance(settings.dialogue_semantic_fallback_enabled, bool):
+            raise RuntimeConfigurationError(
+                "dialogue semantic_fallback_enabled must be boolean"
+            )
+        if (
+            settings.dialogue_prompt_version == "week8_dialogue_deterministic_v4"
+            and settings.dialogue_execution_mode != "deterministic_contract_v1"
+        ):
+            raise RuntimeConfigurationError(
+                "week8 dialogue v4 requires deterministic_contract_v1"
+            )
         return settings
 
     def validate_adapter(self) -> tuple[bool, str]:
@@ -413,6 +466,8 @@ class ScenarioService:
         *,
         dialogue_prompt_version: str | None = None,
         dialogue_max_new_tokens: int | None = None,
+        dialogue_execution_mode: str | None = None,
+        dialogue_semantic_fallback_enabled: bool | None = None,
     ) -> None:
         self.settings = settings
         self.backend = backend
@@ -422,6 +477,14 @@ class ScenarioService:
         self.dialogue_max_new_tokens = int(
             dialogue_max_new_tokens or settings.dialogue_max_new_tokens
         )
+        self.dialogue_execution_mode = (
+            dialogue_execution_mode or settings.dialogue_execution_mode
+        )
+        self.dialogue_semantic_fallback_enabled = (
+            settings.dialogue_semantic_fallback_enabled
+            if dialogue_semantic_fallback_enabled is None
+            else dialogue_semantic_fallback_enabled
+        )
         if self.dialogue_prompt_version not in DIALOGUE_PROMPT_VERSIONS:
             raise RuntimeConfigurationError(
                 "unsupported dialogue prompt version: "
@@ -429,6 +492,22 @@ class ScenarioService:
             )
         if self.dialogue_max_new_tokens <= 0:
             raise RuntimeConfigurationError("dialogue max_new_tokens must be positive")
+        if self.dialogue_execution_mode not in DIALOGUE_EXECUTION_MODES:
+            raise RuntimeConfigurationError(
+                "unsupported dialogue execution mode: "
+                f"{self.dialogue_execution_mode}"
+            )
+        if not isinstance(self.dialogue_semantic_fallback_enabled, bool):
+            raise RuntimeConfigurationError(
+                "dialogue semantic fallback flag must be boolean"
+            )
+        if (
+            self.dialogue_prompt_version == "week8_dialogue_deterministic_v4"
+            and self.dialogue_execution_mode != "deterministic_contract_v1"
+        ):
+            raise RuntimeConfigurationError(
+                "week8 dialogue deterministic prompt requires deterministic mode"
+            )
 
     def ready(self) -> dict[str, Any]:
         adapter_ready, adapter_reason = self.settings.validate_adapter()
@@ -500,6 +579,8 @@ class ScenarioService:
         )
 
     def run_dialogue(self, request: DialogueRequest) -> DialogueResponse:
+        if self.dialogue_execution_mode == "deterministic_contract_v1":
+            return self._run_deterministic_dialogue(request)
         messages = _dialogue_messages(
             request,
             prompt_version=self.dialogue_prompt_version,
@@ -516,6 +597,121 @@ class ScenarioService:
             release_id=self.settings.release_id,
             attempts=attempts,
             total_latency_ms=sum(item.latency_ms for item in attempts),
+        )
+
+    def _run_deterministic_dialogue(
+        self,
+        request: DialogueRequest,
+    ) -> DialogueResponse:
+        """Route and assemble the public contract in code, not model output."""
+
+        updates, needs_semantic_fallback = _deterministic_state_updates(request)
+        attempts: list[ModelAttempt] = []
+        fallback_status = "NOT_USED"
+        if needs_semantic_fallback and self.dialogue_semantic_fallback_enabled:
+            try:
+                fallback_updates, attempts = self._generate_state_update_fallback(
+                    request
+                )
+                updates.update(fallback_updates)
+                fallback_status = "SUCCEEDED"
+            except ModelGenerationError as exc:
+                attempts = list(exc.attempts)
+                fallback_status = "FAILED_SAFE"
+        state = dict(request.state)
+        state.update(updates)
+        parsed = DialogueModelOutput(
+            reply=_deterministic_dialogue_reply(
+                request,
+                updates,
+                fallback_failed=fallback_status == "FAILED_SAFE",
+            ),
+            state_updates=updates,
+            tool_calls=[],
+        )
+        return DialogueResponse(
+            reply=parsed.reply,
+            state=state,
+            tool_calls=[],
+            model=self.settings.base_model,
+            adapter=self.settings.adapter_name,
+            release_id=self.settings.release_id,
+            attempts=attempts,
+            total_latency_ms=sum(item.latency_ms for item in attempts),
+            execution_mode="DETERMINISTIC_CONTRACT",
+            semantic_fallback_status=fallback_status,
+        )
+
+    def _generate_state_update_fallback(
+        self,
+        request: DialogueRequest,
+    ) -> tuple[dict[str, Any], list[ModelAttempt]]:
+        """Use the model only to extract ambiguous state changes."""
+
+        attempts: list[ModelAttempt] = []
+        active_messages = _state_update_fallback_messages(request)
+        response_format = _state_update_fallback_response_format()
+        for attempt_number in range(1, self.settings.max_schema_retries + 2):
+            started = time.perf_counter()
+            raw, input_tokens, output_tokens = _generate_once(
+                self.backend,
+                active_messages,
+                response_format=response_format,
+                max_new_tokens=min(self.dialogue_max_new_tokens, 128),
+            )
+            error: str | None = None
+            updates: dict[str, Any] | None = None
+            try:
+                payload = json.loads(strip_json_fence(raw))
+                if not isinstance(payload, dict) or set(payload) != {"state_updates"}:
+                    raise ValueError(
+                        "semantic fallback must contain exactly state_updates"
+                    )
+                candidate = payload["state_updates"]
+                if not isinstance(candidate, dict) or len(candidate) > 16:
+                    raise ValueError(
+                        "semantic fallback state_updates must be a bounded object"
+                    )
+                if any(
+                    not isinstance(key, str)
+                    or not _is_finite_dialogue_value(value)
+                    for key, value in candidate.items()
+                ):
+                    raise ValueError(
+                        "semantic fallback values must be finite JSON scalars"
+                    )
+                updates = candidate
+            except (json.JSONDecodeError, ValueError) as exc:
+                error = str(exc)
+                updates = None
+            attempts.append(
+                ModelAttempt(
+                    attempt=attempt_number,
+                    raw_output=raw,
+                    error=error,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+            )
+            if updates is not None:
+                return updates, attempts
+            if attempt_number > self.settings.max_schema_retries:
+                break
+            active_messages = [
+                *active_messages,
+                {
+                    "role": "user",
+                    "content": (
+                        "上次状态抽取无效。只输出完整 JSON："
+                        '{"state_updates":{}}；值仅可为字符串、数字、布尔或 null。'
+                    ),
+                },
+            ]
+        raise ModelGenerationError(
+            "semantic state fallback failed after "
+            f"{len(attempts)} attempts: {attempts[-1].error}",
+            attempts=attempts,
         )
 
     def _generate_validated(
@@ -788,6 +984,158 @@ def _is_finite_dialogue_value(value: Any) -> bool:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return not isinstance(value, float) or math.isfinite(value)
     return False
+
+
+def _deterministic_state_updates(
+    request: DialogueRequest,
+) -> tuple[dict[str, Any], bool]:
+    """Extract bounded explicit updates and flag only ambiguous change requests."""
+
+    latest_user = next(
+        (turn.content for turn in reversed(request.messages) if turn.role == "user"),
+        "",
+    )
+    if not latest_user:
+        return {}, False
+    updates: dict[str, Any] = {}
+
+    budget_match = _BUDGET_UPDATE_RE.search(latest_user)
+    if budget_match and not _match_is_negated(latest_user, budget_match.start()):
+        value = float(budget_match.group("value"))
+        unit = budget_match.group("unit")
+        if unit in {"千", "k", "K"}:
+            value *= 1000
+        elif unit == "万":
+            value *= 10000
+        if math.isfinite(value) and 0 <= value <= 1_000_000_000:
+            updates["budget"] = int(value) if value.is_integer() else value
+
+    days_match = _DAYS_UPDATE_RE.search(latest_user)
+    if days_match and not _match_is_negated(latest_user, days_match.start()):
+        days = _parse_positive_days(days_match.group("value"))
+        if days is not None:
+            updates["days"] = days
+
+    city_match = _CITY_UPDATE_RE.search(latest_user)
+    if city_match and not _match_is_negated(latest_user, city_match.start()):
+        updates["city"] = city_match.group("value").strip()
+
+    preference_match = _PREFERENCE_UPDATE_RE.search(latest_user)
+    if preference_match and not _match_is_negated(
+        latest_user,
+        preference_match.start(),
+    ):
+        updates["preference"] = preference_match.group("value").strip()
+
+    positive_cue = bool(_POSITIVE_UPDATE_CUE_RE.search(latest_user))
+    negative_only = bool(_NEGATED_POSITIVE_UPDATE_RE.search(latest_user))
+    needs_semantic_fallback = positive_cue and not negative_only and not updates
+    return updates, needs_semantic_fallback
+
+
+def _match_is_negated(text: str, start: int) -> bool:
+    prefix = text[max(0, start - 8) : start]
+    return any(marker in prefix for marker in ("不要", "别", "无需", "不需要"))
+
+
+def _parse_positive_days(value: str) -> int | None:
+    if value.isdigit():
+        parsed = int(value)
+        return parsed if 1 <= parsed <= 365 else None
+    numerals = {
+        "一": 1,
+        "二": 2,
+        "两": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+    }
+    if value == "十":
+        return 10
+    if "十" in value:
+        left, right = value.split("十", 1)
+        tens = numerals.get(left, 1) if left else 1
+        ones = numerals.get(right, 0) if right else 0
+        parsed = tens * 10 + ones
+    else:
+        parsed = numerals.get(value, 0)
+    return parsed if 1 <= parsed <= 365 else None
+
+
+def _deterministic_dialogue_reply(
+    request: DialogueRequest,
+    updates: dict[str, Any],
+    *,
+    fallback_failed: bool,
+) -> str:
+    if fallback_failed:
+        return "未能可靠解析新的状态变化，已保留原状态，请换一种简短说法。"
+    if updates:
+        labels = {
+            "budget": "预算",
+            "days": "天数",
+            "city": "城市",
+            "preference": "偏好",
+        }
+        changed = "、".join(labels.get(key, key) for key in sorted(updates))
+        return f"已更新{changed}，其余已确认条件保持不变。"
+    if request.image_urls:
+        return "已进入对话路径并接收新图片，将承接当前状态继续处理。"
+    return "已承接当前对话状态，将按你的最新要求继续处理。"
+
+
+def _state_update_fallback_messages(
+    request: DialogueRequest,
+) -> list[dict[str, Any]]:
+    latest_user = next(
+        (turn.content for turn in reversed(request.messages) if turn.role == "user"),
+        "",
+    )
+    state_json = json.dumps(request.state, ensure_ascii=False, sort_keys=True)
+    return [
+        {
+            "role": "system",
+            "content": (
+                "只提取用户本轮明确新增或修改的 OTA 对话状态，不生成回复或工具调用。"
+                "只输出 state_updates；无法确定时输出空对象。值只能是字符串、数字、布尔或 null。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"当前状态：{state_json}\n"
+                f"本轮用户文本：{latest_user}\n"
+                '仅输出 {"state_updates":{}}。'
+            ),
+        },
+    ]
+
+
+def _state_update_fallback_response_format() -> dict[str, Any]:
+    finite_value = {"type": ["string", "number", "boolean", "null"]}
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "dialogue_state_update_fallback_v1",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "state_updates": {
+                        "type": "object",
+                        "maxProperties": 16,
+                        "additionalProperties": finite_value,
+                    }
+                },
+                "required": ["state_updates"],
+                "additionalProperties": False,
+            },
+        },
+    }
 
 
 def _dialogue_messages(

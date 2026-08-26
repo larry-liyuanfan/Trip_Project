@@ -39,6 +39,8 @@ def load_runtime_benchmark_config(root: Path, path: Path) -> dict[str, Any]:
         "week8_runtime_optimization_config_v1",
         "week8_runtime_optimization_config_v2",
         "week8_runtime_optimization_config_v3",
+        "week8_runtime_optimization_config_v4",
+        "week8_runtime_optimization_config_v5",
     }:
         raise Week8RuntimeBenchmarkError("unexpected runtime benchmark schema_version")
     profiles = payload.get("dialogue", {}).get("profiles", [])
@@ -82,6 +84,10 @@ def run_dialogue_first_turn_comparison(
             backend,
             dialogue_prompt_version=str(profile["prompt_version"]),
             dialogue_max_new_tokens=int(profile["max_new_tokens"]),
+            dialogue_execution_mode=profile.get("execution_mode"),
+            dialogue_semantic_fallback_enabled=profile.get(
+                "semantic_fallback_enabled"
+            ),
         )
         for case in dialogue["cases"]:
             request_payload = dict(case["request"])
@@ -99,18 +105,30 @@ def run_dialogue_first_turn_comparison(
                     response.state,
                     expected_state,
                 )
+                actual_state_count = len(response.state)
+                unexpected_state_keys = sorted(set(response.state) - set(expected_state))
                 record = {
                     "case_id": case["case_id"],
                     "profile": profile["role"],
                     "prompt_version": profile["prompt_version"],
                     "success": True,
                     "first_turn_three_key_compliant": bool(
-                        attempts and attempts[0].error is None
+                        response.execution_mode == "DETERMINISTIC_CONTRACT"
+                        or (attempts and attempts[0].error is None)
                     ),
-                    "correction_triggered": len(attempts) > 1,
+                    "correction_triggered": (
+                        len(attempts) > 1
+                        if response.execution_mode == "MODEL_GENERATED_CONTRACT"
+                        else False
+                    ),
+                    "execution_mode": response.execution_mode,
+                    "semantic_fallback_status": response.semantic_fallback_status,
                     "context_state_recalled": recalled,
                     "context_state_matched": matched,
                     "context_state_support": supported,
+                    "actual_state_count": actual_state_count,
+                    "unexpected_state_keys": unexpected_state_keys,
+                    "context_state_exact": response.state == expected_state,
                     "latency_ms": response.total_latency_ms,
                     "wall_latency_ms": (time.perf_counter() - started) * 1000,
                     "response": response.model_dump(),
@@ -125,9 +143,14 @@ def run_dialogue_first_turn_comparison(
                     "success": False,
                     "first_turn_three_key_compliant": False,
                     "correction_triggered": len(attempts) > 1,
+                    "execution_mode": "MODEL_GENERATED_CONTRACT",
+                    "semantic_fallback_status": "NOT_USED",
                     "context_state_recalled": 0,
                     "context_state_matched": 0,
                     "context_state_support": len(case.get("expected_state", {})),
+                    "actual_state_count": 0,
+                    "unexpected_state_keys": [],
+                    "context_state_exact": False,
                     "latency_ms": sum(item.latency_ms for item in attempts),
                     "wall_latency_ms": (time.perf_counter() - started) * 1000,
                     "response": None,
@@ -266,6 +289,7 @@ def _summarize_dialogue_records(records: list[dict[str, Any]]) -> dict[str, Any]
     recalled = sum(int(row["context_state_recalled"]) for row in records)
     matched = sum(int(row["context_state_matched"]) for row in records)
     support = sum(int(row["context_state_support"]) for row in records)
+    actual_state_count = sum(int(row["actual_state_count"]) for row in records)
     latencies = [float(row["latency_ms"]) for row in records]
     return {
         "sample_count": count,
@@ -277,9 +301,28 @@ def _summarize_dialogue_records(records: list[dict[str, Any]]) -> dict[str, Any]
         ),
         "context_recall": _ratio(recalled, support),
         "context_state_value_accuracy": _ratio(matched, support),
+        "context_state_precision": _ratio(matched, actual_state_count),
+        "context_state_exact_rate": _ratio(
+            sum(bool(row["context_state_exact"]) for row in records), count
+        ),
+        "unexpected_state_key_count": sum(
+            len(row["unexpected_state_keys"]) for row in records
+        ),
         "context_state_support": support,
         "failure_rate": _ratio(
             sum(not bool(row["success"]) for row in records), count
+        ),
+        "deterministic_route_rate": _ratio(
+            sum(row["execution_mode"] == "DETERMINISTIC_CONTRACT" for row in records),
+            count,
+        ),
+        "semantic_fallback_rate": _ratio(
+            sum(row["semantic_fallback_status"] != "NOT_USED" for row in records),
+            count,
+        ),
+        "semantic_fallback_safe_failure_rate": _ratio(
+            sum(row["semantic_fallback_status"] == "FAILED_SAFE" for row in records),
+            count,
         ),
         "latency_ms_mean": statistics.fmean(latencies) if latencies else None,
         "latency_ms_p50": _percentile(latencies, 0.50),

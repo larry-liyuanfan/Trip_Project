@@ -122,4 +122,13 @@ class DialogueResponse(BaseModel):
     release_id: str
     attempts: list[ModelAttempt]
     total_latency_ms: float
+    execution_mode: Literal[
+        "MODEL_GENERATED_CONTRACT",
+        "DETERMINISTIC_CONTRACT",
+    ] = "MODEL_GENERATED_CONTRACT"
+    semantic_fallback_status: Literal[
+        "NOT_USED",
+        "SUCCEEDED",
+        "FAILED_SAFE",
+    ] = "NOT_USED"
 

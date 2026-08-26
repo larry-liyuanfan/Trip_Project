@@ -109,6 +109,26 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             release.max_new_tokens_by_scenario["image_product_search"], 384
         )
 
+    def test_v5_release_binds_deterministic_contract_and_optional_fallback(self):
+        release = ReleaseSettings.load(
+            root=Path.cwd(),
+            config_path=Path("configs/releases/qwen3_vl_system_week8_v5.json"),
+        )
+
+        self.assertEqual(
+            release.prompt_versions["image_product_search"],
+            "week8_product_field_check_v1",
+        )
+        self.assertEqual(
+            release.dialogue_prompt_version,
+            "week8_dialogue_deterministic_v4",
+        )
+        self.assertEqual(
+            release.dialogue_execution_mode,
+            "deterministic_contract_v1",
+        )
+        self.assertTrue(release.dialogue_semantic_fallback_enabled)
+
     def test_release_binds_candidate_dialogue_prompt_and_bounded_output(self):
         release = ReleaseSettings.load(
             root=Path.cwd(),
@@ -335,6 +355,133 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
 
             self.assertEqual(backend.response_formats, [{"type": "json_object"}])
 
+    def test_deterministic_contract_updates_budget_without_model(self):
+        backend = FakeBackend([])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_deterministic_v4",
+            dialogue_execution_mode="deterministic_contract_v1",
+            dialogue_semantic_fallback_enabled=True,
+        )
+
+        response = service.run_dialogue(
+            DialogueRequest(
+                messages=[
+                    DialogueTurn(role="user", content="预算改成 2000 元，其余不变")
+                ],
+                state={"city": "Shanghai", "days": 2},
+            )
+        )
+
+        self.assertEqual(
+            response.state,
+            {"city": "Shanghai", "days": 2, "budget": 2000},
+        )
+        self.assertEqual(response.tool_calls, [])
+        self.assertEqual(response.attempts, [])
+        self.assertEqual(response.execution_mode, "DETERMINISTIC_CONTRACT")
+        self.assertEqual(response.semantic_fallback_status, "NOT_USED")
+        self.assertEqual(backend.messages, [])
+
+    def test_deterministic_contract_parses_chinese_days_and_negative_city(self):
+        backend = FakeBackend([])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_deterministic_v4",
+            dialogue_execution_mode="deterministic_contract_v1",
+            dialogue_semantic_fallback_enabled=True,
+        )
+
+        days = service.run_dialogue(
+            DialogueRequest(
+                messages=[DialogueTurn(role="user", content="把行程调整为三天")],
+                state={"days": 2},
+            )
+        )
+        negative = service.run_dialogue(
+            DialogueRequest(
+                messages=[DialogueTurn(role="user", content="不要改变城市，继续推荐")],
+                state={"city": "Shanghai"},
+            )
+        )
+
+        self.assertEqual(days.state["days"], 3)
+        self.assertEqual(negative.state, {"city": "Shanghai"})
+        self.assertEqual(negative.semantic_fallback_status, "NOT_USED")
+        self.assertEqual(backend.messages, [])
+
+    def test_ambiguous_update_skips_model_when_fallback_disabled(self):
+        backend = FakeBackend([])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_deterministic_v4",
+            dialogue_execution_mode="deterministic_contract_v1",
+            dialogue_semantic_fallback_enabled=False,
+        )
+
+        response = service.run_dialogue(
+            DialogueRequest(
+                messages=[DialogueTurn(role="user", content="把安排改得更松弛一些")],
+                state={"city": "Shanghai"},
+            )
+        )
+
+        self.assertEqual(response.state, {"city": "Shanghai"})
+        self.assertEqual(response.attempts, [])
+        self.assertEqual(response.semantic_fallback_status, "NOT_USED")
+
+    def test_ambiguous_update_uses_model_only_for_state_extraction(self):
+        backend = FakeBackend(['{"state_updates":{"pace":"relaxed"}}'])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_deterministic_v4",
+            dialogue_execution_mode="deterministic_contract_v1",
+            dialogue_semantic_fallback_enabled=True,
+        )
+
+        response = service.run_dialogue(
+            DialogueRequest(
+                messages=[DialogueTurn(role="user", content="把安排改得更松弛一些")],
+                state={"city": "Shanghai"},
+            )
+        )
+
+        self.assertEqual(response.state, {"city": "Shanghai", "pace": "relaxed"})
+        self.assertEqual(response.tool_calls, [])
+        self.assertEqual(response.semantic_fallback_status, "SUCCEEDED")
+        self.assertEqual(len(response.attempts), 1)
+        self.assertEqual(backend.response_formats[0]["type"], "json_schema")
+        schema = backend.response_formats[0]["json_schema"]["schema"]
+        self.assertEqual(schema["required"], ["state_updates"])
+
+    def test_semantic_fallback_failure_returns_safe_deterministic_contract(self):
+        backend = FakeBackend(["not-json", '{"wrong":{}}'])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_deterministic_v4",
+            dialogue_execution_mode="deterministic_contract_v1",
+            dialogue_semantic_fallback_enabled=True,
+        )
+
+        response = service.run_dialogue(
+            DialogueRequest(
+                messages=[DialogueTurn(role="user", content="把安排改得更松弛一些")],
+                state={"city": "Shanghai"},
+            )
+        )
+
+        self.assertEqual(response.state, {"city": "Shanghai"})
+        self.assertEqual(response.tool_calls, [])
+        self.assertEqual(response.semantic_fallback_status, "FAILED_SAFE")
+        self.assertEqual(len(response.attempts), 2)
+        self.assertTrue(all(item.error for item in response.attempts))
+        self.assertIn("未能可靠解析", response.reply)
+
     def test_fixed_dialogue_comparison_reports_first_turn_correction(self):
         valid = json.dumps(
             {
@@ -456,11 +603,23 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             Path.cwd(),
             Path("configs/week8/runtime_optimization_v3.json"),
         )
+        v5 = load_runtime_benchmark_config(
+            Path.cwd(),
+            Path("configs/week8/runtime_optimization_v5.json"),
+        )
 
         self.assertEqual(len(v1["dialogue"]["cases"]), 4)
         self.assertEqual(v1["product_latency"]["measured_runs"], 5)
         self.assertEqual(v1["dialogue"]["cases"], v2["dialogue"]["cases"])
         self.assertEqual(v2["dialogue"]["cases"], v3["dialogue"]["cases"])
+        self.assertEqual(
+            v3["dialogue"]["cases"],
+            v5["dialogue"]["cases"][:4],
+        )
+        self.assertEqual(
+            v5["dialogue"]["cases"][4]["case_id"],
+            "dialogue-semantic-fallback-probe",
+        )
         self.assertEqual(
             v2["dialogue"]["profiles"][1]["prompt_version"],
             "week8_dialogue_first_turn_v2",
@@ -469,6 +628,52 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             v3["dialogue"]["profiles"][1]["prompt_version"],
             "week8_dialogue_first_turn_v3",
         )
+        self.assertEqual(
+            v5["dialogue"]["profiles"][1]["execution_mode"],
+            "deterministic_contract_v1",
+        )
+
+    def test_v5_fixed_comparison_scores_code_assembled_contract(self):
+        release = ReleaseSettings.load(
+            root=Path.cwd(),
+            config_path=Path("configs/releases/qwen3_vl_system_week8_v5.json"),
+        )
+        config = load_runtime_benchmark_config(
+            Path.cwd(),
+            Path("configs/week8/runtime_optimization_v5.json"),
+        )
+        current_outputs = [
+            json.dumps(
+                {
+                    "reply": "继续处理。",
+                    "state_updates": {},
+                    "tool_calls": [],
+                },
+                ensure_ascii=False,
+            )
+        ] * 5
+        backend = FakeBackend(
+            [
+                *current_outputs,
+                '{"state_updates":{"pace":"relaxed"}}',
+            ]
+        )
+
+        result = run_dialogue_first_turn_comparison(release, backend, config)
+
+        candidate = result["profiles"]["candidate"]
+        self.assertEqual(candidate["first_turn_format_compliance"], 1.0)
+        self.assertEqual(candidate["correction_trigger_rate"], 0.0)
+        self.assertEqual(candidate["context_recall"], 1.0)
+        self.assertEqual(candidate["context_state_value_accuracy"], 1.0)
+        self.assertEqual(candidate["context_state_precision"], 1.0)
+        self.assertEqual(candidate["context_state_exact_rate"], 1.0)
+        self.assertEqual(candidate["unexpected_state_key_count"], 0)
+        self.assertEqual(candidate["failure_rate"], 0.0)
+        self.assertEqual(candidate["deterministic_route_rate"], 1.0)
+        self.assertEqual(candidate["semantic_fallback_rate"], 0.2)
+        self.assertEqual(candidate["semantic_fallback_safe_failure_rate"], 0.0)
+        self.assertEqual(len(backend.messages), 6)
 
     def test_spartan_job_allows_versioned_config_overrides(self):
         script = Path("scripts/spartan/week8_runtime_optimization.sbatch").read_text(
