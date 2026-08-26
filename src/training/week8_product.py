@@ -75,12 +75,10 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
         raise Week8ProductError("unsupported Week 8 product config")
     dataset = payload.get("dataset", {})
     if any(int(dataset.get(key, 0)) <= 0 for key in (
-        "development_count", "test_count"
-    )) or int(dataset.get("continuation_train_count", -1)) < 0:
-        raise Week8ProductError("Week 8 evaluation counts must be positive and train non-negative")
-    if dataset.get("source_mode") != "week5_unconsumed_product_candidates":
-        raise Week8ProductError("unsupported Week 8 source mode")
-    if payload.get("week8", {}).get("label_policy") != "silver_only":
+        "development_count", "test_count", "continuation_train_count"
+    )):
+        raise Week8ProductError("Week 8 split counts must be positive")
+    if payload.get("week8", {}).get("label_policy") != "programmatic_silver_only":
         raise Week8ProductError("Week 8 automatic labels must remain silver")
     if set(payload.get("prompts", {})) != {
         "current_release", "compact_field_check", "visual_evidence_guard"
@@ -116,14 +114,6 @@ def _category_from_description(description: str) -> str:
 
 def product_silver_target(source: dict[str, Any]) -> dict[str, Any]:
     """Create conservative silver labels; business metadata never becomes visual evidence."""
-    if isinstance(source.get("silver_target"), dict):
-        target = copy.deepcopy(source["silver_target"])
-        target["price_range"] = "unknown"
-        target["unknown_fields"] = sorted(
-            set(target.get("unknown_fields", [])) | {"price_range"}
-        )
-        target["confidence"] = min(float(target.get("confidence", 0.5)), 0.5)
-        return target
     caption_only = dict(source)
     caption_only["repair_mode"] = False
     target = _product_target(caption_only)
@@ -165,139 +155,6 @@ def product_error_slices(source: dict[str, Any], target: dict[str, Any]) -> list
     return sorted(set(slices))
 
 
-def _week5_silver_target(
-    pool_row: dict[str, Any], failure_row: dict[str, Any] | None
-) -> tuple[dict[str, Any], str, str]:
-    metadata = pool_row.get("sampling_metadata", {})
-    parsed = failure_row.get("parsed_output") if isinstance(failure_row, dict) else None
-    parsed = parsed if isinstance(parsed, dict) else {}
-    category = str(parsed.get("business_category") or metadata.get("business_category") or "unknown")
-    if category not in {"hotel", "restaurant", "attraction", "unknown"}:
-        category = "unknown"
-    styles = parsed.get("style_tags") if isinstance(parsed.get("style_tags"), list) else []
-    facilities = (
-        parsed.get("visible_facilities")
-        if isinstance(parsed.get("visible_facilities"), list)
-        else []
-    )
-    style_hint = str(metadata.get("style_hint") or "unknown")
-    if not styles and style_hint != "unknown":
-        styles = [style_hint]
-    evidence = parsed.get("observed_evidence") if isinstance(parsed.get("observed_evidence"), list) else []
-    evidence = [str(item)[:120] for item in evidence[:3] if str(item).strip()]
-    unknown = ["price_range"]
-    if category == "unknown":
-        unknown.append("business_category")
-    if not styles:
-        unknown.append("style_tags")
-    if not facilities:
-        unknown.append("visible_facilities")
-    origin = "week5_model_generated_silver" if parsed else "week5_metadata_silver"
-    target = {
-        "business_category": category,
-        "style_tags": sorted({str(value) for value in styles if str(value).strip()}),
-        "visible_facilities": sorted(
-            {str(value) for value in facilities if str(value).strip()}
-        ),
-        "price_range": "unknown",
-        "observed_evidence": evidence,
-        "inferred_attributes": [
-            "标签来自既有 Week 5 自动输出或采样元数据，仅作 silver 评测参考"
-        ],
-        "unknown_fields": sorted(unknown),
-        "confidence": 0.5,
-    }
-    caption = " ".join(evidence) or f"{category} {style_hint}"
-    return target, origin, caption
-
-
-def _collect_unconsumed_week5_product_sources(
-    source_root: Path,
-    config: dict[str, Any],
-    consumed: dict[str, set[str]],
-    split_needs: dict[str, int],
-) -> dict[str, list[dict[str, Any]]]:
-    from PIL import Image
-
-    paths = config["dataset"]["source_paths"]
-    failures = {
-        str(row.get("sample_id")): row
-        for row in iter_jsonl(source_root / paths["week5_failures"])
-        if row.get("scenario") == "image_product_search"
-    }
-    candidates = []
-    rejected = Counter()
-    seed = int(config["dataset"]["seed"])
-    for row in iter_jsonl(source_root / paths["week5_pools"] / "image_product_search.jsonl"):
-        sample_id = str(row.get("sample_id") or "")
-        source_id = str(row.get("source_id") or "")
-        digest = str(row.get("image_sha256") or "")
-        provenance = row.get("provenance", {})
-        group_id = str(provenance.get("group_id") or "")
-        if sample_id not in failures:
-            continue
-        if (
-            sample_id in consumed["sample_id"]
-            or source_id in consumed["source_id"]
-            or digest in consumed["image_sha256"]
-            or group_id in consumed["group_id"]
-        ):
-            rejected["historically_consumed"] += 1
-            continue
-        images = row.get("input", {}).get("images", [])
-        image_rel = str(images[0].get("path") or "") if images else ""
-        image = source_root / image_rel
-        if not image.is_file():
-            rejected["missing_image"] += 1
-            continue
-        try:
-            with Image.open(image) as handle:
-                handle.verify()
-        except Exception:
-            rejected["unreadable_image"] += 1
-            continue
-        actual_digest = sha256_file(image)
-        if actual_digest != digest:
-            rejected["image_hash_mismatch"] += 1
-            continue
-        target, origin, caption = _week5_silver_target(row, failures[sample_id])
-        candidates.append((
-            hashlib.sha256(f"{seed}\0{sample_id}".encode()).hexdigest(),
-            {
-                "source_id": source_id,
-                "group_id": group_id,
-                "source_image": image,
-                "image_sha256": digest,
-                "caption": caption,
-                "business_description": "",
-                "silver_target": target,
-                "silver_origin": origin,
-            },
-        ))
-    candidates.sort(key=lambda item: item[0])
-    selected: dict[str, list[dict[str, Any]]] = {
-        split: [] for split in ("train", "development", "test")
-    }
-    claimed_groups: set[str] = set()
-    cursor = 0
-    for split in ("development", "test", "train"):
-        need = split_needs[split]
-        while len(selected[split]) < need and cursor < len(candidates):
-            row = candidates[cursor][1]
-            cursor += 1
-            if row["group_id"] in claimed_groups:
-                rejected["duplicate_group"] += 1
-                continue
-            claimed_groups.add(row["group_id"])
-            selected[split].append(row)
-        if len(selected[split]) != need:
-            raise Week8ProductError(
-                f"unconsumed readable product source shortfall for {split}: "
-                f"{len(selected[split])}/{need}; rejected={dict(rejected)}"
-            )
-    return selected
-
-
 def build_week8_product_lock(
     root: Path,
     config_path: Path,
@@ -328,7 +185,7 @@ def build_week8_product_lock(
             "test": int(dataset["test_count"]),
             "train": int(dataset["continuation_train_count"]),
         }
-        sources = _collect_unconsumed_week5_product_sources(
+        sources = _collect_repair_public_sources(
             source_root, compatibility, consumed, split_needs
         )
     except Week7DataError as exc:
@@ -371,15 +228,14 @@ def build_week8_product_lock(
                     },
                 ],
                 target,
-                "silver",
+                "programmatic_silver",
                 0.5,
             )
             row["error_slices"] = slices
             row["target_provenance"] = {
-                "automatic_origin": source["silver_origin"],
-                "category": "week5_model_or_sampling_metadata_silver",
-                "style_tags": "week5_model_or_sampling_metadata_silver",
-                "visible_facilities": "week5_model_generated_silver_or_unknown",
+                "category": "caption_or_business_metadata_silver",
+                "style_tags": "caption_lexical_silver",
+                "visible_facilities": "caption_lexical_silver",
                 "price_range": "visual_evidence_absent_unknown_silver",
                 "human_completed": False,
             }
@@ -418,7 +274,7 @@ def build_week8_product_lock(
         "dataset_version": config["week8"]["dataset_version"],
         "config_sha256": sha256_file(config_path),
         "git_commit": _git_commit(root),
-        "label_source": "silver",
+        "label_source": "programmatic_silver",
         "human_count": 0,
         "split_counts": {split: len(rows) for split, rows in rows_by_split.items()},
         "error_slice_counts": {

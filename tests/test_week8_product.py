@@ -50,10 +50,7 @@ class Week8ProductTests(unittest.TestCase):
             config["model"]["adapter_model_sha256"],
             "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a",
         )
-        self.assertEqual(config["week8"]["label_policy"], "silver_only")
-        self.assertEqual(config["dataset"]["development_count"], 20)
-        self.assertEqual(config["dataset"]["test_count"], 20)
-        self.assertEqual(config["dataset"]["continuation_train_count"], 0)
+        self.assertEqual(config["week8"]["label_policy"], "programmatic_silver_only")
 
     def test_silver_target_never_promotes_metadata_price_to_visual_truth(self):
         target = product_silver_target(

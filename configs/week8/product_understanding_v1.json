@@ -4,7 +4,7 @@
     "scope": "product_understanding_primary",
     "dataset_version": "week8_product_understanding_20260826_v1",
     "seed": 20260826,
-    "label_policy": "silver_only",
+    "label_policy": "programmatic_silver_only",
     "human_annotation_required": false,
     "historical_artifacts_immutable": true
   },
@@ -17,17 +17,18 @@
   },
   "dataset": {
     "output_root": "outputs/week8/locked_data",
-    "development_count": 20,
-    "test_count": 20,
-    "continuation_train_count": 0,
-    "source_mode": "week5_unconsumed_product_candidates",
+    "development_count": 60,
+    "test_count": 60,
+    "continuation_train_count": 400,
     "source_paths": {
+      "strong_pairs": "data/yelp/processed/strong_image_caption_pairs.parquet",
+      "medium_pairs": "data/yelp/processed/image_business_attribute_pairs.parquet",
+      "photos": "data/yelp/interim/photos.parquet",
       "week3_exclusions": [
         "data/eval/registry/evaluation_exclusion_manifest.jsonl",
         "data/eval/registry/evaluation_exclusion_manifest_v2.jsonl"
       ],
       "week5_pools": "outputs/week5_qwen3_vl_4b/pools",
-      "week5_failures": "outputs/week5_qwen3_vl_4b/spartan/week5_spartan_merge_20260814_8cbfd8d/failures.jsonl",
       "week6_split_manifest": "outputs/week6/locked_data/week6_week5_final_human300_20260817_v4/split_manifest.jsonl",
       "superseded_identity_manifests": [
         "outputs/week7/locked_data/week7_fresh_multitask_context_20260820_v3/identity_manifest.jsonl",
