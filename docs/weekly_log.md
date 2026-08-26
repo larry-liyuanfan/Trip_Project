@@ -996,3 +996,22 @@ as the current validated dataset or accepted baseline.
   数据锁复验为 `PASS`，唯一 test consumption marker 为 `COMPLETED`。`compileall`、
   `git diff --check`、tracked secret signature scan 和大于 10 MiB 的 tracked file scan
   均为 `PASS`；正式 adapter 文件哈希复算为 `c2fbb5c7...eaa2a`。
+
+## 2026-08-27：Week 8 剩余优化续行
+
+- 新增 development-only Prompt overlay，绑定 v7 development lock 且禁用 final。job
+  `29643869` 完成：当前 v7/字段检查 v2/保守证据约束 composite 为
+  `0.836536/0.701144/0.703235`；两个新 Prompt 均回退并被拒绝，未读取或重跑 final。
+- 未消费 silver/OCR 审计 job `29643962` 完成。45 个 pre-hash 候选经历史及 v7 图片哈希
+  排除后剩 8 个；确认可见金额/tier/正价位支持为 `0/0/0`。480 张未使用 v7 图全部为
+  restaurant，caption style/facility 支持仅 `0/12`；因此没有启动缺少正支持的新 SFT。
+- 商品 prepared-input cache job `29643870` 的 10 次 mean/P95
+  `4845.46/4877.90→4868.88/4920.32 ms`，输出/tokens/Schema 一致但延迟回退，候选拒绝且
+  release 保持关闭。
+- 检索 v5 job `29644063` 使用真实 Milvus Lite、LRU512 和独立 development-only 锁；
+  NDCG@10/Recall@10 均保持 `0.584776/0.172498`，P95
+  `9.6339→8.4247 ms`（-12.55%）。预计算 `1602.23 ms`，entries `393/512`、eviction `0`、
+  measurement hit/miss=`2484/0`；未运行 final，也未接入正式 API/release。
+- 续行终态验证：定向 `76/76`、完整 unittest `609/609 PASS`；compileall、三份新增
+  Slurm 脚本语法、diff、tracked secret/large-file scan 和 README 新命令帮助均通过。
+  release/adapter SHA-256 仍为 `9defb3e7...ef749`/`c2fbb5c7...eaa2a`。

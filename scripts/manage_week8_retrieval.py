@@ -19,6 +19,7 @@ from src.retrieval.week8_relevance import (
     build_data_lock,
     claim_final_test,
     complete_final_test,
+    evaluate_latency_profiles,
     evaluate_partition,
     load_config,
     load_retrieval_source,
@@ -27,6 +28,7 @@ from src.retrieval.week8_relevance import (
     validate_data_lock,
     validate_development_selection,
     write_evaluation,
+    write_latency_development,
 )
 from src.retrieval.week8_hybrid import (
     build_preferred_image_channel,
@@ -54,6 +56,16 @@ def build_parser() -> argparse.ArgumentParser:
     development.add_argument("--lock-dir", required=True, type=Path)
     development.add_argument("--output-dir", required=True, type=Path)
     development.add_argument(
+        "--retrieval-backend",
+        choices=("auto", "milvus", "offline"),
+        default=None,
+    )
+
+    latency_development = subparsers.add_parser("evaluate-latency-development")
+    _add_common_source_arguments(latency_development)
+    latency_development.add_argument("--lock-dir", required=True, type=Path)
+    latency_development.add_argument("--output-dir", required=True, type=Path)
+    latency_development.add_argument(
         "--retrieval-backend",
         choices=("auto", "milvus", "offline"),
         default=None,
@@ -118,6 +130,11 @@ def main() -> None:
         return
 
     manifest, rows_by_partition = validate_data_lock(args.lock_dir)
+    if (
+        manifest.get("experiment_id") != config["experiment_id"]
+        or manifest.get("dataset_version") != config["dataset_version"]
+    ):
+        raise Week8RetrievalError("runtime config identity does not match the data lock")
     if manifest.get("source_hashes") != source_hashes:
         raise Week8RetrievalError("runtime retrieval source does not match the locked source")
 
@@ -137,6 +154,26 @@ def main() -> None:
         vectors,
         backend=args.retrieval_backend,
     )
+
+    if args.command == "evaluate-latency-development":
+        metrics, results, references, selection = evaluate_latency_profiles(
+            config,
+            vectors,
+            metadata,
+            rows_by_partition,
+            image_channel=image_channel,
+        )
+        hashes = write_latency_development(
+            args.output_dir,
+            metrics=metrics,
+            results=results,
+            references=references,
+            selection=selection,
+            data_lock_sha256=sha256_file(args.lock_dir / "dataset_lock.json"),
+            source_hashes=source_hashes,
+        )
+        _print({"status": "COMPLETED", "selection": selection, "hashes": hashes})
+        return
 
     if args.command == "evaluate-development":
         metrics, results, references = evaluate_partition(

@@ -779,3 +779,26 @@ development-only 修复队列及 Week 6 routed 配对人工评分均已完成。
 - [x] 终态完整 unittest `594/594 PASS`；远端锁复验、唯一 test consumption marker、
   release/adapter/smoke 哈希均一致；`compileall`、`git diff --check`、tracked secret
   signature scan 和 tracked large-file scan 均为 `PASS`。
+
+### Week 8 剩余优化续行交付（2026-08-27）
+
+- [x] 新增 v8 development-only Prompt overlay；绑定 v7 development 锁、禁用 final，并在
+  test 读取前 fail-closed。
+- [x] 实测两个额外商品 Prompt；composite `0.701144/0.703235` 均低于现有
+  `0.836536`，按真实结果拒绝，最终 Prompt/adapter/release 不变。
+- [x] 自动审计未消费 official source、历史图片哈希、native caption 与 OCR；新增数据的
+  human annotation/review/acceptance 均为 `0`，没有把 metadata 价位写成视觉标签。
+- [x] 审计确认 post-hash 安全候选仅 8，确认视觉价格 tier 正支持为 0；据此不启动预期发生
+  unknown/空标签塌缩的 continuation SFT。
+- [x] 商品 prepared-input cache 完成固定输入重复基准；质量一致但 mean/P95 回退，开关
+  保持默认关闭，未改 release。
+- [x] 检索 metadata cache 改为容量 512 的 LRU；真实 Milvus Lite 质量/支持/过滤/引用/
+  失败率完全一致，稳态 P95 改善 12.55%，并记录预计算、命中、淘汰和内存成本。
+- [x] 新 Prompt、商品 cache 和检索 cache 仅使用 development-only 身份；未读取或生成新
+  final，v7 已消费 final marker 未修改。
+- [x] 续行定向 `76/76`、完整 unittest `609/609 PASS`；compileall、Slurm shell、diff、
+  tracked secret/large-file scan 与 release/adapter 哈希复验通过。
+- [ ] 商品业态/风格残余回退和视觉价位正支持仍未解决；原因是无人工条件下合法新正样本
+  不足，不虚构 gold 或模型自评正确性。
+- [ ] 检索 LRU 尚未进入正式 API/release；当前证据只锁定真实 Milvus Lite development
+  候选，生产接入仍需绑定 metadata 生命周期、预热与失效配置。

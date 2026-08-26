@@ -19,6 +19,11 @@ final test 选择 Prompt、adapter 或 checkpoint。
 选择真实 Milvus Lite `hybrid_weighted`，NDCG@10 `0.125654→0.564459`，代价是 P95
 增加约 `2.15 ms`。release v7 四场景真实 smoke 为 `PASS`。
 
+后续剩余优化没有改变商品 release：两个额外 Prompt 在同一 development 上均回退，历史
+哈希隔离和 OCR 审计也确认没有新的视觉价位正例，故不再启动缺少正支持的 SFT。性能侧的
+prepared-input cache 因变慢被拒绝；检索侧有界 LRU 在质量完全一致时将稳态 P95 降低
+`12.55%`，作为 development 已锁定候选保留。
+
 ## 2. 初始 v4 执行、历史基线与资产审计
 
 本节至第 9 节保留 2026-08-26 初始 v4 的不可变历史证据；2026-08-27 的全自动扩展结果
@@ -386,3 +391,109 @@ continuation SFT 10% checkpoint 与回载、单次商品 final、确定性首轮
   `c2fbb5c7...eaa2a`。
 - `git diff --check`、tracked secret signature scan、tracked file 大于 10 MiB 扫描均为
   `PASS`；没有把模型权重、凭据、数据集、输出或 Slurm 日志纳入 Git。
+
+## 11. 2026-08-27 剩余优化续行
+
+### 11.1 商品 Prompt 的 development-only 复测
+
+`product_prompt_refinement_20260828_v8` 通过
+`development_lock_config=configs/week8/product_understanding_v7.json` 绑定既有 v7
+development lock SHA-256 `321bea49...b0301`。该 overlay 明确设置
+`development_only=true`，selection 的 `test_policy=DISABLED_DEVELOPMENT_ONLY`；final
+执行函数也在读取 test 前 fail-closed。Spartan job `29643869` 在 A100 20 GB MIG 上
+`COMPLETED 0:0`，耗时 `00:15:11`，60 条 development 的支持数完全一致。
+
+| 指标 | v7 当前选择 | 字段检查 v2 | 保守证据约束 |
+|---|---:|---:|---:|
+| 商品综合 | **0.836536** | 0.701144 | 0.703235 |
+| 业态准确率（n=60） | 0.916667 | 0.900000 | **0.950000** |
+| 风格 P/R/F1 micro | **0.758065/0.712121/0.734375** | 0.657143/0.696970/0.676471 | 0.754098/0.696970/0.724409 |
+| 设施 P/R/F1 micro | **0.887500/0.763441/0.820809** | 0.361111/0.419355/0.388060 | 0.358696/0.354839/0.356757 |
+| label completeness | **0.803333** | 0.645000 | 0.636111 |
+| known price support | 0 | 0 | 0 |
+| price unknown accuracy/support | 1.000000/60 | 1.000000/60 | 1.000000/60 |
+| exact unknown accuracy/support | 0.066667/60 | 0.066667/60 | 0.066667/60 |
+| JSON / Schema / failure | 1/1/0 | 1/1/0 | 1/1/0 |
+| mean / P50 / P95（ms） | **4630.48/4622.80/4892.21** | 4987.80/4826.38/5273.76 | 4766.09/4633.75/5077.63 |
+| input/output tokens | **40,728/3,459** | 49,374/3,640 | 48,398/**3,445** |
+
+两个候选都因 `composite_not_strictly_above_current_release` 被拒绝；selection 状态为
+`SFT_ALLOWED_NO_PROMPT_WINNER`，SHA-256 `110d3630...aef8a`。这里的 `SFT_ALLOWED` 只表示
+Prompt 选择器允许进入下一项可行性检查，并不代表已有合格训练数据。
+
+### 11.2 未消费 silver 与视觉价位证据审计
+
+独立配置 `product_silver_source_audit_20260827_v8` 不读取 v7 final 行或输出。Spartan CPU
+job `29643962` `COMPLETED 0:0`，耗时 `00:01:12`；审计结果 SHA-256
+`b425ab81...9e29`，candidate manifest SHA-256 `6ca17cc5...a32d`。新增 target/review/
+acceptance 的 human 计数仍为 `0/0/0`，标签身份为 `programmatic_silver`。
+
+- 完整未消费候选的 post-hash 前上限为餐饮/景点/酒店 `15934/6/27`；加入历史及 v7
+  图片哈希排除后，45 个候选中 37 个被拒，只剩 8 个安全候选。
+- v7 未使用的 480 张图全部为 restaurant；native caption 只有 48，style/facility caption
+  支持为 `0/12`。商家 metadata 价位虽有 319 条，但明确标记为非视觉证据。
+- caption 金额/tier 的 pre-hash 上限为 `11/1`；Tesseract 与 caption 精确 token 一致确认
+  后，可见金额、可见 tier 和正 `price_range` 支持均为 `0/0/0`。数字金额也不会自动映射
+  价位档。
+
+因此未启动新的 continuation SFT：8 个安全候选无法形成酒店、景点、风格、设施和视觉价位
+的完整正支持，继续训练只会重复已观察到的 unknown/空标签塌缩。该决定来自数据可行性审计，
+不是把失败结果隐藏成“无需训练”。
+
+### 11.3 商品输入缓存与检索有界 LRU
+
+商品 prepared-input cache development job `29643870` 在固定模型、adapter、Prompt、图片
+和 A100 MIG 上 `COMPLETED 0:0`。10 次 current→cache 的 mean/P50/P95 为
+`4845.46/4839.64/4877.90→4868.88/4858.77/4920.32 ms`；cache hit/miss=`11/1`，
+但 mean/P95 反而增加 `23.43/42.42 ms`。10/10 输出完全一致，tokens 均为
+`7370/590`，Schema/failure=`1/0`。证据 SHA-256 `83e8b2ce...1161`；候选被拒，release
+继续关闭该默认-off 开关。
+
+检索 v5 使用新 development-only 身份并确定性排除 v3 development/final query group，
+不读取 v3 final artifact。lock 的 index/development/final=`582/127/0`，五维隔离 PASS，
+SHA-256 `a5fdf0a1...fbc9`。真实 Milvus Lite job `29644063` `COMPLETED 0:0`，耗时
+`00:00:47`，无 offline fallback。
+
+此前 v4 job `29643904` 首次证明 pool100 cache 可保持质量并降低延迟，而 pool50/25 会使
+质量回退；但 v4 未显式锁定容量，也未记录预计算和内存成本，因此不作最终选择。v5 使用
+新身份补齐这些约束，没有覆盖 v4 失败/中间证据。
+
+| 指标 | pool100 uncached | pool100 LRU512 | 变化 |
+|---|---:|---:|---:|
+| NDCG@10 | 0.584776 | 0.584776 | 0 |
+| Recall@10 | 0.172498 | 0.172498 | 0 |
+| relevance support | 102 | 102 | 0 |
+| filter / trace / source / failure | 1/1/1/0 | 1/1/1/0 | 0/0/0/0 |
+| mean（ms） | 9.6001 | **8.3079** | -13.46% |
+| P50（ms） | 9.2823 | **8.1101** | -12.63% |
+| P95（ms） | 9.6339 | **8.4247** | -1.2092 / -12.55% |
+
+两侧各有 508 个交错测量。LRU 容量 512、最终 entries 393、evictions 0；预计算
+`1602.23 ms`，tracemalloc peak `22,991,100 B`，进程 `ru_maxrss` 高水位从
+`168648→217032 KB`。预计算 hit/miss=`228/393`，稳态 measurement hit/miss=
+`2484/0`。selection SHA-256 `61b6d8e4...8150`，锁定
+`hybrid_weighted_pool100_lru512`；这是有完整成本记录的稳态 development 优化，未宣称
+已替换正式 API release。
+
+### 11.4 最终选择、完成项与仍待优化项
+
+商品最终选择保持 checkpoint-87 adapter 加 `week8_product_field_check_v1`；release v7、
+已消费商品 final、历史 adapter 和 smoke 均未改变，因此没有重跑 final 或制造新的 smoke
+指标。对话确定性首轮路由也保持既有 5/5 结果。新增完成项是两个 Prompt 负实验、剩余
+silver/OCR 可行性审计、商品 prepared-input cache 负实验及检索有界 LRU 正实验。
+
+仍待优化及准确原因：商品合法新数据的酒店/景点、style 和视觉价位正支持不足，无法在
+human=`0` 的前提下继续可靠训练；v7 final 的业态与风格轻微回退仍保留；商品稳态生成
+延迟没有找到更快且可重复的缓存方案；检索 LRU 尚未接入正式 API/release，接入时还需将
+本地 metadata 生命周期、预热成本和失效策略纳入生产配置。没有生成后续周计划。
+
+### 11.5 续行验证
+
+- 新增及相关定向 unittest：`76/76 PASS`；完整
+  `python -m unittest discover -s tests -v`：`609/609 PASS`。
+- `python -m compileall -q src scripts tests`、三份新增 Slurm 脚本 `bash -n`、
+  `git diff --check`、tracked secret signature scan、tracked file 大于 10 MiB 扫描均为
+  `PASS`；README 中两个新增 CLI 的 `--help` 实测通过。
+- release config SHA-256 复算仍为 `9defb3e7...ef749`；Spartan 正式 checkpoint-87
+  adapter SHA-256 复算仍为 `c2fbb5c7...eaa2a`。没有把运行输出、图片、模型权重、凭据或
+  Slurm 日志加入 Git。

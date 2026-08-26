@@ -793,8 +793,13 @@ Week 8 的正式候选配置为：
 
 - 商品 fresh 实验与数据锁：`configs/week8/product_understanding_v7.json`
 - 商品可观察证据与 continuation SFT：`configs/week8/product_two_stage_v1.json`
+- 商品剩余 Prompt 的 development-only 诊断：
+  `configs/week8/product_prompt_refinement_v8_development.json`
+- 未消费商品 silver/OCR 可行性审计：`configs/week8/product_silver_source_audit_v8.json`
 - 对话/真实图片延迟基准：`configs/week8/runtime_optimization_v7.json`
+- 商品 prepared-input cache 负实验：`configs/week8/runtime_optimization_v8.json`
 - Milvus Lite 混合检索：`configs/week8/retrieval_relevance_v3.json`
+- Milvus Lite 有界 metadata LRU：`configs/week8/retrieval_latency_v5.json`
 - 合并后的 release candidate：`configs/releases/qwen3_vl_system_week8_v7.json`
 
 商品 fresh source 从官方 Yelp Photos ZIP 重建，v7 只绑定 post-hash 已完成的 v3 source
@@ -808,8 +813,13 @@ python scripts/manage_week8_product_two_stage.py \
   --config configs/week8/product_two_stage_v1.json validate-hard-slice
 python scripts/manage_week8_retrieval.py validate-lock \
   --lock-dir outputs/week8/retrieval/week8_retrieval_query_index_20260827_v3
+python scripts/audit_week8_product_silver_source_v8.py \
+  --config configs/week8/product_silver_source_audit_v8.json --help
+python scripts/manage_week8_retrieval.py evaluate-latency-development \
+  --config configs/week8/retrieval_latency_v5.json --help
 python -m unittest tests.test_week8_product tests.test_week8_product_fresh_sources \
-  tests.test_week8_product_two_stage tests.test_week8_product_sft -v
+  tests.test_week8_product_two_stage tests.test_week8_product_sft \
+  tests.test_week8_product_silver_source_v8 -v
 python -m unittest tests.test_week8_runtime_optimization tests.test_week8_retrieval \
   tests.test_processor_cache tests.test_system_runtime -v
 python -m unittest discover -s tests -v
@@ -817,4 +827,6 @@ python -m unittest discover -s tests -v
 
 完整身份、真实指标、失败尝试和未解决项见
 `reports/week8_product_understanding_optimization_report.md`。正式 release manifest 未被候选
-配置覆盖；晋级或合并不属于本分支交付。
+配置覆盖；晋级或合并不属于本分支交付。剩余优化中，两个额外商品 Prompt 和
+prepared-input cache 均经 development 实测后拒绝；检索 LRU512 在质量完全一致时将真实
+Milvus Lite 稳态 P95 从 `9.6339` 降到 `8.4247 ms`，同时记录 `1.60 s` 预计算和内存成本。

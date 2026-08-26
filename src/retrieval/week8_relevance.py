@@ -9,14 +9,17 @@ import math
 import statistics
 import tarfile
 import time
+import tracemalloc
 from pathlib import Path
 from typing import Any, Iterable
 
 from src.retrieval.week8_hybrid import (
+    MetadataRankingCache,
     OfflineImageChannel,
     fuse_rankings,
     metadata_ranking,
 )
+from src.retrieval.milvus_vectors import FILTER_FIELDS
 
 
 PARTITIONS = ("index", "development_query", "final_test_query")
@@ -53,6 +56,8 @@ def load_config(path: Path | str) -> dict[str, Any]:
     if config.get("schema_version") not in {
         "week8_retrieval_relevance_config_v2",
         "week8_retrieval_relevance_config_v3",
+        "week8_retrieval_relevance_config_v4",
+        "week8_retrieval_relevance_config_v5",
     }:
         raise Week8RetrievalError("unsupported Week 8 retrieval config schema")
     source = config.get("source")
@@ -68,7 +73,13 @@ def load_config(path: Path | str) -> dict[str, Any]:
         )
     dev_fraction = _finite_number(split.get("development_query_group_fraction"))
     test_fraction = _finite_number(split.get("final_test_query_group_fraction"))
-    if dev_fraction <= 0 or test_fraction <= 0 or dev_fraction + test_fraction >= 1:
+    development_only = bool(split.get("development_only", False))
+    if development_only:
+        if dev_fraction <= 0 or test_fraction != 0 or dev_fraction >= 1:
+            raise Week8RetrievalError(
+                "development-only split requires a positive development fraction and zero final fraction"
+            )
+    elif dev_fraction <= 0 or test_fraction <= 0 or dev_fraction + test_fraction >= 1:
         raise Week8RetrievalError("query group fractions must be positive and sum below one")
     top_k_values = evaluation.get("top_k_values")
     if (
@@ -108,6 +119,15 @@ def load_config(path: Path | str) -> dict[str, Any]:
         or hybrid.get("milvus_remote_index_type") != "HNSW"
     ):
         raise Week8RetrievalError("Milvus Lite/remote index types must be FLAT/HNSW")
+    output_fields = hybrid.get("milvus_output_fields", sorted(FILTER_FIELDS))
+    if (
+        not isinstance(output_fields, list)
+        or not output_fields
+        or "image_id" not in output_fields
+        or len(output_fields) != len(set(output_fields))
+        or set(output_fields) - FILTER_FIELDS
+    ):
+        raise Week8RetrievalError("Milvus output fields must be a unique filter-field subset containing image_id")
     fusion_weights = hybrid.get("weighted_fusion")
     if (
         not isinstance(fusion_weights, dict)
@@ -126,6 +146,8 @@ def load_config(path: Path | str) -> dict[str, Any]:
         or set(candidate_methods) - (set(METHODS) - {"clip"})
     ):
         raise Week8RetrievalError("selection candidate methods are invalid")
+    if development_only:
+        _validate_development_only_config(config)
     return config
 
 
@@ -217,6 +239,7 @@ def build_data_lock(
             }
         )
 
+    prepared, historical_exclusion = _exclude_historical_query_rows(config, prepared)
     assignments = _assign_partitions(config, prepared)
     rows_by_partition: dict[str, list[dict[str, Any]]] = {name: [] for name in PARTITIONS}
     templates = config["split"]["template_ids"]
@@ -251,6 +274,8 @@ def build_data_lock(
         "source_hashes": source_hashes,
         "source_image_hash_basis": "sha256_original_image_bytes",
         "split_seed": config["split"]["seed"],
+        "development_only": bool(config["split"].get("development_only", False)),
+        "historical_query_exclusion": historical_exclusion,
         "five_dimension_isolation": "PASS",
         "files": files,
     }
@@ -321,6 +346,315 @@ def evaluate_partition(
         all_results.extend(results)
         all_references.extend(references)
     return metrics, all_results, all_references
+
+
+def evaluate_latency_profiles(
+    config: dict[str, Any],
+    vectors: Any,
+    metadata: list[dict[str, Any]],
+    rows_by_partition: dict[str, list[dict[str, Any]]],
+    *,
+    image_channel: Any,
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Compare development-only hybrid latency profiles under one real backend."""
+    if not config["split"].get("development_only"):
+        raise Week8RetrievalError("latency profiles require a development-only data identity")
+    if rows_by_partition["final_test_query"]:
+        raise Week8RetrievalError("latency development lock unexpectedly contains final-test rows")
+    backend = image_channel.describe()
+    optimization = config["latency_optimization"]
+    if (
+        backend.get("backend") != optimization["required_backend"]
+        or backend.get("offline_fallback") is not optimization["required_offline_fallback"]
+    ):
+        raise Week8RetrievalError("latency development requires real Milvus Lite without fallback")
+
+    index_rows = rows_by_partition["index"]
+    query_rows = rows_by_partition["development_query"]
+    _validate_source(config, vectors, metadata)
+    _verify_locked_source_rows(metadata, index_rows + query_rows)
+    _verify_vector_identities(vectors, index_rows + query_rows)
+
+    cache_capacity = int(optimization.get("metadata_cache_capacity", 512))
+    cache = MetadataRankingCache(config, index_rows, capacity=cache_capacity)
+    process_rss_before_kb = _process_max_rss_kb()
+    tracemalloc.start()
+    precompute_started = time.perf_counter()
+    cache.precompute(query_rows, config["evaluation"]["filter_scenarios"])
+    precompute_ms = (time.perf_counter() - precompute_started) * 1000.0
+    _, precompute_peak_python_bytes = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    process_rss_after_kb = _process_max_rss_kb()
+    precompute_stats = cache.stats()
+    profiles = [optimization["baseline_profile"], *optimization["candidate_profiles"]]
+    maximum_pool = max(profile["candidate_pool_size"] for profile in profiles)
+    for query in query_rows[: int(optimization.get("warmup_query_count", 0))]:
+        image_channel.search(
+            vectors[query["vector_index"]],
+            index_rows,
+            top_k=maximum_pool,
+        )
+
+    repeat_count = int(optimization["measurement_repeats"])
+    first_metrics: dict[str, dict[str, Any]] = {}
+    latency_values: dict[str, list[float]] = {
+        profile["profile_id"]: [] for profile in profiles
+    }
+    image_latency_values: dict[str, list[float]] = {
+        profile["profile_id"]: [] for profile in profiles
+    }
+    cache_measurement_stats: dict[str, dict[str, int]] = {
+        profile["profile_id"]: {"hits": 0, "misses": 0, "evictions": 0}
+        for profile in profiles
+    }
+    all_results: list[dict[str, Any]] = []
+    all_references: list[dict[str, Any]] = []
+    for repeat in range(repeat_count):
+        ordered = profiles[repeat % len(profiles) :] + profiles[: repeat % len(profiles)]
+        for profile in ordered:
+            profile_id = profile["profile_id"]
+            profile_config = dict(config)
+            profile_config["evaluation"] = dict(config["evaluation"])
+            profile_config["evaluation"]["candidate_pool_size"] = profile[
+                "candidate_pool_size"
+            ]
+            cache_before = cache.stats()
+            measured, results, references = _evaluate_method(
+                profile_config,
+                vectors,
+                index_rows,
+                query_rows,
+                "hybrid_weighted",
+                image_channel,
+                metadata_cache=cache if profile["metadata_cache"] else None,
+            )
+            cache_after = cache.stats()
+            if profile["metadata_cache"]:
+                for name in ("hits", "misses", "evictions"):
+                    cache_measurement_stats[profile_id][name] += (
+                        cache_after[name] - cache_before[name]
+                    )
+            if profile_id in first_metrics:
+                if _quality_projection(measured) != _quality_projection(first_metrics[profile_id]):
+                    raise Week8RetrievalError(
+                        f"latency profile quality changed across repeats: {profile_id}"
+                    )
+            else:
+                first_metrics[profile_id] = measured
+                for reference in references:
+                    reference["latency_profile"] = profile_id
+                    reference["candidate_pool_size"] = profile["candidate_pool_size"]
+                all_references.extend(references)
+            for result in results:
+                result["latency_profile"] = profile_id
+                result["candidate_pool_size"] = profile["candidate_pool_size"]
+                result["metadata_cache"] = profile["metadata_cache"]
+                result["measurement_repeat"] = repeat + 1
+                if isinstance(result.get("latency_ms"), (int, float)):
+                    latency_values[profile_id].append(float(result["latency_ms"]))
+                if isinstance(result.get("image_channel_latency_ms"), (int, float)):
+                    image_latency_values[profile_id].append(
+                        float(result["image_channel_latency_ms"])
+                    )
+            all_results.extend(results)
+
+    metrics: dict[str, dict[str, Any]] = {}
+    for profile in profiles:
+        profile_id = profile["profile_id"]
+        measured = dict(first_metrics[profile_id])
+        latencies = latency_values[profile_id]
+        image_latencies = image_latency_values[profile_id]
+        measured.update(
+            {
+                "latency_profile": profile_id,
+                "candidate_pool_size": profile["candidate_pool_size"],
+                "metadata_cache": profile["metadata_cache"],
+                "measurement_repeats": repeat_count,
+                "latency_observation_count": len(latencies),
+                "latency_mean_ms": statistics.fmean(latencies) if latencies else None,
+                "latency_p50_ms": statistics.median(latencies) if latencies else None,
+                "latency_p95_ms": _percentile(latencies, 0.95),
+                "image_channel_latency_mean_ms": statistics.fmean(image_latencies)
+                if image_latencies
+                else None,
+                "image_channel_latency_p95_ms": _percentile(image_latencies, 0.95),
+                "metadata_cache_capacity": cache_capacity
+                if profile["metadata_cache"]
+                else 0,
+                "metadata_cache_precompute_ms": precompute_ms
+                if profile["metadata_cache"]
+                else 0.0,
+                "metadata_cache_precompute_peak_python_bytes": precompute_peak_python_bytes
+                if profile["metadata_cache"]
+                else 0,
+                "metadata_cache_process_max_rss_before_kb": process_rss_before_kb
+                if profile["metadata_cache"]
+                else None,
+                "metadata_cache_process_max_rss_after_kb": process_rss_after_kb
+                if profile["metadata_cache"]
+                else None,
+                "metadata_cache_precompute_hits": precompute_stats["hits"]
+                if profile["metadata_cache"]
+                else 0,
+                "metadata_cache_precompute_misses": precompute_stats["misses"]
+                if profile["metadata_cache"]
+                else 0,
+                "metadata_cache_precompute_evictions": precompute_stats["evictions"]
+                if profile["metadata_cache"]
+                else 0,
+                "metadata_cache_measurement_hits": cache_measurement_stats[profile_id]["hits"],
+                "metadata_cache_measurement_misses": cache_measurement_stats[profile_id]["misses"],
+                "metadata_cache_measurement_evictions": cache_measurement_stats[profile_id]["evictions"],
+                "metadata_cache_hits": precompute_stats["hits"]
+                + cache_measurement_stats[profile_id]["hits"]
+                if profile["metadata_cache"]
+                else 0,
+                "metadata_cache_misses": precompute_stats["misses"]
+                + cache_measurement_stats[profile_id]["misses"]
+                if profile["metadata_cache"]
+                else 0,
+                "metadata_cache_evictions": precompute_stats["evictions"]
+                + cache_measurement_stats[profile_id]["evictions"]
+                if profile["metadata_cache"]
+                else 0,
+                "metadata_cache_entry_count": cache.entry_count
+                if profile["metadata_cache"]
+                else 0,
+            }
+        )
+        metrics[profile_id] = measured
+    selection = select_latency_profile(config, metrics)
+    return metrics, all_results, all_references, selection
+
+
+def select_latency_profile(
+    config: dict[str, Any], metrics: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    """Select the lowest-P95 profile only after exact quality/backend gates pass."""
+    optimization = config["latency_optimization"]
+    baseline_id = optimization["baseline_profile"]["profile_id"]
+    baseline = metrics.get(baseline_id)
+    if not isinstance(baseline, dict):
+        raise Week8RetrievalError("latency metrics require the baseline profile")
+    required_backend = optimization["required_backend"]
+    required_fallback = optimization["required_offline_fallback"]
+    required_failure = _finite_number(optimization["required_failure_rate"])
+    if (
+        baseline.get("retrieval_backend") != required_backend
+        or baseline.get("offline_fallback") is not required_fallback
+        or _finite_number(baseline.get("failure_rate")) != required_failure
+    ):
+        raise Week8RetrievalError("latency baseline backend or failure gate failed")
+    latency_metric = optimization["primary_latency_metric"]
+    quality_metrics = optimization["quality_non_regression_metrics"]
+    tolerance = _finite_number(optimization.get("maximum_quality_drop", 0.0))
+    evaluations: dict[str, dict[str, Any]] = {}
+    eligible: list[str] = []
+    for profile in optimization["candidate_profiles"]:
+        profile_id = profile["profile_id"]
+        candidate = metrics.get(profile_id)
+        if not isinstance(candidate, dict):
+            raise Week8RetrievalError(f"latency metrics missing profile: {profile_id}")
+        failures: list[str] = []
+        if candidate.get("retrieval_backend") != required_backend:
+            failures.append("backend_mismatch")
+        if candidate.get("offline_fallback") is not required_fallback:
+            failures.append("offline_fallback")
+        if _finite_number(candidate.get("failure_rate")) != required_failure:
+            failures.append("failure_rate_gate")
+        for metric in quality_metrics:
+            if _finite_number(candidate.get(metric)) + tolerance < _finite_number(
+                baseline.get(metric)
+            ):
+                failures.append(f"{metric}_regressed")
+        if _finite_number(candidate.get(latency_metric)) >= _finite_number(
+            baseline.get(latency_metric)
+        ):
+            failures.append(f"{latency_metric}_not_improved")
+        evaluations[profile_id] = {
+            "eligible": not failures,
+            "failures": failures,
+            "latency_value": candidate.get(latency_metric),
+        }
+        if not failures:
+            eligible.append(profile_id)
+    selected = (
+        min(eligible, key=lambda name: (_finite_number(metrics[name][latency_metric]), name))
+        if eligible
+        else baseline_id
+    )
+    return {
+        "schema_version": "week8_retrieval_latency_selection_v1",
+        "experiment_id": config["experiment_id"],
+        "dataset_version": config["dataset_version"],
+        "config_sha256": _sha256_bytes(
+            json.dumps(
+                config,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ),
+        "baseline_profile": baseline_id,
+        "selected_profile": selected,
+        "optimization_locked": bool(eligible),
+        "primary_latency_metric": latency_metric,
+        "baseline_latency_ms": baseline.get(latency_metric),
+        "selected_latency_ms": metrics[selected].get(latency_metric),
+        "latency_improvement_ms": _finite_number(baseline.get(latency_metric))
+        - _finite_number(metrics[selected].get(latency_metric)),
+        "candidate_evaluations": evaluations,
+        "selected_backend": metrics[selected].get("retrieval_backend"),
+        "selected_offline_fallback": metrics[selected].get("offline_fallback"),
+    }
+
+
+def write_latency_development(
+    output_dir: Path,
+    *,
+    metrics: dict[str, dict[str, Any]],
+    results: list[dict[str, Any]],
+    references: list[dict[str, Any]],
+    selection: dict[str, Any],
+    data_lock_sha256: str,
+    source_hashes: dict[str, str],
+) -> dict[str, str]:
+    """Persist a new development-only latency experiment without any final-test path."""
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=False)
+    _write_json_new(
+        output / "latency_metrics.json",
+        {
+            "schema_version": "week8_retrieval_latency_metrics_v1",
+            "partition": "development_query",
+            "profiles": metrics,
+        },
+    )
+    _write_jsonl_new(output / "latency_query_results.jsonl", results)
+    _write_jsonl_new(output / "latency_business_references.jsonl", references)
+    evidence = {
+        "latency_metrics_sha256": sha256_file(output / "latency_metrics.json"),
+        "latency_query_results_sha256": sha256_file(
+            output / "latency_query_results.jsonl"
+        ),
+        "latency_business_references_sha256": sha256_file(
+            output / "latency_business_references.jsonl"
+        ),
+    }
+    selection = dict(selection)
+    selection.update(
+        {
+            "data_lock_sha256": data_lock_sha256,
+            "source_hashes": dict(source_hashes),
+            "development_evidence": dict(evidence),
+        }
+    )
+    _write_json_new(output / "latency_selection.json", selection)
+    evidence["latency_selection_sha256"] = sha256_file(
+        output / "latency_selection.json"
+    )
+    return evidence
 
 
 def select_development_method(
@@ -602,6 +936,8 @@ def _evaluate_method(
     query_rows: list[dict[str, Any]],
     method: str,
     image_channel: Any,
+    *,
+    metadata_cache: MetadataRankingCache | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     evaluation = config["evaluation"]
     top_k_values = sorted(set(evaluation["top_k_values"]))
@@ -632,10 +968,14 @@ def _evaluate_method(
                 method,
                 maximum_k,
                 image_channel=image_channel,
+                metadata_cache=metadata_cache,
             )
-            latencies.append((time.perf_counter() - started) * 1000.0)
+            query_latency_ms = (time.perf_counter() - started) * 1000.0
+            latencies.append(query_latency_ms)
+            image_latency_ms = None
             if isinstance(image_channel.last_latency_ms, (int, float)):
-                image_latencies.append(float(image_channel.last_latency_ms))
+                image_latency_ms = float(image_channel.last_latency_ms)
+                image_latencies.append(image_latency_ms)
             grades = {
                 row["sample_id"]: _relevance_grade(config, query["metadata"], row["metadata"])
                 for row in index_rows
@@ -656,6 +996,8 @@ def _evaluate_method(
                 "partition": query["partition"],
                 "evaluable_relevance": bool(relevant),
                 "relevant_count": len(relevant),
+                "latency_ms": query_latency_ms,
+                "image_channel_latency_ms": image_latency_ms,
                 "filter_checks": [],
                 "ranked": [
                     {
@@ -695,6 +1037,7 @@ def _evaluate_method(
                     maximum_k,
                     filters=filters,
                     image_channel=image_channel,
+                    metadata_cache=metadata_cache,
                 )
                 if not filtered:
                     filter_no_results += 1
@@ -778,6 +1121,7 @@ def _rank(
     *,
     filters: dict[str, str] | None = None,
     image_channel: Any,
+    metadata_cache: MetadataRankingCache | None = None,
 ) -> list[dict[str, Any]]:
     pool_size = int(config["evaluation"]["candidate_pool_size"])
     image_hits = image_channel.search(
@@ -821,13 +1165,20 @@ def _rank(
         )
         return pool[:top_k]
     if method in {"hybrid_rrf", "hybrid_weighted"}:
-        metadata_hits = metadata_ranking(
-            config,
-            query["metadata"],
-            index_rows,
-            top_k=max(pool_size, top_k),
-            filters=filters,
-        )
+        if metadata_cache is None:
+            metadata_hits = metadata_ranking(
+                config,
+                query["metadata"],
+                index_rows,
+                top_k=max(pool_size, top_k),
+                filters=filters,
+            )
+        else:
+            metadata_hits = metadata_cache.search(
+                query["metadata"],
+                top_k=max(pool_size, top_k),
+                filters=filters,
+            )
         return fuse_rankings(
             config,
             image_hits,
@@ -836,6 +1187,144 @@ def _rank(
             top_k=top_k,
         )
     raise Week8RetrievalError(f"unsupported retrieval method: {method}")
+
+
+def _validate_development_only_config(config: dict[str, Any]) -> None:
+    split = config["split"]
+    schema_version = config.get("schema_version")
+    if schema_version not in {
+        "week8_retrieval_relevance_config_v4",
+        "week8_retrieval_relevance_config_v5",
+    }:
+        raise Week8RetrievalError("development-only retrieval requires a latency config schema")
+    if int(split.get("minimum_counts", {}).get("final_test_query", -1)) != 0:
+        raise Week8RetrievalError("development-only retrieval must set final minimum count to zero")
+    exclusion = split.get("historical_query_exclusion")
+    if not isinstance(exclusion, dict):
+        raise Week8RetrievalError("development-only retrieval requires historical query exclusion")
+    expected = {
+        "experiment_id": "week8_retrieval_relevance_20260827_v3",
+        "dataset_version": "week8_retrieval_query_index_20260827_v3",
+        "seed": 20260826,
+        "development_query_group_fraction": 0.15,
+        "final_test_query_group_fraction": 0.15,
+    }
+    if exclusion != expected:
+        raise Week8RetrievalError("historical query exclusion must exactly bind v3 query identity")
+    optimization = config.get("latency_optimization")
+    if not isinstance(optimization, dict):
+        raise Week8RetrievalError("latency development requires latency_optimization")
+    if schema_version == "week8_retrieval_relevance_config_v5":
+        capacity = optimization.get("metadata_cache_capacity")
+        if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity != 512:
+            raise Week8RetrievalError("v5 metadata cache capacity must be locked to 512")
+    baseline = optimization.get("baseline_profile")
+    candidates = optimization.get("candidate_profiles")
+    profiles = [baseline] + list(candidates or [])
+    if (
+        not isinstance(baseline, dict)
+        or not isinstance(candidates, list)
+        or not candidates
+        or any(not isinstance(profile, dict) for profile in profiles)
+    ):
+        raise Week8RetrievalError("latency profiles are incomplete")
+    profile_ids = [profile.get("profile_id") for profile in profiles]
+    if any(not isinstance(value, str) or not value for value in profile_ids) or len(
+        set(profile_ids)
+    ) != len(profile_ids):
+        raise Week8RetrievalError("latency profile identities must be non-empty and unique")
+    largest_k = max(config["evaluation"]["top_k_values"])
+    for profile in profiles:
+        pool_size = profile.get("candidate_pool_size")
+        if (
+            isinstance(pool_size, bool)
+            or not isinstance(pool_size, int)
+            or pool_size < largest_k
+        ):
+            raise Week8RetrievalError("latency profile candidate pool is below top_k")
+        if not isinstance(profile.get("metadata_cache"), bool):
+            raise Week8RetrievalError("latency profile metadata_cache must be boolean")
+    if baseline.get("candidate_pool_size") != config["evaluation"]["candidate_pool_size"]:
+        raise Week8RetrievalError("latency baseline must preserve the configured v3 pool size")
+    if int(optimization.get("measurement_repeats", 0)) < 2:
+        raise Week8RetrievalError("latency comparison requires at least two repeats")
+    if optimization.get("required_backend") != "milvus_lite_flat_cosine":
+        raise Week8RetrievalError("latency gate requires the real Milvus Lite backend")
+    if optimization.get("required_offline_fallback") is not False:
+        raise Week8RetrievalError("latency gate must reject offline fallback")
+    supported_quality = {
+        "ndcg_at_10",
+        "recall_at_10",
+        "filter_correctness",
+        "traceable_reference_rate",
+        "source_attribution_rate",
+        "relevance_support_count",
+    }
+    quality_metrics = optimization.get("quality_non_regression_metrics")
+    if (
+        not isinstance(quality_metrics, list)
+        or not quality_metrics
+        or set(quality_metrics) - supported_quality
+    ):
+        raise Week8RetrievalError("latency quality non-regression metrics are invalid")
+
+
+def _quality_projection(metrics: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in metrics.items()
+        if "latency" not in key and key not in {"fallback_reason"}
+    }
+
+
+def _process_max_rss_kb() -> int | None:
+    """Return Linux ru_maxrss in KiB when the platform exposes it."""
+    try:
+        import resource
+    except ImportError:
+        return None
+    return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+
+
+def _exclude_historical_query_rows(
+    config: dict[str, Any], rows: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Exclude every group that was a v3 development or final query without reading v3 artifacts."""
+    split = config["split"]
+    exclusion = split.get("historical_query_exclusion")
+    if not exclusion:
+        return rows, None
+    historical_config = {
+        "split": {
+            "seed": exclusion["seed"],
+            "development_query_group_fraction": exclusion[
+                "development_query_group_fraction"
+            ],
+            "final_test_query_group_fraction": exclusion[
+                "final_test_query_group_fraction"
+            ],
+        }
+    }
+    historical_assignments = _assign_partitions(historical_config, rows)
+    excluded_groups = {
+        group
+        for group, partition in historical_assignments.items()
+        if partition in {"development_query", "final_test_query"}
+    }
+    eligible = [row for row in rows if row["group_id"] not in excluded_groups]
+    excluded = [row for row in rows if row["group_id"] in excluded_groups]
+    if not eligible or not excluded:
+        raise Week8RetrievalError("historical query exclusion produced an invalid development pool")
+    excluded_identity = "\n".join(sorted(row["sample_id"] for row in excluded)).encode("utf-8")
+    return eligible, {
+        "status": "PASS",
+        "experiment_id": exclusion["experiment_id"],
+        "dataset_version": exclusion["dataset_version"],
+        "method": "deterministic_v3_group_assignment_without_artifact_reads",
+        "excluded_query_row_count": len(excluded),
+        "eligible_row_count": len(eligible),
+        "excluded_sample_ids_sha256": _sha256_bytes(excluded_identity),
+    }
 
 
 def _assign_partitions(

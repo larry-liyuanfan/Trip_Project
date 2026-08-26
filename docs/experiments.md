@@ -1066,3 +1066,62 @@ manifest.
   `test_consumption.json` 为 `COMPLETED`，其 comparison SHA-256 与 final 输出一致。
   Python `compileall`、`git diff --check`、tracked secret signature scan 和大于 10 MiB
   的 tracked file scan 均为 `PASS`。
+
+## 2026-08-27：Week 8 剩余优化 development 实验
+
+### 商品 Prompt refinement v8
+
+- Git commit：`40d12c7`；job `29643869`，A100 80 GB PCIe MIG 1g.20gb，
+  `COMPLETED 0:0`，`00:15:11`。
+- 配置：`configs/week8/product_prompt_refinement_v8_development.json`；绑定 v7 lock
+  SHA-256 `321bea49...b0301`，test policy 为 `DISABLED_DEVELOPMENT_ONLY`。
+- current/field-check-v2/uncertainty composite=
+  `0.836536/0.701144/0.703235`；业态=`0.916667/0.900000/0.950000`，风格 micro-F1=
+  `0.734375/0.676471/0.724409`，设施 micro-F1=`0.820809/0.388060/0.356757`。
+  三者 JSON/Schema=`1/1`、failure=`0`、known-price support=`0`。
+- 两个候选均失败于 `composite_not_strictly_above_current_release`；selection SHA-256
+  `110d3630...aef8a`。没有 final 路径、test read 或消费标记。
+
+### 商品 silver/OCR source audit v8
+
+- Git commit：`7bde26f`；CPU job `29643962`，`COMPLETED 0:0`，`00:01:12`，
+  MaxRSS `388264K`。
+- 审计结果/candidate manifest SHA-256=
+  `b425ab81...9e29`/`6ca17cc5...a32d`；human annotation/review/acceptance=`0/0/0`。
+- pre/post historical-image-hash candidates=`45/8`；确认可见 amount/tier/正 price-range
+  支持=`0/0/0`。未使用 v7 的 480 张图均为 restaurant，caption style/facility=
+  `0/12`，metadata price=319 仅作非视觉信息。
+- 结论：现有未消费数据不支持另一次完整 continuation SFT；保持 checkpoint-87，未读取
+  v7 final rows/outputs。
+
+### 商品 prepared-input cache v8
+
+- Git commit：`40d12c7`；job `29643870`，A100 MIG，`COMPLETED 0:0`，`00:02:45`。
+- 固定图片 SHA-256 `90595c2b...f542`，每侧 10 次。current/cache mean/P50/P95=
+  `4845.46/4839.64/4877.90` / `4868.88/4858.77/4920.32 ms`。
+- cache hit/miss=`11/1`，10/10 exact、input/output tokens=`7370/590`、Schema/failure=
+  `1/0`；性能回退，候选拒绝。证据 SHA-256 `83e8b2ce...1161`。
+
+### 检索有界 metadata LRU v5
+
+- 前置 v4 job `29643904` 首次比较 pool100/50/25。pool100 cache 保持
+  NDCG@10/Recall@10=`0.584776/0.172498`，P95 `10.2815→9.2886 ms`；pool50/25 质量
+  回退。由于 v4 没有显式容量以及预计算/内存证据，它只保留为中间实验，随后以新 v5
+  identity 修复，不覆盖 v4 输出。
+- job `29644063`，4 CPU，`COMPLETED 0:0`，`00:00:47`；真实 backend
+  `milvus_lite_flat_cosine`，offline fallback=false。
+- config canonical SHA-256 `95a82cc9...acd5`；lock index/development/final=
+  `582/127/0`，排除历史 v3 query 291，五维隔离 PASS，lock SHA-256
+  `a5fdf0a1...fbc9`。
+- pool100 uncached/LRU512 的 NDCG@10=`0.584776/0.584776`、Recall@10=
+  `0.172498/0.172498`、support=102、filter/trace/source/failure=`1/1/1/0`。
+  mean/P50/P95=`9.6001/9.2823/9.6339→8.3079/8.1101/8.4247 ms`。
+- 预计算 `1602.23 ms`、tracemalloc peak `22,991,100 B`、最终 entries/capacity=
+  `393/512`、evictions=0；稳态 hit/miss=`2484/0`。metrics/results/refs/selection SHA-256=
+  `1686ad20...0388`/`8f2090bf...17e3f`/`b45ac704...3053`/`61b6d8e4...8150`。
+- 结论：锁定 development 候选 `hybrid_weighted_pool100_lru512`，但不将其描述为已进入
+  正式 API/release，未执行 final。
+- 续行终态验证：相关定向 `76/76`、完整 unittest `609/609 PASS`；compileall、三份新增
+  Slurm 脚本 `bash -n`、`git diff --check`、tracked secret/large-file scan 均为 `PASS`。
+  release config/正式 adapter SHA-256 复算为
+  `9defb3e7...ef749`/`c2fbb5c7...eaa2a`。

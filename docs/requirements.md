@@ -684,3 +684,17 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   这些要求用于防止数据污染和结果失真，不作为限制优化方法或并行执行范围的旧门禁。
 - 执行继续使用 `feature/week8-product-understanding` 与 Spartan 当前项目目录；可自行解决的
   工程、数据、训练、评测和运行问题持续处理，不设置人工审批点。
+
+### 2026-08-27 剩余优化续行要求
+
+- 继续处理商品业态、风格、设施、价位证据和 `unknown` 的剩余问题，但新增 target、review
+  与 acceptance 仍只允许自动 `silver` 身份，人工参与数保持 `0`。
+- 已消费的 v7 final 只作历史结果，不读取其样本或输出继续调参。额外商品 Prompt 只允许在
+  绑定 v7 development 锁的独立诊断身份中比较；诊断身份不得提供 final 执行入口。
+- 启动 continuation SFT 前必须先审计未消费数据的历史图片哈希和字段正支持；若无法形成
+  足够的业态、风格、设施及视觉价位支持，则以真实不可行证据结束，不用商家 metadata
+  冒充视觉标签，也不训练一个预期塌缩的 adapter。
+- 缓存和检索优化必须有容量上限，同时报告预计算耗时、命中/未命中/淘汰、内存和稳态
+  P50/P95；只有质量、支持、引用和失败率严格不回退的候选才可锁定。
+- 商品 Prompt、adapter 或 release 身份没有通过新 development 证据时保持 v7 选择不变；
+  不为没有变化的 release 重跑 final，不覆盖既有消费标记。

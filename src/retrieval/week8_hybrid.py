@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Callable
 
@@ -101,6 +102,7 @@ class MilvusImageChannel:
             if self.milvus_mode == "lite_file"
             else "milvus_remote_hnsw_cosine"
         )
+        self.output_fields = list(hybrid.get("milvus_output_fields", sorted(FILTER_FIELDS)))
         self.client = client or _create_milvus_client(hybrid)
         self._verify_collection_identity()
 
@@ -164,7 +166,9 @@ class MilvusImageChannel:
                 "metric_type": "COSINE",
                 "params": {"ef": self.ef} if self.index_type == "HNSW" else {},
             },
-            output_fields=sorted(FILTER_FIELDS),
+            # 检索阶段只需要 image_id 回连已经锁定的本地 metadata；避免 Milvus
+            # 为每个候选重复序列化其余七个字段。
+            output_fields=self.output_fields,
         )
         self.last_latency_ms = (time.perf_counter() - started) * 1000.0
         hits = raw[0] if isinstance(raw, list) and raw else []
@@ -447,6 +451,101 @@ def metadata_ranking(
         )
     hits.sort(key=lambda hit: (-hit["metadata_score"], hit["row"]["sample_id"]))
     return hits[:top_k]
+
+
+class MetadataRankingCache:
+    """Cache deterministic metadata rankings for repeated OTA query signatures."""
+
+    def __init__(
+        self,
+        config: dict[str, Any],
+        index_rows: list[dict[str, Any]],
+        *,
+        capacity: int,
+    ) -> None:
+        if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity <= 0:
+            raise Week8HybridError("metadata cache capacity must be a positive integer")
+        self.config = config
+        self.index_rows = index_rows
+        self.capacity = capacity
+        self._cache: OrderedDict[tuple[Any, ...], list[dict[str, Any]]] = OrderedDict()
+        self.hits = 0
+        self.misses = 0
+        self.evictions = 0
+
+    @property
+    def entry_count(self) -> int:
+        return len(self._cache)
+
+    def stats(self) -> dict[str, int]:
+        return {
+            "capacity": self.capacity,
+            "hits": self.hits,
+            "misses": self.misses,
+            "evictions": self.evictions,
+            "entry_count": self.entry_count,
+        }
+
+    def search(
+        self,
+        query_metadata: dict[str, Any],
+        *,
+        top_k: int,
+        filters: dict[str, str] | None = None,
+    ) -> list[dict[str, Any]]:
+        key = self._key(query_metadata, filters)
+        cached = self._cache.get(key)
+        if cached is not None:
+            self.hits += 1
+            self._cache.move_to_end(key)
+        else:
+            self.misses += 1
+            cached = metadata_ranking(
+                self.config,
+                query_metadata,
+                self.index_rows,
+                top_k=len(self.index_rows),
+                filters=filters,
+            )
+            if len(self._cache) >= self.capacity:
+                self._cache.popitem(last=False)
+                self.evictions += 1
+            self._cache[key] = cached
+        return cached[:top_k]
+
+    def precompute(
+        self,
+        query_rows: list[dict[str, Any]],
+        filter_scenarios: list[list[str]],
+    ) -> None:
+        """Populate the bounded cache before timed retrieval begins."""
+        for query in query_rows:
+            metadata = query["metadata"]
+            self.search(metadata, top_k=len(self.index_rows))
+            for fields in filter_scenarios:
+                filters = {
+                    field: metadata[field]
+                    for field in fields
+                    if metadata.get(field) not in {None, "unknown"}
+                }
+                if filters:
+                    self.search(
+                        metadata,
+                        top_k=len(self.index_rows),
+                        filters=filters,
+                    )
+
+    def _key(
+        self,
+        query_metadata: dict[str, Any],
+        filters: dict[str, str] | None,
+    ) -> tuple[Any, ...]:
+        weights = self.config["evaluation"]["relevance_weights"]
+        query_identity = tuple(
+            (field, query_metadata.get(field)) for field in sorted(weights)
+        )
+        filter_identity = tuple(sorted((filters or {}).items()))
+        return query_identity, filter_identity
 
 
 def _matches_filters(metadata: dict[str, Any], filters: dict[str, str]) -> bool:

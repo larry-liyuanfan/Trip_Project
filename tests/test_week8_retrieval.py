@@ -12,8 +12,10 @@ from src.retrieval.week8_relevance import (
     build_data_lock,
     claim_final_test,
     complete_final_test,
+    evaluate_latency_profiles,
     evaluate_partition,
     load_config,
+    select_latency_profile,
     select_development_method,
     sha256_file,
     validate_data_lock,
@@ -21,6 +23,7 @@ from src.retrieval.week8_relevance import (
     write_evaluation,
 )
 from src.retrieval.week8_hybrid import (
+    MetadataRankingCache,
     MilvusImageChannel,
     build_preferred_image_channel,
 )
@@ -61,6 +64,39 @@ class Week8RetrievalTests(unittest.TestCase):
             ["metadata_rerank", "hybrid_rrf", "hybrid_weighted"],
         )
         self.assertEqual(config["hybrid"]["backend_preference"], "auto")
+        latency = load_config("configs/week8/retrieval_latency_v4.json")
+        self.assertEqual(
+            latency["schema_version"],
+            "week8_retrieval_relevance_config_v4",
+        )
+        self.assertTrue(latency["split"]["development_only"])
+        self.assertEqual(latency["split"]["final_test_query_group_fraction"], 0.0)
+        self.assertEqual(
+            latency["split"]["historical_query_exclusion"]["experiment_id"],
+            "week8_retrieval_relevance_20260827_v3",
+        )
+        self.assertEqual(latency["hybrid"]["milvus_output_fields"], ["image_id"])
+        self.assertFalse(latency["hybrid"]["offline_fallback_enabled"])
+        latency_v5 = load_config("configs/week8/retrieval_latency_v5.json")
+        self.assertEqual(
+            latency_v5["schema_version"],
+            "week8_retrieval_relevance_config_v5",
+        )
+        self.assertEqual(
+            latency_v5["latency_optimization"]["metadata_cache_capacity"],
+            512,
+        )
+        self.assertEqual(
+            latency_v5["split"]["historical_query_exclusion"],
+            latency["split"]["historical_query_exclusion"],
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            invalid_path = Path(temporary) / "invalid-v5.json"
+            invalid = copy.deepcopy(latency_v5)
+            invalid["latency_optimization"]["metadata_cache_capacity"] = 511
+            invalid_path.write_text(json.dumps(invalid), encoding="utf-8")
+            with self.assertRaisesRegex(Week8RetrievalError, "locked to 512"):
+                load_config(invalid_path)
         requirements = Path("requirements-milvus.txt").read_text(encoding="utf-8")
         self.assertIn("pymilvus[milvus_lite]==2.6.16", requirements)
         self.assertIn("milvus-lite==3.2.1", requirements)
@@ -146,6 +182,58 @@ class Week8RetrievalTests(unittest.TestCase):
                     output_dir=Path(temporary) / "lock",
                 )
 
+    def test_development_only_lock_excludes_historical_query_groups_without_final_rows(self):
+        config = self._config(count=80, dimension=2)
+        config["dataset_version"] = "test-week8-retrieval-latency-v4"
+        config["split"].update(
+            {
+                "seed": 20260827,
+                "development_only": True,
+                "development_query_group_fraction": 0.3,
+                "final_test_query_group_fraction": 0.0,
+                "minimum_counts": {
+                    "index": 1,
+                    "development_query": 1,
+                    "final_test_query": 0,
+                },
+                "historical_query_exclusion": {
+                    "experiment_id": "historical-v3",
+                    "dataset_version": "historical-data-v3",
+                    "seed": 20260826,
+                    "development_query_group_fraction": 0.2,
+                    "final_test_query_group_fraction": 0.2,
+                },
+            }
+        )
+        vectors = np.asarray(
+            [[1.0, 0.0] if index % 2 == 0 else [0.0, 1.0] for index in range(80)],
+            dtype="float32",
+        )
+        metadata = [self._metadata(index) for index in range(80)]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for index, row in enumerate(metadata):
+                image = root / row["source_image_path"]
+                image.parent.mkdir(parents=True, exist_ok=True)
+                image.write_bytes(f"latency-image-{index}".encode())
+            lock = root / "lock"
+            manifest = build_data_lock(
+                config,
+                vectors,
+                metadata,
+                {"container_sha256": "a", "vectors_sha256": "b", "metadata_sha256": "c"},
+                source_project_root=root,
+                output_dir=lock,
+            )
+            _, rows = validate_data_lock(lock)
+
+        exclusion = manifest["historical_query_exclusion"]
+        self.assertEqual(exclusion["status"], "PASS")
+        self.assertGreater(exclusion["excluded_query_row_count"], 0)
+        self.assertEqual(exclusion["eligible_row_count"], sum(map(len, rows.values())))
+        self.assertEqual(rows["final_test_query"], [])
+        self.assertGreater(len(rows["development_query"]), 0)
+
     def test_metadata_rerank_improves_independent_query_relevance(self):
         config = self._config(count=4, dimension=2)
         config["evaluation"]["top_k_values"] = [1]
@@ -206,6 +294,7 @@ class Week8RetrievalTests(unittest.TestCase):
     def test_real_milvus_is_preferred_and_unavailability_is_explicit_fallback(self):
         config = self._config(count=2, dimension=2)
         config["hybrid"]["milvus_uri"] = "fixture-week8.db"
+        config["hybrid"]["milvus_output_fields"] = ["image_id"]
         vectors = np.asarray([[1.0, 0.0], [0.0, 1.0]], dtype="float32")
         metadata = [self._metadata(0), self._metadata(1)]
         index_rows = [
@@ -215,6 +304,7 @@ class Week8RetrievalTests(unittest.TestCase):
 
         class FakeMilvusClient:
             loaded = False
+            search_kwargs = None
 
             def has_collection(self, **kwargs):
                 return True
@@ -230,6 +320,7 @@ class Week8RetrievalTests(unittest.TestCase):
                 return [{"image_id": row["metadata"]["image_id"]} for row in index_rows]
 
             def search(self, **kwargs):
+                self.search_kwargs = kwargs
                 return [[{
                     "distance": 0.91,
                     "entity": {"image_id": metadata[0]["image_id"]},
@@ -249,6 +340,7 @@ class Week8RetrievalTests(unittest.TestCase):
         self.assertEqual(channel.describe()["backend"], "milvus_lite_flat_cosine")
         hits = channel.search(vectors[1], index_rows, top_k=1)
         self.assertEqual(hits[0]["row"]["metadata"]["image_id"], metadata[0]["image_id"])
+        self.assertEqual(channel.client.search_kwargs["output_fields"], ["image_id"])
 
         fallback = build_preferred_image_channel(
             config,
@@ -268,6 +360,186 @@ class Week8RetrievalTests(unittest.TestCase):
                 backend="milvus",
                 milvus_factory=lambda: (_ for _ in ()).throw(ConnectionError("service down")),
             )
+
+    def test_metadata_cache_preserves_ranking_and_latency_selector_is_fail_closed(self):
+        config = self._config(count=4, dimension=2)
+        rows = [
+            self._locked_row(
+                self._metadata(index, city="A" if index < 2 else "B"),
+                np.asarray([[1.0, 0.0]] * 4, dtype="float32"),
+                index,
+                "index",
+            )
+            for index in range(4)
+        ]
+        cache = MetadataRankingCache(config, rows, capacity=2)
+        first = cache.search(rows[0]["metadata"], top_k=2)
+        second = cache.search(rows[0]["metadata"], top_k=2)
+        self.assertEqual(first, second)
+        self.assertEqual(cache.entry_count, 1)
+        cache.search(rows[2]["metadata"], top_k=2)
+        third_signature = dict(rows[0]["metadata"])
+        third_signature["price_range"] = "budget"
+        cache.search(third_signature, top_k=2)
+        self.assertEqual(
+            cache.stats(),
+            {
+                "capacity": 2,
+                "hits": 1,
+                "misses": 3,
+                "evictions": 1,
+                "entry_count": 2,
+            },
+        )
+
+        config["latency_optimization"] = {
+            "baseline_profile": {
+                "profile_id": "pool100",
+                "candidate_pool_size": 100,
+                "metadata_cache": False,
+            },
+            "candidate_profiles": [
+                {
+                    "profile_id": "pool50",
+                    "candidate_pool_size": 50,
+                    "metadata_cache": True,
+                },
+                {
+                    "profile_id": "pool25",
+                    "candidate_pool_size": 25,
+                    "metadata_cache": True,
+                },
+            ],
+            "primary_latency_metric": "latency_p95_ms",
+            "quality_non_regression_metrics": ["ndcg_at_10", "recall_at_10"],
+            "maximum_quality_drop": 0.0,
+            "required_backend": "milvus_lite_flat_cosine",
+            "required_offline_fallback": False,
+            "required_failure_rate": 0.0,
+        }
+
+        def measured(ndcg, recall, latency):
+            return {
+                "ndcg_at_10": ndcg,
+                "recall_at_10": recall,
+                "latency_p95_ms": latency,
+                "failure_rate": 0.0,
+                "retrieval_backend": "milvus_lite_flat_cosine",
+                "offline_fallback": False,
+            }
+
+        selection = select_latency_profile(
+            config,
+            {
+                "pool100": measured(0.60, 0.20, 15.0),
+                "pool50": measured(0.60, 0.20, 12.0),
+                "pool25": measured(0.59, 0.20, 10.0),
+            },
+        )
+        self.assertEqual(selection["selected_profile"], "pool50")
+        self.assertTrue(selection["optimization_locked"])
+        self.assertIn(
+            "ndcg_at_10_regressed",
+            selection["candidate_evaluations"]["pool25"]["failures"],
+        )
+
+    def test_latency_profiles_record_bounded_cache_cost_and_counters(self):
+        config = self._config(count=4, dimension=2)
+        config["split"]["development_only"] = True
+        config["evaluation"]["top_k_values"] = [1]
+        config["evaluation"]["candidate_pool_size"] = 2
+        config["latency_optimization"] = {
+            "metadata_cache_capacity": 4,
+            "baseline_profile": {
+                "profile_id": "uncached",
+                "candidate_pool_size": 2,
+                "metadata_cache": False,
+            },
+            "candidate_profiles": [
+                {
+                    "profile_id": "lru",
+                    "candidate_pool_size": 2,
+                    "metadata_cache": True,
+                }
+            ],
+            "measurement_repeats": 2,
+            "warmup_query_count": 0,
+            "primary_latency_metric": "latency_p95_ms",
+            "quality_non_regression_metrics": ["ndcg_at_1", "recall_at_1"],
+            "maximum_quality_drop": 0.0,
+            "required_backend": "milvus_lite_flat_cosine",
+            "required_offline_fallback": False,
+            "required_failure_rate": 0.0,
+        }
+        vectors = np.asarray(
+            [[1.0, 0.0], [0.9, 0.4358899], [0.0, 1.0], [1.0, 0.0]],
+            dtype="float32",
+        )
+        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        metadata = [
+            self._metadata(0, city="A", price="mid_range"),
+            self._metadata(1, city="A", price="budget"),
+            self._metadata(2, city="B", price="budget"),
+            self._metadata(3, city="A", price="mid_range"),
+        ]
+        rows = {
+            "index": [
+                self._locked_row(metadata[index], vectors, index, "index")
+                for index in range(3)
+            ],
+            "development_query": [
+                self._locked_row(metadata[3], vectors, 3, "development_query")
+            ],
+            "final_test_query": [],
+        }
+
+        class FakeRealChannel:
+            last_latency_ms = None
+
+            def describe(self):
+                return {
+                    "backend": "milvus_lite_flat_cosine",
+                    "offline_fallback": False,
+                    "fallback_reason": None,
+                }
+
+            def search(self, query_vector, index_rows, *, top_k, filters=None):
+                hits = []
+                for row in index_rows:
+                    if filters and any(
+                        row["metadata"].get(field) != value
+                        for field, value in filters.items()
+                    ):
+                        continue
+                    hits.append(
+                        {
+                            "row": row,
+                            "image_score": float(
+                                query_vector @ vectors[row["vector_index"]]
+                            ),
+                            "source_backend": "milvus_lite_flat_cosine",
+                        }
+                    )
+                hits.sort(key=lambda hit: -hit["image_score"])
+                self.last_latency_ms = 0.01
+                return hits[:top_k]
+
+        metrics, _, _, _ = evaluate_latency_profiles(
+            config,
+            vectors,
+            metadata,
+            rows,
+            image_channel=FakeRealChannel(),
+        )
+        cached = metrics["lru"]
+        self.assertEqual(cached["metadata_cache_capacity"], 4)
+        self.assertGreaterEqual(cached["metadata_cache_precompute_ms"], 0.0)
+        self.assertGreater(cached["metadata_cache_precompute_peak_python_bytes"], 0)
+        self.assertEqual(cached["metadata_cache_precompute_misses"], 3)
+        self.assertEqual(cached["metadata_cache_measurement_hits"], 6)
+        self.assertEqual(cached["metadata_cache_measurement_misses"], 0)
+        self.assertEqual(cached["metadata_cache_evictions"], 0)
+        self.assertLessEqual(cached["metadata_cache_entry_count"], 4)
 
     def test_selection_binds_development_evidence_and_rejects_tamper(self):
         config = self._config(count=1, dimension=2)
