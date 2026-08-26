@@ -667,7 +667,7 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         )
         self.assertEqual(
             v6["product_latency"]["profiles"][1]["visual_max_pixels"],
-            1003520,
+            200704,
         )
 
     def test_v6_release_binds_bounded_visual_processor_cache(self):
@@ -677,7 +677,7 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         )
 
         self.assertEqual(release.max_new_tokens_by_scenario["image_product_search"], 384)
-        self.assertEqual(release.visual_max_pixels, 1003520)
+        self.assertEqual(release.visual_max_pixels, 200704)
         self.assertEqual(release.processor_cache_max_entries, 8)
 
     def test_v5_fixed_comparison_scores_code_assembled_contract(self):

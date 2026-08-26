@@ -34,7 +34,7 @@
       "after_sales": 512,
       "itinerary_planning": 1024
     },
-    "visual_max_pixels": 1003520,
+    "visual_max_pixels": 200704,
     "processor_cache_max_entries": 8,
     "do_sample": false,
     "temperature": 0.0,

@@ -89,7 +89,7 @@
       {
         "role": "bounded_visual_cached",
         "max_new_tokens": 384,
-        "visual_max_pixels": 1003520,
+        "visual_max_pixels": 200704,
         "processor_cache_entries": 4
       }
     ]
