@@ -61,6 +61,10 @@ _PREFERENCE_UPDATE_RE = re.compile(
     r"偏好(?:改成|调整为|设为|改为|换成)\s*"
     r"(?P<value>[^，。；,;]{1,48})"
 )
+_PACE_UPDATE_RE = re.compile(
+    r"(?:安排|行程|节奏)(?:改得|调整得|改成|调整为|设为|改为)?\s*"
+    r"(?:更)?(?P<value>松弛|轻松|悠闲|放松|紧凑|充实|快节奏)(?:一些|一点)?"
+)
 _POSITIVE_UPDATE_CUE_RE = re.compile(
     r"改成|调整为|设为|改为|换成|延长到|缩短到|增加|删除|取消|改得"
 )
@@ -1069,6 +1073,13 @@ def _deterministic_state_updates(
     ):
         updates["preference"] = preference_match.group("value").strip()
 
+    pace_match = _PACE_UPDATE_RE.search(latest_user)
+    if pace_match and not _match_is_negated(latest_user, pace_match.start()):
+        pace = pace_match.group("value")
+        updates["pace"] = (
+            "relaxed" if pace in {"松弛", "轻松", "悠闲", "放松"} else "packed"
+        )
+
     positive_cue = bool(_POSITIVE_UPDATE_CUE_RE.search(latest_user))
     negative_only = bool(_NEGATED_POSITIVE_UPDATE_RE.search(latest_user))
     needs_semantic_fallback = positive_cue and not negative_only and not updates
@@ -1122,6 +1133,7 @@ def _deterministic_dialogue_reply(
             "days": "天数",
             "city": "城市",
             "preference": "偏好",
+            "pace": "节奏",
         }
         changed = "、".join(labels.get(key, key) for key in sorted(updates))
         return f"已更新{changed}，其余已确认条件保持不变。"

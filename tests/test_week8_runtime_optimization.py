@@ -436,7 +436,7 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
 
         response = service.run_dialogue(
             DialogueRequest(
-                messages=[DialogueTurn(role="user", content="把安排改得更松弛一些")],
+                messages=[DialogueTurn(role="user", content="把安排改得更有氛围一些")],
                 state={"city": "Shanghai"},
             )
         )
@@ -457,7 +457,7 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
 
         response = service.run_dialogue(
             DialogueRequest(
-                messages=[DialogueTurn(role="user", content="把安排改得更松弛一些")],
+                messages=[DialogueTurn(role="user", content="把安排改得更有氛围一些")],
                 state={"city": "Shanghai"},
             )
         )
@@ -482,7 +482,7 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
 
         response = service.run_dialogue(
             DialogueRequest(
-                messages=[DialogueTurn(role="user", content="把安排改得更松弛一些")],
+                messages=[DialogueTurn(role="user", content="把安排改得更有氛围一些")],
                 state={"city": "Shanghai"},
             )
         )
@@ -493,6 +493,31 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         self.assertEqual(len(response.attempts), 2)
         self.assertTrue(all(item.error for item in response.attempts))
         self.assertIn("未能可靠解析", response.reply)
+
+    def test_relaxed_pace_update_is_deterministic_without_model(self):
+        backend = FakeBackend([])
+        service = ScenarioService(
+            settings(),
+            backend,
+            dialogue_prompt_version="week8_dialogue_deterministic_v4",
+            dialogue_execution_mode="deterministic_contract_v1",
+            dialogue_semantic_fallback_enabled=True,
+        )
+
+        response = service.run_dialogue(
+            DialogueRequest(
+                messages=[DialogueTurn(role="user", content="把安排改得更松弛一些")],
+                state={"city": "Shanghai", "days": 2},
+            )
+        )
+
+        self.assertEqual(
+            response.state,
+            {"city": "Shanghai", "days": 2, "pace": "relaxed"},
+        )
+        self.assertEqual(response.semantic_fallback_status, "NOT_USED")
+        self.assertEqual(response.attempts, [])
+        self.assertEqual(backend.messages, [])
 
     def test_fixed_dialogue_comparison_reports_first_turn_correction(self):
         valid = json.dumps(
@@ -718,9 +743,9 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         self.assertEqual(candidate["unexpected_state_key_count"], 0)
         self.assertEqual(candidate["failure_rate"], 0.0)
         self.assertEqual(candidate["deterministic_route_rate"], 1.0)
-        self.assertEqual(candidate["semantic_fallback_rate"], 0.2)
+        self.assertEqual(candidate["semantic_fallback_rate"], 0.0)
         self.assertEqual(candidate["semantic_fallback_safe_failure_rate"], 0.0)
-        self.assertEqual(len(backend.messages), 6)
+        self.assertEqual(len(backend.messages), 5)
 
     def test_spartan_job_allows_versioned_config_overrides(self):
         script = Path("scripts/spartan/week8_runtime_optimization.sbatch").read_text(
