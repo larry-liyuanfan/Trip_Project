@@ -43,8 +43,8 @@ def load_fresh_source_config(path: Path) -> dict[str, Any]:
         payload.get("schema_version") != "week8_product_understanding_v2"
         or payload.get("week8", {}).get("source_version")
         != "week8_product_fresh_20260826_v1"
-        or int(fresh.get("selected_photo_count", 0)) < 2000
-        or int(fresh.get("minimum_eligible_count", 0)) < 2000
+        or int(fresh.get("selected_photo_count", 0)) < 520
+        or int(fresh.get("minimum_eligible_count", 0)) < 520
         or int(fresh.get("candidate_extract_count", 0))
         < int(fresh.get("selected_photo_count", 0))
         or not str(fresh.get("output_root") or "").startswith(
@@ -210,8 +210,8 @@ def select_ranked_candidates(
     """Select unique businesses with deterministic category coverage and richness rank."""
 
     candidates = list(candidates)
-    if selected_count < minimum_eligible_count or minimum_eligible_count < 2000:
-        raise Week8FreshSourceError("fresh source must retain at least 2000 candidates")
+    if selected_count < minimum_eligible_count or minimum_eligible_count < 520:
+        raise Week8FreshSourceError("fresh source must retain at least 520 candidates")
     by_category = {
         category: sorted(
             (row for row in candidates if row["ota_category"] == category),

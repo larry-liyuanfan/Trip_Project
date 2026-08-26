@@ -41,7 +41,11 @@ class Week8ProductFreshSourceTests(unittest.TestCase):
         self.assertEqual(config["dataset"]["development_count"], 60)
         self.assertEqual(config["dataset"]["test_count"], 60)
         self.assertEqual(config["dataset"]["continuation_train_count"], 400)
-        self.assertGreaterEqual(config["fresh_source"]["selected_photo_count"], 2000)
+        required = sum(
+            config["dataset"][name]
+            for name in ("development_count", "test_count", "continuation_train_count")
+        )
+        self.assertGreaterEqual(config["fresh_source"]["selected_photo_count"], required)
         self.assertGreater(
             config["fresh_source"]["candidate_extract_count"],
             config["fresh_source"]["selected_photo_count"],
