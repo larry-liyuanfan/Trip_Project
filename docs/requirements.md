@@ -613,7 +613,7 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - 导师要求提出若干 Week 8 优化方向供其调整任务。当前只输出证据、候选方向和建议验收
   指标，不把任何候选写成已确定 Week 8 计划。
 
-## Week 8：商品理解专项优化（2026-08-26）
+## Week 8：四方向并行优化（2026-08-26）
 
 ### 导师确认范围
 
@@ -629,10 +629,35 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   则锁定 Prompt；仅当主要语义错误仍未解决时，允许从当前正式 adapter 进行一次低学习率、
   最多 1 epoch、LoRA 结构不变的商品 continuation SFT，`silver` 权重不高于 0.5，并只用
   development 选择 checkpoint。
-- 商品主任务产生可复现结果后，才允许小范围修复对话首轮路由，并在固定模型、adapter、
-  Prompt、硬件和图片上建立商品延迟基准与低风险优化；质量不得回退。
-- 不实现检索重标注、复杂重排、新检索数据集、模型换代、训练框架重写、Web UI、云迁移、
-  Spartan/OSS 留存或其他扩展，也不生成导师未要求的新方向或后续周计划。
+
+### 用户最新并行授权
+
+- 用户最新指令取代此前“商品完成后才处理次要项”和“不执行检索优化”的限制。Week 8
+  仅并行推进既有四个方向：商品理解、对话首轮路由与状态协议、推理延迟与显存、检索
+  相关性与业务闭环；不得据此发明第五个方向或后续周计划。
+- 并行审计本地、Spartan 和阿里云已有数据与运行资产；缺失时允许从合法现有来源重新下载
+  或再生成中间数据。不得新增人工标注，自动或模型生成标签统一保留 `silver` 身份；所有
+  新数据、配置和运行使用版本化身份，并通过 sample/source/image/group/template 五维隔离及
+  历史消费排除。
+- 商品方向覆盖业态、多主体、风格/设施多标签、价位证据、`unknown` 和语义完整性；仍按
+  固定 development 比较三种 Prompt，只有 Prompt 不足时才允许一次既定约束的 continuation
+  SFT，方案锁定后新 test 仅消费一次。
+- 对话方向修复首轮专属路由、三键契约、状态更新、纠错触发与工具边界，在固定样本上报告
+  首轮格式、纠错、上下文、状态、任务值、工具协议和失败率；Week 7 严格门禁历史结论保持
+  不可变。
+- 性能方向先在固定模型、adapter、Prompt、硬件和图片上建立重复冷/热基准，再比较视觉
+  token/图片尺寸、输出长度、缓存、量化加载和可用后端；报告冷启动、首请求、P50/P95、
+  峰值显存、tokens/s、token 与失败率，并复测三核心场景及 `DIALOGUE_BETA`，禁止以质量
+  回退换速度。
+- 检索方向仅复用现有图片和 metadata 建立独立 query/index split，验证城市、业态和价位
+  过滤，比较纯 CLIP 与轻量 rerank，并验证结果进入商品搜索或行程推荐后的可追溯引用；
+  报告 Recall@K、NDCG@K、过滤正确率、无结果率、平均/P95 延迟、引用率和失败率。不得新增
+  人工相关性重标注、复杂重排或新业务数据采集。
+- 四个方向允许并行，但各自内部的数据锁、development 选择、一次性 test、质量非回退和
+  不可覆盖证据顺序不变。Week 3、Week 6、Week 7、system repair 的冻结资产及已消费 test
+  不得覆盖或用于调参。
+- 本轮不授权模型换代、DPO/GRPO/RL、无验证长推理、训练框架重写、Web UI、云迁移或
+  Spartan/OSS 留存；未实际运行的结果必须如实标记未完成。
 
 ### 交付边界
 
