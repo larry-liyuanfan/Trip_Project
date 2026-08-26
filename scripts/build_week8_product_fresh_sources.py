@@ -39,16 +39,23 @@ def load_fresh_source_config(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as exc:
         raise Week8FreshSourceError(f"invalid Week 8 fresh-source config: {path}") from exc
     fresh = payload.get("fresh_source", {})
+    supported_identities = {
+        "week8_product_understanding_v2": "week8_product_fresh_20260826_v1",
+        "week8_product_understanding_v5": "week8_product_fresh_20260827_v2",
+        "week8_product_understanding_v6": "week8_product_fresh_20260827_v3",
+    }
     supported_identity = (
-        ("week8_product_understanding_v2", "week8_product_fresh_20260826_v1")
-        if payload.get("schema_version") == "week8_product_understanding_v2"
-        else ("week8_product_understanding_v5", "week8_product_fresh_20260827_v2")
+        payload.get("schema_version"),
+        supported_identities.get(str(payload.get("schema_version"))),
     )
     category_minimums = fresh.get("minimum_per_ota_category_by_category")
     candidate_category_minimums = fresh.get(
         "candidate_minimum_per_ota_category_by_category"
     )
-    if payload.get("schema_version") == "week8_product_understanding_v5":
+    if payload.get("schema_version") in {
+        "week8_product_understanding_v5",
+        "week8_product_understanding_v6",
+    }:
         expected_categories = {"hotel", "attraction", "restaurant"}
         if (
             not isinstance(category_minimums, dict)
@@ -63,8 +70,8 @@ def load_fresh_source_config(path: Path) -> dict[str, Any]:
         ):
             raise Week8FreshSourceError("Week 8 v5 category minima are incomplete")
     if (
-        (payload.get("schema_version"), payload.get("week8", {}).get("source_version"))
-        != supported_identity
+        supported_identity[1] is None
+        or payload.get("week8", {}).get("source_version") != supported_identity[1]
         or int(fresh.get("selected_photo_count", 0)) < 520
         or int(fresh.get("minimum_eligible_count", 0)) < 520
         or int(fresh.get("candidate_extract_count", 0))
@@ -773,11 +780,11 @@ def build_fresh_sources(
     if any(value != len(selected) for value in dimension_counts.values()):
         raise Week8FreshSourceError("fresh identity dimensions are not unique")
     manifest = {
-        "schema_version": (
-            "week8_product_fresh_source_v2"
-            if config["week8"]["source_version"].endswith("_v2")
-            else "week8_product_fresh_source_v1"
-        ),
+        "schema_version": {
+            "week8_product_fresh_20260826_v1": "week8_product_fresh_source_v1",
+            "week8_product_fresh_20260827_v2": "week8_product_fresh_source_v2",
+            "week8_product_fresh_20260827_v3": "week8_product_fresh_source_v3",
+        }[config["week8"]["source_version"]],
         "status": "COMPLETED",
         "build_id": fresh["build_id"],
         "source_version": config["week8"]["source_version"],

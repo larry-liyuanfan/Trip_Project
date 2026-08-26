@@ -13,6 +13,7 @@ from scripts.build_week8_product_fresh_sources import (
     build_fresh_sources,
     caption_signals,
     collect_fresh_candidates,
+    load_fresh_source_config,
     ota_category,
     select_extraction_candidates,
     select_ranked_candidates,
@@ -228,6 +229,25 @@ class Week8ProductFreshSourceTests(unittest.TestCase):
             sum(split_minimums[split]["attraction"] for split in split_minimums),
             7,
         )
+
+    def test_v6_records_observed_post_hash_category_ceiling(self):
+        config = load_fresh_source_config(
+            Path("configs/week8/product_understanding_v6.json")
+        )
+
+        self.assertEqual(config["schema_version"], "week8_product_understanding_v6")
+        self.assertEqual(
+            config["week8"]["source_version"],
+            "week8_product_fresh_20260827_v3",
+        )
+        self.assertEqual(
+            config["fresh_source"]["minimum_per_ota_category_by_category"],
+            {"hotel": 1, "attraction": 7, "restaurant": 500},
+        )
+        split_minimums = config["dataset"]["split_category_minimums"]
+        self.assertEqual(split_minimums["test"]["hotel"], 1)
+        self.assertEqual(split_minimums["development"]["hotel"], 0)
+        self.assertEqual(split_minimums["train"]["hotel"], 0)
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
