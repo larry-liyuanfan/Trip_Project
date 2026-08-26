@@ -42,6 +42,7 @@ def load_runtime_benchmark_config(root: Path, path: Path) -> dict[str, Any]:
         "week8_runtime_optimization_config_v4",
         "week8_runtime_optimization_config_v5",
         "week8_runtime_optimization_config_v6",
+        "week8_runtime_optimization_config_v7",
     }:
         raise Week8RuntimeBenchmarkError("unexpected runtime benchmark schema_version")
     profiles = payload.get("dialogue", {}).get("profiles", [])

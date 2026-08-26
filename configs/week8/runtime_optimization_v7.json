@@ -1,0 +1,97 @@
+{
+  "schema_version": "week8_runtime_optimization_config_v7",
+  "dialogue": {
+    "run_id": "week8_dialogue_deterministic_development_20260827_v7",
+    "label_provenance": "programmatic_silver",
+    "human_annotation_count": 0,
+    "human_review_count": 0,
+    "human_acceptance_count": 0,
+    "profiles": [
+      {
+        "role": "current",
+        "prompt_version": "week8_dialogue_first_turn_v2",
+        "max_new_tokens": 384,
+        "execution_mode": "model_generated_contract",
+        "semantic_fallback_enabled": false
+      },
+      {
+        "role": "candidate",
+        "prompt_version": "week8_dialogue_deterministic_v4",
+        "max_new_tokens": 128,
+        "execution_mode": "deterministic_contract_v1",
+        "semantic_fallback_enabled": true
+      }
+    ],
+    "cases": [
+      {
+        "case_id": "dialogue-product-image-first-turn",
+        "request": {
+          "messages": [{"role": "user", "content": "参考这张图，推荐安静、预算适中的两日行程。"}],
+          "image_urls": ["data/samples/images/cafe_001.jpg"],
+          "state": {"city": "Shanghai", "days": 2}
+        },
+        "expected_state": {"city": "Shanghai", "days": 2}
+      },
+      {
+        "case_id": "dialogue-budget-update-first-turn",
+        "request": {
+          "messages": [{"role": "user", "content": "预算改成 2000 元，其余条件保持不变。"}],
+          "image_urls": ["data/samples/images/cafe_001.jpg"],
+          "state": {"city": "Shanghai", "days": 2, "preference": "quiet"}
+        },
+        "expected_state": {"city": "Shanghai", "days": 2, "preference": "quiet", "budget": 2000}
+      },
+      {
+        "case_id": "dialogue-history-carryover-first-turn",
+        "request": {
+          "messages": [{"role": "user", "content": "沿用之前结果，把行程调整为三天。"}],
+          "image_urls": ["data/samples/images/cafe_001.jpg"],
+          "state": {"city": "Shanghai", "days": 2, "last_result_id": "fixed-result-001"}
+        },
+        "expected_state": {"city": "Shanghai", "days": 3, "last_result_id": "fixed-result-001"}
+      },
+      {
+        "case_id": "dialogue-assistant-history-image-binding",
+        "request": {
+          "messages": [
+            {"role": "assistant", "content": "我会继续承接已确认条件。"},
+            {"role": "user", "content": "结合新图片继续推荐，不要改变城市。"}
+          ],
+          "image_urls": ["data/samples/images/cafe_001.jpg"],
+          "state": {"city": "Shanghai", "preference": "quiet"}
+        },
+        "expected_state": {"city": "Shanghai", "preference": "quiet"}
+      },
+      {
+        "case_id": "dialogue-explicit-pace-update",
+        "request": {
+          "messages": [{"role": "user", "content": "把安排改得更松弛一些，其他条件保持不变。"}],
+          "image_urls": [],
+          "state": {"city": "Shanghai", "days": 2}
+        },
+        "expected_state": {"city": "Shanghai", "days": 2, "pace": "relaxed"}
+      }
+    ]
+  },
+  "product_latency": {
+    "run_id": "week8_product_real_image_latency_20260827_v7",
+    "image": "data/samples/images/cafe_001.jpg",
+    "text_context": null,
+    "warmup_runs": 1,
+    "measured_runs": 5,
+    "profiles": [
+      {
+        "role": "current",
+        "max_new_tokens": 512,
+        "visual_max_pixels": null,
+        "processor_cache_entries": 0
+      },
+      {
+        "role": "selected_release",
+        "max_new_tokens": 384,
+        "visual_max_pixels": null,
+        "processor_cache_entries": 0
+      }
+    ]
+  }
+}

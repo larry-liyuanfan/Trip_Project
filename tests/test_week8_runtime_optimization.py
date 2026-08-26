@@ -661,6 +661,10 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             Path.cwd(),
             Path("configs/week8/runtime_optimization_v6.json"),
         )
+        v7 = load_runtime_benchmark_config(
+            Path.cwd(),
+            Path("configs/week8/runtime_optimization_v7.json"),
+        )
 
         self.assertEqual(len(v1["dialogue"]["cases"]), 4)
         self.assertEqual(v1["product_latency"]["measured_runs"], 5)
@@ -694,6 +698,10 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             v6["product_latency"]["profiles"][1]["visual_max_pixels"],
             200704,
         )
+        self.assertEqual(
+            v7["dialogue"]["cases"][-1]["expected_state"]["pace"],
+            "relaxed",
+        )
 
     def test_v6_release_binds_bounded_visual_processor_cache(self):
         release = ReleaseSettings.load(
@@ -704,6 +712,16 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
         self.assertEqual(release.max_new_tokens_by_scenario["image_product_search"], 384)
         self.assertEqual(release.visual_max_pixels, 200704)
         self.assertEqual(release.processor_cache_max_entries, 8)
+
+    def test_v7_release_rejects_unproven_cache_and_visual_cap(self):
+        release = ReleaseSettings.load(
+            root=Path.cwd(),
+            config_path=Path("configs/releases/qwen3_vl_system_week8_v7.json"),
+        )
+
+        self.assertEqual(release.max_new_tokens_by_scenario["image_product_search"], 384)
+        self.assertIsNone(release.visual_max_pixels)
+        self.assertEqual(release.processor_cache_max_entries, 0)
 
     def test_v5_fixed_comparison_scores_code_assembled_contract(self):
         release = ReleaseSettings.load(
