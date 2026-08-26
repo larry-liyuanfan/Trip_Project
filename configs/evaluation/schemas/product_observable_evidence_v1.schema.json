@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Product Observable Evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "subject_category",
+    "subject_clarity",
+    "style_cues",
+    "facility_cues",
+    "price_text",
+    "observable_facts",
+    "uncertainty_reasons"
+  ],
+  "properties": {
+    "subject_category": {
+      "enum": ["hotel", "restaurant", "attraction", "unknown"]
+    },
+    "subject_clarity": {
+      "enum": ["clear", "multiple", "ambiguous", "occluded"]
+    },
+    "style_cues": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 8,
+      "items": {
+        "enum": ["casual", "classy", "cozy", "historic", "modern", "romantic", "rustic", "trendy", "upscale", "vintage"]
+      }
+    },
+    "facility_cues": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 10,
+      "items": {
+        "enum": ["bar", "outdoor_seating", "pool", "front_desk", "parking", "wifi", "wheelchair_access", "gym", "spa", "playground"]
+      }
+    },
+    "price_text": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 4,
+      "items": {"type": "string", "minLength": 1, "maxLength": 40}
+    },
+    "observable_facts": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 8,
+      "items": {"type": "string", "minLength": 1, "maxLength": 80}
+    },
+    "uncertainty_reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 5,
+      "items": {
+        "enum": ["no_clear_subject", "multiple_subjects", "occluded_subject", "no_style_evidence", "no_facility_evidence", "no_price_evidence"]
+      }
+    }
+  }
+}

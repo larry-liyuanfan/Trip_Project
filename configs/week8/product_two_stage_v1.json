@@ -1,0 +1,64 @@
+{
+  "schema_version": "week8_product_two_stage_v1",
+  "product_config_path": "configs/week8/product_understanding_v4.json",
+  "policy": {
+    "human_annotation": false,
+    "human_review": false,
+    "human_acceptance": false,
+    "new_label_provenance": "programmatic_silver",
+    "final_test_access": "forbidden"
+  },
+  "model": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "adapter_path_env": "TRIP_INITIAL_ADAPTER_DIR",
+    "adapter_model_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a",
+    "expected_checkpoint": "checkpoint-87"
+  },
+  "two_stage": {
+    "evidence_schema_path": "configs/evaluation/schemas/product_observable_evidence_v1.schema.json",
+    "evidence_schema_version": "product_observable_evidence_v1",
+    "system_prompt": "你是商品图片可观察证据抽取器。只记录图片中可直接观察的短事实，不输出推理过程，不使用商家元数据，不猜测。",
+    "task_prompt": "识别主主体清晰度、可直接观察的业态线索、风格线索、设施线索和原样可见价格文字。没有证据时保留空数组或 unknown。只输出指定 JSON。",
+    "max_new_tokens": 256,
+    "max_schema_retries": 1,
+    "price_mapping_policy": "explicit_tier_words_only",
+    "style_vocabulary": ["casual", "classy", "cozy", "historic", "modern", "romantic", "rustic", "trendy", "upscale", "vintage"],
+    "facility_vocabulary": ["bar", "outdoor_seating", "pool", "front_desk", "parking", "wifi", "wheelchair_access", "gym", "spa", "playground"]
+  },
+  "hard_slice_data": {
+    "dataset_version": "week8_product_hard_slice_silver_20260827_v1",
+    "output_root": "outputs/week8/product_two_stage_v1/hard_slice_data",
+    "source_splits": ["train", "development"],
+    "train_count": 400,
+    "development_count": 60,
+    "maximum_silver_weight": 0.5,
+    "category_weights": {
+      "hotel": 0.5,
+      "attraction": 0.5,
+      "restaurant": 0.35,
+      "unknown": 0.5
+    },
+    "unknown_negative_weight": 0.5,
+    "category_resampling": "loss_weighted_without_identity_duplication"
+  },
+  "continuation": {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.08,
+    "bias": "none",
+    "expected_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "visual.merger.linear_fc1", "visual.merger.linear_fc2"],
+    "learning_rate": 1e-05,
+    "epochs": 1,
+    "gradient_accumulation_steps": 8,
+    "evaluation_fraction_steps": 0.1,
+    "early_stopping_patience": 3,
+    "max_length": 8192,
+    "save_total_limit": 12
+  },
+  "experiment_identity": {
+    "hard_slice_build_id": "week8_product_hard_slice_build_20260827_v1",
+    "development_run_id": "week8_product_two_stage_development_20260827_v1",
+    "continuation_run_id": "week8_product_two_stage_continuation_sft_20260827_v1"
+  }
+}

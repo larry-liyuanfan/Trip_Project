@@ -78,6 +78,7 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
         "week8_product_understanding_v2",
         "week8_product_understanding_v3",
         "week8_product_understanding_v4",
+        "week8_product_understanding_v5",
     }:
         raise Week8ProductError("unsupported Week 8 product config")
     dataset = payload.get("dataset", {})
@@ -93,19 +94,27 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
         raise Week8ProductError("Week 8 must compare exactly the three approved Prompt roles")
     if payload.get("schema_version") != "week8_product_understanding_v1":
         fresh = payload.get("fresh_source", {})
+        expected_source_version = (
+            "week8_product_fresh_20260827_v2"
+            if payload.get("schema_version") == "week8_product_understanding_v5"
+            else "week8_product_fresh_20260826_v1"
+        )
         if (
             payload.get("week8", {}).get("source_version")
-            != "week8_product_fresh_20260826_v1"
+            != expected_source_version
             or int(fresh.get("selected_photo_count", 0)) < 520
             or int(fresh.get("minimum_eligible_count", 0)) < 520
             or int(fresh.get("candidate_extract_count", 0))
             < int(fresh.get("selected_photo_count", 0))
             or not str(fresh.get("output_root") or "").startswith(
-                "data/yelp/week8_product_fresh_20260826_v1"
+                f"data/yelp/{expected_source_version}"
             )
         ):
             raise Week8ProductError("Week 8 v2 fresh-source identity is incomplete")
-    if payload.get("schema_version") == "week8_product_understanding_v4":
+    if payload.get("schema_version") in {
+        "week8_product_understanding_v4",
+        "week8_product_understanding_v5",
+    }:
         support = dataset.get("split_field_support_minimums", {})
         split_sizes = {
             "development": int(dataset.get("development_count", 0)),
@@ -119,6 +128,26 @@ def load_week8_product_config(path: Path) -> dict[str, Any]:
             for field in ("style", "facility")
         ):
             raise Week8ProductError("Week 8 v4 field support contract is incomplete")
+    if payload.get("schema_version") == "week8_product_understanding_v5":
+        expected_categories = {"hotel", "attraction", "restaurant"}
+        fresh_minimums = payload.get("fresh_source", {}).get(
+            "minimum_per_ota_category_by_category"
+        )
+        split_minimums = dataset.get("split_category_minimums", {})
+        if (
+            not isinstance(fresh_minimums, dict)
+            or set(fresh_minimums) != expected_categories
+            or any(int(fresh_minimums[key]) <= 0 for key in expected_categories)
+            or any(
+                sum(
+                    int(split_minimums.get(split, {}).get(category, 0))
+                    for split in ("development", "test", "train")
+                )
+                > int(fresh_minimums[category])
+                for category in expected_categories
+            )
+        ):
+            raise Week8ProductError("Week 8 v5 category support contract is infeasible")
     return payload
 
 
@@ -132,6 +161,7 @@ def _validate_fresh_source_manifest(
         if config["schema_version"] in {
             "week8_product_understanding_v3",
             "week8_product_understanding_v4",
+            "week8_product_understanding_v5",
         }:
             raise Week8ProductError("v3 fresh-source manifest identity is missing")
         return {}

@@ -39,17 +39,40 @@ def load_fresh_source_config(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as exc:
         raise Week8FreshSourceError(f"invalid Week 8 fresh-source config: {path}") from exc
     fresh = payload.get("fresh_source", {})
+    supported_identity = (
+        ("week8_product_understanding_v2", "week8_product_fresh_20260826_v1")
+        if payload.get("schema_version") == "week8_product_understanding_v2"
+        else ("week8_product_understanding_v5", "week8_product_fresh_20260827_v2")
+    )
+    category_minimums = fresh.get("minimum_per_ota_category_by_category")
+    candidate_category_minimums = fresh.get(
+        "candidate_minimum_per_ota_category_by_category"
+    )
+    if payload.get("schema_version") == "week8_product_understanding_v5":
+        expected_categories = {"hotel", "attraction", "restaurant"}
+        if (
+            not isinstance(category_minimums, dict)
+            or set(category_minimums) != expected_categories
+            or not isinstance(candidate_category_minimums, dict)
+            or set(candidate_category_minimums) != expected_categories
+            or any(int(category_minimums[key]) <= 0 for key in expected_categories)
+            or any(
+                int(candidate_category_minimums[key]) < int(category_minimums[key])
+                for key in expected_categories
+            )
+        ):
+            raise Week8FreshSourceError("Week 8 v5 category minima are incomplete")
     if (
-        payload.get("schema_version") != "week8_product_understanding_v2"
-        or payload.get("week8", {}).get("source_version")
-        != "week8_product_fresh_20260826_v1"
+        (payload.get("schema_version"), payload.get("week8", {}).get("source_version"))
+        != supported_identity
         or int(fresh.get("selected_photo_count", 0)) < 520
         or int(fresh.get("minimum_eligible_count", 0)) < 520
         or int(fresh.get("candidate_extract_count", 0))
         < int(fresh.get("selected_photo_count", 0))
         or not str(fresh.get("output_root") or "").startswith(
-            "data/yelp/week8_product_fresh_20260826_v1"
+            f"data/yelp/{payload.get('week8', {}).get('source_version', '')}"
         )
+        or int(fresh.get("max_candidates_per_business", 1)) not in range(1, 17)
     ):
         raise Week8FreshSourceError("Week 8 v2 fresh-source identity is incomplete")
     return payload
@@ -199,17 +222,35 @@ def _candidate_key(candidate: dict[str, Any]) -> tuple[int, str, str]:
     )
 
 
+def _category_minimum(value: int | dict[str, int], category: str) -> int:
+    if isinstance(value, dict):
+        minimum = int(value.get(category, 0))
+    else:
+        minimum = int(value)
+    if minimum < 0:
+        raise Week8FreshSourceError("fresh category minimum cannot be negative")
+    return minimum
+
+
 def select_ranked_candidates(
     candidates: Iterable[dict[str, Any]],
     *,
     selected_count: int,
     minimum_eligible_count: int,
-    minimum_per_category: int,
+    minimum_per_category: int | dict[str, int],
     retain_all_categories_below: int = 0,
 ) -> list[dict[str, Any]]:
     """Select unique businesses with deterministic category coverage and richness rank."""
 
-    candidates = list(candidates)
+    # Hash/readability filtering happens before this function. Keep only the
+    # best surviving photo for each business so a rejected first choice can
+    # fall back to another photo without duplicating groups in the final pool.
+    best_by_business: dict[str, dict[str, Any]] = {}
+    for row in candidates:
+        previous = best_by_business.get(str(row["business_id"]))
+        if previous is None or _candidate_key(row) < _candidate_key(previous):
+            best_by_business[str(row["business_id"])] = row
+    candidates = list(best_by_business.values())
     if selected_count < minimum_eligible_count or minimum_eligible_count < 520:
         raise Week8FreshSourceError("fresh source must retain at least 520 candidates")
     by_category = {
@@ -222,14 +263,14 @@ def select_ranked_candidates(
     short = {
         category: len(rows)
         for category, rows in by_category.items()
-        if len(rows) < minimum_per_category
+        if len(rows) < _category_minimum(minimum_per_category, category)
     }
     if short:
         raise Week8FreshSourceError(f"fresh OTA category support shortfall: {short}")
     selected: list[dict[str, Any]] = []
     selected_ids: set[str] = set()
     for category in ("hotel", "attraction", "restaurant"):
-        reserve_count = minimum_per_category
+        reserve_count = _category_minimum(minimum_per_category, category)
         if 0 < len(by_category[category]) < retain_all_categories_below:
             reserve_count = len(by_category[category])
         for row in by_category[category][:reserve_count]:
@@ -254,14 +295,82 @@ def select_ranked_candidates(
     return sorted(selected, key=_candidate_key)
 
 
+def select_extraction_candidates(
+    candidates: Iterable[dict[str, Any]],
+    *,
+    selected_count: int,
+    minimum_per_category: int | dict[str, int],
+    retain_all_categories_below: int,
+) -> list[dict[str, Any]]:
+    """Select a category-balanced, business-layered pool before hash validation."""
+
+    candidates = list(candidates)
+    by_category_business: dict[str, dict[str, list[dict[str, Any]]]] = {
+        category: {} for category in OTA_CATEGORY_TERMS
+    }
+    for row in candidates:
+        category = str(row["ota_category"])
+        business_id = str(row["business_id"])
+        by_category_business[category].setdefault(business_id, []).append(row)
+    for business_rows in by_category_business.values():
+        for rows in business_rows.values():
+            rows.sort(key=_candidate_key)
+
+    # 先按 business 最佳图排序并锁定类别覆盖，再逐层加入同 business 的
+    # 第 2/3/... 张图；历史哈希撞车后仍有回退，同时不会让少数商户挤占类别预算。
+    reserved_businesses: dict[str, list[list[dict[str, Any]]]] = {}
+    for category in ("hotel", "attraction", "restaurant"):
+        ranked = sorted(
+            by_category_business[category].values(), key=lambda rows: _candidate_key(rows[0])
+        )
+        reserve = _category_minimum(minimum_per_category, category)
+        if 0 < len(ranked) < retain_all_categories_below:
+            reserve = len(ranked)
+        reserved_businesses[category] = ranked[:reserve]
+
+    selected: list[dict[str, Any]] = []
+    selected_ids: set[str] = set()
+    max_layers = max(
+        (len(rows) for groups in reserved_businesses.values() for rows in groups),
+        default=0,
+    )
+    for layer in range(max_layers):
+        for category in ("hotel", "attraction", "restaurant"):
+            for rows in reserved_businesses[category]:
+                if layer >= len(rows):
+                    continue
+                row = rows[layer]
+                if row["photo_id"] not in selected_ids:
+                    selected.append(row)
+                    selected_ids.add(row["photo_id"])
+                if len(selected) == selected_count:
+                    return sorted(selected, key=_candidate_key)
+    remaining = sorted(
+        (row for row in candidates if row["photo_id"] not in selected_ids),
+        key=_candidate_key,
+    )
+    selected.extend(remaining[: max(0, selected_count - len(selected))])
+    if len(selected) != selected_count:
+        raise Week8FreshSourceError(
+            f"fresh extraction candidate shortfall: {len(selected)}/{selected_count}"
+        )
+    if len({row["photo_id"] for row in selected}) != len(selected):
+        raise Week8FreshSourceError("fresh extraction candidates duplicate photo IDs")
+    return sorted(selected, key=_candidate_key)
+
+
 def collect_fresh_candidates(
     photos_path: Path,
     businesses_path: Path,
     consumed: dict[str, set[str]],
     *,
     seed: int,
+    max_candidates_per_business: int = 1,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Choose the best captioned, historically unconsumed photo for each OTA business."""
+    """Keep bounded ranked photos per eligible business before image-hash filtering."""
+
+    if max_candidates_per_business not in range(1, 17):
+        raise Week8FreshSourceError("max_candidates_per_business must be in [1, 16]")
 
     business_columns = [
         "business_id",
@@ -288,7 +397,7 @@ def collect_fresh_candidates(
         businesses[business_id] = row
         category_counts[f"eligible_business_{category}"] += 1
 
-    best_by_business: dict[str, dict[str, Any]] = {}
+    candidates_by_business: dict[str, list[dict[str, Any]]] = {}
     photo_counts: Counter[str] = Counter()
     for row in _parquet_rows(
         photos_path, ["photo_id", "business_id", "caption", "label"]
@@ -327,14 +436,18 @@ def collect_fresh_candidates(
             ).hexdigest(),
             "business": business,
         }
-        previous = best_by_business.get(business_id)
-        if previous is None or _candidate_key(candidate) < _candidate_key(previous):
-            best_by_business[business_id] = candidate
-    candidates = list(best_by_business.values())
+        candidates_by_business.setdefault(business_id, []).append(candidate)
+    candidates = []
+    for rows in candidates_by_business.values():
+        candidates.extend(
+            sorted(rows, key=_candidate_key)[:max_candidates_per_business]
+        )
     stats = {
         "business_filter_counts": dict(sorted(category_counts.items())),
         "photo_filter_counts": dict(sorted(photo_counts.items())),
-        "unique_eligible_business_photo_count": len(candidates),
+        "unique_eligible_business_count": len(candidates_by_business),
+        "bounded_eligible_photo_candidate_count": len(candidates),
+        "max_candidates_per_business": max_candidates_per_business,
         "eligible_category_counts": dict(
             sorted(Counter(row["ota_category"] for row in candidates).items())
         ),
@@ -427,12 +540,18 @@ def build_fresh_sources(
         businesses_path,
         consumed,
         seed=int(config["week8"]["seed"]),
+        max_candidates_per_business=int(fresh.get("max_candidates_per_business", 1)),
     )
-    candidate_pool = select_ranked_candidates(
+    candidate_pool = select_extraction_candidates(
         candidates,
         selected_count=int(fresh["candidate_extract_count"]),
-        minimum_eligible_count=int(fresh["minimum_eligible_count"]),
-        minimum_per_category=int(fresh["minimum_per_ota_category"]),
+        minimum_per_category=(
+            fresh.get("candidate_minimum_per_ota_category_by_category")
+            or int(fresh.get(
+                "candidate_minimum_per_ota_category",
+                fresh["minimum_per_ota_category"],
+            ))
+        ),
         retain_all_categories_below=int(fresh["retain_all_categories_below"]),
     )
 
@@ -516,7 +635,10 @@ def build_fresh_sources(
         validated_candidates,
         selected_count=int(fresh["selected_photo_count"]),
         minimum_eligible_count=int(fresh["minimum_eligible_count"]),
-        minimum_per_category=int(fresh["minimum_per_ota_category"]),
+        minimum_per_category=(
+            fresh.get("minimum_per_ota_category_by_category")
+            or int(fresh["minimum_per_ota_category"])
+        ),
         retain_all_categories_below=int(fresh["retain_all_categories_below"]),
     )
 
@@ -651,7 +773,11 @@ def build_fresh_sources(
     if any(value != len(selected) for value in dimension_counts.values()):
         raise Week8FreshSourceError("fresh identity dimensions are not unique")
     manifest = {
-        "schema_version": "week8_product_fresh_source_v1",
+        "schema_version": (
+            "week8_product_fresh_source_v2"
+            if config["week8"]["source_version"].endswith("_v2")
+            else "week8_product_fresh_source_v1"
+        ),
         "status": "COMPLETED",
         "build_id": fresh["build_id"],
         "source_version": config["week8"]["source_version"],
@@ -680,6 +806,22 @@ def build_fresh_sources(
         },
         "filter_statistics": filter_stats,
         "candidate_extract_count": len(candidate_pool),
+        "candidate_selection": {
+            "strategy": "category_balanced_business_layered_fallback",
+            "category_counts": dict(
+                sorted(Counter(row["ota_category"] for row in candidate_pool).items())
+            ),
+            "unique_business_counts": {
+                category: len(
+                    {
+                        row["business_id"]
+                        for row in candidate_pool
+                        if row["ota_category"] == category
+                    }
+                )
+                for category in ("hotel", "attraction", "restaurant")
+            },
+        },
         "validated_candidate_count": len(validated_candidates),
         "candidate_rejection_counts": dict(sorted(hash_rejections.items())),
         "candidate_rejections": {
@@ -689,6 +831,13 @@ def build_fresh_sources(
         },
         "selected_photo_count": len(selected),
         "minimum_eligible_count": int(fresh["minimum_eligible_count"]),
+        "minimum_per_ota_category": (
+            fresh.get("minimum_per_ota_category_by_category")
+            or {
+                category: int(fresh["minimum_per_ota_category"])
+                for category in ("hotel", "attraction", "restaurant")
+            }
+        ),
         "category_counts": category_counts,
         "caption_source_counts": dict(
             sorted(Counter(row["caption_source"] for row in identity_rows).items())
