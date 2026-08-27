@@ -33,6 +33,7 @@ def summary(composite: float, latency: float = 1000.0) -> dict:
         "schema_pass": 60,
     }
     return {
+        "reference_semantics": {"visual_accuracy_claim_supported": True, "metadata_proxy_samples": 0, "issue_counts": {}},
         "scenarios": {
             "image_product_search": {
                 "composite": composite,

@@ -37,4 +37,3 @@ python -m venv "$TRIP_DATA_VENV"
 "$TRIP_DATA_VENV/bin/python" -m pip install -r "$TRIP_PROJECT_ROOT/requirements-data.txt"
 "$TRIP_DATA_VENV/bin/python" -m pip check
 "$TRIP_DATA_VENV/bin/python" -c 'import pyarrow; print(pyarrow.__version__)'
-

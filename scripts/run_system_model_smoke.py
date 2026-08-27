@@ -18,6 +18,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.inference.schemas import DialogueRequest, TaskRequest
+from src.evaluation.schema_validation import validate_output
+from src.inference.transport_utils import strip_json_fence
 from src.inference.system_runtime import (
     ModelGenerationError,
     ReleaseSettings,
@@ -35,15 +37,23 @@ def run_model_smoke(service: ScenarioService, image_path: Path) -> dict[str, Any
         "after_sales": None,
         "itinerary_planning": "规划上海两日行程，预算适中，偏好安静的文化体验。",
     }
-    results = {
-        scenario: service.run_task(
-            scenario,
-            TaskRequest(image_urls=[image], text_context=text_context),
-        ).model_dump()
-        for scenario, text_context in tasks.items()
-    }
-    dialogue = service.run_dialogue(
-        DialogueRequest(
+    results = {}
+    for scenario, text_context in tasks.items():
+        try:
+            results[scenario] = service.run_task(scenario, TaskRequest(image_urls=[image], text_context=text_context)).model_dump()
+        except ModelGenerationError as exc:
+            schema_valid = False
+            if exc.attempts:
+                try:
+                    payload = json.loads(strip_json_fence(exc.attempts[-1].raw_output))
+                    validate_output(service.settings.root, scenario, payload, service.settings.schema_versions[scenario])
+                    schema_valid = True
+                except (ValueError, TypeError):
+                    pass
+            results[scenario] = {"schema_valid": schema_valid, "business_valid": False,
+                                 "error": str(exc), "attempts": [item.model_dump() for item in exc.attempts]}
+    try:
+        dialogue = service.run_dialogue(DialogueRequest(
             messages=[
                 {
                     "role": "user",
@@ -52,12 +62,18 @@ def run_model_smoke(service: ScenarioService, image_path: Path) -> dict[str, Any
             ],
             image_urls=[image],
             state={"city": "Shanghai", "days": 2},
-        )
-    ).model_dump()
-    passed = all(item.get("schema_valid") is True for item in results.values())
-    passed = passed and dialogue.get("quality_tier") == "DIALOGUE_BETA"
+        )).model_dump()
+    except ModelGenerationError as exc:
+        dialogue = {"task_status": "NOT_COMPLETED", "error": str(exc),
+                    "attempts": [item.model_dump() for item in exc.attempts]}
+    technical = all(item.get("schema_valid") is True for item in results.values())
+    technical = technical and dialogue.get("quality_tier") == "DIALOGUE_BETA"
+    passed = technical and results["itinerary_planning"].get("business_valid") is True and dialogue.get("task_status") == "COMPLETED"
     return {
         "status": "PASS" if passed else "FAIL",
+        "technical_status": "PASS" if technical else "FAIL",
+        "business_status": "PASS" if passed else "FAIL",
+        "product_visual_accuracy": "NOT_ASSESSED_BY_SMOKE",
         "scenarios": results,
         "dialogue": dialogue,
     }

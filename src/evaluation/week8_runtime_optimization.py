@@ -181,6 +181,7 @@ def run_dialogue_first_turn_comparison(
                     "profile": profile["role"],
                     "prompt_version": profile["prompt_version"],
                     "success": True,
+                    "task_status": response.task_status,
                     "first_turn_three_key_compliant": bool(
                         response.execution_mode == "DETERMINISTIC_CONTRACT"
                         or (attempts and attempts[0].error is None)
@@ -388,6 +389,10 @@ def _summarize_dialogue_records(records: list[dict[str, Any]]) -> dict[str, Any]
     latencies = [float(row["latency_ms"]) for row in records]
     return {
         "sample_count": count,
+        "business_completed_count": sum(row.get("task_status") == "COMPLETED" for row in records),
+        "business_not_completed_count": sum(row.get("task_status") == "NOT_COMPLETED" for row in records),
+        "state_only_count": sum(row.get("task_status") == "STATE_UPDATED" for row in records),
+        "business_completion_is_separate_from_format": True,
         "first_turn_format_compliance": _ratio(
             sum(bool(row["first_turn_three_key_compliant"]) for row in records), count
         ),

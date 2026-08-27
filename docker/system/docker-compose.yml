@@ -10,12 +10,13 @@ services:
       MODEL_PROVIDER: transformers-peft
       MODEL_FALLBACK_ENABLED: "false"
       ENABLE_BETA_DIALOGUE: "true"
-      TRIP_RELEASE_CONFIG: configs/releases/qwen3_vl_system_v1.json
+      TRIP_RELEASE_CONFIG: /run/trip/release.json
       TRIP_ADAPTER_DIR: /models/adapter
       HF_HOME: /models/huggingface
       MILVUS_URI: http://standalone:19530
       CLIP_DEVICE: cpu
     volumes:
+      - ${TRIP_RELEASE_CONFIG:-../../configs/releases/qwen3_vl_system_v1.json}:/run/trip/release.json:ro
       - ${ADAPTER_HOST_DIR:?set ADAPTER_HOST_DIR}:/models/adapter:ro
       - ${HF_CACHE_HOST_DIR:?set HF_CACHE_HOST_DIR}:/models/huggingface
     ports:

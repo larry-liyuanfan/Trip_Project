@@ -32,6 +32,8 @@ from src.inference.schemas import (
 )
 from src.inference.processor_cache import ProcessorInputCache, processor_signature
 from src.inference.transport_utils import normalize_image_url, strip_json_fence
+from src.inference.business_validation import BusinessValidationError, itinerary_business_errors
+from src.inference.release_config import resolve_release_config
 
 
 DEFAULT_RELEASE_CONFIG = "configs/releases/qwen3_vl_system_v1.json"
@@ -49,7 +51,7 @@ DIALOGUE_EXECUTION_MODES = {
 _BUDGET_UPDATE_RE = re.compile(
     r"(?P<cancel>取消预算(?:限制|上限)?)|"
     r"预算(?:改成|调整为|设为|改为|换成)?\s*"
-    r"(?P<value>[-负]?\d+(?:\.\d+)?)\s*(?P<unit>万|千|[kK]|元)?"
+    r"(?P<value>[-负]?[0-9][0-9A-Za-z.,+\-~～至到]*)\s*(?P<unit>万|千|元)?"
 )
 _DAYS_UPDATE_RE = re.compile(
     r"(?:行程|天数|安排)?(?:改成|调整为|设为|改为|延长到|缩短到)\s*"
@@ -136,15 +138,10 @@ class ReleaseSettings:
         config_path: Path | None = None,
     ) -> "ReleaseSettings":
         project_root = (root or Path(__file__).resolve().parents[2]).resolve()
-        selected_path = config_path or Path(
-            os.getenv("TRIP_RELEASE_CONFIG", DEFAULT_RELEASE_CONFIG)
-        )
-        if not selected_path.is_absolute():
-            selected_path = project_root / selected_path
-        if not selected_path.is_file():
-            raise RuntimeConfigurationError(
-                f"release config does not exist: {selected_path}"
-            )
+        try:
+            selected_path = resolve_release_config(project_root, config_path)
+        except ValueError as exc:
+            raise RuntimeConfigurationError(str(exc)) from exc
         try:
             payload = json.loads(selected_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -590,9 +587,11 @@ class ScenarioService:
         dialogue_max_new_tokens: int | None = None,
         dialogue_execution_mode: str | None = None,
         dialogue_semantic_fallback_enabled: bool | None = None,
+        retrieval_runner: Any | None = None,
     ) -> None:
         self.settings = settings
         self.backend = backend
+        self.retrieval_runner = retrieval_runner
         self.dialogue_prompt_version = (
             dialogue_prompt_version or settings.dialogue_prompt_version
         )
@@ -670,6 +669,9 @@ class ScenarioService:
         }
 
     def run_task(self, scenario: str, request: TaskRequest) -> TaskResponse:
+        from src.inference.schemas import SingleImageTaskRequest, ItineraryTaskRequest
+        contract = ItineraryTaskRequest if scenario == "itinerary_planning" else SingleImageTaskRequest
+        request = contract.model_validate(request.model_dump())
         prompt_version = self.settings.prompt_versions[scenario]
         schema_version = self.settings.schema_versions[scenario]
         input_context = {
@@ -687,11 +689,13 @@ class ScenarioService:
             schema_version=schema_version,
             messages=rendered["messages"],
             response_format=rendered.get("response_format"),
+            business_context=request.text_context if scenario == "itinerary_planning" else None,
         )
         return TaskResponse(
             scenario=scenario,
             result=parsed,
             schema_valid=True,
+            business_valid=True if scenario == "itinerary_planning" else None,
             prompt_version=prompt_version,
             model=self.settings.base_model,
             adapter=self.settings.adapter_name,
@@ -708,9 +712,11 @@ class ScenarioService:
             prompt_version=self.dialogue_prompt_version,
         )
         parsed, attempts = self._generate_dialogue(messages)
+        explicit_updates, _, rejected_fields = _parse_deterministic_state_updates(request)
         state = dict(request.state)
-        state.update(parsed.state_updates)
-        return DialogueResponse(
+        state.update({key: value for key, value in parsed.state_updates.items() if key not in rejected_fields})
+        state.update(explicit_updates)
+        response = DialogueResponse(
             reply=parsed.reply,
             state=state,
             tool_calls=parsed.tool_calls,
@@ -719,7 +725,11 @@ class ScenarioService:
             release_id=self.settings.release_id,
             attempts=attempts,
             total_latency_ms=sum(item.latency_ms for item in attempts),
+            task_status="NOT_COMPLETED" if rejected_fields else "STATE_UPDATED",
+            task_error="无法完整解析状态字段：" + ", ".join(sorted(rejected_fields)) if rejected_fields else None,
         )
+
+        return self._complete_dialogue_task(request, response)
 
     def _run_deterministic_dialogue(
         self,
@@ -746,16 +756,18 @@ class ScenarioService:
                 fallback_status = "FAILED_SAFE"
         state = dict(request.state)
         state.update(updates)
+        incomplete_update = bool(rejected_fields) or fallback_status == "FAILED_SAFE" or (
+            needs_semantic_fallback and not self.dialogue_semantic_fallback_enabled)
         parsed = DialogueModelOutput(
             reply=_deterministic_dialogue_reply(
                 request,
                 updates,
-                fallback_failed=fallback_status == "FAILED_SAFE" or bool(rejected_fields),
+                fallback_failed=incomplete_update,
             ),
             state_updates=updates,
             tool_calls=[],
         )
-        return DialogueResponse(
+        response = DialogueResponse(
             reply=parsed.reply,
             state=state,
             tool_calls=[],
@@ -766,7 +778,91 @@ class ScenarioService:
             total_latency_ms=sum(item.latency_ms for item in attempts),
             execution_mode="DETERMINISTIC_CONTRACT",
             semantic_fallback_status=fallback_status,
+            task_status="NOT_COMPLETED" if incomplete_update else "STATE_UPDATED",
+            task_error="未能可靠解析状态更新；无法解析的字段保留原值" if incomplete_update else None,
         )
+        return self._complete_dialogue_task(request, response)
+
+    def _complete_dialogue_task(self, request: DialogueRequest, response: DialogueResponse) -> DialogueResponse:
+        """确认状态后执行业务请求；未执行或失败不算任务成功。"""
+        if response.task_error:
+            if response.execution_mode == "MODEL_GENERATED_CONTRACT":
+                response.reply = "未完成本轮任务：" + response.task_error
+            return response
+        users = [turn for turn in request.messages if turn.role == "user"]
+        text = users[-1].content if users else ""
+        images = list(users[-1].image_urls) if users else []
+        images.extend(image for image in request.image_urls if image not in images)
+        if not images:
+            images = next((list(turn.image_urls) for turn in reversed(users) if turn.image_urls), [])
+        task = request.task
+        if task == "auto":
+            if re.search(r"推荐|规划|制定|生成|比较|相比|什么|识别|查找|搜索|问|介绍", text):
+                if re.search(r"行程|日游|天游", text):
+                    task = "itinerary"
+                elif re.search(r"推荐|查找|搜索", text):
+                    task = "retrieval"
+                elif images and len(images) == 1 and not re.search(r"比较|相比|第[二2]张", text):
+                    task = "product"
+                else:
+                    task = "conversation"
+            elif _POSITIVE_UPDATE_CUE_RE.search(text):
+                return response
+            else:
+                task = "product" if images else "conversation"
+        if task == "state_update":
+            return response
+        unexecuted_tools = bool(response.tool_calls)
+        response.tool_calls = []
+        response.task_status = "NOT_COMPLETED"
+        try:
+            if task in {"product", "itinerary"}:
+                scenario = "image_product_search" if task == "product" else "itinerary_planning"
+                context = text
+                for key, label in (("city", "城市"), ("days", "天数"), ("budget", "预算")):
+                    value = response.state.get(key)
+                    if value is not None:
+                        context += f"；{label}：{value}" + ("天" if key == "days" else "")
+                call = {"function": scenario, "arguments": {"image_urls": images}, "status": "STARTED"}
+                response.tool_calls.append(call)
+                result = self.run_task(scenario, TaskRequest(image_urls=images, text_context=context if task == "itinerary" else None))
+                response.attempts.extend(result.attempts)
+                response.task_result = result.model_dump(exclude={"attempts"})
+                response.reply = json.dumps(result.result, ensure_ascii=False)
+                call["status"] = "COMPLETED"
+            elif task == "retrieval":
+                if self.retrieval_runner is None:
+                    raise ModelGenerationError("检索服务未配置，未完成推荐")
+                call = {"function": "visual_search", "arguments": {"query_text": text, "image_urls": images}, "status": "STARTED"}
+                response.tool_calls.append(call)
+                response.task_result = self.retrieval_runner(text, images, response.state)
+                if response.task_result.get("query_status", "COMPLETED") != "COMPLETED":
+                    raise ModelGenerationError("仅返回部分条件候选，未应用查询条件：" + response.task_result.get("unapplied_query_text", "unknown"))
+                response.reply = json.dumps(response.task_result, ensure_ascii=False)
+                call["status"] = "COMPLETED"
+            else:
+                # 原模型分支已经产生实际回答时不重复调用；确定性分支才需要生成。
+                if response.execution_mode == "MODEL_GENERATED_CONTRACT":
+                    answer = response.reply
+                    pending_tools = unexecuted_tools
+                else:
+                    parsed, attempts = self._generate_dialogue(_dialogue_messages(request, prompt_version="system_repair_dialogue_v1"))
+                    response.attempts.extend(attempts)
+                    answer, pending_tools = parsed.reply, bool(parsed.tool_calls)
+                if pending_tools or re.search(r"将.*(?:处理|推荐)|简短直接回复|已承接当前|^(?:好的[，,。！! ]*)?(?:继续处理|正在处理|请稍等|收到)[。！! ]*$", answer):
+                    raise ModelGenerationError("模型未完成实际问答，或工具尚未执行")
+                response.reply = answer
+                response.task_result = {"answer": answer}
+            response.task_status = "COMPLETED"
+        except (ModelGenerationError, RuntimeConfigurationError, ValidationError, ValueError) as exc:
+            if isinstance(exc, ModelGenerationError):
+                response.attempts.extend(exc.attempts)
+            response.task_error = str(exc)
+            response.reply = "未完成本轮任务：" + str(exc)
+            if response.tool_calls:
+                response.tool_calls[-1]["status"] = "FAILED"
+        response.total_latency_ms = sum(attempt.latency_ms for attempt in response.attempts)
+        return response
 
     def _generate_state_update_fallback(
         self,
@@ -858,6 +954,7 @@ class ScenarioService:
         schema_version: str,
         messages: list[dict[str, Any]],
         response_format: dict[str, Any] | None,
+        business_context: str | None = None,
     ) -> tuple[dict[str, Any], list[ModelAttempt]]:
         attempts: list[ModelAttempt] = []
         active_messages = list(messages)
@@ -880,7 +977,11 @@ class ScenarioService:
                     parsed,
                     schema_version,
                 )
-            except (json.JSONDecodeError, SchemaValidationError) as exc:
+                if business_context is not None:
+                    business_errors = itinerary_business_errors(parsed, business_context)
+                    if business_errors:
+                        raise BusinessValidationError("; ".join(business_errors))
+            except (json.JSONDecodeError, SchemaValidationError, BusinessValidationError) as exc:
                 error = str(exc)
             latency_ms = (time.perf_counter() - started) * 1000
             attempts.append(
@@ -1158,8 +1259,14 @@ def _parse_deterministic_state_updates(
         if budget_match.group("cancel"):
             updates["budget"] = None
         else:
-            value = float(budget_match.group("value").replace("负", "-"))
+            numeric = budget_match.group("value").replace("负", "-").rstrip(",")
             unit = budget_match.group("unit")
+            if numeric.lower().endswith("k"):
+                unit, numeric = "千", numeric[:-1]
+            valid = re.fullmatch(r"-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?", numeric)
+            if re.match(r"\s*(?:[-~～至到]|\d)", latest_user[budget_match.end():]):
+                valid = None
+            value = float(numeric.replace(",", "")) if valid else float("nan")
             if unit in {"千", "k", "K"}:
                 value *= 1000
             elif unit == "万":
@@ -1358,23 +1465,21 @@ def _dialogue_messages(
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_content}
     ]
-    first_user_has_image = False
-    for turn in request.messages:
+    last_user = max((i for i, turn in enumerate(request.messages) if turn.role == "user"), default=-1)
+    for index, turn in enumerate(request.messages):
         content: Any = turn.content
-        if (
-            turn.role == "user"
-            and not first_user_has_image
-            and request.image_urls
-        ):
+        images = list(turn.image_urls)
+        if index == last_user:
+            images.extend(image for image in request.image_urls if image not in images)
+        if images:
             content = [{"type": "text", "text": turn.content}]
             content.extend(
                 {
                     "type": "image_url",
                     "image_url": {"url": image_url},
                 }
-                for image_url in request.image_urls
+                for image_url in images
             )
-            first_user_has_image = True
         messages.append({"role": turn.role, "content": content})
     if prompt_version in {
         "week8_dialogue_first_turn_v2",
@@ -1429,7 +1534,8 @@ def _correction_messages(
             '"activity":"简短活动","transport":null,"source_evidence":[]}]}],'
             '"constraint_check":[],"observed_evidence":[],"unknown_fields":[],'
             '"confidence":null}。只替换骨架中的内容值，不改变键、类型或嵌套层级；'
-            "若完整多日内容可能无法闭合，先输出一个 Schema 合法的精简日程。"
+            "必须覆盖用户要求的全部天数与日序，不得缩减为一天；每一天可用简洁真实活动，"
+            "不能复制简短摘要、简短活动等骨架占位文字。明确城市、交通和时间约束必须核验。"
         )
     elif scenario == "dialogue":
         itinerary_contract = (

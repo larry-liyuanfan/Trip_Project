@@ -98,8 +98,9 @@ class FakeVisualSearchService:
         self.results = results or []
         self.call = None
 
-    def search(self, image_path, *, top_k, filters):
-        self.call = {"image_path": image_path, "top_k": top_k, "filters": filters}
+    def search(self, image_path, *, top_k, filters, query_text="", retrieval_mode="embedding"):
+        self.call = {"image_path": image_path, "top_k": top_k, "filters": filters,
+                     "query_text": query_text, "retrieval_mode": retrieval_mode}
         return self.results
 
 
@@ -473,10 +474,16 @@ class SystemRuntimeTest(unittest.TestCase):
         self.assertEqual(raised.exception.attempts[1].raw_output, "still-not-json")
 
     def test_itinerary_retry_uses_minimal_nine_key_contract(self):
+        import copy
+        valid = copy.deepcopy(ITINERARY_OUTPUT)
+        second = copy.deepcopy(valid["itinerary"][0])
+        second["day_index"] = 2
+        valid["itinerary"].append(second)
+        valid["constraint_check"] = [{"constraint": "public transport", "constraint_type": "hard", "status": "satisfied", "evidence": "Both days use public transport"}]
         backend = FakeBackend(
             [
                 "not-json",
-                json.dumps(ITINERARY_OUTPUT, ensure_ascii=False),
+                json.dumps(valid, ensure_ascii=False),
             ]
         )
         service = ScenarioService(settings(), backend)
@@ -626,6 +633,7 @@ class SystemRuntimeTest(unittest.TestCase):
             request = VisualSearchRequest(
                 image_urls=[str(image_path)],
                 city="Shanghai",
+                retrieval_mode="embedding",
                 top_k=3,
             )
             with patch.dict("os.environ", {"APP_ENV": "production"}, clear=True):

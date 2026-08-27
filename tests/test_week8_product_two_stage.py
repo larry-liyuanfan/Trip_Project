@@ -93,7 +93,8 @@ class Week8ProductTwoStageTests(unittest.TestCase):
 
     def test_caption_proxy_is_explicitly_lexical_and_conservative(self):
         proxy = caption_to_silver_evidence(
-            "Several customers in a cozy modern hotel lobby with reception and pool"
+            "Several customers in a cozy modern hotel lobby with reception and pool",
+            protocol="legacy_caption_v1",
         )
         self.assertEqual(proxy["subject_category"], "hotel")
         self.assertEqual(proxy["subject_clarity"], "multiple")

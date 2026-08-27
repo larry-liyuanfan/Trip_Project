@@ -256,7 +256,28 @@ def map_evidence_to_product(
     }
 
 
-def caption_to_silver_evidence(caption: str) -> dict[str, Any]:
+def caption_to_silver_evidence(caption: str, *, protocol: str = "caption_evidence_v2") -> dict[str, Any]:
+    if protocol == "legacy_caption_v1":
+        return _legacy_caption_to_silver_evidence(caption)
+    if protocol != "caption_evidence_v2":
+        raise Week8TwoStageError("unsupported caption evidence protocol")
+    from src.data.product_labels import caption_labels
+    target = caption_labels(caption)
+    category = target["business_category"]
+    styles, facilities = target["style_tags"], target["visible_facilities"]
+    uncertainty = ["no_price_evidence"]
+    if category == "unknown":
+        uncertainty.append("no_clear_subject")
+    if not styles:
+        uncertainty.append("no_style_evidence")
+    if not facilities:
+        uncertainty.append("no_facility_evidence")
+    return {"subject_category": category, "subject_clarity": "clear" if category != "unknown" else "ambiguous",
+            "style_cues": styles, "facility_cues": facilities, "price_text": [],
+            "observable_facts": [caption[:80]] if caption else [], "uncertainty_reasons": uncertainty}
+
+
+def _legacy_caption_to_silver_evidence(caption: str) -> dict[str, Any]:
     """Create a caption-lexical silver proxy; it is never represented as human truth."""
 
     text = str(caption or "").strip()
@@ -547,7 +568,7 @@ def _hard_slice_row(
     row: dict[str, Any], caption: str, config: dict[str, Any]
 ) -> dict[str, Any]:
     evidence = validate_observable_evidence(
-        caption_to_silver_evidence(caption), config
+        caption_to_silver_evidence(caption, protocol=config.get("hard_slice_data", {}).get("label_protocol", "legacy_caption_v1")), config
     )
     mapped = map_evidence_to_product(evidence, config)
     slices = _hard_slices(evidence, mapped)

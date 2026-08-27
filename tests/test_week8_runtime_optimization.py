@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from src.evaluation.week8_runtime_optimization import (
@@ -820,7 +821,9 @@ class Week8RuntimeOptimizationTest(unittest.TestCase):
             ]
         )
 
-        result = run_dialogue_first_turn_comparison(release, backend, config)
+        # 此测试只测旧三键/状态协议；业务实际分派由 audit_fixes 覆盖。
+        with patch.object(ScenarioService, "_complete_dialogue_task", lambda self, request, response: response):
+            result = run_dialogue_first_turn_comparison(release, backend, config)
 
         candidate = result["profiles"]["candidate"]
         self.assertEqual(candidate["first_turn_format_compliance"], 1.0)

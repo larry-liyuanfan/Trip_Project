@@ -1,0 +1,6 @@
+{
+  "protocol": "user_query_hybrid_v1",
+  "candidate_pool_size": 100,
+  "hybrid": {"weighted_fusion": {"image": 0.7, "metadata": 0.3}, "rrf_k": 60},
+  "evaluation": {"relevance_weights": {"city": 4.0, "business_category": 2.0, "price_range": 1.0}}
+}

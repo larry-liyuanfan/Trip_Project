@@ -59,6 +59,8 @@ def audit_product_references(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "metadata_proxy_samples": metadata_count,
         "issue_counts": dict(problems),
         "affected_samples": affected,
-        "visual_accuracy_claim_supported": False if metadata_count else None,
+        "visual_accuracy_claim_supported": bool(rows) and not metadata_count and not problems and all(
+            row.get("visual_accuracy_claim_supported") is True for row in rows
+        ),
         "interpretation": "Metadata/caption silver agreement is not image-grounded accuracy.",
     }

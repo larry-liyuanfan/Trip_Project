@@ -1,0 +1,23 @@
+{
+  "run_id": "week8_audit_repair_20260827_v1",
+  "label_protocol": "caption_evidence_v2",
+  "final_test_labels_access": false,
+  "human_annotation_count": 0,
+  "release_config": "configs/releases/qwen3_vl_system_week8_v7.json",
+  "product_config": "configs/week8/product_understanding_v7.json",
+  "source_review_config": "configs/week8/product_review_v1.json",
+  "source_prompt_outputs": "outputs/week8/development/week8_product_prompt_development_20260827_v7",
+  "output_root": "outputs/week8/review/week8_audit_repair_20260827_v1",
+  "smoke_image": "outputs/week8/product_understanding_v7/locked_data/week8_product_understanding_20260827_v7/images/public/4522e1aa84ef6f0800b2b138068f56db88e8096a622ef1f842e652b9024cf6d8.jpg",
+  "smoke_image_sha256": "4522e1aa84ef6f0800b2b138068f56db88e8096a622ef1f842e652b9024cf6d8",
+  "product_repetitions": 5,
+  "retrieval_vectors": "outputs/week8/retrieval_source/package/clip_vectors_1000.npz",
+  "retrieval_metadata": "outputs/week8/retrieval_source/package/clip_metadata_1000.jsonl",
+  "retrieval_queries": [
+    {"query_text": "restaurant", "city": "Indianapolis", "retrieval_mode": "keyword"},
+    {"query_text": "restaurant", "city": "New Orleans", "retrieval_mode": "keyword"},
+    {"query_text": "hotel", "city": "Indianapolis", "retrieval_mode": "hybrid"},
+    {"query_text": "restaurant", "city": "Indianapolis", "retrieval_mode": "hybrid"},
+    {"query_text": "", "city": "Indianapolis", "retrieval_mode": "embedding"}
+  ]
+}

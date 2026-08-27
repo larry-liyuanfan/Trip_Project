@@ -35,7 +35,7 @@ from src.training.week7_data import (
     _collect_repair_public_sources,
     _copy_image,
     _product_target,
-    _repair_business_tags,
+    _legacy_repair_business_tags,
     _repair_support_flags,
     _row,
     _validate_partition_isolation,
@@ -240,7 +240,16 @@ def _category_from_description(description: str) -> str:
     return "unknown"
 
 
-def product_silver_target(source: dict[str, Any]) -> dict[str, Any]:
+def product_silver_target(source: dict[str, Any], *, protocol: str = "caption_evidence_v2") -> dict[str, Any]:
+    if protocol == "caption_evidence_v2":
+        from src.data.product_labels import caption_labels
+        return caption_labels(str(source.get("caption") or ""))
+    if protocol != "legacy_mixed_v1":
+        raise Week8ProductError("unsupported product label protocol")
+    return _legacy_product_silver_target(source)
+
+
+def _legacy_product_silver_target(source: dict[str, Any]) -> dict[str, Any]:
     """Reproduce historical mixed metadata/caption silver, NOT visual ground truth.
 
     Frozen v1-v7 builds retain this protocol for reproducibility. The reference audit
@@ -257,7 +266,7 @@ def product_silver_target(source: dict[str, Any]) -> dict[str, Any]:
             target["inferred_attributes"].append(
                 "业态来自商家元数据弱标签，不作为图片直接证据"
             )
-    metadata_styles, metadata_facilities = _repair_business_tags(
+    metadata_styles, metadata_facilities = _legacy_repair_business_tags(
         str(source.get("business_description") or "")
     )
     target["style_tags"] = sorted(set(target["style_tags"]) | set(metadata_styles))
@@ -482,7 +491,7 @@ def build_week8_product_lock(
         for index, source in enumerate(sources[split]):
             digest = source["image_sha256"]
             image_path = _copy_image(root, output, source["source_image"], digest)
-            target = product_silver_target(source)
+            target = product_silver_target(source, protocol="legacy_mixed_v1")
             slices = product_error_slices(source, target)
             counts.update(slices)
             identity = {
@@ -958,6 +967,16 @@ def select_prompt(config: dict[str, Any], summaries: dict[str, dict[str, Any]]) 
         if type(latency) not in (int, float) or not math.isfinite(latency) or latency < 0:
             raise Week8ProductError(f"invalid selection latency for {role}")
     baseline = summaries["current_release"]
+    reference_failures = {}
+    for role, summary in summaries.items():
+        audit = summary.get("reference_semantics", {})
+        if (audit.get("visual_accuracy_claim_supported") is not True
+                or audit.get("metadata_proxy_samples", 0)
+                or any(audit.get("issue_counts", {}).values())):
+            reference_failures[role] = ["references_do_not_support_visual_selection"]
+    if reference_failures:
+        return {"status": "DIAGNOSTIC_ONLY_INVALID_REFERENCES", "selected_role": None,
+                "selected_prompt_version": None, "candidate_failures": reference_failures}
     baseline_product = baseline["scenarios"]["image_product_search"]
     eligible = []
     reasons = {}

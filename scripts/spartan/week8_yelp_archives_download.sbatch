@@ -26,4 +26,3 @@ curl --fail --location --retry 5 --continue-at - \
   https://business.yelp.com/external-assets/files/Yelp-Photos.zip
 test "$(stat -c %s "$json_zip")" = 4345335132
 test "$(stat -c %s "$photos_zip")" = 7447210067
-

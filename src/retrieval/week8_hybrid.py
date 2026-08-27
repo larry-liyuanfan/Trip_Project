@@ -422,7 +422,7 @@ def _metadata_score(query: dict[str, Any], candidate: dict[str, Any], weights: d
     numerator = denominator = 0.0
     for field, weight in weights.items():
         value = query.get(field)
-        if value == "unknown":
+        if value in (None, "", "unknown"):
             continue
         numeric_weight = float(weight)
         denominator += numeric_weight
@@ -520,7 +520,8 @@ class MetadataRankingCache:
     ) -> None:
         """Populate the bounded cache before timed retrieval begins."""
         for query in query_rows:
-            metadata = query["metadata"]
+            from src.retrieval.query_inputs import ranking_query_attributes
+            metadata = ranking_query_attributes(query)
             self.search(metadata, top_k=len(self.index_rows))
             for fields in filter_scenarios:
                 filters = {

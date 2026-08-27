@@ -420,6 +420,8 @@ class Week8RetrievalTests(unittest.TestCase):
 
         def measured(ndcg, recall, latency):
             return {
+                "reference_metadata_used_for_ranking": False,
+                "query_input_support_count": 1,
                 "ndcg_at_10": ndcg,
                 "recall_at_10": recall,
                 "latency_p95_ms": latency,
@@ -544,8 +546,8 @@ class Week8RetrievalTests(unittest.TestCase):
     def test_selection_binds_development_evidence_and_rejects_tamper(self):
         config = self._config(count=1, dimension=2)
         development_metrics = {
-            "clip": {"ndcg_at_1": 0.2, "failure_rate": 0.0},
-            "metadata_rerank": {"ndcg_at_1": 0.4, "failure_rate": 0.0},
+            "clip": {"ndcg_at_1": 0.2, "failure_rate": 0.0, "reference_metadata_used_for_ranking": False, "query_input_support_count": 1},
+            "metadata_rerank": {"ndcg_at_1": 0.4, "failure_rate": 0.0, "reference_metadata_used_for_ranking": False, "query_input_support_count": 1},
         }
         selection = select_development_method(config, development_metrics)
         source_hashes = {
@@ -625,6 +627,8 @@ class Week8RetrievalTests(unittest.TestCase):
             {
                 "clip": {
                     "ndcg_at_10": 0.4,
+                    "reference_metadata_used_for_ranking": False,
+                    "query_input_support_count": 1,
                     "recall_at_10": 0.2,
                     "filter_correctness": 1.0,
                     "traceable_reference_rate": 1.0,
@@ -632,6 +636,8 @@ class Week8RetrievalTests(unittest.TestCase):
                 },
                 "metadata_rerank": {
                     "ndcg_at_10": 0.6,
+                    "reference_metadata_used_for_ranking": False,
+                    "query_input_support_count": 1,
                     "recall_at_10": 0.2,
                     "filter_correctness": 1.0,
                     "traceable_reference_rate": 1.0,
@@ -679,6 +685,8 @@ class Week8RetrievalTests(unittest.TestCase):
         def measured(ndcg):
             return {
                 "ndcg_at_10": ndcg,
+                "reference_metadata_used_for_ranking": False,
+                "query_input_support_count": 1,
                 "recall_at_10": 0.2,
                 "filter_correctness": 1.0,
                 "traceable_reference_rate": 1.0,
@@ -796,6 +804,7 @@ class Week8RetrievalTests(unittest.TestCase):
             "vector_sha256": _vector_sha256(vectors[index]),
             "metadata": copy.deepcopy(metadata),
             "partition": partition,
+            "query_inputs": {"source": "user", "attributes": {"city": "A", "business_category": "restaurant", "price_range": "mid_range"}},
         }
 
 

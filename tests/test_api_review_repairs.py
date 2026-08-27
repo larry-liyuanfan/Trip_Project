@@ -1,6 +1,7 @@
 import json
 import time
 import unittest
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
@@ -37,7 +38,7 @@ class APIReviewRepairTests(unittest.TestCase):
 
         def build():
             time.sleep(0.01)
-            value = object()
+            value = SimpleNamespace()
             created.append(value)
             return value
 

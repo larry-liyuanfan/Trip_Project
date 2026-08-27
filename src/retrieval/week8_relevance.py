@@ -20,6 +20,7 @@ from src.retrieval.week8_hybrid import (
     metadata_ranking,
 )
 from src.retrieval.milvus_vectors import FILTER_FIELDS
+from src.retrieval.query_inputs import ranking_query_attributes
 
 
 PARTITIONS = ("index", "development_query", "final_test_query")
@@ -556,6 +557,9 @@ def select_latency_profile(
         if not isinstance(candidate, dict):
             raise Week8RetrievalError(f"latency metrics missing profile: {profile_id}")
         failures: list[str] = []
+        if any(item.get("reference_metadata_used_for_ranking") is not False
+               or not item.get("query_input_support_count") for item in (baseline, candidate)):
+            failures.append("independent_query_inputs_required")
         if candidate.get("retrieval_backend") != required_backend:
             failures.append("backend_mismatch")
         if candidate.get("offline_fallback") is not required_fallback:
@@ -679,6 +683,9 @@ def select_development_method(
         if not isinstance(candidate, dict):
             raise Week8RetrievalError(f"development metrics missing candidate: {candidate_name}")
         candidate_failures: list[str] = []
+        if any(item.get("reference_metadata_used_for_ranking") is not False
+               or not item.get("query_input_support_count") for item in (baseline, candidate)):
+            candidate_failures.append("missing_independent_query_inputs")
         if _finite_number(candidate.get(primary)) <= _finite_number(baseline.get(primary)):
             candidate_failures.append(f"{primary}_not_improved")
         for metric in selection["non_regression_metrics"]:
@@ -1027,7 +1034,7 @@ def _evaluate_method(
                     query_references.append(reference)
 
             for fields in evaluation["filter_scenarios"]:
-                filters = _query_filters(query["metadata"], fields)
+                filters = _query_filters(ranking_query_attributes(query), fields)
                 if not filters:
                     continue
                 filter_requests += 1
@@ -1081,6 +1088,9 @@ def _evaluate_method(
 
     metrics: dict[str, Any] = {
         "method": method,
+        "query_input_protocol": "explicit_user_or_model_v1",
+        "reference_metadata_used_for_ranking": False,
+        "query_input_support_count": sum(bool(ranking_query_attributes(query)) for query in query_rows),
         "query_count": len(query_rows),
         "successful_query_count": len(query_rows) - failures,
         "failure_count": failures,
@@ -1154,8 +1164,8 @@ def _rank(
         for hit in pool:
             bonus = 0.0
             for field, weight in rerank_weights.items():
-                query_value = query["metadata"].get(field)
-                if query_value != "unknown" and query_value == hit["row"]["metadata"].get(field):
+                query_value = ranking_query_attributes(query).get(field)
+                if query_value not in (None, "", "unknown") and query_value == hit["row"]["metadata"].get(field):
                     bonus += _finite_number(weight)
             hit["ranking_score"] = hit["clip_score"] + bonus
             hit["source_channels"] = ["image", "metadata"]
@@ -1172,14 +1182,14 @@ def _rank(
         if metadata_cache is None:
             metadata_hits = metadata_ranking(
                 config,
-                query["metadata"],
+                ranking_query_attributes(query),
                 index_rows,
                 top_k=max(pool_size, top_k),
                 filters=filters,
             )
         else:
             metadata_hits = metadata_cache.search(
-                query["metadata"],
+                ranking_query_attributes(query),
                 top_k=max(pool_size, top_k),
                 filters=filters,
             )
