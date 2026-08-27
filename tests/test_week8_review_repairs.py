@@ -213,6 +213,46 @@ class Week8ReviewRepairTests(unittest.TestCase):
             with self.assertRaisesRegex(Week8ProductError, "exactly once"):
                 summarize_product_run(ROOT, rows, records)
 
+    def test_failed_placeholder_cannot_earn_format_or_semantic_score(self):
+        row = product_row("development", "s1")
+        result = summarize_product_run(ROOT, [row], [{
+            "sample_id": "s1", "raw_output": json.dumps(row["target"]),
+            "failed": True, "latency_ms": 10,
+        }])
+        product = result["scenarios"]["image_product_search"]
+        self.assertEqual(product["composite"], 0)
+        self.assertEqual(product["aggregate"]["json_compliance"], 0)
+        self.assertEqual(product["aggregate"]["schema_pass"], 0)
+        self.assertEqual(result["failure_count"], 1)
+
+    def test_offline_rescore_preserves_raw_evidence_and_rejects_changed_hash(self):
+        from scripts.review_week8_product import rescore_review
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            config_path = folder / "config.json"
+            config_path.write_text("{}", encoding="utf-8")
+            source = folder / "original"
+            source.mkdir()
+            identity = {"config_sha256": sha256_file(config_path), "development_sha256": "dev", "dataset_lock_sha256": "lock", "test_rows_read": False, "git_commit": "source-commit"}
+            (source / "identity.json").write_text(json.dumps(identity), encoding="utf-8")
+            row = product_row("development", "s1")
+            record = {"sample_id": "s1", "raw_output": json.dumps(row["target"]), "failed": True, "latency_ms": 10}
+            raw_path = source / "product_release/raw_outputs.jsonl"
+            write_jsonl_new(raw_path, [record])
+            original_hash = sha256_file(raw_path)
+            (raw_path.parent / "metrics.json").write_text(json.dumps({"raw_sha256": original_hash}), encoding="utf-8")
+            inputs = ({"profiles": ["product_release"]}, {}, [row], {"lock_sha256": "lock"}, "dev")
+            with patch("scripts.review_week8_product.load_review_inputs", return_value=inputs), patch("scripts.review_week8_product.TransformersPeftBackend", side_effect=AssertionError("rescore must not run inference")):
+                rescore_review(ROOT, config_path, source, folder / "rescored")
+                result = json.loads((folder / "rescored/summary.json").read_text(encoding="utf-8"))
+                self.assertEqual(result["new_model_requests"], 0)
+                self.assertEqual(result["profiles"]["product_release"]["weighted_composite"], 0)
+                self.assertEqual(sha256_file(raw_path), original_hash)
+                raw_path.write_text("{}\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "generations changed"):
+                    rescore_review(ROOT, config_path, source, folder / "changed")
+                self.assertFalse((folder / "changed").exists())
+
     def test_retrieval_development_only_rejected_before_read_or_marker(self):
         with tempfile.TemporaryDirectory() as tmp:
             marker = Path(tmp) / "marker.json"

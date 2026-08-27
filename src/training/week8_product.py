@@ -850,7 +850,13 @@ def summarize_product_run(root: Path, rows: list[dict[str, Any]], records: list[
         or set(expected_ids) != set(observed_ids)
     ):
         raise Week8ProductError("product records must cover each fixed sample exactly once")
-    summary = summarize_raw_records(root, _scoring_config(), rows, records)
+    # 失败后的占位 JSON 只是传输容器，不能当成模型成功预测参与得分。
+    scored_records = [
+        {**record, "raw_output": ""} if record.get("failed") else record
+        for record in records
+    ]
+    summary = summarize_raw_records(root, _scoring_config(), rows, scored_records)
+    summary["scoring_protocol"] = "week8_product_failure_zero_credit_v2"
     latencies = [float(row.get("latency_ms", 0.0)) for row in records]
     inputs = [int(row.get("input_token_count") or 0) for row in records]
     outputs = [int(row.get("generated_token_count") or 0) for row in records]

@@ -150,13 +150,58 @@ def run_review(root: Path, path: Path, output: Path, *, audit_only=False):
     return {"status": "COMPLETED", "summary_sha256": sha256_file(output / "summary.json")}
 
 
+def rescore_review(root: Path, path: Path, source: Path, output: Path):
+    """Apply repaired failure accounting to immutable development generations."""
+    if output.exists():
+        raise ValueError("refusing to overwrite rescored review output")
+    config, _, rows, validation, development_sha = load_review_inputs(root, path)
+    identity_path = source / "identity.json"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    if (
+        identity["config_sha256"] != sha256_file(path)
+        or identity["development_sha256"] != development_sha
+        or identity["dataset_lock_sha256"] != validation["lock_sha256"]
+        or identity.get("test_rows_read") is not False
+    ):
+        raise ValueError("source review identity mismatch")
+    profiles, raw_hashes = {}, {}
+    for role in config["profiles"]:
+        raw = source / role / "raw_outputs.jsonl"
+        old_metrics = json.loads((source / role / "metrics.json").read_text(encoding="utf-8"))
+        if sha256_file(raw) != old_metrics["raw_sha256"]:
+            raise ValueError("source review generations changed")
+        records = list(iter_jsonl(raw))
+        profiles[role] = summarize_product_run(root, rows, records)
+        profiles[role]["output_diagnostics"] = output_diagnostics(records)
+        raw_hashes[role] = sha256_file(raw)
+    result = {
+        "status": "COMPLETED", "scoring_protocol": "week8_product_failure_zero_credit_v2",
+        "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
+        "source_identity_sha256": sha256_file(identity_path), "source_raw_sha256": raw_hashes,
+        "source_generation_commit": identity["git_commit"],
+        "development_sha256": development_sha, "dataset_lock_sha256": validation["lock_sha256"],
+        "test_rows_read": False, "new_model_requests": 0, "profiles": profiles,
+        "release_changed": False,
+    }
+    output.mkdir(parents=True, exist_ok=False)
+    _write_json_new(output / "summary.json", result)
+    return {"status": "RESCORED", "summary_sha256": sha256_file(output / "summary.json")}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("configs/week8/product_review_v1.json"))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--audit-only", action="store_true")
+    parser.add_argument("--rescore-dir", type=Path, help="completed review to rescore without new inference")
     args = parser.parse_args()
-    print(json.dumps(run_review(ROOT, args.config.resolve(), args.output_dir.resolve(), audit_only=args.audit_only), ensure_ascii=False))
+    if args.rescore_dir:
+        if args.audit_only:
+            parser.error("--audit-only and --rescore-dir are mutually exclusive")
+        result = rescore_review(ROOT, args.config.resolve(), args.rescore_dir.resolve(), args.output_dir.resolve())
+    else:
+        result = run_review(ROOT, args.config.resolve(), args.output_dir.resolve(), audit_only=args.audit_only)
+    print(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":
