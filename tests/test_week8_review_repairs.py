@@ -188,6 +188,12 @@ class Week8ReviewRepairTests(unittest.TestCase):
         self.assertTrue(result["failed"])
         self.assertFalse(result["evidence_schema_pass"])
 
+    def test_unconstrained_review_preserves_data_and_evidence_token_budget(self):
+        first = json.loads((ROOT / "configs/week8/product_review_v1.json").read_text(encoding="utf-8"))
+        second = json.loads((ROOT / "configs/week8/product_review_v2.json").read_text(encoding="utf-8"))
+        for field in ("product_config", "release_config", "two_stage_config", "dataset_lock_sha256", "development_count", "evidence_max_new_tokens"):
+            self.assertEqual(first[field], second[field], field)
+
     def test_reference_audit_exposes_mislabeled_metadata_and_unknown_conflict(self):
         row = product_row("development", "s1")
         row["target"]["unknown_fields"].append("business_category")

@@ -14,7 +14,7 @@
     "product_release",
     "evidence_contract_unconstrained_base"
   ],
-  "evidence_max_new_tokens": 384,
+  "evidence_max_new_tokens": 256,
   "product_max_new_tokens": 384,
   "selection_policy": "diagnostic_only_no_automatic_release_promotion",
   "rationale": "Base constrained generations terminated inside Chinese strings; isolate decoding from visual ability using strict post-generation validation."
