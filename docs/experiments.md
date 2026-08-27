@@ -1125,3 +1125,64 @@ manifest.
   Slurm 脚本 `bash -n`、`git diff --check`、tracked secret/large-file scan 均为 `PASS`。
   release config/正式 adapter SHA-256 复算为
   `9defb3e7...ef749`/`c2fbb5c7...eaa2a`。
+
+## 2026-08-27：全项目复审与商品证据诊断
+
+### 固定 development 与数据口径
+
+- `configs/week8/product_review_v1.json` 使用现有 v7 development 全部 60 条，未读取已消费
+  final 标签；数据锁 `321bea495df6e53813d79caa93fcd3478391ecf0b613f972500f7463224b0301`。
+- 自动审计发现 metadata 代理 60/60、业态 known/unknown 矛盾 56/60、混合风格/设施
+  provenance 错误 60/60。全部为 `programmatic_silver`，human annotation/review/
+  acceptance=`0/0/0`。因此匹配分不能解释为视觉准确率。
+- 固定索引 0/15/30/45 的自动图像定性检查发现不可见停车场仍被输出为 `parking`。
+  该检查不产生 gold、不改变 target、不用于估计总体视觉准确率。
+
+### 运行与重计分协议
+
+- 首轮代码 `a099f3f`，Spartan job `29664584`；四组依次为现有商品 Prompt、旧证据链、
+  Schema 可见/负证据约束链、同底座禁用 adapter 消融。正式 checkpoint-87 权重未改动。
+- 首轮保存的原始输出和指标均不覆盖。复审发现失败占位 JSON 会取得部分分数后，新增
+  `week8_product_failure_zero_credit_v2`：失败样本留在分母但不给格式或语义分，原始输出
+  保持不变。使用 `scripts/review_week8_product.py --rescore-dir ... --output-dir ...`
+  校验原 SHA 后另存结果；重计分不再次调用模型。
+- 首轮基座受约束输出出现字符串中途终止，因此新增 `configs/week8/product_review_v2.json`
+  和 job `29666004`。同一 development、底座、Prompt 和 256-token 证据预算，只取消
+  生成时的约束解码；完整 JSON/Schema 后校验与重试保留。另测当前商品 release，以免
+  把跨硬件的耗时变化解释为优化效果。
+- job `29666004` 依赖首轮成功结束，随后才在原项目目录将 feature checkout 快进到
+  `f129ea8`；不与首轮共享 GPU 并发推理。申请 25 分钟，覆盖 120 条推理、四场景 smoke、
+  10 条对话对照与固定图片重复基准及加载余量。
+- 完整数值与任务终态在商品报告第 12 节记录；本次不训练、不运行新 final、不修改正式
+  release，不把格式修复或银标得分变化写成已验证的视觉能力提升。
+
+### 观测结果与再次修复
+
+- 两作业均 `COMPLETED 0:0`，耗时分别 `47:37`、`13:40`，硬件均为 NVIDIA A100
+  80GB PCIe，torch `2.8.0+cu128`。不是 MIG 基准，不将跨运行加载时间用于提速结论。
+- 四组完整 development 的修正 composite 依次为 `0.836046/0.587549/0.694199/0.269641`，
+  请求失败 `0/17/0/33`；Schema 可见契约消除本轮 adapter 证据链失败，但仍猜测不可见
+  设施、银标设施 F1 回退。该诊断不获选为发布 Prompt。
+- 基座取消约束解码后 composite `0.510065`、失败 `2/60`，原始 JSON syntax `100%`，
+  Schema `96.6667%`。两次剩余失败是重复观察事实，不是 JSON 中文字符串截断。模型
+  观察事实仍存在错读；无整体视觉准确率提升结论。
+- 重计分使用 `f69797e`，原 raw SHA 全部校验，`new_model_requests=0`。v1/v2 新 summary
+  SHA 分别 `add2379dc9f2d23b88390882bc42d5d931d831e491799a8614cf870140df8dd3`、
+  `259b9ce9b97193095cb7803e1cb0ecb10b4da8b92d0fc2ad4da2d9c699ff23a6`。
+- 10 条 runtime v2 发现取消预算未置 null、非法负天数被 fallback 改成正数；`f58707c`
+  增加取消解析、被拒字段保护及部分失败回复。45 项新增定向和 654 项全量测试通过。
+- 默认 cafe 图实际是 64×64 图形占位图；前两作业 smoke/固定输入重复延迟保留为连通性
+  证据，商品 60 条 development 对照使用的是真实图片，不受此问题影响。
+- 最终真实图片 job `29666837` 在同一项目目录、代码 `f58707c` 运行，申请 15 分钟，
+  实际 3 分钟 `COMPLETED 0:0`。`configs/week8/runtime_review_v3.json` 固定原 10 条
+  对话及 533×400 development 图片，SHA `4522e1aa84ef6f0800b2b138068f56db88e8096a622ef1f842e652b9024cf6d8`。
+- 真实图片对话 current/candidate 首轮格式 `0.9/1.0`、纠错 `0.1/0`、失败 `0.1/0`、状态
+  exact `0.4/1.0`、状态值正确率 `0.8/1.0`（support=25）。candidate 仅儿童变更使用
+  1 次语义 fallback。此结果只证明状态/契约，不能代表推荐任务完成。
+- 商品延迟加载 `21434.521 ms`，512/384 上限各 5 次 mean `3894.280/3901.957 ms`，
+  P50 `3902.640/3908.000 ms`，P95 `3943.654/3926.002 ms`；tokens 均 `3565/285`，
+  Schema `1/1`、failure `0/0`、输出 exact `5/5`。未证明稳定提速；既有停车场猜测仍在。
+- 真实照片 smoke SHA `b6532cf4f2cbc15db604537909e2da95f31222fc68713e472677a4bc6f8d0734`；
+  runtime SHA `0701c1e7299c8c3e0c90b241273d4602f555bb409af76c285363ee393e6742a4`。
+  smoke 的商品/售后/行程 Schema 均通过，对话走确定性契约；行程仍复述模板，不能将
+  `PASS` 写成业务语义全部正确。最终保留 v7 RC Prompt 和 checkpoint-87，不安排人工工作。

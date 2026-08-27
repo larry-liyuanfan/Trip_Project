@@ -2,19 +2,25 @@
 
 ## 1. 结论
 
+**2026-08-27 复审更正：以下 Week 8 数值是混合 metadata/caption 银标匹配分，不是图像事实
+准确率。** 固定 development 60/60 条混有商家元数据，56/60 条的业态已知值与
+`unknown_fields` 矛盾，60/60 条将混合设施/风格错误归因于 caption。不能据此声称商品视觉
+理解问题已解决。复审修复与新增诊断见第 12 节；历史数据、输出和数值原样保留。
+
 Week 8 在独立 `feature/week8-product-understanding` 分支完成了商品、对话、延迟与检索的
 全自动扩展执行。自 2026-08-27 起没有任何人工标注、复核或验收；新增数据与 target 均为
 `programmatic_silver`，human annotation/review/acceptance=`0/0/0`。
 
 最终继续选择正式 checkpoint-87 adapter 和 `week8_product_field_check_v1`。fresh v7 的
 唯一 final test 将商品综合从同口径正式 Prompt 的 `0.819003` 提高到 `0.857729`
-（`+0.038725`）；设施 micro-F1、price unknown 和完整性明显提高，业态与风格的轻微回退
+（`+0.038725`）；银标口径下设施 micro-F1、price unknown 和完整性提高，业态与风格的轻微回退
 如实保留。JSON/Schema 仍为 `100%/100%`，失败率为 `0`，支持数未改变。可观察证据
 两阶段方案和 checkpoint-5 continuation SFT 均经 development 实测后被拒绝，没有用
 final test 选择 Prompt、adapter 或 checkpoint。
 
 对话首轮改为代码组装三键契约，固定 5 条样本的格式合规、状态召回/准确与整状态准确均为
-`1.0`，纠错、失败和 fallback 均为 `0`。真实图片延迟只选择已通过商品质量 test 的
+`1.0`，纠错、失败和 fallback 均为 `0`。这五条仅测协议和状态，不验证实际回答/推荐质量。
+真实图片延迟只选择已通过商品银标 test 的
 384 token 上限；图片 cap + processor cache 因 mean 变慢而未进入最终 release。检索最终
 选择真实 Milvus Lite `hybrid_weighted`，NDCG@10 `0.125654→0.564459`，代价是 P95
 增加约 `2.15 ms`。release v7 四场景真实 smoke 为 `PASS`。
@@ -27,7 +33,7 @@ prepared-input cache 因变慢被拒绝；检索侧有界 LRU 在质量完全一
 ## 2. 初始 v4 执行、历史基线与资产审计
 
 本节至第 9 节保留 2026-08-26 初始 v4 的不可变历史证据；2026-08-27 的全自动扩展结果
-见第 10 节，并以第 10 节作为当前交付结论。
+见第 10 节；后续工作见第 11 节，当前复审后的解释以第 12 节为准。
 
 ### 2.1 历史正式基线
 
@@ -497,3 +503,233 @@ human=`0` 的前提下继续可靠训练；v7 final 的业态与风格轻微回�
 - release config SHA-256 复算仍为 `9defb3e7...ef749`；Spartan 正式 checkpoint-87
   adapter SHA-256 复算仍为 `c2fbb5c7...eaa2a`。没有把运行输出、图片、模型权重、凭据或
   Slurm 日志加入 Git。
+
+## 12. 全项目复审与商品证据修复（2026-08-27）
+
+### 12.1 复审结论与修复边界
+
+本次检查 API、推理、训练、评测、检索和行程入口，以商品链路为重点；不是宣称整个项目已
+不存在缺陷。主工作树的用户文档改动未暂存、覆盖或提交。代码在独立 feature worktree
+提交；Spartan 仍使用既有项目目录。没有新增人工标签、人工复核或人工验收。
+
+| 优先级 | 实际问题 | 修复与验证方式 |
+|---|---|---|
+| P1 | metadata 停车场/吧台被写进 `visible_facilities`；provenance 与 unknown 矛盾 | 增加逐样本引用审计和视觉 SFT 输入拒绝；冻结 target 不改写，历史分数重新说明口径 |
+| P1 | 两阶段 Schema 只传给解码器，模型看不到字段/枚举；纠错未带实际错误 | 新诊断 Prompt 显式展示 Schema、短观察事实与互斥规则；重试包含原输出和错误；映射抑制明确缺证据的肯定标签 |
+| P1 | 两种 continuation SFT 的内存 backend 漏初始化缓存 | 统一 `from_loaded`，补齐两级缓存、执行锁与 readiness；两条训练回调的生成回归通过 |
+| P1 | 并发首次缓存 miss 可重复构造模型；同一模型并发生成存在共享状态风险 | API 单例工厂加外层锁，VLM/CLIP backend 加执行锁，模型与 processor 全部加载成功后才发布实例 |
+| P2 | HTTP 图片内容可能变化但 CPU 预处理缓存仍按 URL 命中 | HTTP 图片同时绕过 CPU/device 缓存；不改变默认关闭策略 |
+| P1 | 失败后的占位 JSON 仍获格式/部分语义及 unknown 分；价位支持写死；缺行重复行未拒绝 | 失败预测零分但保留分母；价位支持从固定参考集计算，必须一条样本恰好一个结果，NaN/越界选优指标拒绝；原始输出保留后离线重计分 |
+| P2 | development 校验会打开 test 标签；final 可接受不完整选择证据 | development 只查 train/dev 与五维 identity manifest；final 验证完整指标哈希与重新计算的选择结果，先写一次性标记再读取 test |
+| P2 | 对话先匹配预算被后续修改覆盖、局部否定误伤、部分解析吞掉剩余修改 | 同字段最后一次明确修改优先、否定局限于分句、剩余变化使用受约束 fallback；明确更新不能被 fallback 覆盖 |
+| P2 | 非法 days/budget 可进入状态；缺失字段与期望 null 被误计为一致 | 对非空数值检查类型和范围，保留合法取消时的 null；状态分数要求键实际存在 |
+| P2 | 生产旧 planner 返回示例目录；搜索数量无边界 | 生产关闭示例 planner，保留真实任务入口；搜索参数在 API 层校验；旧模型不可用返回 503 |
+| P1 | 生产环境误设 fallback 开关仍可伪造固定模型成功结果 | `APP_ENV=production` 无条件禁用旧客户端示例 fallback，开发模式行为保留 |
+
+复审后的对话仍是 beta 状态/契约功能；普通推荐问题和新图请求的固定确认语不构成实质
+任务完成。没有把“减少模型调用”包装为回答质量提升。检索 LRU 仍为 development 候选，
+此次没有再次改变检索排序或宣称已接入正式 API。
+
+### 12.2 商品弱标签与图像的直接矛盾
+
+Spartan preflight 使用完整 60 条 v7 development，human=`0`。数据锁 SHA-256：
+`321bea495df6e53813d79caa93fcd3478391ecf0b613f972500f7463224b0301`，五维隔离 PASS，
+本次不读取 final 标签。60/60 条混有 metadata；56/60 条业态 known/unknown 自相矛盾，
+60/60 条风格/设施 provenance 不准确。误差切片保留全部样本，没有删除困难项或降低支持。
+
+在查看模型输出前固定索引 `0/15/30/45` 做自动视觉定性检查。它不是新增 gold，不参与
+总体准确率计算，也不改变原 target：
+
+| development sample 后缀 | 图像可直接观察的短事实 | 当前 v7 输出的冲突示例 |
+|---|---|---|
+| 0000 | 室内大型不锈钢酿造设备 | 输出 `parking`，画面没有停车场 |
+| 0015 | 纸上的卷饼近景、木桌局部 | 输出 `parking`，无法由食品特写确认 |
+| 0030 | 室内桌椅、窗、桌游盒和电脑 | 输出 `parking`，不能由此确认停车设施 |
+| 0045 | 寿司、啤酒瓶与餐厅内景 | 输出 `bar, parking`，其中停车场未出现在图中 |
+
+这四条也都只返回 `photo type: ...` 作为证据，说明 Schema 通过不能证明观察事实正确。
+对这些样例的判断是自动定性证据，不能外推为 60 条或总体视觉准确率。
+
+### 12.3 可复现实验入口
+
+- 主要代码修复提交：`a099f3f`（商品/评测）、`217f6da`（运行时/API/状态）、`fdc49b0`
+  （CLIP/训练回归）、`dd7f4e5`（生产 fallback）、`b4d6193`（失败占位零分/离线重计分）。
+- `configs/week8/product_review_v1.json` 绑定完整固定 development、正式 adapter 与
+  v7 release；比较现有商品 Prompt、旧证据链、修复证据契约、临时禁用 adapter 的基座
+  消融。两阶段输出预算为 256；商品单阶段为 384。禁用 adapter 不写权重、不合并模型。
+- `scripts/review_week8_product.py --audit-only` 只做身份/引用审计；去掉该参数运行 GPU
+  对照。必须传 `--output-dir` 指向新的目录，已有输出拒绝覆盖。
+- `--rescore-dir` 对已有四组 raw output 校验原哈希，再以修复后的失败零分协议写到新目录；
+  原指标/输出不改写，模型新增请求数为零，不打开 final 标签。
+- `configs/week8/runtime_review_v2.json` 固定 10 条对话，包括新增的重复预算、局部否定、
+  部分更新、取消预算和非法天数；最终 `runtime_review_v3.json` 保留这 10 条，仅将图片
+  绑定到已锁定真实 development 照片，并记录 SHA/尺寸。四条有图、六条纯文本。不是用
+  额外样本替换原有失败样本。
+- 本次无训练、无新 adapter、无新 final test。已消费 v7 final 不被再次调参使用。
+
+### 12.4 完整 development 对照与失败重计分
+
+本节表中 `product_release` 是已选 **Week 8 v7 RC** 的
+`week8_product_field_check_v1`，不是历史正式 `system_repair_product_compact_v3`。
+历史 fresh test 综合分 `0.780639` 保留在前文，不能与本节 development 跨集相减。
+所有组使用同一正式 checkpoint-87；`base` 消融只暂时禁用 adapter，不生成新权重。
+
+| GPU 作业 | 代码 | 完成状态/实际耗时 | 工作内容 |
+|---|---|---|---|
+| 29664584 | a099f3f | COMPLETED 0:0 / 47:37 | 四角色各 60 条商品 development |
+| 29666004 | f129ea8 | COMPLETED 0:0 / 13:40 | RC 控制组及基座自由解码各 60 条 |
+| 29666837 | f58707c | COMPLETED 0:0 / 03:00 | 真实照片 smoke、10 条对话、重复延迟 |
+
+三作业均为 NVIDIA A100 80GB PCIe、torch `2.8.0+cu128`，顺序运行，没有争用同一 GPU。
+首轮商品冷加载 `38423.918 ms`；完整首轮峰值 allocated/reserved 为
+`8,143,745,536/8,432,648,192 B`。这是整轮高水位，不是每种 Prompt 的独立内存比较。
+
+每组完整保留 60 条，业态 reference 为 restaurant/hotel/attraction=`57/1/2`。
+style/facility 指标的行分母均 60，其中正标签行 `53/60`、正标签数量 `66/93`；
+style 多标签/单标签/空值分别 `11/42/7`。视觉价位 known support=`0`，unknown support=`60`。
+多主体/主体模糊没有独立可信标注，不能声称已测得该切片准确率。五维 manifest 检查无
+跨集碰撞；模板身份在本组均为空（适用数 0），不伪装成有模板覆盖。
+
+以下为修正后 `week8_product_failure_zero_credit_v2` 分数：失败留在分母但零分；综合分
+沿用原 macro-F1 权重并排除无支持的已知价位项。为便于比较，表内 P/R/F1 单独列 micro。
+所有语义数值只表示有缺陷的 metadata/caption silver 匹配，不表示图像正确率。
+
+| 角色 | 综合 | 业态 acc | style P/R/F1 | facility P/R/F1 | completeness |
+|---|---:|---:|---|---|---:|
+| v7 RC 控制 | 0.836046 | 0.916667 | 0.770492 / 0.712121 / 0.740157 | 0.886076 / 0.752688 / 0.813953 | 0.800556 |
+| 旧证据链 | 0.587549 | 0.633333 | 0.767442 / 0.500000 / 0.605505 | 0.959184 / 0.505376 / 0.661972 | 0.551667 |
+| 修复证据契约 | 0.694199 | 0.916667 | 0.589041 / 0.651515 / 0.618705 | 0.512821 / 0.430108 / 0.467836 | 0.648611 |
+| 基座＋受约束解码 | 0.269641 | 0.383333 | 0.387755 / 0.287879 / 0.330435 | 0.419355 / 0.139785 / 0.209677 | 0.245000 |
+| 基座＋自由解码 | 0.510065 | 0.650000 | 0.426667 / 0.484848 / 0.453901 | 0.436364 / 0.258065 / 0.324324 | 0.437778 |
+
+已知价位 accuracy 五组均 N/A（support=0），不能报 100%。unknown 集合匹配五组均
+`4/60=0.066667`，受到参考自身 56 条 known/unknown 矛盾影响，不能解释为真实 unknown
+使用正确率。单独 price unknown 的有效正确数依表中顺序为 `60/43/60/27/58`，分母均 60。
+RC 的完整语义严格匹配仅 `19/60`，多风格切片 `0/11`、hotel `0/1`、attraction `0/2`；
+这些仍是银标一致性切片，不是经人工确认的错图数量。
+
+| 角色 | 原始 JSON syntax | 模型 Schema | 有效 JSON/Schema 计分 | 请求失败 | 发生重试的样本 | 首次成功 |
+|---|---:|---:|---:|---:|---:|---:|
+| v7 RC 控制 | 100% | 100% | 100% / 100% | 0/60 | 0 | 60/60 |
+| 旧证据链 | 100% | 71.6667% | 71.6667% / 71.6667% | 17/60 | 53 | 7/60 |
+| 修复证据契约 | 100% | 100% | 100% / 100% | 0/60 | 0 | 60/60 |
+| 基座＋受约束解码 | 45% | 45% | 45% / 45% | 33/60 | 33 | 27/60 |
+| 基座＋自由解码 | 100% | 96.6667% | 96.6667% / 96.6667% | 2/60 | 2 | 58/60 |
+
+原始 JSON syntax 指最终模型输出能否解析；有效格式计分另将请求失败置零，不能把有效
+计分率下降误称为 JSON 语法错误。旧证据链的 Schema 失败是重复 `uncertainty_reasons`；
+基座受约束解码失败表现为中文字符串中途结束。自由解码保持相同 256-token 上限、完整
+Schema 后校验和最多一次重试，剩余两条为重复 `observable_facts`，未被自动抹掉。
+旧证据链角色也使用本次共享的重试错误上下文修复，不是未改动历史 v4 的重新运行。
+
+| 角色 | mean / P50 / P95（ms） | 输入 / 输出 token 总量 |
+|---|---|---|
+| v7 RC 控制（首轮） | 3966.894 / 3925.841 / 4077.809 | 40728 / 3455 |
+| 旧证据链 | 17630.520 / 18585.745 / 19452.544 | 35420 / 8262 |
+| 修复证据契约 | 7999.279 / 7919.372 / 8481.089 | 40608 / 3238 |
+| 基座＋受约束解码 | 14467.119 / 14414.522 / 16171.269 | 66691 / 7446 |
+| v7 RC 控制（第二轮） | 3914.785 / 3869.962 / 4018.004 | 40728 / 3455 |
+| 基座＋自由解码 | 6232.580 / 6051.702 / 7271.232 | 42317 / 7834 |
+
+结论：Schema 可见契约确实修复了旧证据链的运行失败，并缩短该链延迟；但仍猜测不可见
+设施，facility 银标分也回退。基座自由解码减少字符串错误，但定性检查仍有物体/文字
+错读。没有候选同时证明商品视觉正确性、格式和延迟优于当前选择，因此 **不更换 RC
+Prompt 或 adapter**。不能仅凭 composite 的格式项回升就称语义优化成功。
+
+### 12.5 真实图片与对话再次回归
+
+复审发现 `data/samples/images/cafe_001.jpg` 是 64×64 的底色加圆形占位图，SHA 为
+`fa3858fd0d08b1788606095cc4c18d470e927644d61b9696840749a1ae3644f7`。
+前两作业随附 smoke 和重复延迟使用该图，**只能作为真实模型连通性证据**，不能称为
+真实商品照片基准。两轮各 60 条商品 development 本身使用真实图片，不受此问题影响。
+
+最终作业绑定原 development `week8-product-v2-development-0030` 的 533×400 室内照片，
+SHA `4522e1aa84ef6f0800b2b138068f56db88e8096a622ef1f842e652b9024cf6d8`。
+`f69797e` 在加载模型前检查图片 SHA，并写入尺寸和 provenance；CLI 替换图也必须通过
+身份校验。`runtime_review_v3.json` SHA 为
+`cd2aad55361c1c88d7308a00620b9b6dee2784dcda34f3769669b09e5c61ee24`。
+
+runtime v2 曾暴露两个真实错误：取消预算仍保留 2000、负一天被改写为正一天。
+`f58707c` 新增明确取消置 null、非法字段保护和部分失败回复；语义 fallback 仍可更新
+其他字段，但不得覆盖被拒字段。最终原 10 条全部保留并再次运行：
+
+| 对话指标 | 模型生成 current | 修复后确定性路由＋语义 fallback |
+|---|---:|---:|
+| 首轮格式合规 | 90% | 100% |
+| 二次格式纠错触发 | 10% | 0 |
+| 请求失败率 | 10% | 0 |
+| 上下文字段召回 | 0.88 | 1.00 |
+| 状态值正确率（25 字段） | 0.80 | 1.00 |
+| 完整状态 exact（10 条） | 0.40 | 1.00 |
+| 非预期状态键数量 | 15 | 0 |
+
+修复组 9 条不调用模型，儿童数量部分更新 1 条使用真实模型 fallback，成功保留预算和
+其他状态。进程内 wall mean/median 为 `567.325/0.055652 ms`，P95（nearest-rank）
+`5672.375 ms`；这不是 HTTP 延迟。汇总中的模型耗时 P50=0 只代表不调用模型，不能声称
+服务响应耗时为零。普通推荐/新图分支仍只是确认语；该测试不证明推荐或图片问答完成。
+
+同一模型/adapter/Prompt/真实图片、复用模型和 processor、缓存关闭，每组 1 次预热再
+5 次测量。加载耗时 `21434.521 ms`，生成上限 512 与已有 RC 的 384 比较：
+
+| 商品真实照片基准 | 512 | 384 |
+|---|---:|---:|
+| mean（ms） | 3894.280 | 3901.957 |
+| P50（ms） | 3902.640 | 3908.000 |
+| P95（ms） | 3943.654 | 3926.002 |
+| 输入 / 输出 token 总量 | 3565 / 285 | 3565 / 285 |
+| 生成速度（token/s） | 14.636852 | 14.608055 |
+| Schema / 请求失败率 | 100% / 0 | 100% / 0 |
+| 配对输出完全相同 | 5/5 | 5/5 |
+| 峰值 allocated / reserved（B） | 6731133440 / 8432648192 | 6731133440 / 8432648192 |
+
+两组每次都只生成 57 token，降低上限没有降低实际生成量；P95 小幅波动但 mean 略慢，
+样本少且未交错，**不认定稳定提速**。输出一致仅证明没有改变输出，不代表输出正确：
+该图仍输出不可见的 `parking`。不改变发布参数，不以此代替商品质量提升。
+
+真实照片 smoke 的商品/售后/行程三场景 JSON/Schema 通过，对话确定性三键契约通过。
+商品第一次调用含冷加载为 `40470.734 ms`，不与稳态 3.9 s 混用。对话 smoke 本身不调用
+模型，真实 fallback 由上述 runtime 覆盖。行程输出仍有“简短摘要”“简短活动”等模板
+复述，因此 `status=PASS` 只代表技术契约，不能描述为业务语义全部正确。
+
+### 12.6 证据身份、验证与最终状态
+
+原始证据目录位于 `outputs/week8/review/`，全部忽略、不入 Git：
+
+| 相对目录/文件 | SHA-256 |
+|---|---|
+| week8_product_review_20260827_v1/summary.json | f2234d5958e64b8d6f35129b5853e23eaf4a8c2a30b1bbff1c4b07d450dcbff9 |
+| week8_product_decode_review_20260827_v2/summary.json | c14956942e4d3072d26681cf9b280e6dd19c5df8632c18b5bee172ffbbc23100 |
+| week8_product_review_20260827_v1_rescored/summary.json | add2379dc9f2d23b88390882bc42d5d931d831e491799a8614cf870140df8dd3 |
+| week8_product_decode_review_20260827_v2_rescored/summary.json | 259b9ce9b97193095cb7803e1cb0ecb10b4da8b92d0fc2ad4da2d9c699ff23a6 |
+| week8_real_image_runtime_20260827_v3/model_smoke.json | b6532cf4f2cbc15db604537909e2da95f31222fc68713e472677a4bc6f8d0734 |
+| week8_real_image_runtime_20260827_v3/runtime.json | 0701c1e7299c8c3e0c90b241273d4602f555bb409af76c285363ee393e6742a4 |
+
+离线重计分代码 `f69797e`，两次均 `new_model_requests=0`，原 raw 输出 SHA 逐组校验；
+本节以新 summary 为准，不覆盖首轮含失败占位得分的历史文件。
+
+- 新增定向：`python -m unittest tests.test_week8_review_repairs tests.test_api_review_repairs tests.test_clip_review_repairs -v`，`45/45 PASS`。
+- 全量：`python -m unittest discover -s tests -v`，最终复验 `654/654 PASS`（33.380 s）。
+- `python -m compileall -q src scripts tests`、两个新增 Slurm 脚本 `bash -n`、
+  `git diff --check`、tracked secret signature scan、tracked 文件大于 10 MiB 扫描均 PASS。
+- README 新增路径存在；商品 review、runtime benchmark、model smoke 三个 CLI 的
+  `--help` 实测通过。
+- development 五维身份检查 PASS；最终 test 本次未运行、未读取标签，不产生新的最终
+  评测结论。冻结 lock 内的状态文字不代替已消费 final 的外部一次性 marker。
+- 本次不训练，无新 adapter 回载结果；已有内存训练 backend 的单元回归及正式 adapter
+  的真实模型加载已验证，不能将其写成已完成新训练。
+- formal manifest 的 Git blob 与 Spartan LF 文件 SHA 为
+  `3c71e0d58ea834a70d2d65a780bf1f790f38c78f5d4e16a3f9ac9d0c91ef3f6b`；Windows 当前
+  工作副本因换行转换，字节 SHA 为 `88984350e083a75ac13e944ffb4a2cf4eb1ebbdb54a2515203b8a9df3ad619fa`。
+  两端 `git hash-object` 均为 `348f92b338f5cda36d06e58bde455ba11917f4e7`，内容未改；
+  v7 RC manifest SHA 为 `9defb3e7e346bef32d3e290b65f8aaf48f50793959d32e1753684590186ef749`；
+  adapter SHA 为 `c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a`。
+
+已完成：可复现商品数据口径审计、证据契约和失败计分修复、基座解码消融、真实照片身份
+及重复基准、对话状态再次修复、运行时/API 并发与生产失败保护、全量回归和文档纠偏。
+
+仍未解决：不可见设施猜测与弱证据复述、酒店/景点及多主体/风格的可靠视觉评测、已知
+价位正支持、通用推荐/行程的实质任务完成度、商品稳定提速、检索 LRU 正式接入。原因是
+现有银标混合非视觉 metadata、有效独立视觉参考与正样本不足，现有 adapter 仍复述弱
+训练模式；本次诊断没有证明可安全替代的语义方案。不会伪造 gold、安排人工标注或把
+失败实验写成完成。保留 checkpoint-87 与 `week8_product_field_check_v1` 的既有 RC
+选择，未升级正式 release、未合并到 dev/stg/main、未打标签。

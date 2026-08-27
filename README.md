@@ -21,7 +21,7 @@ The project builds a minimal but extensible OTA pipeline for:
 - image-to-structured-info extraction from travel-related images;
 - visual search over restaurants, cafes, hotels, attractions, and products;
 - multimodal travel planning from images, reviews, and user preferences;
-- reproducible vLLM serving and experiment tracking.
+- reproducible model serving and experiment tracking.
 
 ## Motivation
 
@@ -32,7 +32,7 @@ OTA users often search with vague intent and visual references: a cafe photo, a 
 ```text
 Client
   -> FastAPI business API
-  -> vLLM OpenAI-compatible VLM service
+  -> Qwen3-VL + PEFT release runtime (Transformers)
   -> Structured extraction
   -> Retrieval baseline
   -> Travel planner
@@ -59,13 +59,42 @@ tests/        unittest behavior and data-pipeline contract coverage
 
 ## Features
 
-- Dockerized API and vLLM serving layout.
-- Qwen3-VL primary model config with Qwen2.5-VL fallback.
-- DeepSeek-VL2 config for later comparison.
-- `/health`, `/v1/image-understanding`, `/v1/visual-search`, `/v1/travel-planning`.
-- Deterministic fallback responses when live vLLM is not configured.
-- Sample POI catalog and review snippets.
-- Experiment log and results CSV templates.
+- 当前正式模型为 Qwen3-VL-8B + system-repair PEFT adapter；生产任务使用 `/v1/tasks/*`。
+- `/health` 与 readiness、独立 CLIP/Milvus 图片检索、版本化 Prompt/Schema 和实验记录。
+- 生产依赖不可用时返回错误，不用固定示例冒充模型结果。对话 beta 的确定性分支只保证状态
+  更新与三键契约，不代表已经生成推荐或理解新图片。
+- 旧 vLLM 端点和 Docker 配置保留；Qwen2.5/DeepSeek 配置不是当前发布模型或自动兜底。
+- 示例 POI planner `/v1/travel-planning` 仅限非生产环境；生产行程抽取使用
+  `/v1/tasks/itinerary-planning`，并不等同于完整检索推荐链路。
+
+商品效果口径：Week 8 的 caption/商家 metadata `silver` 匹配分不等于图像事实正确率。
+2026-08-27 复审确认固定 development 的 60/60 条混有非视觉 metadata，详见
+`reports/week8_product_understanding_optimization_report.md`。历史结果不覆盖，也不将这些
+target 用作新的视觉专项 SFT 真值。新增工作不要求任何人工标注、复核或验收。
+
+商品复审命令（从仓库根目录运行，输出目录必须尚不存在）：
+
+```bash
+python scripts/review_week8_product.py --audit-only --output-dir outputs/week8/review/audit_new_run
+python scripts/review_week8_product.py --output-dir outputs/week8/review/product_new_run
+python scripts/review_week8_product.py --rescore-dir outputs/week8/review/product_new_run --output-dir outputs/week8/review/rescored_new_run
+python scripts/review_week8_product.py --config configs/week8/product_review_v2.json --output-dir outputs/week8/review/decoder_new_run
+```
+
+第一条需要既有 Spartan 数据锁；第二条还需 GPU、既有模型缓存与 `TRIP_ADAPTER_DIR`。
+第三条校验原始输出哈希后重新计分，不再次推理。
+第四条是在相同 256-token 证据预算下取消解码器约束的诊断，仍执行完整 Schema 后校验。
+GPU 作业入口为
+`scripts/spartan/week8_product_review.sbatch`；修复后 10 条对话及固定图片重复基准用
+`scripts/spartan/week8_review_regression.sbatch`。两者沿用项目运行环境变量，不能与其他
+独占 GPU 任务重叠；命令不访问已消费 final，也不自动替换 release。
+
+回归脚本使用 `configs/week8/runtime_review_v3.json` 的 533×400 真实 development 图片，
+必须设置 `TRIP_SMOKE_IMAGE` 与 `TRIP_SMOKE_IMAGE_SHA256` 为该配置绑定的路径和 SHA。
+图片不匹配会在加载模型前失败。默认示例 `data/samples/images/cafe_001.jpg` 实际是
+64×64 图形占位图，只适合接口连通性检查，不能用作真实商品质量或照片延迟基准。
+最近真实照片测量中 512/384 输出上限均约 3.9 s，输出一致但仍有不可见设施猜测；
+因此没有宣称提速或更换已选商品 Prompt/adapter。
 
 ## Quick Start
 
@@ -78,6 +107,9 @@ pip install -r requirements-api.txt
 ```
 
 Run the API:
+
+仅安装 API 依赖可运行健康检查；真实模型任务还需后文的 GPU runtime、release 配置和
+adapter。生产环境即使误设 `MODEL_FALLBACK_ENABLED=true` 也不允许返回固定模型示例。
 
 ```bash
 uvicorn src.api.app:app --host 0.0.0.0 --port 8000
