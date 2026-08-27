@@ -47,12 +47,13 @@ DIALOGUE_EXECUTION_MODES = {
     "deterministic_contract_v1",
 }
 _BUDGET_UPDATE_RE = re.compile(
+    r"(?P<cancel>取消预算(?:限制|上限)?)|"
     r"预算(?:改成|调整为|设为|改为|换成)?\s*"
-    r"(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>万|千|[kK]|元)?"
+    r"(?P<value>[-负]?\d+(?:\.\d+)?)\s*(?P<unit>万|千|[kK]|元)?"
 )
 _DAYS_UPDATE_RE = re.compile(
     r"(?:行程|天数|安排)?(?:改成|调整为|设为|改为|延长到|缩短到)\s*"
-    r"(?P<value>\d+|[一二两三四五六七八九十]+)\s*天"
+    r"(?P<value>[-负]?(?:\d+(?:\.\d+)?|[一二两三四五六七八九十]+))\s*天"
 )
 _CITY_UPDATE_RE = re.compile(
     r"(?:城市|目的地)(?:改成|调整为|设为|改为|换成)\s*"
@@ -726,7 +727,7 @@ class ScenarioService:
     ) -> DialogueResponse:
         """Route and assemble the public contract in code, not model output."""
 
-        updates, needs_semantic_fallback = _deterministic_state_updates(request)
+        updates, needs_semantic_fallback, rejected_fields = _parse_deterministic_state_updates(request)
         attempts: list[ModelAttempt] = []
         fallback_status = "NOT_USED"
         if needs_semantic_fallback and self.dialogue_semantic_fallback_enabled:
@@ -734,7 +735,11 @@ class ScenarioService:
                 fallback_updates, attempts = self._generate_state_update_fallback(
                     request
                 )
-                updates = {**fallback_updates, **updates}
+                safe_fallback = {
+                    key: value for key, value in fallback_updates.items()
+                    if key not in rejected_fields
+                }
+                updates = {**safe_fallback, **updates}
                 fallback_status = "SUCCEEDED"
             except ModelGenerationError as exc:
                 attempts = list(exc.attempts)
@@ -745,7 +750,7 @@ class ScenarioService:
             reply=_deterministic_dialogue_reply(
                 request,
                 updates,
-                fallback_failed=fallback_status == "FAILED_SAFE",
+                fallback_failed=fallback_status == "FAILED_SAFE" or bool(rejected_fields),
             ),
             state_updates=updates,
             tool_calls=[],
@@ -1122,14 +1127,23 @@ def _deterministic_state_updates(
     request: DialogueRequest,
 ) -> tuple[dict[str, Any], bool]:
     """Extract bounded explicit updates and flag only ambiguous change requests."""
+    updates, fallback, _ = _parse_deterministic_state_updates(request)
+    return updates, fallback
+
+
+def _parse_deterministic_state_updates(
+    request: DialogueRequest,
+) -> tuple[dict[str, Any], bool, set[str]]:
+    """Keep rejected explicit fields out of model fallback updates."""
 
     latest_user = next(
         (turn.content for turn in reversed(request.messages) if turn.role == "user"),
         "",
     )
     if not latest_user:
-        return {}, False
+        return {}, False, set()
     updates: dict[str, Any] = {}
+    rejected_fields: set[str] = set()
     applied_spans = []
 
     def latest_positive(pattern):
@@ -1139,23 +1153,30 @@ def _deterministic_state_updates(
         return matches[-1] if matches else None
 
     budget_match = latest_positive(_BUDGET_UPDATE_RE)
-    if budget_match and not _match_is_negated(latest_user, budget_match.start()):
-        value = float(budget_match.group("value"))
-        unit = budget_match.group("unit")
-        if unit in {"千", "k", "K"}:
-            value *= 1000
-        elif unit == "万":
-            value *= 10000
-        if math.isfinite(value) and 0 <= value <= 1_000_000_000:
-            updates["budget"] = int(value) if value.is_integer() else value
-            applied_spans.append(budget_match.span())
+    if budget_match:
+        applied_spans.append(budget_match.span())
+        if budget_match.group("cancel"):
+            updates["budget"] = None
+        else:
+            value = float(budget_match.group("value").replace("负", "-"))
+            unit = budget_match.group("unit")
+            if unit in {"千", "k", "K"}:
+                value *= 1000
+            elif unit == "万":
+                value *= 10000
+            if math.isfinite(value) and 0 <= value <= 1_000_000_000:
+                updates["budget"] = int(value) if value.is_integer() else value
+            else:
+                rejected_fields.add("budget")
 
     days_match = latest_positive(_DAYS_UPDATE_RE)
     if days_match and not _match_is_negated(latest_user, days_match.start()):
+        applied_spans.append(days_match.span())
         days = _parse_positive_days(days_match.group("value"))
         if days is not None:
             updates["days"] = days
-            applied_spans.append(days_match.span())
+        else:
+            rejected_fields.add("days")
 
     city_match = latest_positive(_CITY_UPDATE_RE)
     if city_match and not _match_is_negated(latest_user, city_match.start()):
@@ -1183,7 +1204,7 @@ def _deterministic_state_updates(
         remaining[start:end] = " " * (end - start)
     unmatched = _NEGATED_POSITIVE_UPDATE_RE.sub("", "".join(remaining))
     needs_semantic_fallback = bool(_POSITIVE_UPDATE_CUE_RE.search(unmatched))
-    return updates, needs_semantic_fallback
+    return updates, needs_semantic_fallback, rejected_fields
 
 
 def _match_is_negated(text: str, start: int) -> bool:
@@ -1192,8 +1213,13 @@ def _match_is_negated(text: str, start: int) -> bool:
 
 
 def _parse_positive_days(value: str) -> int | None:
+    if value.startswith(("-", "负")) or "." in value:
+        return None
     if value.isdigit():
-        parsed = int(value)
+        normalized = value.lstrip("0") or "0"
+        if len(normalized) > 3:
+            return None
+        parsed = int(normalized)
         return parsed if 1 <= parsed <= 365 else None
     numerals = {
         "一": 1,
@@ -1211,6 +1237,8 @@ def _parse_positive_days(value: str) -> int | None:
         return 10
     if "十" in value:
         left, right = value.split("十", 1)
+        if (left and left not in numerals) or (right and right not in numerals):
+            return None
         tens = numerals.get(left, 1) if left else 1
         ones = numerals.get(right, 0) if right else 0
         parsed = tens * 10 + ones

@@ -100,7 +100,7 @@ class APIReviewRepairTests(unittest.TestCase):
     def test_invalid_fallback_days_does_not_corrupt_existing_state(self):
         raw = json.dumps({"state_updates": {"days": -1}})
         service = ScenarioService(settings(), FakeBackend([raw, raw]), dialogue_execution_mode="deterministic_contract_v1", dialogue_semantic_fallback_enabled=True)
-        response = service.run_dialogue(DialogueRequest(messages=[{"role": "user", "content": "把行程改成负一天。"}], state={"days": 2}))
+        response = service.run_dialogue(DialogueRequest(messages=[{"role": "user", "content": "把行程改成极短的时间。"}], state={"days": 2}))
         self.assertEqual(response.state, {"days": 2})
         self.assertEqual(response.semantic_fallback_status, "FAILED_SAFE")
 
@@ -108,7 +108,8 @@ class APIReviewRepairTests(unittest.TestCase):
         service = ScenarioService(settings(), FakeBackend(['{"state_updates":{"budget":null}}']), dialogue_execution_mode="deterministic_contract_v1", dialogue_semantic_fallback_enabled=True)
         response = service.run_dialogue(DialogueRequest(messages=[{"role": "user", "content": "取消预算限制。"}], state={"budget": 2000}))
         self.assertIsNone(response.state["budget"])
-        self.assertEqual(response.semantic_fallback_status, "SUCCEEDED")
+        self.assertEqual(response.semantic_fallback_status, "NOT_USED")
+        self.assertEqual(response.attempts, [])
 
     def test_partial_failure_reply_preserves_successful_updates(self):
         raw = '{"state_updates":{"days":-1}}'
@@ -117,6 +118,26 @@ class APIReviewRepairTests(unittest.TestCase):
         self.assertEqual(response.state, {"budget": 2000, "days": 2})
         self.assertIn("已更新预算", response.reply)
         self.assertIn("其余变化未能可靠解析", response.reply)
+
+    def test_invalid_explicit_days_cannot_be_rewritten_to_positive_days(self):
+        for value in ("负一", "-1", "1.5", "0", "366", "三十十", "9" * 5000):
+            service = ScenarioService(settings(), FakeBackend(['{"state_updates":{"days":1}}']), dialogue_execution_mode="deterministic_contract_v1", dialogue_semantic_fallback_enabled=True)
+            request = DialogueRequest(messages=[{"role": "user", "content": f"行程改成{value}天。"}], state={"days": 2})
+            with self.subTest(value=value[:20]):
+                response = service.run_dialogue(request)
+                self.assertEqual(response.state["days"], 2)
+                self.assertEqual(response.attempts, [])
+        self.assertEqual(_deterministic_state_updates(DialogueRequest(messages=[{"role": "user", "content": "天数改成0002天。"}])), ({"days": 2}, False))
+
+    def test_cancel_and_budget_updates_follow_last_explicit_instruction(self):
+        for text, expected in (("预算改成3000元，再取消预算限制。", {"budget": None}), ("取消预算限制，预算改成4000元。", {"budget": 4000}), ("不要取消预算限制。", {})):
+            with self.subTest(text=text):
+                self.assertEqual(_deterministic_state_updates(DialogueRequest(messages=[{"role": "user", "content": text}])), (expected, False))
+
+    def test_invalid_field_is_protected_during_other_semantic_updates(self):
+        service = ScenarioService(settings(), FakeBackend(['{"state_updates":{"days":1,"children":1}}']), dialogue_execution_mode="deterministic_contract_v1", dialogue_semantic_fallback_enabled=True)
+        response = service.run_dialogue(DialogueRequest(messages=[{"role": "user", "content": "行程改成负一天，并增加一位儿童。"}], state={"days": 2, "children": 0}))
+        self.assertEqual(response.state, {"days": 2, "children": 1})
 
 
 if __name__ == "__main__":
