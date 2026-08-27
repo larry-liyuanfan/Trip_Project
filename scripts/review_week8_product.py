@@ -58,8 +58,16 @@ def load_review_inputs(root: Path, path: Path):
 
 
 def output_diagnostics(records):
-    consistent = nonempty = first_pass = 0
+    consistent = nonempty = first_pass = syntax = schema = 0
     for record in records:
+        # 原始模型语法率单列；失败占位零分是端到端计分，不等于 JSON 语法错误。
+        try:
+            json.loads(strip_json_fence(record.get("evidence_raw_output", record["raw_output"])))
+        except (ValueError, TypeError):
+            pass
+        else:
+            syntax += 1
+        schema += int(record.get("evidence_schema_pass", not record["failed"]))
         try:
             payload = json.loads(strip_json_fence(record["raw_output"]))
         except (ValueError, TypeError):
@@ -68,6 +76,8 @@ def output_diagnostics(records):
         nonempty += int(not record["failed"] and isinstance(payload, dict) and bool(payload.get("style_tags") or payload.get("visible_facilities")))
         first_pass += int(bool(record.get("attempts")) and record["attempts"][0]["error"] is None)
     return {
+        "model_json_syntax_rate": syntax / len(records),
+        "model_schema_pass_rate": schema / len(records),
         "internal_consistency_rate": consistent / len(records),
         "positive_style_or_facility_output_count": nonempty,
         "first_attempt_pass_rate": first_pass / len(records),

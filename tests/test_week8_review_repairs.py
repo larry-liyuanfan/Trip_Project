@@ -246,6 +246,16 @@ class Week8ReviewRepairTests(unittest.TestCase):
         self.assertEqual(product["aggregate"]["schema_pass"], 0)
         self.assertEqual(result["failure_count"], 1)
 
+    def test_json_syntax_and_operational_failure_are_reported_separately(self):
+        from scripts.review_week8_product import output_diagnostics
+        result = output_diagnostics([{
+            "raw_output": '{}', "evidence_raw_output": '{"wrong":true}',
+            "evidence_schema_pass": False, "failed": True, "attempts": [],
+        }])
+        self.assertEqual(result["model_json_syntax_rate"], 1)
+        self.assertEqual(result["model_schema_pass_rate"], 0)
+        self.assertEqual(result["internal_consistency_rate"], 0)
+
     def test_offline_rescore_preserves_raw_evidence_and_rejects_changed_hash(self):
         from scripts.review_week8_product import rescore_review
         with tempfile.TemporaryDirectory() as tmp:
