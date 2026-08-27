@@ -22,6 +22,7 @@ from src.evaluation.week8_runtime_optimization import (
     load_runtime_benchmark_config,
     run_dialogue_first_turn_comparison,
     run_product_latency_benchmark,
+    validate_fixed_image_identity,
 )
 from src.inference.system_runtime import ReleaseSettings, TransformersPeftBackend
 
@@ -89,6 +90,7 @@ def main() -> None:
         raise SystemExit(f"fixed product image is missing: {fixed_image}")
     if args.product_image is not None:
         config["product_latency"]["image"] = str(fixed_image)
+    image_identity = validate_fixed_image_identity(config, fixed_image)
     backend = TransformersPeftBackend(settings)
     started = time.perf_counter()
     ready, reason = backend.ready()
@@ -123,6 +125,7 @@ def main() -> None:
                 fixed_image
             ),
             "fixed_image_override": args.product_image is not None,
+            "fixed_image_metadata": image_identity,
         },
     }
     if "dialogue" in sections:

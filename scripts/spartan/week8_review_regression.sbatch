@@ -18,6 +18,8 @@ set -euo pipefail
 : "${TRIP_HF_HOME:?}"
 : "${TRIP_ADAPTER_DIR:?}"
 : "${TRIP_OUTPUT_DIR:?}"
+: "${TRIP_SMOKE_IMAGE:?set the locked real development photo}"
+: "${TRIP_SMOKE_IMAGE_SHA256:?set its verified SHA-256}"
 cd "$TRIP_PROJECT_ROOT"
 if [[ -e "$TRIP_OUTPUT_DIR" ]]; then
   printf '%s\n' 'Refusing to overwrite regression evidence' >&2
@@ -32,9 +34,10 @@ export TMPDIR="$XDG_CACHE_HOME/tmp"
 mkdir -p "$TMPDIR"
 source "$TRIP_VENV/bin/activate"
 python scripts/run_system_model_smoke.py --adapter-dir "$TRIP_ADAPTER_DIR" \
+  --image "$TRIP_SMOKE_IMAGE" --expected-image-sha256 "$TRIP_SMOKE_IMAGE_SHA256" \
   --release-config configs/releases/qwen3_vl_system_week8_v7.json \
   --output "$TRIP_OUTPUT_DIR/model_smoke.json"
 python scripts/benchmark_week8_runtime.py --adapter-dir "$TRIP_ADAPTER_DIR" \
   --release-config configs/releases/qwen3_vl_system_week8_v7.json \
-  --benchmark-config configs/week8/runtime_review_v2.json \
+  --benchmark-config configs/week8/runtime_review_v3.json \
   --output "$TRIP_OUTPUT_DIR/runtime.json"

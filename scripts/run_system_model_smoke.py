@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run four real production-model scenarios without consuming evaluation data."""
+"""Run production-model smoke; the default image is only a transport fixture."""
 
 from __future__ import annotations
 
@@ -85,10 +85,16 @@ def main() -> None:
         type=Path,
     )
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--expected-image-sha256", help="optional immutable real-photo identity")
     args = parser.parse_args()
     output = args.output.resolve()
     if output.exists():
         raise SystemExit(f"refusing to overwrite model smoke evidence: {output}")
+    if args.expected_image_sha256 and _sha256(args.image) != args.expected_image_sha256:
+        raise SystemExit("smoke image SHA-256 mismatch")
+    from PIL import Image
+    with Image.open(args.image) as image_source:
+        image_dimensions = list(image_source.size)
     os.environ["TRIP_ADAPTER_DIR"] = str(args.adapter_dir.resolve())
     settings = ReleaseSettings.load(
         root=ROOT,
@@ -117,6 +123,8 @@ def main() -> None:
             args.adapter_dir / "adapter_model.safetensors"
         ),
         "sample_image_sha256": _sha256(args.image),
+        "sample_image_dimensions": image_dimensions,
+        "sample_image_identity_pinned": bool(args.expected_image_sha256),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("x", encoding="utf-8", newline="\n") as handle:

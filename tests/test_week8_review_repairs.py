@@ -70,6 +70,25 @@ def loaded_backend(factory=TransformersPeftBackend.from_loaded):
 
 
 class Week8ReviewRepairTests(unittest.TestCase):
+    def test_real_image_benchmark_pin_rejects_fixture_substitution(self):
+        from src.evaluation.week8_runtime_optimization import validate_fixed_image_identity, Week8RuntimeBenchmarkError
+        config = json.loads((ROOT / "configs/week8/runtime_review_v3.json").read_text(encoding="utf-8"))
+        self.assertEqual(config["product_latency"]["image_provenance"], "week8_v7_development_real_photo")
+        with self.assertRaisesRegex(Week8RuntimeBenchmarkError, "SHA-256 mismatch"):
+            validate_fixed_image_identity(config, ROOT / "data/samples/images/cafe_001.jpg")
+        config["product_latency"]["image_sha256"] = sha256_file(ROOT / "data/samples/images/cafe_001.jpg")
+        metadata = validate_fixed_image_identity(config, ROOT / "data/samples/images/cafe_001.jpg")
+        self.assertEqual((metadata["width"], metadata["height"]), (64, 64))
+
+    def test_smoke_image_mismatch_fails_before_model_loading(self):
+        from scripts.run_system_model_smoke import main
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = ["smoke", "--adapter-dir", tmp, "--image", str(ROOT / "data/samples/images/cafe_001.jpg"), "--output", str(Path(tmp) / "out.json"), "--expected-image-sha256", "0" * 64]
+            with patch("sys.argv", argv), patch("scripts.run_system_model_smoke.TransformersPeftBackend") as backend:
+                with self.assertRaisesRegex(SystemExit, "SHA-256 mismatch"):
+                    main()
+                backend.assert_not_called()
+
     def test_loaded_training_backend_readiness_never_reloads_weights(self):
         backend = loaded_backend()
         self.assertEqual(backend.ready(), (True, "ok"))

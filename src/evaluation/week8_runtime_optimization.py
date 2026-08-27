@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import statistics
 import time
@@ -23,6 +24,21 @@ from src.inference.transport_utils import strip_json_fence
 
 class Week8RuntimeBenchmarkError(ValueError):
     """Raised when fixed benchmark identity or inputs are invalid."""
+
+
+def validate_fixed_image_identity(config: dict[str, Any], image: Path) -> dict[str, Any]:
+    """Record dimensions and enforce the optional versioned real-photo pin."""
+    from PIL import Image
+
+    with image.open("rb") as handle:
+        digest = hashlib.file_digest(handle, "sha256").hexdigest()
+    expected = config["product_latency"].get("image_sha256")
+    if expected is not None and digest != expected:
+        raise Week8RuntimeBenchmarkError("fixed benchmark image SHA-256 mismatch")
+    with Image.open(image) as source:
+        width, height = source.size
+    return {"sha256": digest, "width": width, "height": height,
+            "provenance": config["product_latency"].get("image_provenance", "unspecified")}
 
 
 def load_runtime_benchmark_config(root: Path, path: Path) -> dict[str, Any]:
@@ -85,6 +101,8 @@ def load_runtime_benchmark_config(root: Path, path: Path) -> dict[str, Any]:
     image = root / str(latency.get("image", ""))
     if not image.is_file():
         raise Week8RuntimeBenchmarkError(f"fixed product image is missing: {image}")
+    if "image_sha256" in latency:
+        validate_fixed_image_identity(payload, image)
     if payload.get("schema_version") == "week8_runtime_optimization_config_v8":
         _validate_v8_latency_profiles(latency)
     return payload
