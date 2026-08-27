@@ -10,11 +10,27 @@ from pydantic import ValidationError
 from src.api import routes
 from src.evaluation.week8_runtime_optimization import _expected_state_score
 from src.inference.schemas import DialogueRequest, ImageUnderstandingRequest, TravelPlanningRequest, VisualSearchRequest
+from src.inference.client import OpenAICompatibleClient
 from src.inference.system_runtime import ScenarioService, _deterministic_state_updates
 from tests.test_system_runtime import FakeBackend, settings
 
 
 class APIReviewRepairTests(unittest.TestCase):
+    def test_production_cannot_enable_canned_model_fallback(self):
+        with patch.dict("os.environ", {"APP_ENV": "production", "MODEL_FALLBACK_ENABLED": "true"}, clear=True):
+            client = OpenAICompatibleClient()
+            self.assertFalse(client.fallback_enabled)
+            with self.assertRaisesRegex(RuntimeError, "not configured"):
+                client.understand_images(ImageUnderstandingRequest())
+
+    def test_legacy_search_unavailable_model_returns_503(self):
+        with patch.dict("os.environ", {"APP_ENV": "development"}, clear=True):
+            with patch.object(routes, "VLLMClient") as client:
+                client.return_value.understand_images.side_effect = RuntimeError("offline")
+                with self.assertRaises(HTTPException) as raised:
+                    routes.visual_search(VisualSearchRequest())
+        self.assertEqual(raised.exception.status_code, 503)
+
     def test_concurrent_first_requests_create_only_one_service(self):
         routes._cached_scenario_service.cache_clear()
         created = []

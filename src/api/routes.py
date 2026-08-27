@@ -139,13 +139,16 @@ def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
             "embedding_model": "openai/clip-vit-base-patch32",
             "results": results,
         }
-    understanding = VLLMClient().understand_images(
-        ImageUnderstandingRequest(
-            image_urls=request.image_urls,
-            user_text=request.query_text,
-            language="zh",
+    try:
+        understanding = VLLMClient().understand_images(
+            ImageUnderstandingRequest(
+                image_urls=request.image_urls,
+                user_text=request.query_text,
+                language="zh",
+            )
         )
-    )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="legacy model endpoint is unavailable") from exc
     query_terms = " ".join(
         [
             request.query_text,
