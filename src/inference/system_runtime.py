@@ -70,7 +70,7 @@ _POSITIVE_UPDATE_CUE_RE = re.compile(
     r"改成|调整为|设为|改为|换成|延长到|缩短到|增加|删除|取消|改得"
 )
 _NEGATED_POSITIVE_UPDATE_RE = re.compile(
-    r"(?:不要|别|无需|不需要).{0,8}"
+    r"(?:不要|别|无需|不需要)[^，。；,;!?！？\n]{0,8}"
     r"(?:改成|调整为|设为|改为|换成|延长到|缩短到|增加|删除|取消|改得)"
 )
 
@@ -373,9 +373,12 @@ class TransformersPeftBackend:
         return self._prepared_input_cache.snapshot()
 
     def ready(self) -> tuple[bool, str]:
-        valid, reason = self.settings.validate_adapter()
-        if not valid:
-            return valid, reason
+        if self.settings is not None:
+            valid, reason = self.settings.validate_adapter()
+            if not valid:
+                return valid, reason
+        elif any(value is None for value in (self._model, self._processor, self._torch)):
+            return False, "in-memory backend is incomplete"
         try:
             self._ensure_loaded()
         except Exception as exc:
@@ -731,7 +734,7 @@ class ScenarioService:
                 fallback_updates, attempts = self._generate_state_update_fallback(
                     request
                 )
-                updates.update(fallback_updates)
+                updates = {**fallback_updates, **updates}
                 fallback_status = "SUCCEEDED"
             except ModelGenerationError as exc:
                 attempts = list(exc.attempts)
@@ -798,6 +801,15 @@ class ScenarioService:
                     raise ValueError(
                         "semantic fallback values must be finite JSON scalars"
                     )
+                if candidate.get("days") is not None and (
+                    type(candidate["days"]) is not int or not 1 <= candidate["days"] <= 365
+                ):
+                    raise ValueError("days must be an integer between 1 and 365")
+                if candidate.get("budget") is not None and (
+                    type(candidate["budget"]) not in (int, float)
+                    or not 0 <= candidate["budget"] <= 1_000_000_000
+                ):
+                    raise ValueError("budget must be a non-negative bounded number")
                 updates = candidate
             except (json.JSONDecodeError, ValueError) as exc:
                 error = str(exc)
@@ -818,11 +830,13 @@ class ScenarioService:
                 break
             active_messages = [
                 *active_messages,
+                {"role": "assistant", "content": raw},
                 {
                     "role": "user",
                     "content": (
-                        "上次状态抽取无效。只输出完整 JSON："
+                        f"上次状态抽取无效：{error}。只输出完整 JSON："
                         '{"state_updates":{}}；值仅可为字符串、数字、布尔或 null。'
+                        "days 非空时为 1–365 的整数，budget 非空时为 0–1000000000 的数字。"
                     ),
                 },
             ]
@@ -1116,8 +1130,15 @@ def _deterministic_state_updates(
     if not latest_user:
         return {}, False
     updates: dict[str, Any] = {}
+    applied_spans = []
 
-    budget_match = _BUDGET_UPDATE_RE.search(latest_user)
+    def latest_positive(pattern):
+        matches = [match for match in pattern.finditer(latest_user)
+                   if not _match_is_negated(latest_user, match.start())]
+        applied_spans.extend(match.span() for match in matches[:-1])
+        return matches[-1] if matches else None
+
+    budget_match = latest_positive(_BUDGET_UPDATE_RE)
     if budget_match and not _match_is_negated(latest_user, budget_match.start()):
         value = float(budget_match.group("value"))
         unit = budget_match.group("unit")
@@ -1127,39 +1148,46 @@ def _deterministic_state_updates(
             value *= 10000
         if math.isfinite(value) and 0 <= value <= 1_000_000_000:
             updates["budget"] = int(value) if value.is_integer() else value
+            applied_spans.append(budget_match.span())
 
-    days_match = _DAYS_UPDATE_RE.search(latest_user)
+    days_match = latest_positive(_DAYS_UPDATE_RE)
     if days_match and not _match_is_negated(latest_user, days_match.start()):
         days = _parse_positive_days(days_match.group("value"))
         if days is not None:
             updates["days"] = days
+            applied_spans.append(days_match.span())
 
-    city_match = _CITY_UPDATE_RE.search(latest_user)
+    city_match = latest_positive(_CITY_UPDATE_RE)
     if city_match and not _match_is_negated(latest_user, city_match.start()):
         updates["city"] = city_match.group("value").strip()
+        applied_spans.append(city_match.span())
 
-    preference_match = _PREFERENCE_UPDATE_RE.search(latest_user)
+    preference_match = latest_positive(_PREFERENCE_UPDATE_RE)
     if preference_match and not _match_is_negated(
         latest_user,
         preference_match.start(),
     ):
         updates["preference"] = preference_match.group("value").strip()
+        applied_spans.append(preference_match.span())
 
-    pace_match = _PACE_UPDATE_RE.search(latest_user)
+    pace_match = latest_positive(_PACE_UPDATE_RE)
     if pace_match and not _match_is_negated(latest_user, pace_match.start()):
         pace = pace_match.group("value")
         updates["pace"] = (
             "relaxed" if pace in {"松弛", "轻松", "悠闲", "放松"} else "packed"
         )
+        applied_spans.append(pace_match.span())
 
-    positive_cue = bool(_POSITIVE_UPDATE_CUE_RE.search(latest_user))
-    negative_only = bool(_NEGATED_POSITIVE_UPDATE_RE.search(latest_user))
-    needs_semantic_fallback = positive_cue and not negative_only and not updates
+    remaining = list(latest_user)
+    for start, end in applied_spans:
+        remaining[start:end] = " " * (end - start)
+    unmatched = _NEGATED_POSITIVE_UPDATE_RE.sub("", "".join(remaining))
+    needs_semantic_fallback = bool(_POSITIVE_UPDATE_CUE_RE.search(unmatched))
     return updates, needs_semantic_fallback
 
 
 def _match_is_negated(text: str, start: int) -> bool:
-    prefix = text[max(0, start - 8) : start]
+    prefix = re.split(r"[，。；,;!?！？\n]", text[:start])[-1][-8:]
     return any(marker in prefix for marker in ("不要", "别", "无需", "不需要"))
 
 
@@ -1197,7 +1225,7 @@ def _deterministic_dialogue_reply(
     *,
     fallback_failed: bool,
 ) -> str:
-    if fallback_failed:
+    if fallback_failed and not updates:
         return "未能可靠解析新的状态变化，已保留原状态，请换一种简短说法。"
     if updates:
         labels = {
@@ -1208,6 +1236,8 @@ def _deterministic_dialogue_reply(
             "pace": "节奏",
         }
         changed = "、".join(labels.get(key, key) for key in sorted(updates))
+        if fallback_failed:
+            return f"已更新{changed}，其余变化未能可靠解析，未修改未确认条件。"
         return f"已更新{changed}，其余已确认条件保持不变。"
     if request.image_urls:
         return "已进入对话路径并接收新图片，将承接当前状态继续处理。"

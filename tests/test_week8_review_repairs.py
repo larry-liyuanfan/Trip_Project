@@ -16,7 +16,7 @@ from src.retrieval.week8_relevance import Week8RetrievalError, claim_final_test,
 from src.training.week7_data import canonical_sha256, sha256_file, write_jsonl_new
 from src.training.week8_product import (
     Week8ProductError, _unknown_and_slice_metrics, run_final_test_once,
-    summarize_product_run, validate_week8_product_lock,
+    select_prompt, summarize_product_run, validate_week8_product_lock,
 )
 from src.training.week8_product_sft import _inspect_split_rows, Week8ProductSFTError
 from src.training.week8_product_two_stage import (
@@ -70,6 +70,21 @@ def loaded_backend(factory=TransformersPeftBackend.from_loaded):
 
 
 class Week8ReviewRepairTests(unittest.TestCase):
+    def test_loaded_training_backend_readiness_never_reloads_weights(self):
+        backend = loaded_backend()
+        self.assertEqual(backend.ready(), (True, "ok"))
+        backend._processor = None
+        self.assertEqual(backend.ready(), (False, "in-memory backend is incomplete"))
+
+    def test_selection_rejects_nonfinite_or_unbounded_metrics(self):
+        from tests.test_week8_product import summary
+        config = json.loads((ROOT / "configs/week8/product_understanding_v1.json").read_text(encoding="utf-8"))
+        for value in (float("nan"), float("inf"), -0.1, 1.1, True):
+            summaries = {role: summary(0.8) for role in config["prompts"]}
+            summaries["compact_field_check"]["scenarios"]["image_product_search"]["composite"] = value
+            with self.subTest(value=value), self.assertRaises(Week8ProductError):
+                select_prompt(config, summaries)
+
     def test_both_training_backends_generate_with_complete_cache_state(self):
         from src.training.week8_product_sft import _in_memory_backend as direct
         from src.training.week8_product_two_stage import _in_memory_backend as two_stage

@@ -35,10 +35,10 @@ class ImageUnderstandingResponse(BaseModel):
 
 class VisualSearchRequest(BaseModel):
     """Multimodal search input and requested result count."""
-    image_urls: list[str] = Field(default_factory=list)
-    query_text: str = ""
-    city: str | None = None
-    top_k: int = 5
+    image_urls: list[str] = Field(default_factory=list, max_length=8)
+    query_text: str = Field(default="", max_length=4000)
+    city: str | None = Field(default=None, max_length=128)
+    top_k: int = Field(default=5, ge=1, le=100, strict=True)
     retrieval_mode: Literal["keyword", "embedding", "hybrid"] = "hybrid"
 
 

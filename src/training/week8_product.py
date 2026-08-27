@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import os
 import re
 import statistics
@@ -938,6 +939,18 @@ def run_prompt_development(
 def select_prompt(config: dict[str, Any], summaries: dict[str, dict[str, Any]]) -> dict[str, Any]:
     if set(summaries) != set(config["prompts"]):
         raise Week8ProductError("Prompt summaries do not cover all approved roles")
+    for role, summary in summaries.items():
+        product = summary["scenarios"]["image_product_search"]
+        rates = (
+            product["composite"], product["aggregate"]["json_compliance"],
+            product["aggregate"]["schema_pass"], summary["failure_rate"],
+        )
+        latency = summary["latency_ms_mean"]
+        # NaN 的大小比较恒为 False，必须先拒绝，不能让损坏指标通过选优。
+        if any(type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1 for value in rates):
+            raise Week8ProductError(f"invalid bounded selection metrics for {role}")
+        if type(latency) not in (int, float) or not math.isfinite(latency) or latency < 0:
+            raise Week8ProductError(f"invalid selection latency for {role}")
     baseline = summaries["current_release"]
     baseline_product = baseline["scenarios"]["image_product_search"]
     eligible = []

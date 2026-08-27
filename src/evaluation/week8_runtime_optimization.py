@@ -357,7 +357,7 @@ def _expected_state_score(
     expected: dict[str, Any],
 ) -> tuple[int, int, int]:
     recalled = sum(key in actual for key in expected)
-    matched = sum(actual.get(key) == value for key, value in expected.items())
+    matched = sum(key in actual and actual[key] == value for key, value in expected.items())
     return int(recalled), int(matched), len(expected)
 
 

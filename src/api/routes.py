@@ -3,6 +3,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -30,6 +31,8 @@ from src.retrieval.milvus_vectors import OTAMilvusVectorStore, load_milvus_confi
 from src.retrieval.visual_search import VisualSearchService
 
 router = APIRouter()
+_scenario_service_lock = Lock()
+_visual_search_service_lock = Lock()
 
 
 @router.get("/health")
@@ -64,7 +67,10 @@ def readiness() -> dict[str, Any]:
 @router.post("/v1/image-understanding")
 def image_understanding(request: ImageUnderstandingRequest) -> dict[str, Any]:
     """Extract structured travel signals from one or more images."""
-    response = VLLMClient().understand_images(request)
+    try:
+        response = VLLMClient().understand_images(request)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="legacy model endpoint is unavailable") from exc
     return response.model_dump()
 
 
@@ -163,6 +169,11 @@ def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
 @router.post("/v1/travel-planning")
 def travel_planning(request: TravelPlanningRequest) -> dict[str, Any]:
     """Retrieve candidate POIs and build a preference-aware sample itinerary."""
+    if os.getenv("APP_ENV", "").strip().lower() == "production":
+        raise HTTPException(
+            status_code=404,
+            detail="sample-catalog planner is disabled in production; use /v1/tasks/itinerary-planning",
+        )
     catalog = _load_sample_catalog()
     query = " ".join(request.reviews + request.preferences.get("interests", []))
     candidates = HybridRetriever(catalog).search(query, top_k=4) or catalog[:2]
@@ -177,15 +188,26 @@ def _load_sample_catalog() -> list[dict[str, Any]]:
     return load_jsonl(path)
 
 
-@lru_cache(maxsize=1)
 def get_scenario_service() -> ScenarioService:
     """Create one lazy process-local model service."""
+    # lru_cache 本身允许并发首次 miss 重复执行；必须在缓存查找外串行化。
+    with _scenario_service_lock:
+        return _cached_scenario_service()
+
+
+@lru_cache(maxsize=1)
+def _cached_scenario_service() -> ScenarioService:
     return build_service()
 
 
-@lru_cache(maxsize=1)
 def get_visual_search_service() -> VisualSearchService:
     """Build the configured CLIP/Milvus production retrieval service."""
+    with _visual_search_service_lock:
+        return _cached_visual_search_service()
+
+
+@lru_cache(maxsize=1)
+def _cached_visual_search_service() -> VisualSearchService:
     config_path = Path(
         os.getenv("MILVUS_CONFIG", "docker/system/milvus_system.yaml")
     )
