@@ -708,11 +708,11 @@ def validate_hard_slice_lock(
 
 
 def _evidence_training_messages(
-    row: dict[str, Any], config: dict[str, Any]
+    row: dict[str, Any], config: dict[str, Any], *, root: Path | None = None
 ) -> list[dict[str, Any]]:
     from src.inference.system_runtime import _transformers_messages
 
-    messages = _transformers_messages(evidence_messages(row, config))
+    messages = _transformers_messages(evidence_messages(row, config, root=root))
     messages.append(
         {
             "role": "assistant",
@@ -898,7 +898,7 @@ def run_two_stage_continuation_sft(
             raise Week8TwoStageError("two-stage training row is not silver")
         messages = structure_aware_messages(
             processor,
-            _evidence_training_messages(row, config),
+            _evidence_training_messages(row, config, root=root),
             int(continuation["max_length"]),
         )
         inputs = processor.apply_chat_template(

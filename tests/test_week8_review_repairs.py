@@ -133,6 +133,15 @@ class Week8ReviewRepairTests(unittest.TestCase):
         for key in ("subject_category", "uncertainty_reasons", "no_facility_evidence", "uniqueItems"):
             self.assertIn(key, text)
 
+    def test_training_messages_support_the_same_schema_visible_contract(self):
+        from src.training.week8_product_two_stage import _evidence_training_messages
+        config = load_two_stage_config(ROOT / "configs/week8/product_two_stage_v1.json")
+        config["two_stage"]["include_schema_in_prompt"] = True
+        row = {"image_path": "data/samples/images/cafe_001.jpg", "evidence_target": evidence()}
+        messages = _evidence_training_messages(row, config, root=ROOT)
+        self.assertIn("uniqueItems", messages[1]["content"][-1]["text"])
+        self.assertEqual(json.loads(messages[-1]["content"]), row["evidence_target"])
+
     def test_negative_evidence_cannot_produce_positive_labels_in_v2(self):
         config = load_two_stage_config(ROOT / "configs/week8/product_two_stage_v1.json")
         config["two_stage"]["mapping_version"] = "evidence_consistent_v2"
