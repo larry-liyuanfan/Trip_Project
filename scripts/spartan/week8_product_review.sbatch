@@ -26,11 +26,13 @@ export XDG_CACHE_HOME="$TRIP_PROJECT_ROOT/outputs/week8/review_cache/$SLURM_JOB_
 export TMPDIR="$XDG_CACHE_HOME/tmp"
 mkdir -p "$TMPDIR"
 source "$TRIP_VENV/bin/activate"
-python scripts/review_week8_product.py --output-dir "$TRIP_OUTPUT_DIR"
+python scripts/review_week8_product.py \
+  --config "${TRIP_REVIEW_CONFIG:-configs/week8/product_review_v1.json}" \
+  --output-dir "$TRIP_OUTPUT_DIR"
 python scripts/run_system_model_smoke.py --adapter-dir "$TRIP_ADAPTER_DIR" \
   --release-config configs/releases/qwen3_vl_system_week8_v7.json \
   --output "$TRIP_OUTPUT_DIR/model_smoke.json"
 python scripts/benchmark_week8_runtime.py --adapter-dir "$TRIP_ADAPTER_DIR" \
   --release-config configs/releases/qwen3_vl_system_week8_v7.json \
-  --benchmark-config configs/week8/runtime_review_v1.json \
+  --benchmark-config "${TRIP_RUNTIME_CONFIG:-configs/week8/runtime_review_v1.json}" \
   --output "$TRIP_OUTPUT_DIR/runtime.json"

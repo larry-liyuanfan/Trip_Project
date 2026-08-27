@@ -27,11 +27,15 @@ from src.training.week8_product_two_stage import _generate_evidence, load_two_st
 
 def load_review_inputs(root: Path, path: Path):
     config = json.loads(path.read_text(encoding="utf-8"))
+    expected_profiles = {
+        "week8_product_review_v1": ["product_release", "evidence_legacy", "evidence_contract", "evidence_contract_base"],
+        "week8_product_review_v2": ["product_release", "evidence_contract_unconstrained_base"],
+    }
     if (
-        config.get("schema_version") != "week8_product_review_v1"
+        config.get("schema_version") not in expected_profiles
         or config.get("final_test_access") != "forbidden"
         or any(config.get(key) is not False for key in ("human_annotation", "human_review", "human_acceptance"))
-        or config.get("profiles") != ["product_release", "evidence_legacy", "evidence_contract", "evidence_contract_base"]
+        or config.get("profiles") != expected_profiles.get(config.get("schema_version"))
     ):
         raise ValueError("invalid development-only review policy")
     product_path = (root / config["product_config"]).resolve()
@@ -123,8 +127,12 @@ def run_review(root: Path, path: Path, output: Path, *, audit_only=False):
                         max_new_tokens=config["product_max_new_tokens"],
                     )
                 else:
+                    active_config = copy.deepcopy(legacy if role == "evidence_legacy" else repaired)
+                    if role == "evidence_contract_unconstrained_base":
+                        # 解码器消融仍逐条执行完整 Schema 校验；不修补或猜填非法输出。
+                        active_config["two_stage"]["constrained_decoding"] = False
                     record = _generate_evidence(
-                        root, backend, row, legacy if role == "evidence_legacy" else repaired,
+                        root, backend, row, active_config,
                         f"{config['run_id']}__{role}",
                     )
                 record["adapter_enabled"] = not role.endswith("_base")

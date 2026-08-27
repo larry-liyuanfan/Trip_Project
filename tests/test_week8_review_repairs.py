@@ -173,6 +173,21 @@ class Week8ReviewRepairTests(unittest.TestCase):
         self.assertEqual(messages[1][-2]["content"], '{"wrong":true}')
         self.assertIn("keys changed", messages[1][-1]["content"])
 
+    def test_unconstrained_decoding_still_validates_full_evidence_schema(self):
+        config = load_two_stage_config(ROOT / "configs/week8/product_two_stage_v1.json")
+        config["two_stage"]["constrained_decoding"] = False
+        formats = []
+
+        class Backend:
+            def generate_with_usage(self, _messages, **kwargs):
+                formats.append(kwargs["response_format"])
+                return types.SimpleNamespace(content='{"wrong":true}', input_tokens=10, output_tokens=5)
+
+        result = _generate_evidence(ROOT, Backend(), {"sample_id": "s1", "image_path": "image.jpg"}, config, "review")
+        self.assertEqual(formats, [None, None])
+        self.assertTrue(result["failed"])
+        self.assertFalse(result["evidence_schema_pass"])
+
     def test_reference_audit_exposes_mislabeled_metadata_and_unknown_conflict(self):
         row = product_row("development", "s1")
         row["target"]["unknown_fields"].append("business_category")

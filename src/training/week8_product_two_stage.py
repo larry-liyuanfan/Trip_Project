@@ -388,7 +388,9 @@ def _generate_evidence(
         try:
             result = backend.generate_with_usage(
                 active_messages,
-                response_format=response_format,
+                response_format=(
+                    response_format if config["two_stage"].get("constrained_decoding", True) else None
+                ),
                 max_new_tokens=int(config["two_stage"]["max_new_tokens"]),
             )
             raw = result.content
