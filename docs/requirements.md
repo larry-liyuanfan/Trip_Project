@@ -698,3 +698,11 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   P50/P95；只有质量、支持、引用和失败率严格不回退的候选才可锁定。
 - 商品 Prompt、adapter 或 release 身份没有通过新 development 证据时保持 v7 选择不变；
   不为没有变化的 release 重跑 final，不覆盖既有消费标记。
+
+### 2026-08-27 全项目复审与商品优先修复
+
+- 按用户最新要求复审数据、训练、评测、推理、API 与检索链路；复现问题后直接修复、增加
+  回归测试并再次 review，重点是商品可观察证据、弱银标口径和语义一致性。
+- 商品诊断仅使用既有 development，采用新的配置和运行身份。商家 metadata 匹配分与
+  图像事实正确性必须区分，不将修复格式、提高弱标签匹配或自动校验写成视觉能力提升。
+- 继续保持零人工工作、历史冻结资产不可变、Spartan 本项目目录和 feature 分支边界。

@@ -11,6 +11,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from src.evaluation.product_semantics import audit_product_references
 from src.inference.system_runtime import TransformersPeftBackend
 from src.training.week6_qlora import (
     _trainable_parameter_report,
@@ -237,6 +238,12 @@ def _inspect_split_rows(
         weight = float(row.get("sample_weight", 1.0))
         if not 0 < weight <= maximum_silver_weight:
             raise Week8ProductSFTError(f"{split} silver sample weight exceeds the cap")
+        audit = audit_product_references([row])
+        if audit["metadata_proxy_samples"] or audit["issue_counts"]:
+            raise Week8ProductSFTError(
+                f"{split} visual SFT target contains metadata proxies or contradictions; "
+                "requires a separately versioned evidence-grounded target, not more training"
+            )
         slices.update(str(value) for value in row.get("error_slices", []))
     return slices
 
@@ -352,12 +359,7 @@ def product_training_messages(
 def _in_memory_backend(model: Any, processor: Any, torch_module: Any) -> TransformersPeftBackend:
     """Reuse the release generation protocol without reloading checkpoint weights."""
 
-    backend = TransformersPeftBackend.__new__(TransformersPeftBackend)
-    backend.settings = None
-    backend._model = model
-    backend._processor = processor
-    backend._torch = torch_module
-    return backend
+    return TransformersPeftBackend.from_loaded(model, processor, torch_module)
 
 
 def run_week8_product_continuation_sft(

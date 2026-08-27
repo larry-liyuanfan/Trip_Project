@@ -18,6 +18,7 @@ from typing import Any, Iterable
 from pydantic import ValidationError
 
 from src.evaluation.prompting import render_standard_prompt
+from src.evaluation.product_semantics import audit_product_references
 from src.evaluation.schema_validation import SchemaValidationError, validate_output
 from src.inference.system_runtime import (
     ModelGenerationError,
@@ -239,7 +240,11 @@ def _category_from_description(description: str) -> str:
 
 
 def product_silver_target(source: dict[str, Any]) -> dict[str, Any]:
-    """Create conservative silver labels; business metadata never becomes visual evidence."""
+    """Reproduce historical mixed metadata/caption silver, NOT visual ground truth.
+
+    Frozen v1-v7 builds retain this protocol for reproducibility. The reference audit
+    and SFT eligibility checker prevent interpreting these targets as visual truth.
+    """
     caption_only = dict(source)
     caption_only["repair_mode"] = False
     target = _product_target(caption_only)
@@ -581,10 +586,14 @@ def build_week8_product_lock(
     return lock
 
 
-def validate_week8_product_lock(root: Path, config_path: Path) -> dict[str, Any]:
+def validate_week8_product_lock(
+    root: Path, config_path: Path, *, include_test: bool = True
+) -> dict[str, Any]:
     root = Path(root).resolve()
     config_path = Path(config_path).resolve()
     config = load_week8_product_config(config_path)
+    if config.get("week8", {}).get("development_only") is True:
+        include_test = False
     lock_config_path = config_path
     lock_config_relative = config.get("development_lock_config")
     if lock_config_relative:
@@ -628,15 +637,32 @@ def validate_week8_product_lock(root: Path, config_path: Path) -> dict[str, Any]
         "test": int(config["dataset"]["test_count"]),
     }
     for split, count in expected.items():
+        if split == "test" and not include_test:
+            continue
         rows = list(iter_jsonl(output / split / "image_product_search.jsonl"))
         if len(rows) != count:
             failures.append(f"{split}_count_changed")
         if any(row.get("label_source") != "programmatic_silver" for row in rows):
             failures.append(f"{split}_non_silver_label")
     for relative, evidence in lock.get("files", {}).items():
+        if relative.startswith("test/") and not include_test:
+            continue
         path = output / relative
         if not path.is_file() or sha256_file(path) != evidence.get("sha256"):
             failures.append(f"artifact_changed:{relative}")
+    isolation = None
+    identity_path = output / "identity_manifest.jsonl"
+    if "identity_manifest.jsonl" not in lock.get("files", {}) or not identity_path.is_file():
+        failures.append("identity_manifest_missing")
+    else:
+        identities = list(iter_jsonl(identity_path))
+        by_split = {split: [row for row in identities if row.get("split") == split] for split in expected}
+        if len(identities) != sum(expected.values()) or any(len(by_split[s]) != n for s, n in expected.items()):
+            failures.append("identity_manifest_count_changed")
+        try:
+            isolation = _validate_partition_isolation(by_split, {field: set() for field in IDENTITY_FIELDS})
+        except Week7DataError as exc:
+            failures.append(f"identity_isolation:{exc}")
     return {
         "status": "PASS" if not failures else "FAIL",
         "failures": failures,
@@ -644,6 +670,8 @@ def validate_week8_product_lock(root: Path, config_path: Path) -> dict[str, Any]
         "lock_sha256": lock.get("lock_sha256"),
         "split_counts": lock.get("split_counts"),
         "test_status": lock.get("test_status"),
+        "validation_scope": "all_splits" if include_test else "train_development_and_identity_only",
+        "isolation": isolation,
     }
 
 
@@ -759,6 +787,7 @@ def _unknown_and_slice_metrics(rows: list[dict[str, Any]], records: list[dict[st
     by_id = {row["sample_id"]: row for row in rows}
     unknown_scores = []
     price_unknown_scores = []
+    known_price_count = 0
     slice_totals: Counter[str] = Counter()
     slice_correct: Counter[str] = Counter()
     for record in records:
@@ -767,20 +796,30 @@ def _unknown_and_slice_metrics(rows: list[dict[str, Any]], records: list[dict[st
             parsed = json.loads(strip_json_fence(str(record.get("raw_output") or "")))
         except json.JSONDecodeError:
             parsed = {}
+        if not isinstance(parsed, dict) or record.get("failed"):
+            parsed = {}
         expected_unknown = set(row["target"].get("unknown_fields", []))
-        observed_unknown = set(parsed.get("unknown_fields", [])) if isinstance(parsed.get("unknown_fields"), list) else set()
-        score = float(expected_unknown == observed_unknown)
+        def string_set(field: str) -> set[str]:
+            value = parsed.get(field)
+            return set(value) if isinstance(value, list) and all(isinstance(item, str) for item in value) else set()
+        observed_unknown = string_set("unknown_fields")
+        score = float(bool(parsed) and not record.get("failed") and expected_unknown == observed_unknown)
         unknown_scores.append(score)
         price_score = float(
             parsed.get("price_range") == "unknown"
             and "price_range" in observed_unknown
         )
-        price_unknown_scores.append(price_score)
+        expected_price = row["target"].get("price_range", "unknown")
+        if expected_price == "unknown":
+            price_unknown_scores.append(price_score)
+        else:
+            known_price_count += 1
         semantic_correct = float(
             parsed.get("business_category") == row["target"]["business_category"]
-            and set(parsed.get("style_tags", [])) == set(row["target"]["style_tags"])
-            and set(parsed.get("visible_facilities", [])) == set(row["target"]["visible_facilities"])
-            and price_score == 1.0
+            and string_set("style_tags") == set(row["target"]["style_tags"])
+            and string_set("visible_facilities") == set(row["target"]["visible_facilities"])
+            and parsed.get("price_range") == expected_price
+            and (price_score == 1.0 if expected_price == "unknown" else True)
         )
         for name in row.get("error_slices", []):
             slice_totals[name] += 1
@@ -788,9 +827,9 @@ def _unknown_and_slice_metrics(rows: list[dict[str, Any]], records: list[dict[st
     return {
         "unknown_usage_accuracy": statistics.fmean(unknown_scores),
         "unknown_usage_support": len(unknown_scores),
-        "price_unknown_accuracy": statistics.fmean(price_unknown_scores),
+        "price_unknown_accuracy": statistics.fmean(price_unknown_scores) if price_unknown_scores else None,
         "price_unknown_support": len(price_unknown_scores),
-        "known_price_support": 0,
+        "known_price_support": known_price_count,
         "error_slices": {
             name: {
                 "support": slice_totals[name],
@@ -802,11 +841,20 @@ def _unknown_and_slice_metrics(rows: list[dict[str, Any]], records: list[dict[st
 
 
 def summarize_product_run(root: Path, rows: list[dict[str, Any]], records: list[dict[str, Any]]) -> dict[str, Any]:
+    expected_ids = [row["sample_id"] for row in rows]
+    observed_ids = [record["sample_id"] for record in records]
+    if (
+        not rows or len(expected_ids) != len(set(expected_ids))
+        or len(observed_ids) != len(set(observed_ids))
+        or set(expected_ids) != set(observed_ids)
+    ):
+        raise Week8ProductError("product records must cover each fixed sample exactly once")
     summary = summarize_raw_records(root, _scoring_config(), rows, records)
     latencies = [float(row.get("latency_ms", 0.0)) for row in records]
     inputs = [int(row.get("input_token_count") or 0) for row in records]
     outputs = [int(row.get("generated_token_count") or 0) for row in records]
     summary.update(_unknown_and_slice_metrics(rows, records))
+    summary["reference_semantics"] = audit_product_references(rows)
     summary["latency_ms_p50"] = statistics.median(latencies)
     summary["latency_ms_p95"] = _percentile(latencies, 0.95)
     summary["input_tokens_total"] = sum(inputs)
@@ -828,7 +876,7 @@ def run_prompt_development(
     if output_dir.exists():
         raise Week8ProductError(f"refusing to overwrite development run: {output_dir}")
     config = load_week8_product_config(config_path)
-    validation = validate_week8_product_lock(root, config_path)
+    validation = validate_week8_product_lock(root, config_path, include_test=False)
     if validation["status"] != "PASS" or validation["test_status"] != "LOCKED_UNCONSUMED":
         raise Week8ProductError("Week 8 lock is not eligible for development")
     lock_root = root / config["dataset"]["output_root"] / config["week8"]["dataset_version"]
@@ -953,17 +1001,33 @@ def run_final_test_once(
     marker_path = lock_root / "test_consumption.json"
     if marker_path.exists() or output_dir.exists():
         raise Week8ProductError("Week 8 final test has already been consumed or started")
-    validation = validate_week8_product_lock(root, config_path)
+    validation = validate_week8_product_lock(root, config_path, include_test=False)
+    if validation["status"] != "PASS":
+        raise Week8ProductError("final test requires an intact data lock")
     selection_path = development_dir / "selection.json"
     selection = json.loads(selection_path.read_text(encoding="utf-8"))
     if selection.get("status") != "PROMPT_LOCKED" or selection.get("test_consumed") is not False:
         raise Week8ProductError("Prompt must be locked before final test")
     if selection.get("config_sha256") != sha256_file(config_path) or selection.get("dataset_lock_sha256") != validation["lock_sha256"]:
         raise Week8ProductError("development selection identity changed")
-    for role, digest in selection.get("metrics_sha256", {}).items():
+    if set(selection.get("metrics_sha256", {})) != set(config["prompts"]):
+        raise Week8ProductError("development metric evidence is incomplete")
+    development_summaries = {}
+    for role, digest in selection["metrics_sha256"].items():
         path = development_dir / role / "metrics.json"
         if not path.is_file() or sha256_file(path) != digest:
             raise Week8ProductError("development metric evidence changed")
+        development_summaries[role] = json.loads(path.read_text(encoding="utf-8"))
+    recomputed = select_prompt(config, development_summaries)
+    if any(selection.get(key) != value for key, value in recomputed.items()):
+        raise Week8ProductError("development selection decision changed")
+    release = ReleaseSettings.load(root=root)
+    if (
+        release.base_model != config["model"]["base_model"]
+        or release.base_revision != config["model"]["base_revision"]
+        or release.adapter_model_sha256 != config["model"]["adapter_model_sha256"]
+    ):
+        raise Week8ProductError("final model differs from the locked development identity")
     marker = {
         "status": "STARTED",
         "run_id": config["experiment_identity"]["final_test_run_id"],
@@ -973,9 +1037,11 @@ def run_final_test_once(
         "started_at_epoch_seconds": time.time(),
     }
     _write_json_new(marker_path, marker)
+    # 先锁定选择并创建消费标记，再允许读取最终标签。
+    if validate_week8_product_lock(root, config_path)["status"] != "PASS":
+        raise Week8ProductError("final test data changed after selection was locked")
     output_dir.mkdir(parents=True)
     rows = list(iter_jsonl(lock_root / "test" / "image_product_search.jsonl"))
-    release = ReleaseSettings.load(root=root)
     backend = TransformersPeftBackend(release)
     ready, reason = backend.ready()
     if not ready:

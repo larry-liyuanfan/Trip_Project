@@ -10,6 +10,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from threading import RLock
 from typing import Any, Protocol
 
 import requests
@@ -332,12 +333,24 @@ class TransformersPeftBackend:
         self._model: Any = None
         self._processor: Any = None
         self._torch: Any = None
+        self._execution_lock = RLock()
         self._processor_cache = ProcessorInputCache(
             settings.processor_cache_max_entries
         )
         self._prepared_input_cache = ProcessorInputCache(
             settings.prepared_input_cache_max_entries
         )
+
+    @classmethod
+    def from_loaded(cls, model: Any, processor: Any, torch_module: Any) -> TransformersPeftBackend:
+        """Reuse training weights with the complete inference state initialized."""
+        backend = cls.__new__(cls)
+        backend.settings = None
+        backend._model, backend._processor, backend._torch = model, processor, torch_module
+        backend._execution_lock = RLock()
+        backend._processor_cache = ProcessorInputCache()
+        backend._prepared_input_cache = ProcessorInputCache()
+        return backend
 
     def configure_processor_cache(self, max_entries: int) -> None:
         """Reset and resize the bounded CPU preprocessing cache."""
@@ -391,9 +404,21 @@ class TransformersPeftBackend:
     ) -> GenerationResult:
         """Generate once and retain measured input/output token counts."""
 
+        # 同一模型的动态视觉位置状态及首次加载不可跨请求并发修改。
+        with self._execution_lock:
+            return self._generate_with_usage_locked(
+                messages, response_format=response_format, max_new_tokens=max_new_tokens
+            )
+
+    def _generate_with_usage_locked(
+        self, messages: list[dict[str, Any]], *,
+        response_format: dict[str, Any] | None, max_new_tokens: int,
+    ) -> GenerationResult:
+
         self._ensure_loaded()
         try:
             normalized = _transformers_messages(messages)
+            cache_eligible = _prepared_input_cache_eligible(normalized)
             cache_key = ProcessorInputCache.key(
                 normalized,
                 processor_signature(self._processor),
@@ -403,7 +428,7 @@ class TransformersPeftBackend:
             inputs: dict[str, Any] | None = None
             if (
                 self._prepared_input_cache.max_entries
-                and _prepared_input_cache_eligible(normalized)
+                and cache_eligible
             ):
                 device = next(self._model.parameters()).device
                 prepared_key = ProcessorInputCache.key(
@@ -415,7 +440,7 @@ class TransformersPeftBackend:
                 )
                 inputs = self._prepared_input_cache.get(prepared_key)
             if inputs is None:
-                inputs = self._processor_cache.get(cache_key)
+                inputs = self._processor_cache.get(cache_key) if cache_eligible else None
                 if inputs is None:
                     inputs = self._processor.apply_chat_template(
                         normalized,
@@ -425,7 +450,8 @@ class TransformersPeftBackend:
                         return_tensors="pt",
                         truncation=False,
                     )
-                    self._processor_cache.put(cache_key, inputs)
+                    if cache_eligible:
+                        self._processor_cache.put(cache_key, inputs)
                 if device is None:
                     device = next(self._model.parameters()).device
                 inputs = {
@@ -494,6 +520,10 @@ class TransformersPeftBackend:
         )
 
     def _ensure_loaded(self) -> None:
+        with self._execution_lock:
+            self._ensure_loaded_locked()
+
+    def _ensure_loaded_locked(self) -> None:
         if self._model is not None:
             return
         valid, reason = self.settings.validate_adapter()
@@ -526,21 +556,22 @@ class TransformersPeftBackend:
             quantization_config=quantization,
             trust_remote_code=False,
         )
-        self._model = PeftModel.from_pretrained(
+        model = PeftModel.from_pretrained(
             base,
             str(self.settings.adapter_path),
             is_trainable=False,
         )
-        self._model.eval()
-        self._processor = AutoProcessor.from_pretrained(
+        model.eval()
+        processor = AutoProcessor.from_pretrained(
             self.settings.base_model,
             revision=self.settings.base_revision,
             trust_remote_code=False,
         )
-        image_processor = getattr(self._processor, "image_processor", None)
+        image_processor = getattr(processor, "image_processor", None)
         if image_processor is not None and self.settings.visual_max_pixels is not None:
             image_processor.max_pixels = self.settings.visual_max_pixels
-        self._torch = torch
+        # 只有完整初始化后才发布状态，processor 加载失败不会留下半就绪模型。
+        self._model, self._processor, self._torch = model, processor, torch
 
 
 class ScenarioService:

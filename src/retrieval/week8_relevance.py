@@ -787,6 +787,8 @@ def validate_development_selection(
     source_hashes: dict[str, str],
 ) -> dict[str, Any]:
     """Recompute every development binding before final-test consumption."""
+    if config.get("split", {}).get("development_only"):
+        raise Week8RetrievalError("development-only retrieval cannot enter final-test validation")
     path = Path(selection_path)
     try:
         selection = json.loads(path.read_text(encoding="utf-8"))
@@ -860,6 +862,8 @@ def claim_final_test(
     selection_sha256: str | None = None,
 ) -> None:
     """Create the single-consumption marker before reading final-test vectors."""
+    if selection.get("schema_version") == "week8_retrieval_latency_selection_v1" or selection.get("development_only"):
+        raise Week8RetrievalError("development-only retrieval selection cannot consume final test")
     marker_path = Path(marker_path)
     if marker_path.exists():
         raise Week8RetrievalError("Week 8 retrieval final test was already consumed")

@@ -165,9 +165,9 @@ def validate_observable_evidence(
     }
     if not isinstance(evidence, dict) or set(evidence) != required:
         raise Week8TwoStageError("observable evidence keys changed")
-    if evidence["subject_category"] not in SUBJECT_CATEGORIES:
+    if not isinstance(evidence["subject_category"], str) or evidence["subject_category"] not in SUBJECT_CATEGORIES:
         raise Week8TwoStageError("invalid observable subject category")
-    if evidence["subject_clarity"] not in SUBJECT_CLARITIES:
+    if not isinstance(evidence["subject_clarity"], str) or evidence["subject_clarity"] not in SUBJECT_CLARITIES:
         raise Week8TwoStageError("invalid observable subject clarity")
     list_contracts = {
         "style_cues": (set(config["two_stage"]["style_vocabulary"]), 8, 40),
@@ -182,13 +182,13 @@ def validate_observable_evidence(
         if (
             not isinstance(values, list)
             or len(values) > maximum
-            or len(values) != len(set(values))
             or any(
                 not isinstance(value, str)
                 or not value.strip()
                 or len(value) > maximum_length
                 for value in values
             )
+            or len(values) != len(set(values))
             or (vocabulary is not None and any(value not in vocabulary for value in values))
         ):
             raise Week8TwoStageError(f"invalid observable evidence field: {field}")
@@ -206,6 +206,16 @@ def map_evidence_to_product(
     category = evidence["subject_category"] if clear else "unknown"
     styles = evidence["style_cues"] if clear else []
     facilities = evidence["facility_cues"] if clear else []
+    guarded = config["two_stage"].get("mapping_version") == "evidence_consistent_v2"
+    reasons = set(evidence["uncertainty_reasons"])
+    if guarded:
+        # 显式缺证据不能同时支持肯定标签；不把格式正确当作语义自洽。
+        if reasons & {"no_clear_subject", "multiple_subjects", "occluded_subject"}:
+            category = "unknown"
+        if "no_style_evidence" in reasons:
+            styles = []
+        if "no_facility_evidence" in reasons:
+            facilities = []
     price_range = "unknown"
     joined_price = " ".join(evidence["price_text"]).casefold()
     tier_patterns = {
@@ -215,7 +225,7 @@ def map_evidence_to_product(
         "luxury": r"\bluxury\b",
     }
     matches = [name for name, pattern in tier_patterns.items() if re.search(pattern, joined_price)]
-    if len(matches) == 1:
+    if len(matches) == 1 and not (guarded and (not clear or "no_price_evidence" in reasons)):
         price_range = matches[0]
     unknown = []
     if category == "unknown":
@@ -296,16 +306,28 @@ def caption_to_silver_evidence(caption: str) -> dict[str, Any]:
 
 
 def evidence_messages(
-    row: dict[str, Any], config: dict[str, Any]
+    row: dict[str, Any], config: dict[str, Any], *, root: Path | None = None
 ) -> list[dict[str, Any]]:
     image_path = str(row["image_path"]).replace("\\", "/")
+    task_prompt = config["two_stage"]["task_prompt"]
+    if config["two_stage"].get("include_schema_in_prompt"):
+        if root is None:
+            raise Week8TwoStageError("schema-bound evidence messages require repository root")
+        contract = json.dumps(_schema(root, config), ensure_ascii=False, separators=(",", ":"))
+        task_prompt += (
+            "\n字段契约：" + contract
+            + "\n数组不得重复。no_style_evidence/no_facility_evidence/no_price_evidence"
+            "分别与对应非空线索互斥。多个同一场景内的桌椅或人物不等于多个业态主体。"
+            "食品特写不能证明停车场、吧台、WiFi或装修风格。observable_facts须为短图像事实，"
+            "不能只写photo type。价格数字和装修档次不自动等于价位等级。不输出推理过程。"
+        )
     return [
         {"role": "system", "content": config["two_stage"]["system_prompt"]},
         {
             "role": "user",
             "content": [
                 {"type": "image_url", "image_url": {"url": f"file://{image_path}"}},
-                {"type": "text", "text": config["two_stage"]["task_prompt"]},
+                {"type": "text", "text": task_prompt},
             ],
         },
     ]
@@ -345,7 +367,7 @@ def _generate_evidence(
     config: dict[str, Any],
     run_id: str,
 ) -> dict[str, Any]:
-    messages = evidence_messages(row, config)
+    messages = evidence_messages(row, config, root=root)
     response_format = {
         "type": "json_schema",
         "json_schema": {
@@ -389,9 +411,10 @@ def _generate_evidence(
             break
         active_messages = [
             *messages,
+            {"role": "assistant", "content": raw},
             {
                 "role": "user",
-                "content": "上一次未通过证据 Schema。重新观察原图，只输出完整证据 JSON；不要解释或猜测。",
+                "content": f"上一次未通过证据 Schema：{error}。重新观察原图，只输出完整证据 JSON；不要解释或猜测。",
             },
         ]
     failed = parsed is None
@@ -421,7 +444,7 @@ def _generate_evidence(
         "input_token_count": input_tokens,
         "generated_token_count": output_tokens,
         "generation_max_new_tokens": int(config["two_stage"]["max_new_tokens"]),
-        "mapping_version": "deterministic_product_mapping_v1",
+        "mapping_version": config["two_stage"].get("mapping_version", "deterministic_product_mapping_v1"),
     }
 
 
@@ -707,16 +730,9 @@ def _evidence_training_messages(
 def _in_memory_backend(
     model: Any, processor: Any, torch_module: Any
 ) -> Any:
-    from src.inference.processor_cache import ProcessorInputCache
     from src.inference.system_runtime import TransformersPeftBackend
 
-    backend = TransformersPeftBackend.__new__(TransformersPeftBackend)
-    backend.settings = None
-    backend._model = model
-    backend._processor = processor
-    backend._torch = torch_module
-    backend._processor_cache = ProcessorInputCache()
-    return backend
+    return TransformersPeftBackend.from_loaded(model, processor, torch_module)
 
 
 def run_two_stage_continuation_sft(
