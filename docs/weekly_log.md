@@ -1041,3 +1041,20 @@ as the current validated dataset or accepted baseline.
 - 两轮商品原始输出只读校验后另存重计分；新增模型请求为 0，原证据不覆盖。正式及 RC
   manifest、adapter 不变，已消费 final 不重跑；真实 smoke 的 Schema PASS 不等于语义
   正确，停车场猜测、行程模板复述及一般对话任务完成度仍是未解决项。
+
+### 2026-08-28：c01b732 审查九项修复与真实复测
+
+- `327f764` 修复标签解析/否定/子串、无效参考选优、对话实际分派、行程业务检查、金额、
+  图片轮次、查询侧隔离与生产检索、输入 422、统一 release 配置；补充 25 条审查回归。
+- 新诊断身份 `week8_audit_repair_20260827_v1` 保留原 60 条 development；caption-only
+  silver 的业态/风格/设施/价位正支持为 3/0/3/0，旧 parking 58→新 caption parking 0。
+  这不是视觉提升，三组旧 raw 重计分均不允许锁定 Prompt；最终 test 未读取或重跑。
+- 真实 Milvus Lite + 生产路由 5 查询结果 5/5/0/5/5，过滤正确，换城市改变结果；使用
+  已有身份绑定 CLIP 向量，不宣称独立图片相关性提升或已部署 HNSW。
+- GPU job `29667548` 在 A100 MIG 20GB 完成（2:46）：技术 smoke PASS、业务 FAIL；
+  两日行程错天数/占位内容经一次纠错仍失败，已明确返回未完成。商品对话实际调用模型，
+  但 parking 猜测仍在。商品 5 次 mean/P50/P95=4686.114/4684.040/4702.216 ms，失败 0/5，
+  每次 input/output=713/57，不能与历史整卡结果直接比较。
+- 完整 unittest 679 条通过；旧四层交接包、显式配置及 Compose 静态复验通过。CLI
+  复测纠正候选 quality 说明字段误当运行契约的问题，未改 manifest 或 adapter。
+- Week 8 保持 PARTIAL；无人工工作、无新增训练、无晋级。详细字段支持和证据哈希见商品报告第 13 节。

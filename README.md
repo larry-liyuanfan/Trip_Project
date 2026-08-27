@@ -715,6 +715,17 @@ python scripts/tripctl.py serve
 python scripts/tripctl.py smoke --base-url http://127.0.0.1:8000
 ```
 
+`TRIP_RELEASE_CONFIG` 或全局参数 `--release-config` 显式选择同一配置；参数优先于环境变量。
+`validate` 返回实际文件路径及 SHA-256，缺失或损坏配置会失败。Compose 使用同一入口：
+
+```bash
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_v1.json compose config --quiet
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_v1.json compose up -d
+```
+
+该入口把解析后的绝对路径只读挂到 `/run/trip/release.json`；直接调用 Docker Compose 时，
+`TRIP_RELEASE_CONFIG` 必须为主机绝对路径，以免 Compose 与仓库根目录的相对路径基准不同。
+
 `smoke` 会依次检查 `/health`、`/ready`、三场景任务、多轮对话和视觉检索；部署主机上的
 样例图片路径可通过 `--image-path` 覆盖。任一模型、Schema 或检索请求失败都会使 smoke
 失败，不使用 mock 或 keyword fallback 冒充真实系统验证。
@@ -821,7 +832,7 @@ kept separate from current conclusions.
 
 ## Week 8 全自动商品、对话、延迟与检索候选
 
-Week 8 的正式候选配置为：
+Week 8 仍为 **PARTIAL，不晋级当前候选**。以下为保留的历史候选配置，不代表新的发布批准：
 
 - 商品 fresh 实验与数据锁：`configs/week8/product_understanding_v7.json`
 - 商品可观察证据与 continuation SFT：`configs/week8/product_two_stage_v1.json`
@@ -862,3 +873,29 @@ python -m unittest discover -s tests -v
 配置覆盖；晋级或合并不属于本分支交付。剩余优化中，两个额外商品 Prompt 和
 prepared-input cache 均经 development 实测后拒绝；检索 LRU512 在质量完全一致时将真实
 Milvus Lite 稳态 P95 从 `9.6339` 降到 `8.4247 ms`，同时记录 `1.60 s` 预计算和内存成本。
+
+### c01b732 审查后的修复入口（2026-08-28）
+
+历史检索 NDCG 使用了查询参考 metadata，不是独立图像理解证据；上述速度数据也不能
+替代相关性验收。现在排序只接收 `query_inputs.source=user/model_prediction`，生产
+`/v1/visual-search` 接通 `keyword/embedding/hybrid` 与显式城市/业态/价位条件。
+尚不能处理的“安静”等文本会列在 `unapplied_query_text`，不能声称满足全部条件。
+
+对话返回 `task_status=COMPLETED/STATE_UPDATED/NOT_COMPLETED` 和实际 `task_result`；
+状态更新成功与推荐任务完成分开。图片可放到每条 user 消息的 `image_urls`；兼容的顶层
+图片默认绑定最新 user 轮。商品仅接受一图；行程需要非空文字约束，非法请求返回 422。
+行程的天数、日序、明确约束和占位文本不合格时进行一次纠错，仍失败返回明确错误。
+
+以下命令需要现有 Spartan 项目数据/运行环境，输出目录必须为新身份；不读取最终 test 标签：
+
+```bash
+python scripts/audit_week8_labels.py --config configs/week8/audit_repair_v1.json
+python scripts/verify_week8_retrieval_routing.py --config configs/week8/audit_repair_v1.json
+python scripts/verify_week8_runtime_repairs.py --config configs/week8/audit_repair_v1.json
+python -m unittest tests.test_week8_audit_fixes -v
+```
+
+新标签协议 `caption_evidence_v2` 将商家 metadata 与 caption 标签分开，全部仍为 silver；
+旧 60 条 development 全部保留，但可靠视觉指标仍无法据此得出。缺少视觉参考或存在
+标签矛盾时，选优返回 `DIAGNOSTIC_ONLY_INVALID_REFERENCES`，不得锁定 Prompt。
+真实复测技术 smoke PASS、业务 smoke FAIL；商品仍猜测停车设施，不晋级。完整证据见商品报告第 13 节。

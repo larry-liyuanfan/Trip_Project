@@ -2,6 +2,10 @@
 
 ## 1. 结论
 
+**2026-08-28 最新结论：PARTIAL，不晋级 v7 候选。** 用户列出的九项工程缺陷已修复并回归；
+真实模型仍猜测停车设施、未生成合格行程。第 13 节为最新交付，前面各轮选择与分数保留为
+历史证据，不代表当前允许替换正式模型。
+
 **2026-08-27 复审更正：以下 Week 8 数值是混合 metadata/caption 银标匹配分，不是图像事实
 准确率。** 固定 development 60/60 条混有商家元数据，56/60 条的业态已知值与
 `unknown_fields` 矛盾，60/60 条将混合设施/风格错误归因于 caption。不能据此声称商品视觉
@@ -733,3 +737,116 @@ runtime v2 曾暴露两个真实错误：取消预算仍保留 2000、负一天�
 训练模式；本次诊断没有证明可安全替代的语义方案。不会伪造 gold、安排人工标注或把
 失败实验写成完成。保留 checkpoint-87 与 `week8_product_field_check_v1` 的既有 RC
 选择，未升级正式 release、未合并到 dev/stg/main、未打标签。
+
+## 13. c01b732 九项审查修复（2026-08-27 执行，2026-08-28 复验）
+
+### 13.1 修复范围与版本身份
+
+实现提交 `327f764`，配置 `configs/week8/audit_repair_v1.json`，运行身份
+`week8_audit_repair_20260827_v1`。沿用同一 Spartan 项目目录和
+`feature/week8-product-understanding` 分支；不修改主工作树、冻结数据、adapter、正式
+release 或已消费 final。本轮人工标注/复核/验收均为 0，没有新增 SFT。
+
+| 审查问题 | 修复与验证 |
+|---|---|
+| P1 标签错误 | 新 `caption_evidence_v2`：结构化解析 bool/字典、完整词匹配、否定处理；merchant_metadata 不并入 visible_facilities。False parking、mushroom、spacious、no parking 反例通过。历史生成器仅在明确 legacy 协议中保留。 |
+| P1 选优口径 | `reference_semantics` 成为选优前提；缺少视觉依据、metadata 代理或标签矛盾均返回 `DIAGNOSTIC_ONLY_INVALID_REFERENCES`。可靠参考下价位支持为 0 不阻断其他字段，价位单列 N/A。 |
+| P1 对话未执行 | 保留确定性状态解析，分派至商品、行程或真实检索；记录 tool_calls、attempts、task_result 和 task_status。仅确认、工具未执行、约束未应用时返回 NOT_COMPLETED。 |
+| P1 行程假通过 | Schema 后检查天数、日序、明确约束覆盖与占位文本；沿用一次纠错。技术 smoke 与业务 smoke 独立，失败不再被 PASS 掩盖。 |
+| P2 金额截断 | `2,000` 完整解析为 2000；`1e3`、错误千分位、范围等不支持格式保留旧值并提示，不能截取数字前缀。 |
+| P2 图片轮次 | 支持 user 轮次级 image_urls；兼容顶层图片绑定最新 user 轮，保留历史图，不再挂到第一轮。总引用数有界。 |
+| P2 检索闭环 | 排序只使用用户条件/模型预测，参考 metadata 留在评分侧；生产路由接通 keyword/embedding/hybrid 和配置化 weighted fusion，显示未应用文字条件。 |
+| P2 输入 500 | 商品/售后一图约束、行程非空文字约束在请求模型中校验；三项真实 HTTP TestClient 反例返回 422，未加载模型。 |
+| P2 配置错验 | CLI/服务共用配置解析；显式参数优先于环境变量。Compose 经 tripctl 传入相同绝对文件，验证返回路径/SHA。不存在配置退出 1；实际候选及 Compose 静态验证通过。 |
+
+复测还纠正 CLI 对 `quality.dialogue` 的硬编码假设：该字段是历史说明，不应将可运行的
+确定性候选误判为无效。未放宽运行参数校验，也未改动 manifest。
+
+### 13.2 真实数据重建与 Prompt 诊断
+
+只读取原 development 的 60 条和原生 caption parquet，按 photo_id/business_id 关联，
+验证每张图片 SHA；train/test 仅读取身份清单。新增目录
+`outputs/week8/review/week8_audit_repair_20260827_v1/labels/caption_evidence_v2/`。
+五维隔离 PASS：sample_id/source_id/image_sha256/group_id/constraint_template_id；实际图片
+无模板，模板值保持 null，不发明模板身份。train/development/test 身份数为 400/60/60，
+跨 split 碰撞 0，60 条 development 全部保留。新标签全部为 programmatic_silver、权重不超过 0.5。
+
+| 引用正支持（样本数） | 旧混合标签 | 新 caption-only silver |
+|---|---:|---:|
+| 总样本 | 60 | 60 |
+| 已知业态 | 60 | 3 |
+| 非空风格 | 53 | 0 |
+| 非空设施 | 60 | 3 |
+| 已知价位 | 0 | 0（N/A） |
+| parking | 58 | 0 |
+
+这是错误标签/来源纠正，**不是删除难例、降低支持以提高指标，也不是完整视觉真值**。
+caption 未提及某物不等于图片没有该物；所以新参考仍不能证明视觉准确率或召回率。
+风格正支持为 0，不能把空参考下实现约定的 recall=1 当作真实召回。
+
+原 3 组各 60 条 development 模型输出只读重计分，新增模型请求 0；raw SHA 写入 summary。
+
+| Prompt | 旧 metadata/caption composite | 新 caption-only diagnostic composite | 新选优 |
+|---|---:|---:|---|
+| system_repair_product_compact_v3 | 0.782941 | 0.541176 | 不锁定 |
+| week8_product_field_check_v1 | 0.836536 | 0.539869 | 不锁定 |
+| week8_product_evidence_guard_v1 | 0.740866 | 0.584314 | 不锁定 |
+
+同一 raw 的 JSON/Schema 仍为 100%/100%、请求失败 0，延迟和 token 未变；这些不是新的推理成绩。
+仅作为污染敏感性例子，正式 Prompt 的设施 micro P/R/F1 从旧参考的
+0.887097/0.591398/0.709677 变为新参考的 0.048387/1.000000/0.092308；不能解读为视觉性能变化。
+业态新值 1.0 仅支持 3 条，风格无正支持、价位 N/A。两套参考的选择器均明确拒绝视觉锁定。
+
+历史正式 fresh test composite=0.780639、风格/设施/价位支持 25/30/5 仅作历史，不与上述
+诊断混算。本轮没有 Week 8 新最终 test 结果；v7 final 不重跑、不读取标签或输出调参。
+冻结 lock 的 `test_status=LOCKED_UNCONSUMED` 是历史字段，不代表已消费 v7 final 可再次使用。
+
+### 13.3 实际检索与真实模型验证
+
+生产检索路由在新建隔离 Milvus Lite FLAT 集合中运行，复用原发布的 1,000 条 CLIP 向量。
+固定查询输入来自配置，不使用查询参考 metadata。5 项结果数为 5/5/0/5/5，字段过滤全部正确；
+Indianapolis→New Orleans 改变结果，hotel 无匹配时返回空集，不返回餐厅冒充酒店。
+keyword 两次不调用图像 encoder，hybrid/embedding 使用身份绑定的既有 CLIP 缓存向量。
+这是实际生产路由/真实 Milvus SDK 的闭环证据，**不是新 CLIP 编码、在线 HNSW 部署或图片
+相关性提升证据**。旧 NDCG 的 oracle 查询 metadata 增益不能继承为新策略的业务准确率；LRU 尚未接入生产。
+
+GPU job `29667548`，代码 `327f764`，A100 MIG 1g.20gb，`COMPLETED 0:0`，2 分 46 秒。
+初始整卡排队后，在验证 MIG 20GB 的既有运行兼容性及可用资源后调整同一待排作业到 MIG；
+未新建竞争作业，walltime 为 15 分钟。图片仍为 533×400 的固定 development 实图，
+SHA `4522e1aa84ef6f0800b2b138068f56db88e8096a622ef1f842e652b9024cf6d8`。
+
+- 技术 smoke PASS，业务 smoke FAIL。上海两日行程首轮仅一天、含占位文本；纠错后仍一天，
+  请求明确失败。对话行程实际调用模型两次，纠错后生成四天，返回 NOT_COMPLETED、FAILED tool call。
+- 商品对话实际调用模型 1 次，约 4678.876 ms，返回完整商品 task_result，不再只有确认语。
+  该执行 COMPLETED 不代表视觉标签正确；`business_valid=null`，仍含不可见 parking。
+- 相同模型/adapter/Prompt/图片预热后商品重复 5 次：mean/P50/P95(nearest-rank)
+  =4686.114/4684.040/4702.216 ms；每次 input/output=713/57 token，总计 3565/285。
+  商品 JSON/Schema 100%/100%、请求失败 0/5、输出完全一致 5/5，均保留 parking 猜测。
+- 冷加载 36987.748 ms；峰值 allocated=8143745536 B。P95 在 n=5 时是最大观测值，不是稳定尾延迟。
+  本次为 MIG，不能与此前整卡约 3.9 s 比较宣称提速或回退；未调整 Prompt、adapter 或推理上限。
+
+### 13.4 证据、验证与未完成项
+
+以下路径均相对 `outputs/week8/review/week8_audit_repair_20260827_v1/`，原始文件不入 Git：
+
+| 文件 | SHA-256 |
+|---|---|
+| labels/summary.json | 960e0d8e05d83ca356edc56526e44c2e17c72a1e1b8ce9a18d54ae9746688d3c |
+| labels/caption_evidence_v2/diagnostic_silver.jsonl | bf3bd50cb9df3ac619fbdf75a51fcaeb6b2f1b67401bc5a978ce8605b7568382 |
+| retrieval/summary.json | 14ff41ef31e870caa6faa9033e2d9010763a73f7ee39dbb5dc03fd0dc0cba468 |
+| runtime/model_smoke.json | 8df93d5c566ca876be8d5015b87f335e9602bd1bab9a6794b4676c8e95f4eca3 |
+| runtime/product_dialogue.json | 423f823d1609e61fbf33e32c9399d94f91154cdd290fd36d96c07282cb237f24 |
+| runtime/summary.json | c81af248d47b457604b3ea15b58c2ae248590cf765198e8466eda1027a9f2cb1 |
+
+复现命令见 README“c01b732 审查后的修复入口”。25 条新增定向 unittest、完整 679 条 unittest、
+compileall、Slurm `bash -n`、分支完整 `git diff --check dev...HEAD`、密钥签名/大文件扫描、
+显式 release CLI 和 Compose 静态配置检查已执行；真实数据重建与五维隔离通过。
+旧本地四层交接包另行复验 PASS；这是历史完整性验证，不代表新业务 smoke 通过。
+正式/RC manifest SHA 仍分别为 `3c71e0d5...ef3f6b`（Git/Spartan LF）和
+`9defb3e7...ef749`；实际加载的 adapter SHA 仍为 `c2fbb5c7...eaa2a`。
+
+已完成的是九项确定性缺陷修复、回归保护、真实失败不误报、无泄漏诊断和检索接口接通。
+仍未完成的是商品视觉猜测治理、酒店/景点/多主体与风格的可靠视觉评测、已知价位正支持、
+实质行程质量、未建模检索条件和独立相关性提升、商品稳定提速。现有 caption silver 正支持
+不足，checkpoint-87 模板复述/错误标签倾向仍在；不通过扩大训练、伪造金标或人工工作掩盖。
+当前正式模型不变，v7 Prompt/adapter 仅保留为历史候选，不晋级、不合并、不打标签。

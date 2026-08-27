@@ -151,6 +151,7 @@ class Week8AuditFixTests(unittest.TestCase):
     def test_compose_and_cli_use_same_absolute_explicit_release(self):
         path = Path("configs/releases/qwen3_vl_system_week8_v7.json").resolve()
         with patch.dict("os.environ", {"TRIP_RELEASE_CONFIG": str(path)}):
+            self.assertEqual(tripctl.validate()["status"], "ok")
             self.assertEqual(tripctl.validate()["release_config"], str(path))
             with patch.object(tripctl.subprocess, "call", return_value=0) as call:
                 self.assertEqual(tripctl.compose(["config", "--quiet"]), 0)

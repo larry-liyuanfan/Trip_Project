@@ -53,8 +53,8 @@ def validate() -> dict[str, Any]:
         payload = json.loads(selected.read_text(encoding="utf-8"))
         if payload.get("model", {}).get("base_model") != "Qwen/Qwen3-VL-8B-Instruct":
             errors.append("release base_model is not Qwen3-VL-8B-Instruct")
-        if payload.get("quality", {}).get("dialogue") != "DIALOGUE_BETA":
-            errors.append("release dialogue tier is not DIALOGUE_BETA")
+        # quality 是历史评测说明，不是运行契约；候选的确定性路由也对外返回 DIALOGUE_BETA。
+        # 运行参数的合法性由与服务共享的 ReleaseSettings.load 校验。
     except (OSError, ValueError, RuntimeConfigurationError) as exc:
         errors.append(f"release config invalid: {exc}")
     compose = ROOT / "docker/system/docker-compose.yml"

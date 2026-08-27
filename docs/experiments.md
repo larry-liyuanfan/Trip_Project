@@ -1186,3 +1186,28 @@ manifest.
   runtime SHA `0701c1e7299c8c3e0c90b241273d4602f555bb409af76c285363ee393e6742a4`。
   smoke 的商品/售后/行程 Schema 均通过，对话走确定性契约；行程仍复述模板，不能将
   `PASS` 写成业务语义全部正确。最终保留 v7 RC Prompt 和 checkpoint-87，不安排人工工作。
+
+## 2026-08-28：Week 8 九项审查修复验证
+
+- 执行代码：`327f764`；配置 `configs/week8/audit_repair_v1.json`，SHA
+  `2b30dccebddab76e5d82766987de1ea78d57b9a824684c79e157d9e2c607ea67`。
+- 数据：原 v7 development 60 条，原生 caption parquet；另存 `caption_evidence_v2`，
+  human=0，silver=60，原图片/身份不变。五维隔离 PASS，train/test 只读身份，不读 test 标签。
+- 命令：`python scripts/audit_week8_labels.py`、`python scripts/verify_week8_retrieval_routing.py`、
+  `python scripts/verify_week8_runtime_repairs.py`，均使用上述配置与同一 Spartan 项目目录。
+- 标签审计：旧 parking 58→caption 支持 0，业态/风格/设施/价位正支持 60/53/60/0→3/0/3/0。
+  全样本保留。原三 Prompt raw 的重计分只是引用敏感性诊断，不是新模型改善；三者均返回
+  `DIAGNOSTIC_ONLY_INVALID_REFERENCES`，无新 Prompt/adapter 选择，无新 final。
+- 检索：真实隔离 Milvus Lite FLAT + 生产路由，复用发布 1,000 CLIP 向量，固定 5 查询
+  返回数 5/5/0/5/5、过滤正确、查询变化改变结果；没有读取 query gold 用于排序。
+  未运行新 CLIP 编码、未证明图片相关性提升、未重启正式服务。
+- GPU：job `29667548`，Qwen3-VL-8B-Instruct NF4 + checkpoint-87，A100 MIG 1g.20gb，
+  15 分钟 walltime，实际 2:46，COMPLETED 0:0。技术 smoke PASS、业务 smoke FAIL。
+  两日行程纠错后仍只一天；对话行程纠错后四天；均被业务检查拒绝，没有伪报成功。
+- 商品：对话已调用真实模型 1 次；5 次固定实图输出一致，仍猜测 parking。冷启动
+  36987.748 ms，mean/P50/P95=4686.114/4684.040/4702.216 ms，input/output 总量
+  3565/285，商品 Schema=1、失败=0，峰值 allocated=8143745536 B。不与整卡做速度增益比较。
+- 标签/检索/运行时 summary SHA 分别为 `960e0d8e...688d3c`、`14ff41ef...cba468`、
+  `c81af248...9f2cb1`；完整哈希、字段指标与局限见商品报告第 13 节。
+- 处置：保留失败、模型和候选历史身份，交付工程修复但状态维持 PARTIAL。没有扩大训练、
+  人工标注或后续周计划。CLI 候选 quality 字段误判在最终本地复验中修正，实际配置 SHA 不变。

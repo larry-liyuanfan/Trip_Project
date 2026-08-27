@@ -1010,7 +1010,8 @@ class ScenarioService:
                 schema_version,
             )
         raise ModelGenerationError(
-            f"model output failed {scenario} Schema after {len(attempts)} attempts: "
+            f"model output failed {scenario} "
+            f"{'Schema/business validation' if business_context is not None else 'Schema'} after {len(attempts)} attempts: "
             f"{attempts[-1].error}",
             attempts=attempts,
         )
