@@ -58,10 +58,9 @@ def observation_schema(config):
 
 def validate_observation(value, config):
     _validate_instance(observation_schema(config), value, path="$")
+    original = value
     compact = config["protocol"] == "product_visual_observation_v4"
-    if compact:
-        value = {**value, **{field: [{"label": label, "fact": fact} for label, fact in value[field].items()]
-                            for field in ("style_evidence", "facility_evidence")}}
+    value = _canonical_observation(value, config)
     for field in ("style_evidence", "facility_evidence"):
         labels = [item["label"] for item in value[field]]
         if len(labels) != len(set(labels)):
@@ -75,7 +74,14 @@ def validate_observation(value, config):
                 raise ValueError(f"negated positive label evidence in {field}")
     if value["subject_kind"] == "food_closeup" and (value["style_evidence"] or value["facility_evidence"]):
         raise ValueError("food closeup cannot establish venue style or facilities")
-    return value
+    return original
+
+
+def _canonical_observation(value, config):
+    if config["protocol"] != "product_visual_observation_v4":
+        return value
+    return {**value, **{field: [{"label": label, "fact": fact} for label, fact in value[field].items()]
+                        for field in ("style_evidence", "facility_evidence")}}
 
 
 def parse_observation(raw, config):
@@ -104,7 +110,7 @@ def negated_label_fact(label, fact):
 
 
 def map_observation(value, config):
-    value = validate_observation(value, config)
+    value = _canonical_observation(validate_observation(value, config), config)
     category = config["subject_categories"][value["subject_kind"]]
     styles = sorted(item["label"] for item in value["style_evidence"])
     facilities = sorted(item["label"] for item in value["facility_evidence"])

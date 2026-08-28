@@ -61,8 +61,8 @@ tests/        unittest behavior and data-pipeline contract coverage
 
 - 当前正式模型为 Qwen3-VL-8B + system-repair PEFT adapter；生产任务使用 `/v1/tasks/*`。
 - `/health` 与 readiness、独立 CLIP/Milvus 图片检索、版本化 Prompt/Schema 和实验记录。
-- 生产依赖不可用时返回错误，不用固定示例冒充模型结果。对话 beta 的确定性分支只保证状态
-  更新与三键契约，不代表已经生成推荐或理解新图片。
+- 生产依赖不可用时返回错误，不用固定示例冒充模型结果。对话 beta 分开记录状态更新和
+  实际任务分派；推荐、图片理解或行程未执行成功时返回明确未完成，不把确认语当作结果。
 - 旧 vLLM 端点和 Docker 配置保留；Qwen2.5/DeepSeek 配置不是当前发布模型或自动兜底。
 - 示例 POI planner `/v1/travel-planning` 仅限非生产环境；生产行程抽取使用
   `/v1/tasks/itinerary-planning`，并不等同于完整检索推荐链路。
@@ -832,7 +832,8 @@ kept separate from current conclusions.
 
 ## Week 8 全自动商品、对话、延迟与检索候选
 
-Week 8 仍为 **PARTIAL，不晋级当前候选**。以下为保留的历史候选配置，不代表新的发布批准：
+以下记录截至 `c01b732` 的 **PARTIAL / 不晋级**历史候选。当前已验证的 v9 见本节末尾
+“Week 8 v9 当前候选交接”；不要把旧候选状态作为当前结论。以下配置保留供复现历史：
 
 - 商品 fresh 实验与数据锁：`configs/week8/product_understanding_v7.json`
 - 商品可观察证据与 continuation SFT：`configs/week8/product_two_stage_v1.json`

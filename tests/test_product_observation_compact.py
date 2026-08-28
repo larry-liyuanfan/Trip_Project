@@ -8,7 +8,7 @@ from scripts.compare_week8_incumbent import compare
 from src.evaluation.week8_visual_silver import replay_record
 from src.inference.product_observation import (
     canonical_config_sha256, generate_observation, load_observation_config,
-    map_observation, observation_messages, parse_observation,
+    map_observation, observation_messages, parse_observation, validate_observation,
 )
 from src.inference.system_runtime import GenerationResult
 
@@ -37,6 +37,12 @@ class CompactObservationTests(unittest.TestCase):
         self.assertEqual(result["business_category"], "unknown")
         self.assertEqual(result["visible_facilities"], ["dining_tables", "seating"])
         self.assertEqual(result["unknown_fields"], ["business_category", "price_range", "style_tags"])
+
+    def test_validation_is_idempotent_and_does_not_change_wire_representation(self):
+        validated = validate_observation(self.value, self.config)
+        self.assertEqual(validated, self.value)
+        self.assertEqual(validate_observation(validated, self.config), self.value)
+        self.assertEqual(map_observation(validated, self.config), map_observation(self.value, self.config))
 
     def test_nonvisual_inference_is_not_an_observed_fact(self):
         for fact in ("Menu implies seating", "Chairs are likely", "菜单暗示座位", "Must have chairs"):

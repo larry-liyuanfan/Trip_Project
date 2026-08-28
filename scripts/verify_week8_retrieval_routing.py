@@ -65,23 +65,29 @@ def run(config_path):
     dialogue_results = []
     try:
         for query in config["retrieval_queries"]:
-            request = VisualSearchRequest(**query, top_k=5,
+            expected_status = query.get("expected_query_status")
+            request = VisualSearchRequest(**{key: value for key, value in query.items() if key != "expected_query_status"}, top_k=5,
                                           image_urls=[] if query["retrieval_mode"] == "keyword" else [str(image_path)])
             started = time.perf_counter()
             response = routes.visual_search(request)
-            attrs = user_query_attributes(query["query_text"], {"city": query["city"]})
+            attrs = user_query_attributes(query["query_text"], {key: query.get(key) for key in ("city", "business_category", "price_range")})
             correct = all(all(item.get(key) == value for key, value in attrs.items()) for item in response["results"])
             results.append({"request": query, "response": response, "filter_correct": correct,
+                            "query_status_correct": expected_status is None or response["query_status"] == expected_status,
                             "latency_ms": (time.perf_counter() - started) * 1000})
         # 普通推荐必须实际进入相同生产检索服务；不需要模型的请求不能伪造模型 attempts。
         dialogue_service = ScenarioService(ReleaseSettings.load(ROOT, ROOT / config["release_config"]), object(),
                                           retrieval_runner=routes._run_dialogue_retrieval)
-        for text, expected_status in (("推荐餐厅", "COMPLETED"), ("推荐安静的餐厅", "NOT_COMPLETED")):
+        dialogue_cases = config.get("dialogue_cases", [
+            {"text": "推荐餐厅", "expected_status": "COMPLETED", "require_results": True},
+            {"text": "推荐安静的餐厅", "expected_status": "NOT_COMPLETED", "require_results": True}])
+        for case in dialogue_cases:
+            text, expected_status = case["text"], case["expected_status"]
             response = dialogue_service.run_dialogue(DialogueRequest(messages=[{"role": "user", "content": text}],
                                                     state={"city": "Indianapolis"})).model_dump()
             dialogue_results.append({"text": text, "expected_status": expected_status, "response": response,
                                      "passed": response["task_status"] == expected_status and bool(response["tool_calls"])
-                                     and bool((response.get("task_result") or {}).get("results"))})
+                                     and (not case.get("require_results", True) or bool((response.get("task_result") or {}).get("results")))})
     finally:
         routes.get_visual_search_service = original_getter
         if original_env is None:
@@ -91,7 +97,7 @@ def run(config_path):
         store.client.close()
     changed = {row["business_id"] for row in results[0]["response"]["results"]} != {
         row["business_id"] for row in results[1]["response"]["results"]}
-    passed = all(item["filter_correct"] for item in results) and changed and all(
+    passed = all(item["filter_correct"] and item["query_status_correct"] for item in results) and changed and all(
         results[index]["response"]["results"] for index in (0, 1)) and all(item["passed"] for item in dialogue_results)
     summary = {"status": "PASS" if passed else "FAIL", "queries": results, "query_change_changes_results": changed,
                "cached_encoder_calls": encoder.calls, "cached_vector_source_image_sha256": image_sha,

@@ -5,6 +5,16 @@ import re
 from src.data.product_labels import affirmative_term
 
 
+QUERY_TERMS = {
+    "business_category": {"hotel": ("hotel", "酒店"), "restaurant": ("restaurant", "cafe", "餐厅", "咖啡馆"), "attraction": ("museum", "park", "景点", "博物馆")},
+    "price_range": {"budget": ("budget", "cheap", "便宜", "经济"), "mid_range": ("mid range", "适中"), "premium": ("premium", "高档"), "luxury": ("luxury", "奢华")},
+}
+
+
+def _term_pattern(term):
+    return r"(?<!\w)" + re.escape(term) + r"(?!\w)" if term.isascii() else re.escape(term)
+
+
 def _affirmative_query_term(text, term):
     if term.isascii():
         return affirmative_term(text, term)
@@ -18,10 +28,7 @@ def _affirmative_query_term(text, term):
 def user_query_attributes(text, explicit=None):
     attributes = {key: value for key, value in (explicit or {}).items()
                   if key in {"city", "business_category", "price_range"} and value not in (None, "", "unknown")}
-    for field, mapping in {
-        "business_category": {"hotel": ("hotel", "酒店"), "restaurant": ("restaurant", "cafe", "餐厅", "咖啡馆"), "attraction": ("museum", "park", "景点", "博物馆")},
-        "price_range": {"budget": ("budget", "cheap", "便宜", "经济"), "mid_range": ("mid range", "适中"), "premium": ("premium", "高档"), "luxury": ("luxury", "奢华")},
-    }.items():
+    for field, mapping in QUERY_TERMS.items():
         values = [value for value, terms in mapping.items() if any(
             _affirmative_query_term(text, term) for term in terms)]
         if field not in attributes and len(values) == 1:
@@ -42,10 +49,10 @@ def unapplied_query_text(text, attributes):
         return text.strip()
     remainder = text
     for value in attributes.values():
-        remainder = re.sub(re.escape(str(value)), " ", remainder, flags=re.I)
-    for term in ("restaurant", "cafe", "hotel", "museum", "park", "budget", "cheap", "mid range", "premium", "luxury",
-                 "酒店", "餐厅", "咖啡馆", "景点", "博物馆", "便宜", "经济", "适中", "高档", "奢华"):
-        pattern = r"(?<!\w)" + re.escape(term) + r"(?!\w)" if term.isascii() else re.escape(term)
-        remainder = re.sub(pattern, " ", remainder, flags=re.I)
+        remainder = re.sub(_term_pattern(str(value)), " ", remainder, flags=re.I)
+    # 只消费真正应用的条件；多候选或与显式过滤冲突的文字不能被洗成 COMPLETED。
+    for field, mapping in QUERY_TERMS.items():
+        for term in mapping.get(attributes.get(field), ()):
+            remainder = re.sub(_term_pattern(term), " ", remainder, flags=re.I)
     remainder = re.sub(r"推荐|查找|搜索|帮我|请|一个|一些|的|\b(?:find|recommend|search|for|a|an|in|please)\b", " ", remainder, flags=re.I)
     return re.sub(r"[\s，。；,;.!?：:]+", " ", remainder).strip()
