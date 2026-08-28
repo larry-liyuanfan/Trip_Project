@@ -934,9 +934,10 @@ python scripts/score_week8_visual_silver.py --config configs/week8/contract_abla
 观察结果按确定性规则映射到原商品 Schema，缺乏价位比较口径时返回 unknown。售后可保留
 正式 adapter，商品/行程/对话独立关闭 adapter，异常时恢复状态。配置哈希不匹配直接失败。
 
-当前已消费的 `visual_final_v2.json` 因无效参考失败，不能重新运行；原锁定协议对应
-`40a0f34`，详见商品报告 14.5。当前继续进行下列 development-only 验证，产物目录已
-存在时均拒绝覆盖，不要为了获得 PASS 更换旧最终参考或反复重新抽样。
+已消费的 `visual_final_v2.json` 因无效参考失败，原锁定协议对应 `40a0f34`；随后仅在
+固定 development 上形成实质改进的 v9，再通过完全隔离的 `visual_final_v3.json` 单次
+最终验收。两版 final 均不能重跑。以下是本轮已执行的 development 入口，现有产物目录
+不可覆盖，不要为了获得 PASS 更换旧最终参考或反复重新抽样。
 
 ```bash
 python scripts/collect_week8_teacher_reliability.py --config configs/week8/visual_teacher_v4.json
@@ -949,3 +950,21 @@ python scripts/compare_week8_development_revision.py --previous outputs/week8/re
 身份为 null/N/A，不人为制造模板隔离。最终结果仅用于锁定候选的验收，不能传入 development
 选择器。运行层打包后应调用 `scripts.build_release_bundle.verify_runtime_archive`，隔离导入
 API 与实际 release 配置；文件哈希正确不代表依赖完整或业务通过。
+
+### Week 8 v9 当前候选交接（2026-08-28）
+
+`trip-qwen3-vl-8b-week8-visual-silver-v9` 已完整通过自动 silver 候选验收；默认正式
+release 没有替换，也未合并长期分支或打标签。商品使用 `product_visual_observation_v3`
+与底座，售后继续使用正式 adapter。相同 100 条最终参考下 composite
+0.429365→0.736721，JSON/Schema 100%/100%、请求失败 0；价位 N/A，平均延迟增加
+22.15%。这是独立图像教师一致性，不是人工视觉准确率。
+
+四层交接包和验证记录在 `outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v9-rc1`；
+原始运行、错误切片、支持数、失败历史和剩余限制见
+`reports/week8_product_understanding_optimization_report.md` 第 14 节。以下命令只校验
+候选配置或已生成交接包，不调用模型、不重新消费 final：
+
+```bash
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v9.json validate
+python -c "from pathlib import Path; from scripts.verify_week8_candidate_handoff import verify; print(verify(Path('outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v9-rc1'), 'evidence/week8_visual_holdout_20260828_v3/promotion_acceptance.json'))"
+```
