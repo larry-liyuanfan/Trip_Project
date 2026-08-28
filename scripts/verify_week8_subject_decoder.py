@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.data.week8_visual_holdout import read_json, write_json_new
 from src.inference.observation_constraints import build_observation_constraint_parser
-from src.inference.product_observation import observation_schema, map_observation
+from src.inference.product_observation import observation_schema, map_observation, observation_correction_response_format
 from src.training.week7_data import sha256_file
 
 
@@ -27,6 +27,7 @@ def run(config_path):
 
     config = read_json(config_path)
     schema = observation_schema(config)
+    protocol = observation_correction_response_format(config)["constraint_protocol"]
     basic = {"subject_kind": "food_closeup", "subject_fact": "Bowl of noodles", "style_evidence": [], "facility_evidence": [], "price_text": []}
     cases = []
     for kind in config["subject_categories"]:
@@ -52,7 +53,7 @@ def run(config_path):
     ])
     results = []
     for name, value, decoder_expected, post_expected in cases:
-        decoder_actual = accepts(build_observation_constraint_parser(schema), json.dumps(value, separators=(",", ":")))
+        decoder_actual = accepts(build_observation_constraint_parser(schema, protocol), json.dumps(value, separators=(",", ":")))
         try:
             map_observation(value, config)
             post_actual = True
@@ -60,7 +61,21 @@ def run(config_path):
             post_actual = False
         results.append({"case": name, "decoder_accepted": decoder_actual, "post_validation_accepted": post_actual,
                         "passed": decoder_actual == decoder_expected and post_actual == post_expected})
-    return {"status": "PASS" if all(item["passed"] for item in results) else "FAIL", "cases": results,
+    formatting = []
+    for style in ("compact", "spaced", "leading_space", "reverse_keys"):
+        accepted = {}
+        for kind in config["subject_categories"]:
+            value = {**copy.deepcopy(basic), "subject_kind": kind}
+            if style == "reverse_keys":
+                value = dict(reversed(list(value.items())))
+            raw = json.dumps(value, separators=(",", ":")) if style == "compact" else json.dumps(value)
+            if style == "leading_space":
+                raw = " " + raw
+            accepted[kind] = accepts(build_observation_constraint_parser(schema, protocol), raw)
+        formatting.append({"serialization": style, "accepted_by_subject": accepted,
+                           "passed": len(set(accepted.values())) == 1})
+    return {"status": "PASS" if all(item["passed"] for item in [*results, *formatting]) else "FAIL", "cases": results,
+            "formatting_symmetry": formatting, "constraint_protocol": protocol,
             "decoder_version": version("lm-format-enforcer"), "config_sha256": sha256_file(config_path),
             "implementation_sha256": sha256_file(ROOT / "src/inference/observation_constraints.py"),
             "stock_maxitems_zero_accepts_nonempty": accepts(JsonSchemaParser({"type": "array", "maxItems": 0, "items": {"type": "string"}}), '["x"]'),

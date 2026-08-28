@@ -533,10 +533,10 @@ class TransformersPeftBackend:
                     )
                 constraint_protocol = response_format.get("constraint_protocol")
                 if constraint_protocol is not None:
-                    from src.inference.observation_constraints import PROTOCOL, build_observation_constraint_parser
-                    if constraint_protocol != PROTOCOL:
+                    from src.inference.observation_constraints import PROTOCOLS, build_observation_constraint_parser
+                    if constraint_protocol not in PROTOCOLS:
                         raise RuntimeConfigurationError("unsupported decoder constraint protocol")
-                    parser = build_observation_constraint_parser(schema)
+                    parser = build_observation_constraint_parser(schema, protocol=constraint_protocol)
                 else:
                     parser = JsonSchemaParser(schema)
                 generation_constraints["prefix_allowed_tokens_fn"] = (

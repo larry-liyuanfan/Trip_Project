@@ -3,6 +3,8 @@ import copy
 
 
 PROTOCOL = "product_observation_subject_v1"
+SHARED_SERIALIZATION_PROTOCOL = "product_observation_subject_v2"
+PROTOCOLS = {PROTOCOL, SHARED_SERIALIZATION_PROTOCOL}
 
 
 def observation_constraint_schemas(schema):
@@ -23,10 +25,24 @@ def observation_constraint_schemas(schema):
     return other, copy.deepcopy(properties["subject_fact"]), copy.deepcopy(properties["price_text"])
 
 
-def build_observation_constraint_parser(schema):
+def build_observation_constraint_parser(schema, protocol=PROTOCOL):
     from lmformatenforcer import JsonSchemaParser, SequenceParser, StringParser, UnionParser
 
     other, fact, price = observation_constraint_schemas(schema)
+    if protocol == SHARED_SERIALIZATION_PROTOCOL:
+        # 两类主体共享键顺序和分隔符；不能让空格或先输出其他键排除 food 分支。
+        def branch(kinds, food):
+            parsers = [StringParser('{"subject_kind":'), JsonSchemaParser(kinds),
+                       StringParser(',"subject_fact":'), JsonSchemaParser(fact)]
+            for field in ("style_evidence", "facility_evidence", "price_text"):
+                parsers.append(StringParser(',"' + field + '":'))
+                parsers.append(StringParser('[]') if food and field != "price_text"
+                               else JsonSchemaParser(copy.deepcopy(schema["properties"][field])))
+            return SequenceParser([*parsers, StringParser('}')])
+        food_kind = {**copy.deepcopy(schema["properties"]["subject_kind"]), "enum": ["food_closeup"]}
+        return UnionParser([branch(food_kind, True), branch(other["properties"]["subject_kind"], False)])
+    if protocol != PROTOCOL:
+        raise ValueError("unsupported observation subject grammar")
     # 当前 LMFE 的 maxItems=0 仍允许首项；空数组改用字面语法，不改依赖或吞掉错误标签。
     # 模型仍可在 food/nonfood 两个分支中选择，不能根据先前错误强行确定主体。
     food = SequenceParser([

@@ -183,7 +183,7 @@ def observation_messages(image, config):
 
 def validate_correction_protocol(config):
     protocol = config.get("correction_protocol", "legacy_v1")
-    if protocol not in {"legacy_v1", "bounded_history_v1", "subject_schema_v1"}:
+    if protocol not in {"legacy_v1", "bounded_history_v1", "subject_schema_v1", "subject_schema_v2"}:
         raise ValueError("unsupported observation correction protocol")
     if protocol != "legacy_v1" and (config.get("protocol") != "product_visual_observation_v3" or config.get("max_attempts") != 2):
         raise ValueError("bounded correction requires v3 with exactly one correction")
@@ -191,10 +191,11 @@ def validate_correction_protocol(config):
 
 def observation_correction_response_format(config):
     validate_correction_protocol(config)
-    if config.get("correction_protocol") != "subject_schema_v1":
+    if config.get("correction_protocol") not in {"subject_schema_v1", "subject_schema_v2"}:
         return None
-    from src.inference.observation_constraints import PROTOCOL
-    return {"type": "json_schema", "constraint_protocol": PROTOCOL,
+    from src.inference.observation_constraints import PROTOCOL, SHARED_SERIALIZATION_PROTOCOL
+    protocol = SHARED_SERIALIZATION_PROTOCOL if config["correction_protocol"] == "subject_schema_v2" else PROTOCOL
+    return {"type": "json_schema", "constraint_protocol": protocol,
             "json_schema": {"name": "product_observation_correction", "schema": observation_schema(config)}}
 
 

@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from contextlib import nullcontext
 from types import SimpleNamespace
 
-from src.inference.observation_constraints import PROTOCOL, observation_constraint_schemas, build_observation_constraint_parser
+from src.inference.observation_constraints import PROTOCOL, SHARED_SERIALIZATION_PROTOCOL, observation_constraint_schemas, build_observation_constraint_parser
 from src.inference.product_observation import (canonical_config_sha256, generate_observation, load_observation_config,
     map_observation, observation_schema, observation_messages, observation_correction_messages, observation_correction_response_format)
 from src.inference.system_runtime import GenerationResult, TransformersPeftBackend, ModelGenerationError
@@ -106,7 +106,7 @@ class ObservationSubjectConstraintTests(unittest.TestCase):
                 replay_records(ROOT, [case], [{**row, "response_format_sha256": digest}], self.config)
 
     def test_real_backend_dispatches_only_explicit_subject_constraint(self):
-        for protocol in (PROTOCOL, None, "unknown"):
+        for protocol in (PROTOCOL, SHARED_SERIALIZATION_PROTOCOL, None, "unknown"):
             backend = TransformersPeftBackend(settings())
             generate = Mock(side_effect=RuntimeError("decoder dispatch reached model"))
             backend._model = SimpleNamespace(parameters=lambda: iter([SimpleNamespace(device="cpu")]), generate=generate)
@@ -132,8 +132,27 @@ class ObservationSubjectConstraintTests(unittest.TestCase):
                     build_prefix.assert_not_called()
                 else:
                     self.assertEqual(generate.call_args.kwargs["prefix_allowed_tokens_fn"], prefix)
-                    self.assertIs(build_prefix.call_args.args[1], product_parser if protocol == PROTOCOL else standard_parser)
-                    self.assertEqual(build_product.call_count, int(protocol == PROTOCOL))
+                    self.assertIs(build_prefix.call_args.args[1], product_parser if protocol is not None else standard_parser)
+                    self.assertEqual(build_product.call_count, int(protocol is not None))
+
+    def test_shared_serialization_cannot_bias_subject_choice_with_whitespace(self):
+        config = {**self.config, "correction_protocol": "subject_schema_v2"}
+        self.assertEqual(observation_messages("x.jpg", config), observation_messages("x.jpg", self.legacy))
+        self.assertEqual(observation_correction_response_format(config)["constraint_protocol"], SHARED_SERIALIZATION_PROTOCOL)
+        fake = Mock()
+        fake.JsonSchemaParser.side_effect = lambda schema: ("schema", schema)
+        fake.StringParser.side_effect = lambda value: ("literal", value)
+        fake.SequenceParser.side_effect = lambda values: ("sequence", values)
+        fake.UnionParser.side_effect = lambda values: ("union", values)
+        with patch.dict("sys.modules", {"lmformatenforcer": fake}):
+            result = build_observation_constraint_parser(observation_schema(config), SHARED_SERIALIZATION_PROTOCOL)
+        food, other = [branch[1] for branch in result[1]]
+        for index in (0, 2, 3, 4, 6, 8, 9, 10):
+            self.assertEqual(food[index], other[index])
+        self.assertEqual(food[5], ("literal", "[]"))
+        self.assertEqual(food[7], ("literal", "[]"))
+        self.assertEqual(food[1][1]["enum"], ["food_closeup"])
+        self.assertNotIn("food_closeup", other[1][1]["enum"])
 
 
 if __name__ == "__main__":
