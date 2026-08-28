@@ -22,6 +22,8 @@ from src.inference.system_runtime import ReleaseSettings, ScenarioService, Trans
 from src.inference.transport_utils import strip_json_fence
 from src.training.week7_data import IDENTITY_FIELDS, sha256_file, iter_jsonl
 from src.evaluation.visual_teacher_retry import collect_with_history
+from src.evaluation.visual_reference_validation import map_teacher_observation
+from src.inference.visual_limits import temporary_visual_pixel_limit
 from scripts.compare_week8_development_revision import compare as compare_revision
 
 
@@ -38,9 +40,19 @@ def protocol_files(root, config):
                   "src/evaluation/week8_visual_silver.py", "src/evaluation/product_semantics.py",
                   "src/evaluation/schema_validation.py", "src/evaluation/prompting.py", "src/data/week8_visual_holdout.py",
                   "src/evaluation/visual_teacher_retry.py", "scripts/compare_week8_development_revision.py",
+                  "src/evaluation/visual_reference_validation.py", "src/inference/visual_limits.py",
+                  "src/inference/product_style_scope.py", "src/data/product_labels.py",
                   "scripts/verify_week8_candidate_acceptance.py"})
     if config.get("development_config"):
         paths.add(config["development_config"])
+    if config.get("development_reference_revision"):
+        paths.add(config["development_reference_revision"])
+        revision = read_json(within(root, config["development_reference_revision"]))
+        paths.update({revision["observation_config"], revision["source_teacher_config"],
+                      "scripts/score_week8_reference_revision.py", "scripts/repair_week8_visual_reference.py",
+                      "scripts/compare_week8_incumbent.py", "src/evaluation/visual_reference_revision.py",
+                      "src/inference/product_style_refinement.py", "src/inference/product_style_scope.py",
+                      "src/inference/visual_limits.py", "src/data/product_labels.py"})
     for key in ("candidate_release", "formal_release"):
         release = read_json(root / config[key])
         for scenario, version in release["prompts"].items():
@@ -58,6 +70,20 @@ def validate_development_identity(root, config, comparison):
     identity = read_json(directory / "identity.json")
     candidate = read_json(within(root, config["candidate_release"]))
     role = comparison["selection"]["selected_role"]
+    if config.get("development_reference_revision"):
+        from scripts.score_week8_reference_revision import build_comparison
+        verified = build_comparison(within(root, config["development_config"]),
+                                    within(root, config["development_reference_revision"]), root)
+        if comparison != verified:
+            raise ValueError("development comparison differs from raw reference revision replay")
+        improvement = verified["incumbent_comparison"]
+        if (improvement["status"] != "IMPROVED_DEVELOPMENT_CANDIDATE"
+                or improvement["selected_role"] != role):
+            raise ValueError("new candidate has not improved over the incumbent on development")
+        limit = specification.get("profile_visual_max_pixels", {}).get(role)
+        if (candidate["generation"].get("visual_max_pixels") != limit
+                or identity.get("profile_visual_max_pixels", {}) != specification.get("profile_visual_max_pixels", {})):
+            raise ValueError("candidate visual limits differ from tested development settings")
     if (comparison["generation_identity_sha256"] != sha256_file(directory / "identity.json")
             or identity["config_sha256"] != sha256_file(root / config["development_config"])
             or identity["test_rows_read"] is not False or specification["final_test_access"] is not False
@@ -214,7 +240,8 @@ def inference(root, config_path):
     baseline = ReleaseSettings.load(root, root / config["formal_release"])
     if (candidate.base_model, candidate.base_revision, candidate.adapter_model_sha256) != (baseline.base_model, baseline.base_revision, baseline.adapter_model_sha256):
         raise ValueError("paired base/adapter identities differ")
-    backend = TransformersPeftBackend(candidate)
+    # 从正式处理器开始，每个组显式应用自己的像素参数；不能把候选上限泄漏给基线。
+    backend = TransformersPeftBackend(baseline)
     started = time.perf_counter()
     ok, detail = backend.ready()
     if not ok:
@@ -226,7 +253,7 @@ def inference(root, config_path):
         backend.configure_prepared_input_cache(settings.prepared_input_cache_max_entries)
         service = ScenarioService(settings, backend)
         failures = 0
-        with (output / (role + ".jsonl")).open("x", encoding="utf-8", newline="\n") as handle:
+        with backend._execution_lock, temporary_visual_pixel_limit(backend._processor, settings.visual_max_pixels), (output / (role + ".jsonl")).open("x", encoding="utf-8", newline="\n") as handle:
             for row in rows:
                 started = time.perf_counter()
                 try:
@@ -272,7 +299,7 @@ def replay_final(root, config_path):
     references = list(iter_jsonl(teacher_path))
     teacher_observation = read_json(root / config["teacher_observation"])
     for reference in references:
-        if reference.get("error") or map_observation(json.loads(strip_json_fence(reference["attempts"][-1]["raw_content"])), teacher_observation) != reference["target"]:
+        if reference.get("error") or map_teacher_observation(json.loads(strip_json_fence(reference["attempts"][-1]["raw_content"])), teacher_observation) != reference["target"]:
             raise ValueError("invalid final reference; never drop or replace it")
     audit = {"protocol": read_json(root / config["teacher_config"])["protocol"],
              "metadata_supplied": summaries["teacher"]["metadata_supplied"], "candidate_outputs_supplied": summaries["teacher"]["candidate_outputs_supplied"],

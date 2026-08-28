@@ -20,7 +20,8 @@ from src.evaluation.product_semantics import product_consistency_errors
 from src.inference.transport_utils import strip_json_fence
 from src.training.week7_data import sha256_file
 from scripts.review_week8_contracts import write_new
-from src.inference.product_observation import observation_messages, map_observation
+from src.inference.product_observation import observation_messages
+from src.evaluation.visual_reference_validation import map_teacher_observation
 
 
 def teacher_payload(config, image, observation=None):
@@ -83,7 +84,7 @@ def collect_row(row, config, observation, root, base_url, key):
             target = json.loads(strip_json_fence(attempt["raw_content"]))
             if observation:
                 attempt["observation"] = target
-                target = map_observation(target, observation)
+                target = map_teacher_observation(target, observation)
             validate_output(root, "image_product_search", target, "v1")
             if product_consistency_errors(target):
                 raise ValueError("silver internally inconsistent")

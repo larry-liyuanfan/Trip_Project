@@ -159,6 +159,15 @@ class VisualReferenceRevisionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _validate_reference_audit({**audit, "test_rows_read": True}, "final")
 
+    def test_image_teacher_cannot_silently_filter_out_of_scope_reference_labels(self):
+        from src.evaluation.visual_reference_validation import map_teacher_observation
+        with self.assertRaisesRegex(ValueError, "nonvenue objects"):
+            map_teacher_observation(self.source["observation"], self.observation)
+        primary = copy.deepcopy(self.source["observation"])
+        primary["style_evidence"][0]["fact"] = "Simple wooden tables"
+        self.assertEqual(map_teacher_observation(primary, self.observation)["style_tags"], ["casual"])
+        self.assertEqual(map_teacher_observation(self.source["observation"], self.original), self.source["target"])
+
 
 if __name__ == "__main__":
     unittest.main()

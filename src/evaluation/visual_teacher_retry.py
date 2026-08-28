@@ -6,7 +6,7 @@ import requests
 
 from src.evaluation.schema_validation import validate_output
 from src.evaluation.product_semantics import product_consistency_errors
-from src.inference.product_observation import map_observation
+from src.evaluation.visual_reference_validation import map_teacher_observation
 from src.inference.transport_utils import strip_json_fence
 
 
@@ -32,7 +32,7 @@ def collect_with_history(row, config, observation, root, base_url, key):
             if data.get("model") != config["model"]:
                 raise ValueError("response model identity mismatch")
             attempt["observation"] = json.loads(strip_json_fence(attempt["raw_content"]))
-            target = map_observation(attempt["observation"], observation)
+            target = map_teacher_observation(attempt["observation"], observation)
             validate_output(root, "image_product_search", target, "v1")
             if product_consistency_errors(target):
                 raise ValueError("silver internally inconsistent")

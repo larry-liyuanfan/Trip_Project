@@ -35,6 +35,24 @@ class DevelopmentBindingTests(unittest.TestCase):
             comparison = {"generation_identity_sha256": sha256_file(root / "dev/identity.json"),
                           "reference_raw_sha256": "reference", "selection": {"selected_role": "observation_enhanced_base"}}
             self.assertEqual(validate_development_identity(root, config, comparison), sha256_file(root / "dev/identity.json"))
+            config["development_reference_revision"] = "reference_revision.json"
+            candidate["generation"] = {"visual_max_pixels": None}
+            put("candidate.json", candidate)
+            comparison["incumbent_comparison"] = {"status": "KEEP_V9_CANDIDATE", "selected_role": None}
+            with patch("scripts.score_week8_reference_revision.build_comparison", return_value=comparison):
+                with self.assertRaisesRegex(ValueError, "not improved"):
+                    validate_development_identity(root, config, comparison)
+            comparison["incumbent_comparison"] = {"status": "IMPROVED_DEVELOPMENT_CANDIDATE", "selected_role": "observation_enhanced_base"}
+            with patch("scripts.score_week8_reference_revision.build_comparison", return_value=comparison):
+                self.assertEqual(validate_development_identity(root, config, comparison), sha256_file(root / "dev/identity.json"))
+                candidate["generation"]["visual_max_pixels"] = 131072
+                put("candidate.json", candidate)
+                with self.assertRaisesRegex(ValueError, "visual limits"):
+                    validate_development_identity(root, config, comparison)
+            with patch("scripts.score_week8_reference_revision.build_comparison", return_value={**comparison, "tampered": True}):
+                with self.assertRaisesRegex(ValueError, "raw reference revision replay"):
+                    validate_development_identity(root, config, comparison)
+            del config["development_reference_revision"]
             put("untested.json", {"protocol": "untested"})
             candidate["product_pipeline"]["config"] = "untested.json"
             put("candidate.json", candidate)

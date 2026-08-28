@@ -27,6 +27,7 @@ def run(config_path):
     output.mkdir(parents=True, exist_ok=False)
     identity = {"config_sha256": sha256_file(config_path), "manifest_sha256": sha256_file(manifest),
                 "runner_sha256": sha256_file(Path(__file__)), "retry_sha256": sha256_file(ROOT / "src/evaluation/visual_teacher_retry.py"),
+                "reference_validation_sha256": sha256_file(ROOT / "src/evaluation/visual_reference_validation.py"),
                 "observation_sha256": sha256_file(ROOT / config["observation_config"]),
                 "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
                 "test_rows_read": False, "candidate_outputs_supplied": False, "metadata_supplied": False,

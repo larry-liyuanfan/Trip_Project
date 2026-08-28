@@ -983,3 +983,17 @@ feature 源码已修复检索冲突/歧义条件被误报完成和英语复数�
 10 查询、4 对话状态检查通过，未支持条件仍明确未完成。此代码没有重新打包进冻结 v9。
 最新 unittest 769 条通过。各字段、支持、延迟/token、错误切片与无模型复核命令见
 `reports/week8_product_understanding_optimization_report.md` 第 15 节。
+
+继续优化已修复实际图片像素上限、越界风格证据审计及选中配置的自动打包。旧教师 4 条
+风格依据已独立版本重看，原 60 图全部保留，style 正标签 42→44；旧参考分数只作历史
+诊断，不能与新参考横比。全面风格复查仍未胜出，定点复查/有效像素对照正在运行；
+尚未替换冻结 v9、消费新 final 或增加人工工作。最新源码完整 unittest 827 条通过。
+
+已有原始证据可无 GPU 重放（输出目录必须新建，不覆盖历史结果）：
+
+```bash
+python scripts/repair_week8_visual_reference.py --config configs/week8/visual_teacher_style_revision_v1.json --audit-only
+python scripts/score_week8_reference_revision.py --generation-config configs/week8/contract_ablation_v7.json --revision-config configs/week8/visual_teacher_style_revision_v1.json --output outputs/week8/review/local_reference_revision_replay
+```
+
+实际模型/API 调用与失败记录见商品报告第 16 节。自动 silver 不等于人工视觉准确率。

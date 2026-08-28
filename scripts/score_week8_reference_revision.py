@@ -10,7 +10,7 @@ from scripts.compare_week8_incumbent import compare
 from scripts.repair_week8_visual_reference import load_revision_inputs
 from src.data.week8_visual_holdout import read_json, write_json_new
 from src.evaluation.visual_reference_revision import PROTOCOL, replay_revision, supports
-from src.evaluation.week8_visual_silver import score_paired
+from src.evaluation.week8_visual_silver import score_paired, select_development_candidate
 from src.inference.product_style_scope import venue_style_evidence
 from src.training.week7_data import iter_jsonl, sha256_file
 
@@ -52,9 +52,9 @@ def verified_references(config_path, root=ROOT):
     return references, reference_audit, config, summary
 
 
-def generation_details(generation_path, revision_config, references):
+def generation_details(generation_path, revision_config, references, root=ROOT):
     config = read_json(generation_path)
-    source = ROOT / config["output_root"]
+    source = root / config["output_root"]
     identity = read_json(source / "identity.json")
     generation_summary = read_json(source / "summary.json")
     if (identity["config_sha256"] != sha256_file(generation_path)
@@ -68,9 +68,9 @@ def generation_details(generation_path, revision_config, references):
     return config, source, identity, generation_summary
 
 
-def run(generation_path, revision_path, output):
-    references, audit, revision_config, reference_summary = verified_references(revision_path)
-    config, source, identity, generation_summary = generation_details(generation_path, revision_config, references)
+def build_comparison(generation_path, revision_path, root=ROOT):
+    references, audit, revision_config, reference_summary = verified_references(revision_path, root)
+    config, source, identity, generation_summary = generation_details(generation_path, revision_config, references, root)
     summaries = {}
     for role in config["profiles"]:
         raw_path = source / f"{role}.jsonl"
@@ -78,20 +78,20 @@ def run(generation_path, revision_path, output):
             raise ValueError("immutable development model output changed")
         observation = None
         if role.startswith("observation_"):
-            path = ROOT / config.get("observation_profile_configs", {}).get(role, config["observation_config"])
+            path = root / config.get("observation_profile_configs", {}).get(role, config["observation_config"])
             expected = identity["observation_profile_config_hashes"].get(role, identity["observation_config_sha256"])
             if sha256_file(path) != expected:
                 raise ValueError("generation observation config identity changed")
             observation = read_json(path)
-        summaries[role] = score_paired(ROOT, references, list(iter_jsonl(raw_path)), observation, reference_audit=audit)
+        summaries[role] = score_paired(root, references, list(iter_jsonl(raw_path)), observation, reference_audit=audit)
     historical_formal = None
     if "formal_adapter" not in summaries:
-        formal_config_path = ROOT / config["formal_baseline_generation_config"]
-        _, formal_source, _, formal_summary = generation_details(formal_config_path, revision_config, references)
+        formal_config_path = root / config["formal_baseline_generation_config"]
+        _, formal_source, _, formal_summary = generation_details(formal_config_path, revision_config, references, root)
         formal_raw = formal_source / "formal_adapter.jsonl"
         if sha256_file(formal_raw) != formal_summary["profiles"]["formal_adapter"]["raw_sha256"]:
             raise ValueError("historical formal baseline raw changed")
-        summaries["formal_adapter"] = score_paired(ROOT, references, list(iter_jsonl(formal_raw)), reference_audit=audit)
+        summaries["formal_adapter"] = score_paired(root, references, list(iter_jsonl(formal_raw)), reference_audit=audit)
         historical_formal = {"config": config["formal_baseline_generation_config"],
                             "config_sha256": sha256_file(formal_config_path), "raw_sha256": sha256_file(formal_raw),
                             "latency_source": "historical_not_same_session_performance_comparator"}
@@ -99,17 +99,26 @@ def run(generation_path, revision_path, output):
                   "generation_identity_sha256": sha256_file(source / "identity.json"),
                   "generation_config_sha256": sha256_file(generation_path),
                   "reference_revision_config_sha256": sha256_file(revision_path),
+                  "reference_raw_sha256": audit["reference_raw_sha256"],
                   "reference_supports_before": reference_summary["supports_before"],
                   "reference_supports_after": reference_summary["supports_after"],
                   "test_rows_read": False, "new_model_requests": 0, "label_source": "model_generated_silver",
                   "historical_formal_baseline": historical_formal,
                   "interpretation": "All candidates and v9 use the same revised reference; not comparable with old-reference scores."}
+    comparison["selection"] = select_development_candidate(summaries)
     decision = compare(comparison, config.get("incumbent_role", "observation_base"))
+    comparison["incumbent_comparison"] = decision
+    return comparison
+
+
+def run(generation_path, revision_path, output):
+    comparison = build_comparison(generation_path, revision_path)
+    decision = comparison["incumbent_comparison"]
     output.mkdir(parents=True, exist_ok=False)
     write_json_new(output / "comparison.json", comparison)
     write_json_new(output / "incumbent_comparison.json", {**decision, "comparison_sha256": sha256_file(output / "comparison.json")})
-    print(json.dumps({"decision": decision, "metrics": {role: value["metrics"] for role, value in summaries.items()},
-                      "supports": reference_summary["supports_after"]}, ensure_ascii=False))
+    print(json.dumps({"decision": decision, "metrics": {role: value["metrics"] for role, value in comparison["summaries"].items()},
+                      "supports": comparison["reference_supports_after"]}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

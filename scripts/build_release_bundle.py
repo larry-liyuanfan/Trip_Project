@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +45,24 @@ RUNTIME_PATHS = [
     "requirements-training.txt",
     "requirements-milvus.txt",
 ]
+
+
+def runtime_paths(release: dict) -> list[str]:
+    """Include the actual selected observation config, not just historical versions."""
+    paths = list(RUNTIME_PATHS)
+    selected = release.get("product_pipeline", {}).get("config")
+    if selected is not None:
+        if not isinstance(selected, str):
+            raise ValueError("runtime observation config must be a repository JSON path")
+        relative = PurePosixPath(selected.replace("\\", "/"))
+        if (relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("configs",)
+                or relative.suffix != ".json"):
+            raise ValueError("runtime observation config must stay inside repository configs")
+        (ROOT / relative).resolve().relative_to(ROOT.resolve())
+        # 目录已包含目标时不重复归档；禁止通过目标配置带入密钥等非配置文件。
+        if not any(relative == PurePosixPath(path) or PurePosixPath(path) in relative.parents for path in paths):
+            paths.append(relative.as_posix())
+    return paths
 
 
 def verify_runtime_archive(archive_path: Path) -> dict:
@@ -102,7 +120,7 @@ def build_bundle(
         "runtime": _archive(
             output_dir / "runtime.tar.gz",
             [
-                *((ROOT / path, Path(path)) for path in RUNTIME_PATHS),
+                *((ROOT / path, Path(path)) for path in runtime_paths(release)),
                 (release_config, Path("release/release_config.json")),
             ],
         ),
