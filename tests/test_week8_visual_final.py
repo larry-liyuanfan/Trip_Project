@@ -1,0 +1,58 @@
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from scripts.run_week8_visual_final import final_context, source_hash
+from src.inference.product_observation import canonical_config_sha256
+
+
+class FinalExecutionTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.config = {"output_root": "holdout"}
+        self.path = self.root / "config.json"
+        self.path.write_text(json.dumps(self.config), encoding="utf-8")
+        (self.root / "holdout").mkdir()
+        lock = {"config_canonical_sha256": canonical_config_sha256(self.config),
+                "source_files_lf_sha256": {"code.py": "a"}, "selection_only_used_development": True,
+                "data_lock_sha256": "data", "final_roles": ["teacher", "inference"]}
+        lock["lock_sha256"] = canonical_config_sha256(lock)
+        (self.root / "holdout/candidate_lock.json").write_text(json.dumps(lock), encoding="utf-8")
+        self.protocol = patch("scripts.run_week8_visual_final.protocol_files", return_value={"code.py": "a"})
+        self.protocol.start()
+        self.addCleanup(self.protocol.stop)
+        self.data = patch("scripts.run_week8_visual_final.validate_holdout", return_value=([{"sample_id": "final-1"}], {"lock_sha256": "data", "manifest_sha256": "manifest"}))
+        self.data.start()
+        self.addCleanup(self.data.stop)
+
+    def test_each_final_role_is_consumed_even_before_generation(self):
+        final_context(self.root, self.path, "teacher")
+        with self.assertRaises(FileExistsError):
+            final_context(self.root, self.path, "teacher")
+        final_context(self.root, self.path, "inference")
+        with self.assertRaises(FileExistsError):
+            final_context(self.root, self.path, "inference")
+
+    def test_changed_code_or_unknown_role_cannot_start_final(self):
+        with patch("scripts.run_week8_visual_final.protocol_files", return_value={"code.py": "changed"}):
+            with self.assertRaisesRegex(ValueError, "protocol changed"):
+                final_context(self.root, self.path, "teacher")
+        with self.assertRaisesRegex(ValueError, "unknown once-only"):
+            final_context(self.root, self.path, "candidate_2")
+        self.assertFalse((self.root / "holdout/teacher").exists())
+
+    def test_source_identity_is_cross_platform_but_not_content_insensitive(self):
+        a, b = self.root / "a.py", self.root / "b.py"
+        a.write_bytes(b"one\ntwo\n")
+        b.write_bytes(b"one\r\ntwo\r\n")
+        self.assertEqual(source_hash(a), source_hash(b))
+        b.write_bytes(b"one\nchanged\n")
+        self.assertNotEqual(source_hash(a), source_hash(b))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -2,7 +2,7 @@ import copy
 import json
 from pathlib import Path
 import unittest
-from src.evaluation.week8_visual_silver import score_paired, select_development_candidate
+from src.evaluation.week8_visual_silver import score_paired, select_development_candidate, validate_locked_final
 from tests.test_system_runtime import PRODUCT_OUTPUT
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +77,22 @@ class VisualSilverTests(unittest.TestCase):
         result = select_development_candidate({"formal_adapter": baseline, "candidate": good})
         self.assertIsNone(result["selected_role"])
         self.assertIn("support_changed", result["failures"]["candidate"])
+
+    def test_final_cannot_be_used_for_development_selection(self):
+        audit = {**AUDIT, "test_rows_read": True, "candidate_lock_sha256": "b" * 64}
+        good = score_paired(ROOT, self.references, [record(self.target)], reference_audit=audit, phase="final")
+        wrong = copy.deepcopy(self.target)
+        wrong["business_category"] = "other"
+        baseline = score_paired(ROOT, self.references, [record(wrong)], reference_audit=audit, phase="final")
+        self.assertEqual(validate_locked_final(baseline, good)["status"], "PASS")
+        with self.assertRaises(ValueError):
+            select_development_candidate({"formal_adapter": baseline, "candidate": good})
+        with self.assertRaises(ValueError):
+            score_paired(ROOT, self.references, [record(self.target)], reference_audit=audit)
+
+    def test_final_without_prior_lock_fails_closed(self):
+        with self.assertRaises(ValueError):
+            score_paired(ROOT, self.references, [record(self.target)], reference_audit={**AUDIT, "test_rows_read": True}, phase="final")
 
 
 if __name__ == "__main__":

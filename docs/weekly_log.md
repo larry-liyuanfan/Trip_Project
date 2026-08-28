@@ -1073,3 +1073,8 @@ as the current validated dataset or accepted baseline.
   未选，v2 全字段不回退，仅成为 development 候选。价位支持 0，单列 N/A。
 - 将观察协议和逐场景 adapter 开关接入真实服务，售后继续使用原 adapter；补充日期和
   等义约束检查，加入独立生产 smoke 与三种缓存重复基准。尚未执行新最终 test。
+- 本轮真实探针发现对话行程仍用“某文化空间”充当地点，原探针 PASS 不作为完整验收。
+  新增具体地点检查及行程 Prompt v3；保留所有旧输出，继续在相同固定请求上复测。
+- 新最终集构建器按五维身份排除 Week 3/5/6/7、system repair、所有 Week 8 商品锁、
+  hard-slice 训练及五版检索身份；检索裸 business_id 与商品命名空间统一后排除。
+  最终标签尚未生成；执行器要求先通过 development 与业务复验再锁定，每个角色只运行一次。

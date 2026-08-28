@@ -121,10 +121,14 @@ def _activity_constraint_errors(days: list[dict], text: str) -> list[str]:
     deadline_match = re.search(r"(\d{1,2}:\d{2})\s*(?:之?前)\s*(?:结束|返回|回到)", text)
     deadline = _clock_minutes(deadline_match.group(1)) if deadline_match else None
     public_only = bool(re.search(r"公共交通|public transport", text, re.I))
+    has_destination = bool(re.search(r"城市[:：]|目的地[:：]|上海|北京|广州|深圳|杭州|成都|Shanghai|Beijing", text, re.I))
     activities = [activity for day in days for activity in day.get("activities", [])]
     for day in days:
         previous_end = None
         for activity in day.get("activities", []):
+            place = activity.get("place_name")
+            if (not place and has_destination) or re.search(r"某(?:个|家|处|文化|美术|景点)|附近.*(?:或|场所|地点)|或类似|待定|待确认|to be determined|some (?:museum|place|cafe)", str(place), re.I):
+                errors.append("activity_place_is_placeholder")
             start, end = (_clock_minutes(activity.get(key)) for key in ("start_time", "end_time"))
             if any(activity.get(key) is not None and _clock_minutes(activity[key]) is None
                    for key in ("start_time", "end_time")):

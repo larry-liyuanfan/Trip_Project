@@ -40,20 +40,24 @@ def replay_record(root, record, observation=None):
     return value
 
 
-def _validate_reference_audit(audit):
+def _validate_reference_audit(audit, phase="development"):
+    if phase not in {"development", "final"}:
+        raise ValueError("unknown evaluation phase")
     if (not isinstance(audit, dict)
             or audit.get("protocol") != "independent_image_model_observation_silver_v3"
             or audit.get("metadata_supplied") is not False
             or audit.get("candidate_outputs_supplied") is not False
             or audit.get("model_independent") is not True
-            or audit.get("test_rows_read") is not False
+            or audit.get("test_rows_read") is not (phase == "final")
             or not isinstance(audit.get("reference_raw_sha256"), str)
             or len(audit["reference_raw_sha256"]) != 64):
         raise ValueError("missing or invalid independent visual silver audit")
+    if phase == "final" and (not isinstance(audit.get("candidate_lock_sha256"), str) or len(audit["candidate_lock_sha256"]) != 64):
+        raise ValueError("final scoring requires a pre-existing candidate lock")
 
 
-def score_paired(root, references, records, observation=None, *, reference_audit=None):
-    _validate_reference_audit(reference_audit)
+def score_paired(root, references, records, observation=None, *, reference_audit=None, phase="development"):
+    _validate_reference_audit(reference_audit, phase)
     reference_ids = [row["sample_id"] for row in references]
     if len(reference_ids) != len(set(reference_ids)) or len(records) != len(references):
         raise ValueError("all fixed reference samples must be retained exactly once")
@@ -139,7 +143,7 @@ def score_paired(root, references, records, observation=None, *, reference_audit
         metrics[metric + "_f1"] = 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else None
     primary = [metrics[key] for key in ("business_category_accuracy", "style_f1", "facility_f1", "price_range_accuracy") if metrics[key] is not None]
     metrics["composite"] = statistics.fmean(primary) if primary else None
-    return {"protocol": "independent_visual_silver_agreement_v1", "human_visual_accuracy_claim": False,
+    return {"protocol": "independent_visual_silver_agreement_v1", "phase": phase, "human_visual_accuracy_claim": False,
             "reference_audit": reference_audit,
             "metrics": metrics, "supports": supports, "multilabel_counts": counts, "errors": errors,
             "latency_ms": {"mean": statistics.fmean(latencies), "p50": statistics.median(latencies),
@@ -184,3 +188,31 @@ def select_development_candidate(summaries):
     return {"status": "DEVELOPMENT_CANDIDATE" if selected else "NO_ELIGIBLE_CANDIDATE",
             "selected_role": selected, "failures": reasons, "promotion_allowed": False,
             "interpretation": "Image-teacher silver agreement only; independent final and system validation remain required."}
+
+
+def validate_locked_final(baseline, candidate):
+    """验收锁定方案，不使用 test 排序、选 Prompt 或调整阈值。"""
+    for summary in (baseline, candidate):
+        _validate_reference_audit(summary["reference_audit"], "final")
+        if summary.get("phase") != "final" or summary.get("human_visual_accuracy_claim") is not False:
+            raise ValueError("final silver phase/claim mismatch")
+        if any(value is not None and (type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1)
+               for value in summary["metrics"].values()):
+            raise ValueError("invalid final metric")
+    failures = []
+    if baseline["supports"] != candidate["supports"] or baseline["reference_audit"] != candidate["reference_audit"]:
+        failures.append("paired_support_or_reference_changed")
+    for name in ("json_compliance", "schema_pass_rate", "internal_consistency_rate"):
+        if candidate["metrics"][name] != 1:
+            failures.append(name + "_not_complete")
+    if candidate["metrics"]["request_failure_rate"] != 0:
+        failures.append("request_failure")
+    for name in ("business_category_accuracy", "business_category_including_unknown_accuracy", "style_precision", "style_recall", "style_f1",
+                 "facility_precision", "facility_recall", "facility_f1", "price_range_accuracy", "unknown_accuracy", "label_completeness"):
+        before, after = baseline["metrics"][name], candidate["metrics"][name]
+        if before is not None and (after is None or after < before):
+            failures.append(name + "_regressed")
+    if candidate["metrics"]["composite"] is None or candidate["metrics"]["composite"] <= baseline["metrics"]["composite"]:
+        failures.append("no_composite_improvement")
+    return {"status": "PASS" if not failures else "FAIL", "failures": failures,
+            "candidate_reselection_allowed": False, "human_visual_accuracy_claim": False}

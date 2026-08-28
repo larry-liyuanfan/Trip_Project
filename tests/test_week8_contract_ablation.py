@@ -69,6 +69,11 @@ class ContractAblationTests(unittest.TestCase):
         self.assertIn("activity_ends_after_requested_deadline", errors)
         self.assertIn("private_transport_violates_public_transport", errors)
 
+    def test_placeholder_venue_is_not_a_completed_itinerary(self):
+        output = copy.deepcopy(ITINERARY_OUTPUT)
+        output["itinerary"][0]["activities"][0]["place_name"] = "上海某文化空间（参考图中环境）"
+        self.assertIn("activity_place_is_placeholder", itinerary_business_errors(output, "一天行程"))
+
     def test_required_and_excluded_places_are_checked_in_activities(self):
         output = copy.deepcopy(ITINERARY_OUTPUT)
         output["constraint_check"] = [{"constraint": "必须包含故宫，不去长城", "constraint_type": "hard",
@@ -109,6 +114,7 @@ class ContractAblationTests(unittest.TestCase):
 
     def test_city_alias_is_accepted_without_removing_city_requirement(self):
         output = copy.deepcopy(ITINERARY_OUTPUT)
+        output["itinerary"][0]["activities"][0]["place_name"] = "上海博物馆"
         output["constraint_check"] = [{"constraint": "上海", "constraint_type": "hard", "status": "satisfied", "evidence": "上海博物馆"}]
         self.assertEqual(itinerary_business_errors(output, "城市：Shanghai；一天行程"), [])
         self.assertTrue(itinerary_business_errors(output, "城市：Beijing；一天行程"))
