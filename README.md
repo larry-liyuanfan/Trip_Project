@@ -899,3 +899,13 @@ python -m unittest tests.test_week8_audit_fixes -v
 旧 60 条 development 全部保留，但可靠视觉指标仍无法据此得出。缺少视觉参考或存在
 标签矛盾时，选优返回 `DIAGNOSTIC_ONLY_INVALID_REFERENCES`，不得锁定 Prompt。
 真实复测技术 smoke PASS、业务 smoke FAIL；商品仍猜测停车设施，不晋级。完整证据见商品报告第 13 节。
+
+新的契约消融仅访问 development，使用独立 Prompt 与不可覆盖的输出身份：
+
+```bash
+python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v1.json
+python -m unittest tests.test_week8_contract_ablation -v
+```
+
+此命令对比旧 adapter、新 Prompt + adapter 和新 Prompt + base；业务/语法通过不代表
+视觉准确率通过，不会写入正式 release 或消费 final。

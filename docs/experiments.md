@@ -1211,3 +1211,15 @@ manifest.
   `c81af248...9f2cb1`；完整哈希、字段指标与局限见商品报告第 13 节。
 - 处置：保留失败、模型和候选历史身份，交付工程修复但状态维持 PARTIAL。没有扩大训练、
   人工标注或后续周计划。CLI 候选 quality 字段误判在最终本地复验中修正，实际配置 SHA 不变。
+
+### 2026-08-28 Prompt 契约与 adapter 消融（执行中）
+
+- 起点 `ac84265`：发现旧行程 Prompt 强制证据 null、禁止规划地点并提供占位骨架，
+  与业务验收冲突。新增 `week8_itinerary_actionable_v1` 和 `week8_product_visual_facts_v3`，
+  不覆盖旧 Prompt；前者允许明确标为建议的规划，后者禁止从商家/图片类型猜测设施或价格。
+- 配置 `configs/week8/contract_ablation_v1.json`：固定既有 development 的 6 张图片与
+  2 个文字请求，比对旧 adapter、修复 Prompt + adapter、修复 Prompt + base。脚本保留
+  原始响应、token、延迟、Prompt/脚本/adapter/数据哈希；消融共用模型锁，不改权重。
+- 命令：`python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v1.json`。
+  计划使用已验证的 A100 MIG 20GB，15 分钟 walltime；此处未声称模型结果通过。
+- 本地定向测试 4/4、完整 unittest 683/683 通过；不读取 final，无人工标签或自动晋级。

@@ -1058,3 +1058,9 @@ as the current validated dataset or accepted baseline.
 - 完整 unittest 679 条通过；旧四层交接包、显式配置及 Compose 静态复验通过。CLI
   复测纠正候选 quality 说明字段误当运行契约的问题，未改 manifest 或 adapter。
 - Week 8 保持 PARTIAL；无人工工作、无新增训练、无晋级。详细字段支持和证据哈希见商品报告第 13 节。
+
+### 2026-08-28 持续复审与契约消融
+
+- 登记用户持续修复至可晋级候选的要求。修复独立 Prompt 版本中的行程契约冲突，新增
+  图片事实约束版本与 development-only 消融脚本；正式 manifest 和冻结结果保持不变。
+- 定向测试 4/4、完整 unittest 683/683 通过。真实模型消融尚待运行，不提前宣称质量通过。
