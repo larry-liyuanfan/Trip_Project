@@ -1634,3 +1634,27 @@ manifest.
   `c7962cc51ef751b169c1399f8d25d0b6bcb48919fc17eba3702ad663a5092b72`。新 runtime v6、
   retrieval v7 配置用于真实复测；final v5 保留 100 图与正式/v9/候选三组，显式排除
   已消费 v2/v3/v4，绑定全部纠错证据。此时未创建新数据集或消费 final，价格仍单列 N/A。
+
+### 2026-08-29 v11 真实复测与一次性最终验证
+
+- runtime v6：`29708734`，2eb33ce，9:11/0:0，准确v11配置/同底座/既有adapter；
+  smoke、3组行程约束、2类对话与风格弃权均PASS。24次原始输出逐条重放，三种缓存
+  标签完全一致、失败0；mean 9237.738/9227.763/9228.019ms，P95
+  9243.110/9234.774/9243.103ms，每请求输入1030、输出141。冷启动30429.037ms，
+  峰值分配8143745536B；保留processor cache，不把微小计时差异计作提速。
+- retrieval v7：`29708735`，8秒/0:0，10个真实查询、4组对话状态PASS。summary SHA
+  `7009f844cbb0ceb27c7346cc7254767058acbc1cb9145a6353a047918e42480f`。
+- `build_week8_visual_holdout.py --config configs/week8/visual_final_v5.json` 在Spartan
+  原项目目录从128张未消费图固定选100张，五维重叠0、无标签选样。数据锁
+  `ddee2e4e31a55afbee3ce8f1f0bf5617a88aef9f1367f560c38e00c8fb7f5c03`；2eb33ce锁定候选
+  `4a344fe1ad6e82d788001273e9cef3c1b04f193772c3c7e8b148267c0b948d7b`。
+  `run_week8_visual_final.py teacher/inference --config configs/week8/visual_final_v5.json`
+  分别在本地API及Spartan GPU执行；GPU `29708885`，根据前次28:20实测申请37分钟。
+  独立教师无metadata/候选输出，新标签全部model_generated_silver；最终结果待验。
+- `29708885` 28:15/0:0完成三组各100图，教师100有效/113请求，中间13次校验错误保留。
+  正式/v9/v11的category为0.839286/0.803571/0.803571（支持56）；style F1
+  0.316940/0.626667/0.630872，facility F1 0.180095/0.780488/0.780488；price N/A。
+  composite 0.445440/0.736909/0.738311，JSON/Schema均100%、失败0；虽未低于v9，
+  正式基线类别非回退失败，验收作业29708959退出1，无promotion_acceptance或新交接包。
+  v11较v9平均延迟5817.903→6020.544ms，不能宣称提速。完整同口径表及原始哈希见报告16.15。
+  新final v5全部冻结，跨主机复算通过；继续仅依据原development类别错误寻找改进路径。
