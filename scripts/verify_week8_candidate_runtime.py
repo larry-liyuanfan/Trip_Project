@@ -16,6 +16,27 @@ from src.training.week7_data import sha256_file
 from src.inference.schemas import TaskRequest, DialogueRequest
 from src.inference.system_runtime import ReleaseSettings, ScenarioService, TransformersPeftBackend, ModelGenerationError
 from src.inference.product_observation import canonical_config_sha256
+from src.evaluation.week8_visual_silver import replay_record
+from src.inference.product_observation import parse_observation
+from src.inference.product_style_scope import venue_style_evidence
+
+
+def validate_product_scope_probe(response, observation, require_abstention=False, root=ROOT):
+    if not isinstance(observation, dict):
+        raise ValueError("product scope probe requires a visual observation configuration")
+    product = replay_record(root, response, observation)
+    if product is None:
+        raise ValueError("product scope probe request failed")
+    excluded = []
+    if (observation.get("style_refinement", {}).get("unsupported_scope_action") == "abstain"
+            and len(response["attempts"]) > 1):
+        raw = parse_observation(response["attempts"][-1]["raw_output"], {"protocol": "product_visual_observation_v4"})
+        excluded = venue_style_evidence(raw, observation)[1]
+    if require_abstention and not excluded:
+        raise ValueError("fixed product scope probe did not exercise the abstention branch")
+    if any(item["label"] in product["style_tags"] for item in excluded):
+        raise ValueError("nonvenue style hypothesis leaked into the public product result")
+    return excluded
 
 
 def validate_probe_config(config):
@@ -81,6 +102,24 @@ def run(config_path):
         write_new(output / f"dialogue_{name}.json", response)
         dialogues[name] = response["task_status"]
         print(json.dumps({"dialogue": name, "status": response["task_status"]}), flush=True)
+    scope_probes = []
+    for index, spec in enumerate(config.get("product_scope_probes", [])):
+        probe_image = ROOT / spec["image"]
+        if sha256_file(probe_image) != spec["image_sha256"]:
+            raise ValueError("product scope probe image identity mismatch")
+        response = None
+        try:
+            response = service.run_task("image_product_search", TaskRequest(image_urls=[str(probe_image)])).model_dump()
+            response["passed"] = True
+            excluded = validate_product_scope_probe(response, settings.product_observation, spec.get("require_abstention", False))
+            value = {"passed": True, "response": response, "scope_abstentions": excluded, "specification": spec}
+        except ModelGenerationError as exc:
+            value = {"passed": False, "error": str(exc), "attempts": [item.model_dump() for item in exc.attempts], "specification": spec}
+        except ValueError as exc:
+            value = {"passed": False, "response": response, "error": str(exc), "specification": spec}
+        write_new(output / f"product_scope_{index}.json", value)
+        scope_probes.append(value["passed"])
+        print(json.dumps({"product_scope_probe": index, "passed": value["passed"]}), flush=True)
     timings = {}
     reference_result = None
     for mode in config["cache_modes"]:
@@ -113,9 +152,11 @@ def run(config_path):
         print(json.dumps({"cache_mode": mode, "metrics": timings[mode]}), flush=True)
     summary = {"status": "PASS" if smoke["status"] == "PASS" and all(row["passed"] for row in itineraries)
                and all(value == "COMPLETED" for value in dialogues.values())
+               and all(scope_probes)
                and all(value["failure_count"] == 0 and value["all_labels_equal"] for value in timings.values()) else "FAIL",
                "model_smoke_status": smoke["status"], "itinerary_business_pass": sum(row["passed"] for row in itineraries),
                "itinerary_count": len(itineraries), "dialogue_tasks": dialogues, "latency": timings,
+               "product_scope_probes": scope_probes,
                "cold_start_ms": cold_start_ms, "hardware": backend._torch.cuda.get_device_name(0),
                "peak_gpu_allocated_bytes": backend._torch.cuda.max_memory_allocated(),
                "peak_gpu_reserved_bytes": backend._torch.cuda.max_memory_reserved(),

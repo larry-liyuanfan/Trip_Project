@@ -198,6 +198,23 @@ class VenueStyleScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "only allowed"):
             validate_refinement_config(config)
 
+    def test_production_scope_probe_requires_raw_replay_and_exercised_abstention(self):
+        from scripts.verify_week8_candidate_runtime import validate_product_scope_probe
+        config = self.abstention_config()
+        self.observation["style_evidence"] = [{"label": "classy", "fact": "Cocktail glass"}]
+        proposal = {"style_evidence": [{"label": "classy", "fact": "Glass with twisted stem"}]}
+        result = generate_observation(Backend([self.observation, proposal]), "x.jpg", config)
+        record = {**result, "attempts": [item.model_dump() for item in result["attempts"]]}
+        self.assertEqual(len(validate_product_scope_probe(record, config, True)), 1)
+        record["result"]["style_tags"] = ["classy"]
+        with self.assertRaises(ValueError):
+            validate_product_scope_probe(record, config, True)
+        self.observation["style_evidence"] = []
+        result = generate_observation(Backend([self.observation]), "x.jpg", config)
+        record = {**result, "attempts": [item.model_dump() for item in result["attempts"]]}
+        with self.assertRaisesRegex(ValueError, "did not exercise"):
+            validate_product_scope_probe(record, config, True)
+
 
 if __name__ == "__main__":
     unittest.main()

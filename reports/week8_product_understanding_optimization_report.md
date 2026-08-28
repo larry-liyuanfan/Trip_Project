@@ -1483,3 +1483,35 @@ category accuracy 均为 0.820513（39），price 为 N/A（0）；style/设施�
 后续若 development 真正胜出，新单次 final 将同时保留正式模型与 v9：原严格正式
 基线提升要求不变，再核对相对 v9 不回退；汇总和交接不会只展示较容易通过的那一项。
 目前仅检查未用身份尚有 228 张，未建立新 holdout、未读取旧最终结果调参或运行新 final。
+
+### 16.7 非场所证据弃权取得小幅 development 收益（v10 待验）
+
+GPU `29705434` 在 `a878a0c` 上完成两组各 60 条，13:35、退出 0。固定修订 silver
+参考（human=0，权重 0.5），没有改变任何图片、标签或支持。商品首阶段 Prompt 与 v9
+相同，仅对越界的自有风格假设复查；仍没有场所依据时明确 unknown。鸡尾酒玻璃杯不再
+支持 classy 场所，消除一条误报；其他字段及正确范围的风格保持不变。
+
+| 指标 | 同场 v9 | 锁定待验 v10 | 支持 |
+|---|---:|---:|---|
+| category accuracy | 0.820513 | 0.820513 | 39 |
+| style precision / recall / F1 | 0.604167 / 0.659091 / 0.630435 | 0.617021 / 0.659091 / 0.637363 | 34 图 / 44 标签 |
+| facility precision / recall / F1 | 0.818182 / 0.807692 / 0.812903 | 同 v9 | 37 图 / 78 标签 |
+| price accuracy | N/A | N/A | 0 |
+| unknown accuracy | 0.920833 | 0.925000 | 240 字段决策 |
+| label completeness | 0.727243 | 0.727243 | 60 图 |
+| composite | 0.754617 | 0.756926 | 同参考 |
+| JSON / Schema / 请求失败率 | 100% / 100% / 0 | 同 v9 | 60 请求 |
+| 平均 / P50 / P95 ms | 6453.674 / 6385.795 / 10414.480 | 6544.186 / 6410.724 / 10721.846 | 同场 |
+| 平均输入 / 输出 token | 995.8 / 94.9 | 1020.1 / 96.25 | 同场 |
+
+development 状态为 `IMPROVED_DEVELOPMENT_CANDIDATE`，不是最终晋级。平均约慢 1.4%，
+不属于提速方案。冷启动 31453.344 ms、峰值分配显存 8143745536 B。原始目录
+`week8_contract_development_20260828_v9`；同参考对比目录
+`week8_contract_comparison_20260828_v9_style_revision_v1`，comparison SHA
+`cd71580aa8db3b5f39b822b634850d398d5e08bb7325a2981c4db8d186c65d0e`。
+
+固定 `configs/releases/qwen3_vl_system_week8_v10.json` 与
+`configs/week8/product_observation_scope_repair_v2.json`，保留 v9 冻结包；没有 SFT。
+真实 runtime/retrieval 和新单次 final 配置已准备，新增实际生产弃权分支检查，确保不是
+只在离线评测生效。新 final 必须同时保留正式模型与 v9，且锁定后不调参。当前尚未运行
+这些新验收或创建新 holdout；最新完整 unittest 834/834（27.759 秒）通过，日志 v39。

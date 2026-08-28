@@ -1447,3 +1447,16 @@ manifest.
   全量 833/833（27.936 秒）通过，日志 v37 SHA
   `6635fecf86071f5d6228c5b3a7ff354ad06ffa4cdf3cc11fdff6c4ecbe466e11`。
   原 v9 四层 SHA、显式 release 校验及隔离运行层导入再次通过；没有读取旧 test 输出调参。
+- `29705434` 正常完成，实际 13:35、退出 0，固定 60 图两组各 60/60。修订参考下
+  v9→scope_repair_v2 的 style TP/FP/FN 为 29/19/15→29/18/15，style F1
+  0.630435→0.637363、composite 0.754617→0.756926、unknown 0.920833→0.925。
+  其余有支持字段不退，JSON/Schema 100%，失败 0；平均延迟 6453.674→6544.186 ms，
+  输入 token 995.8→1020.1、输出 94.9→96.25。只消除一条非场所 classy 误报，收益有限。
+  raw SHA（v9/候选）为 `d04f6166e19d7c65083fe6c2324cda205fa6587280f87505f052d4f3ac3247cb` /
+  `0f1253d96d4d592bd5a88c170343e4ed6f06e3ace3d2297ca90573674e00ffef`；同参考重放
+  `week8_contract_comparison_20260828_v9_style_revision_v1/comparison.json` SHA
+  `cd71580aa8db3b5f39b822b634850d398d5e08bb7325a2981c4db8d186c65d0e`。
+- 固定 `qwen3_vl_system_week8_v10.json`，不改变首阶段 Prompt、模型、像素及 adapter 路由；
+  新增 runtime_probe_v5（含真实弃权分支）、retrieval_probe_v6、visual_final_v4 和独立
+  teacher_final_v2 配置。新 final 保留 v9 第三组和原正式模型严格提升规则。尚未创建或
+  消费新 holdout，所有新验收均待执行；全量 834/834（27.759 秒），日志 v39。

@@ -50,6 +50,7 @@ def protocol_files(root, config):
                   "src/evaluation/visual_teacher_retry.py", "scripts/compare_week8_development_revision.py",
                   "src/evaluation/visual_reference_validation.py", "src/inference/visual_limits.py",
                   "src/inference/product_style_scope.py", "src/data/product_labels.py",
+                  "scripts/verify_week8_candidate_runtime.py",
                   "scripts/verify_week8_candidate_acceptance.py"})
     if config.get("development_config"):
         paths.add(config["development_config"])
@@ -154,6 +155,15 @@ def validate_runtime_probe(root, config):
         raise ValueError("dialogue itinerary failed replay")
     probe_release = read_json(root / probe_config["release_config"])
     candidate = read_json(root / config["candidate_release"])
+    if probe_config.get("product_scope_probes"):
+        from scripts.verify_week8_candidate_runtime import validate_product_scope_probe
+        observation = read_json(root / config["candidate_observation"])
+        for index, spec in enumerate(probe_config["product_scope_probes"]):
+            detail = read_json(directory / f"product_scope_{index}.json")
+            if not detail["passed"] or detail["specification"] != spec or sha256_file(root / spec["image"]) != spec["image_sha256"]:
+                raise ValueError("product scope runtime probe is incomplete")
+            if detail["scope_abstentions"] != validate_product_scope_probe(detail["response"], observation, spec.get("require_abstention", False), root):
+                raise ValueError("product scope runtime probe differs from raw replay")
     if sha256_file(root / probe_config["release_config"]) != identity["release_config_sha256"]:
         raise ValueError("tested release identity changed")
     for key in ("model", "product_pipeline", "prompts", "schemas", "dialogue"):
