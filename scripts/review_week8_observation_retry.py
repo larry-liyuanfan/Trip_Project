@@ -158,11 +158,11 @@ def load_continuation(root, config, cases, source_audit, generation_root=None):
 def run(config_path, audit_only=False):
     config = read_json(config_path)
     cases, source_audit = load_cases(ROOT, config)
+    prefixes, continuation = load_continuation(ROOT, config, cases, source_audit)
     if audit_only:
-        return {"status": "DEVELOPMENT_CASES_VERIFIED", **source_audit, "final_test_access": False}
+        return {"status": "DEVELOPMENT_CASES_VERIFIED", **source_audit, "continuation": continuation, "final_test_access": False}
     profiles = {name: load_observation_config(within(ROOT, path), canonical_config_sha256(read_json(within(ROOT, path))))
                 for name, path in config["profiles"].items()}
-    prefixes, continuation = load_continuation(ROOT, config, cases, source_audit)
     first_messages = [observation_messages("identity-only-placeholder", value) for value in profiles.values()]
     if any(value != first_messages[0] for value in first_messages[1:]):
         raise ValueError("correction-only experiment cannot change the first-stage prompt")

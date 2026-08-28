@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts.review_week8_observation_retry import load_continuation
+from scripts.review_week8_observation_retry import load_continuation, run
 from src.training.week7_data import sha256_file
 
 
@@ -93,6 +93,15 @@ class ObservationRetryContinuationTests(unittest.TestCase):
 
     def test_normal_execution_has_no_continuation(self):
         self.assertEqual(load_continuation(Path("."), {}, [], {}), ({}, None))
+
+    def test_audit_only_also_rejects_invalid_continuation_before_model_loading(self):
+        with patch("scripts.review_week8_observation_retry.read_json", return_value={}), patch(
+                "scripts.review_week8_observation_retry.load_cases", return_value=([], {})), patch(
+                "scripts.review_week8_observation_retry.load_continuation", side_effect=ValueError("bad prefix")), patch(
+                "scripts.review_week8_observation_retry.TransformersPeftBackend") as backend:
+            with self.assertRaisesRegex(ValueError, "bad prefix"):
+                run(Path("unused.json"), audit_only=True)
+            backend.assert_not_called()
 
 
 if __name__ == "__main__":
