@@ -43,6 +43,7 @@ def load_observation_config(path: Path, expected_sha256: str):
         from src.inference.product_style_scope import validate_style_scope
         validate_style_scope(config)
     validate_correction_protocol(config)
+    validate_prompt_schema_annotations(config)
     return config
 
 
@@ -145,15 +146,36 @@ def map_observation(value, config):
             "unknown_fields": sorted(unknown), "confidence": None}
 
 
-def observation_messages(image, config):
-    image_url = str(image) if str(image).startswith(("data:", "https://", "http://", "file://")) else "file://" + str(image).replace("\\", "/")
+def validate_prompt_schema_annotations(config):
+    if "prompt_schema_annotations" not in config:
+        return
+    annotations = config["prompt_schema_annotations"]
+    fields = {"subject_kind", "subject_fact", "style_evidence", "facility_evidence", "price_text"}
+    if (config.get("protocol") != "product_visual_observation_v3"
+            or not isinstance(annotations, dict) or not annotations
+            or any(key not in fields or not isinstance(value, str)
+                   or not value.strip() or len(value) > 400
+                   for key, value in annotations.items())):
+        raise ValueError("invalid observation prompt schema annotations")
+
+
+def observation_prompt_schema(config):
+    validate_prompt_schema_annotations(config)
     schema_value = observation_schema(config)
+    # 注释只进入模型提示，不改变实际 Schema、字段支持或语义校验。
+    for field, description in config.get("prompt_schema_annotations", {}).items():
+        schema_value["properties"][field]["description"] = description
     if config.get("prompt_schema_style") == "property_names":
         # 与展开 Schema 等价；提示词不逐项列出可选属性，避免诱导把缺席设施也填满。
         for field, vocabulary in (("style_evidence", "style_vocabulary"), ("facility_evidence", "facility_vocabulary")):
             schema_value["properties"][field] = {"type": "object", "propertyNames": {"enum": config[vocabulary]},
                 "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 80}}
-    schema = json.dumps(schema_value, ensure_ascii=False, separators=(",", ":"))
+    return schema_value
+
+
+def observation_messages(image, config):
+    image_url = str(image) if str(image).startswith(("data:", "https://", "http://", "file://")) else "file://" + str(image).replace("\\", "/")
+    schema = json.dumps(observation_prompt_schema(config), ensure_ascii=False, separators=(",", ":"))
     return [{"role": "system", "content": config["system_prompt"]},
             {"role": "user", "content": [{"type": "image_url", "image_url": {"url": image_url}},
              {"type": "text", "text": config["task_prompt"] + "\nJSON Schema: " + schema}]}]
