@@ -19,6 +19,7 @@ from src.training.week8_product import sha256_file
 from src.inference.product_observation import generate_observation
 from src.inference.visual_limits import temporary_visual_pixel_limit
 from src.inference.processor_cache import processor_signature
+from src.inference.product_category_refinement import category_review_source_hashes
 
 
 def write_new(path, value):
@@ -72,6 +73,9 @@ def run(path):
     if limits:
         identity["profile_visual_max_pixels"] = limits
         identity["visual_limits_implementation_sha256"] = sha256_file(ROOT / "src/inference/visual_limits.py")
+    category_sources = category_review_source_hashes(ROOT, config)
+    if category_sources:
+        identity["category_review_source_lf_sha256"] = category_sources
     write_new(output / "identity.json", identity)
     backend = TransformersPeftBackend(settings)
     started = time.perf_counter()

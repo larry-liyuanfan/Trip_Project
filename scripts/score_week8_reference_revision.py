@@ -13,6 +13,7 @@ from src.evaluation.visual_reference_revision import PROTOCOL, replay_revision, 
 from src.evaluation.week8_visual_silver import score_paired, select_development_candidate
 from src.inference.product_style_scope import venue_style_evidence
 from src.training.week7_data import iter_jsonl, sha256_file
+from src.inference.product_category_refinement import validate_category_review_identity
 
 
 def verified_references(config_path, root=ROOT):
@@ -57,6 +58,7 @@ def generation_details(generation_path, revision_config, references, root=ROOT):
     source = root / config["output_root"]
     identity = read_json(source / "identity.json")
     generation_summary = read_json(source / "summary.json")
+    validate_category_review_identity(root, config, identity)
     if (identity["config_sha256"] != sha256_file(generation_path)
             or config["final_test_access"] is not False or identity["test_rows_read"] is not False
             or generation_summary["status"] != "COMPLETED"

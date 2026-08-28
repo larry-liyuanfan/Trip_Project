@@ -42,6 +42,9 @@ def load_observation_config(path: Path, expected_sha256: str):
     if "style_refinement" in config:
         from src.inference.product_style_refinement import validate_refinement_config
         validate_refinement_config(config)
+    if "category_refinement" in config:
+        from src.inference.product_category_refinement import validate_category_refinement
+        validate_category_refinement(config)
     if "style_scope_policy" in config:
         from src.inference.product_style_scope import validate_style_scope
         validate_style_scope(config)
@@ -226,6 +229,9 @@ def observation_correction_messages(messages, raw, error, config):
 
 def generate_observation(backend, image, config):
     validate_correction_protocol(config)
+    if config.get("category_refinement") is not None:
+        from src.inference.product_category_refinement import generate_category_refined_observation
+        return generate_category_refined_observation(backend, image, config)
     if config.get("style_refinement") is not None:
         from src.inference.product_style_refinement import generate_refined_observation
         return generate_refined_observation(backend, image, config)

@@ -56,6 +56,8 @@ def protocol_files(root, config):
                   "scripts/verify_week8_candidate_acceptance.py"})
     if config.get("development_config"):
         paths.add(config["development_config"])
+    if read_json(within(root, config["candidate_observation"])).get("category_refinement"):
+        paths.add("src/inference/product_category_refinement.py")
     if config.get("correction_diagnostic_config"):
         paths.add(config["correction_diagnostic_config"])
         paths.update({"scripts/validate_week8_correction_evidence.py", "scripts/summarize_week8_retry_semantics.py",

@@ -31,7 +31,10 @@ def replay_record(root, record, observation=None):
     attempts = record.get("attempts", [])
     if not attempts or attempts[-1].get("error") is not None:
         raise ValueError("passing record has no successful raw attempt")
-    if observation is not None and observation.get("style_refinement") is not None:
+    if observation is not None and observation.get("category_refinement") is not None:
+        from src.inference.product_category_refinement import replay_category_refined_observation
+        value = replay_category_refined_observation(record, observation)
+    elif observation is not None and observation.get("style_refinement") is not None:
         from src.inference.product_style_refinement import replay_refined_observation
         value = replay_refined_observation(record, observation)
     else:
