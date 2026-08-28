@@ -2,8 +2,10 @@
 import argparse
 from collections import Counter
 import copy
+import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -96,6 +98,63 @@ def load_cases(root, config):
                    "case_selection": "all_first_attempt_errors_without_final_or_reference_labels"}
 
 
+def load_continuation(root, config, cases, source_audit, generation_root=None):
+    specification = config.get("continue_incomplete")
+    if specification is None:
+        return {}, None
+    directory = within(root, specification["output_root"])
+    original_path = within(root, specification["config_path"])
+    original = read_json(original_path)
+    identity_path = directory / "identity.json"
+    identity = read_json(identity_path)
+    if ((directory / "summary.json").exists() or original["output_root"] != specification["output_root"]
+            or original.get("final_test_access") is not False or original.get("human_annotation_count") != 0
+            or specification["output_root"] == config["output_root"]
+            or sha256_file(identity_path) != specification["identity_sha256"]
+            or identity["config_sha256"] != sha256_file(original_path)
+            or identity["final_test_access"] is not False or identity["reference_targets_supplied"] is not False
+            or identity["human_annotation_count"] != 0
+            or specification["interruption"]["state"] != "TIMEOUT"
+            or any(original[key] != config[key] for key in (
+                "development_manifest", "development_manifest_sha256", "development_count", "release_config", "profiles", "sources"))
+            or any(identity.get(key) != value for key, value in source_audit.items())
+            or list(iter_jsonl(directory / "cases.jsonl")) != cases):
+        raise ValueError("continuation requires the exact incomplete development execution")
+    for key, path in (("correction_implementation_sha256", "src/inference/product_observation.py"),
+                      ("decoder_implementation_sha256", "src/inference/observation_constraints.py"),
+                      ("backend_implementation_sha256", "src/inference/system_runtime.py")):
+        if identity[key] != sha256_file(root / path):
+            raise ValueError("cannot change model execution while continuing partial evidence")
+    if not re.fullmatch(r"[0-9a-f]{40}", identity["git_commit"]):
+        raise ValueError("invalid original runner commit")
+    original_source = subprocess.check_output(["git", "show", identity["git_commit"] + ":scripts/review_week8_observation_retry.py"], cwd=root)
+    if hashlib.sha256(original_source).hexdigest() != identity["runner_sha256"]:
+        raise ValueError("original runner does not match its immutable Git source")
+    from scripts.verify_week8_observation_retry import replay_records
+    prefixes, audit = {}, {}
+    if set(specification["prefixes"]) != set(config["profiles"]):
+        raise ValueError("continuation must retain every original profile")
+    for name, path in config["profiles"].items():
+        if identity["profile_config_hashes"][name] != sha256_file(within(root, path)):
+            raise ValueError("continuation observation configuration changed")
+        raw_path = directory / (name + ".jsonl")
+        declared = specification["prefixes"][name]
+        rows = list(iter_jsonl(raw_path)) if raw_path.exists() else []
+        digest = sha256_file(raw_path) if raw_path.exists() else None
+        if (len(rows) > len(cases) or len(rows) != declared["count"] or digest != declared["sha256"]
+                or [row["case_id"] for row in rows] != [case["case_id"] for case in cases[:len(rows)]]):
+            raise ValueError("continuation prefix changed or skipped a difficult case")
+        if rows:
+            replay_records(root, cases[:len(rows)], rows, read_json(within(root, path)), generation_root)
+        prefixes[name] = rows
+        audit[name] = {"count": len(rows), "sha256": digest}
+    return prefixes, {"source_output_root": specification["output_root"], "source_identity_sha256": sha256_file(identity_path),
+                      "prefixes": audit, "interruption": specification["interruption"],
+                      "prior_continuation": identity.get("continuation"),
+                      "model_identity": {key: identity[key] for key in ("base_model", "base_revision", "adapter_sha256")},
+                      "inflight_attempt_may_have_been_interrupted": True, "old_files_modified": False}
+
+
 def run(config_path, audit_only=False):
     config = read_json(config_path)
     cases, source_audit = load_cases(ROOT, config)
@@ -103,12 +162,17 @@ def run(config_path, audit_only=False):
         return {"status": "DEVELOPMENT_CASES_VERIFIED", **source_audit, "final_test_access": False}
     profiles = {name: load_observation_config(within(ROOT, path), canonical_config_sha256(read_json(within(ROOT, path))))
                 for name, path in config["profiles"].items()}
+    prefixes, continuation = load_continuation(ROOT, config, cases, source_audit)
     first_messages = [observation_messages("identity-only-placeholder", value) for value in profiles.values()]
     if any(value != first_messages[0] for value in first_messages[1:]):
         raise ValueError("correction-only experiment cannot change the first-stage prompt")
     output = within(ROOT, config["output_root"])
     output.mkdir(parents=True, exist_ok=False)
     settings = ReleaseSettings.load(ROOT, within(ROOT, config["release_config"]))
+    if continuation is not None and continuation["model_identity"] != {
+            "base_model": settings.base_model, "base_revision": settings.base_revision,
+            "adapter_sha256": sha256_file(settings.adapter_path / "adapter_model.safetensors")}:
+        raise ValueError("cannot change model or adapter during diagnostic continuation")
     write_json_new(output / "identity.json", {**source_audit, "config_sha256": sha256_file(config_path),
         "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "adapter_sha256": sha256_file(settings.adapter_path / "adapter_model.safetensors"),
@@ -117,6 +181,7 @@ def run(config_path, audit_only=False):
         "runner_sha256": sha256_file(Path(__file__)), "correction_implementation_sha256": sha256_file(ROOT / "src/inference/product_observation.py"),
         "decoder_implementation_sha256": sha256_file(ROOT / "src/inference/observation_constraints.py"),
         "backend_implementation_sha256": sha256_file(ROOT / "src/inference/system_runtime.py"),
+        "continuation": continuation,
         "reference_targets_supplied": False, "final_test_access": False, "human_annotation_count": 0})
     with (output / "cases.jsonl").open("x", encoding="utf-8", newline="\n") as handle:
         for case in cases:
@@ -129,9 +194,13 @@ def run(config_path, audit_only=False):
     cold_start_ms = (time.perf_counter() - started) * 1000
     results = {}
     for name, observation in profiles.items():
-        failed = 0
+        preserved = prefixes.get(name, [])
+        failed = sum(not record["passed"] for record in preserved)
         with backend._execution_lock, backend._model.disable_adapter(), (output / (name + ".jsonl")).open("x", encoding="utf-8", newline="\n") as handle:
-            for case in cases:
+            for record in preserved:
+                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.flush()
+            for case in cases[len(preserved):]:
                 messages = observation_correction_messages(observation_messages(str(ROOT / case["image_path"]), observation),
                     case["previous_raw"], case["validation_error"], observation)
                 started = time.perf_counter()
@@ -152,6 +221,7 @@ def run(config_path, audit_only=False):
                 print(json.dumps({"profile": name, "case_id": case["case_id"], "passed": record["passed"]}), flush=True)
         results[name] = {"count": len(cases), "failures": failed, "raw_sha256": sha256_file(output / (name + ".jsonl"))}
     summary = {"status": "COMPLETED", "profiles": results, "cold_start_ms": cold_start_ms,
+               "continuation": continuation, "execution_interruptions": int(continuation is not None),
                "case_manifest_sha256": sha256_file(output / "cases.jsonl"), "final_test_access": False,
                "scope": "one_model_correction_per_historical_development_error_not_end_to_end_visual_accuracy"}
     write_json_new(output / "summary.json", summary)

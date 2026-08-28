@@ -8,7 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from scripts.review_week8_observation_retry import load_cases
+from scripts.review_week8_observation_retry import load_cases, load_continuation
 from src.data.week8_visual_holdout import read_json, within, write_json_new
 from src.training.week7_data import iter_jsonl, sha256_file
 from src.inference.product_observation import canonical_config_sha256, observation_messages, observation_correction_messages, parse_observation, map_observation
@@ -57,6 +57,9 @@ def verify(root, config_path, generation_root=None):
     cases, source_audit = load_cases(root, config)
     output = within(root, config["output_root"])
     identity, summary = read_json(output / "identity.json"), read_json(output / "summary.json")
+    preserved, continuation = load_continuation(root, config, cases, source_audit, generation_root)
+    if identity.get("continuation") != continuation or summary.get("continuation") != continuation:
+        raise ValueError("continuation provenance differs from preserved partial evidence")
     if (identity["config_sha256"] != sha256_file(config_path) or identity["final_test_access"] is not False
             or identity["reference_targets_supplied"] is not False or identity["human_annotation_count"] != 0
             or identity["runner_sha256"] != sha256_file(root / "scripts/review_week8_observation_retry.py")
@@ -76,13 +79,17 @@ def verify(root, config_path, generation_root=None):
         declared = summary["profiles"][name]
         if declared["raw_sha256"] != sha256_file(raw_path):
             raise ValueError("diagnostic raw changed")
-        results[name] = replay_records(root, cases, list(iter_jsonl(raw_path)), read_json(within(root, path)), generation_root)
+        records = list(iter_jsonl(raw_path))
+        if records[:len(preserved.get(name, []))] != preserved.get(name, []):
+            raise ValueError("completed diagnostic altered preserved prefix records")
+        results[name] = replay_records(root, cases, records, read_json(within(root, path)), generation_root)
         if any(results[name][key] != declared[key] for key in ("count", "failures")):
             raise ValueError("diagnostic reported counts differ from raw replay")
     return {"status": "REPLAY_VERIFIED", "profiles": results, "case_count": len(cases),
             "unique_development_images": source_audit["unique_development_images"],
             "case_manifest_sha256": summary["case_manifest_sha256"], "summary_sha256": sha256_file(output / "summary.json"),
             "reference_targets_supplied": False, "final_test_access": False,
+            "continuation": continuation, "execution_interruptions": int(continuation is not None),
             "product_quality_selection_requires_complete_fixed_development": True}
 
 
