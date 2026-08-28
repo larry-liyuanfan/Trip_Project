@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.data.week8_visual_holdout import read_json, write_json_new
 from src.inference.observation_constraints import build_observation_constraint_parser
-from src.inference.product_observation import observation_schema, map_observation, observation_correction_response_format
+from src.inference.product_observation import observation_schema, map_observation, observation_correction_response_format, FOOD_SUBJECT_CONFLICT
 from src.training.week7_data import sha256_file
 
 
@@ -27,7 +27,7 @@ def run(config_path):
 
     config = read_json(config_path)
     schema = observation_schema(config)
-    protocol = observation_correction_response_format(config)["constraint_protocol"]
+    protocol = observation_correction_response_format(config, FOOD_SUBJECT_CONFLICT)["constraint_protocol"]
     basic = {"subject_kind": "food_closeup", "subject_fact": "Bowl of noodles", "style_evidence": [], "facility_evidence": [], "price_text": []}
     cases = []
     for kind in config["subject_categories"]:
@@ -76,6 +76,7 @@ def run(config_path):
                            "passed": len(set(accepted.values())) == 1})
     return {"status": "PASS" if all(item["passed"] for item in [*results, *formatting]) else "FAIL", "cases": results,
             "formatting_symmetry": formatting, "constraint_protocol": protocol,
+            "correction_validation_error": FOOD_SUBJECT_CONFLICT,
             "decoder_version": version("lm-format-enforcer"), "config_sha256": sha256_file(config_path),
             "implementation_sha256": sha256_file(ROOT / "src/inference/observation_constraints.py"),
             "stock_maxitems_zero_accepts_nonempty": accepts(JsonSchemaParser({"type": "array", "maxItems": 0, "items": {"type": "string"}}), '["x"]'),

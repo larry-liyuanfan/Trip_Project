@@ -27,7 +27,7 @@ def replay_records(root, cases, records, observation, generation_root=None):
             case["previous_raw"], case["validation_error"], observation)
         if row["sample_id"] != case["sample_id"] or row["input_messages_sha256"] != canonical_config_sha256(messages):
             raise ValueError("correction model inputs differ from locked development case")
-        response_format = observation_correction_response_format(observation)
+        response_format = observation_correction_response_format(observation, case["validation_error"])
         if (response_format is not None or "response_format_sha256" in row) and row.get("response_format_sha256") != canonical_config_sha256(response_format):
             raise ValueError("correction decoder constraints differ from the tested protocol")
         value = None

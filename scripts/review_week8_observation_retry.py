@@ -204,7 +204,7 @@ def run(config_path, audit_only=False):
                 messages = observation_correction_messages(observation_messages(str(ROOT / case["image_path"]), observation),
                     case["previous_raw"], case["validation_error"], observation)
                 started = time.perf_counter()
-                response_format = observation_correction_response_format(observation)
+                response_format = observation_correction_response_format(observation, case["validation_error"])
                 record = {"case_id": case["case_id"], "sample_id": case["sample_id"], "input_messages_sha256": canonical_config_sha256(messages),
                           "response_format_sha256": canonical_config_sha256(response_format)}
                 try:

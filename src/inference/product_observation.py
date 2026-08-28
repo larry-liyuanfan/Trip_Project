@@ -10,6 +10,9 @@ from src.inference.schemas import ModelAttempt
 from src.inference.transport_utils import strip_json_fence
 
 
+FOOD_SUBJECT_CONFLICT = "food closeup cannot establish venue style or facilities"
+
+
 def canonical_config_sha256(config):
     return hashlib.sha256(json.dumps(config, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
 
@@ -85,7 +88,7 @@ def validate_observation(value, config):
             if negated_label_fact(item["label"], item["fact"]):
                 raise ValueError(f"negated positive label evidence in {field}")
     if value["subject_kind"] == "food_closeup" and (value["style_evidence"] or value["facility_evidence"]):
-        raise ValueError("food closeup cannot establish venue style or facilities")
+        raise ValueError(FOOD_SUBJECT_CONFLICT)
     return original
 
 
@@ -183,18 +186,25 @@ def observation_messages(image, config):
 
 def validate_correction_protocol(config):
     protocol = config.get("correction_protocol", "legacy_v1")
-    if protocol not in {"legacy_v1", "bounded_history_v1", "subject_schema_v1", "subject_schema_v2"}:
+    if protocol not in {"legacy_v1", "bounded_history_v1", "subject_schema_v1", "subject_schema_v2", "food_conflict_schema_v1"}:
         raise ValueError("unsupported observation correction protocol")
     if protocol != "legacy_v1" and (config.get("protocol") != "product_visual_observation_v3" or config.get("max_attempts") != 2):
         raise ValueError("bounded correction requires v3 with exactly one correction")
 
 
-def observation_correction_response_format(config):
+def observation_correction_response_format(config, validation_error=None):
     validate_correction_protocol(config)
-    if config.get("correction_protocol") not in {"subject_schema_v1", "subject_schema_v2"}:
+    selected = config.get("correction_protocol")
+    if selected == "food_conflict_schema_v1":
+        if not isinstance(validation_error, str) or not validation_error:
+            raise ValueError("food conflict decoder requires the previous validation error")
+        # 只约束明确的主体/场所字段矛盾；其他错误保留原纠错，不扰动其语义标签。
+        if validation_error != FOOD_SUBJECT_CONFLICT:
+            return None
+    elif selected not in {"subject_schema_v1", "subject_schema_v2"}:
         return None
     from src.inference.observation_constraints import PROTOCOL, SHARED_SERIALIZATION_PROTOCOL
-    protocol = SHARED_SERIALIZATION_PROTOCOL if config["correction_protocol"] == "subject_schema_v2" else PROTOCOL
+    protocol = PROTOCOL if selected == "subject_schema_v1" else SHARED_SERIALIZATION_PROTOCOL
     return {"type": "json_schema", "constraint_protocol": protocol,
             "json_schema": {"name": "product_observation_correction", "schema": observation_schema(config)}}
 
@@ -224,7 +234,7 @@ def generate_observation(backend, image, config):
     active = messages
     for attempt in range(1, config["max_attempts"] + 1):
         started = time.perf_counter()
-        response_format = observation_correction_response_format(config) if attempt > 1 else None
+        response_format = observation_correction_response_format(config, attempts[-1].error) if attempt > 1 else None
         generated = backend.generate_with_usage(active, response_format=response_format, max_new_tokens=config["max_new_tokens"])
         error = None
         observation = product = None
