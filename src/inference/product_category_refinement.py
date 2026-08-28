@@ -6,6 +6,7 @@ import re
 import time
 
 from src.evaluation.schema_validation import _validate_instance
+from src.data.product_labels import affirmative_term
 from src.inference.product_observation import map_observation, parse_observation
 from src.inference.schemas import ModelAttempt
 
@@ -19,7 +20,8 @@ def category_review_source_hashes(root, generation_config):
     # 新组合阶段的源码随生成身份绑定，跨主机统一换行，不追改历史运行。
     sources = ("src/inference/product_category_refinement.py", "src/inference/product_observation.py",
                "src/inference/product_style_refinement.py", "src/inference/system_runtime.py",
-               "src/inference/schemas.py", "scripts/review_week8_contracts.py")
+               "src/inference/schemas.py", "scripts/review_week8_contracts.py",
+               "src/data/product_labels.py")
     return {path: hashlib.sha256((root / path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
             for path in sources}
 
@@ -47,11 +49,29 @@ def validate_category_refinement(config):
     if (not isinstance(kinds, list) or not kinds or any(not isinstance(kind, str) for kind in kinds)
             or len(kinds) != len(set(kinds)) or not set(kinds) <= set(config["subject_categories"])):
         raise ValueError("invalid subject review eligibility")
+    eligibility = review.get("eligibility", "subject_kind")
+    if eligibility not in {"subject_kind", "visible_function_conflict"}:
+        raise ValueError("unknown subject review eligibility rule")
+    if eligibility == "visible_function_conflict":
+        for key in ("visible_function_terms", "venue_context_terms"):
+            terms = review.get(key)
+            if (not isinstance(terms, list) or not 1 <= len(terms) <= 64
+                    or any(not isinstance(term, str) or not term.strip() or len(term) > 60 for term in terms)
+                    or len(terms) != len(set(terms))):
+                raise ValueError("subject conflict terms must be explicit and bounded")
 
 
 def should_review_subject(observation, config):
     # 只用当前模型输出决定复查；不使用样本ID、参考类别或商家属性。
-    return observation["subject_kind"] in config["category_refinement"]["eligible_subject_kinds"]
+    review = config["category_refinement"]
+    if observation["subject_kind"] not in review["eligible_subject_kinds"]:
+        return False
+    if review.get("eligibility") == "visible_function_conflict":
+        fact = observation["subject_fact"]
+        # 词匹配仅触发独立看图，不直接产生新类别；否定和完整词沿用现有解析。
+        return (any(affirmative_term(fact, term) for term in review["visible_function_terms"])
+                and any(affirmative_term(fact, term) for term in review["venue_context_terms"]))
+    return True
 
 
 def subject_review_schema(config):

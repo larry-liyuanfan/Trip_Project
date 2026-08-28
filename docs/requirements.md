@@ -763,3 +763,5 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   引发的业态错误；允许独立、短事实的主体复查，不向模型提供参考类别或商家metadata。
   保留风格/设施/价位及完整支持，跨字段矛盾仍失败。已消费final v5永久排除，不能据其
   逐图标签或输出调参，也不能放宽正式基线或incumbent非回退条件。
+- 广泛主体复查若回退则保留失败，只在原development验证收窄触发；新100图final不足时，
+  可从现存合法原始归档建立无标签身份池并排除全部历史，不降低样本量或新增人工工作。

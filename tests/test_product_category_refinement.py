@@ -7,6 +7,7 @@ from src.evaluation.week8_visual_silver import replay_record
 from src.inference.product_category_refinement import (
     apply_subject_review, subject_review_messages, validate_category_refinement,
     category_review_source_hashes, validate_category_review_identity,
+    should_review_subject,
 )
 from src.inference.product_observation import generate_observation, map_observation, observation_messages
 from src.inference.system_runtime import ModelGenerationError
@@ -137,3 +138,21 @@ class ProductCategoryRefinementTests(unittest.TestCase):
         generation = json.loads((ROOT / "configs/week8/contract_ablation_v14.json").read_text(encoding="utf-8"))
         self.assertEqual(category_review_source_hashes(ROOT, generation), {})
         validate_category_review_identity(ROOT, generation, {})
+
+    def test_function_conflict_routes_evidence_not_brand_or_reference(self):
+        config = json.loads((ROOT / "configs/week8/product_observation_subject_review_v2.json").read_text(encoding="utf-8"))
+        validate_category_refinement(config)
+        for fact in ("Pizza storefront sign", "Fast food building", "Cafe entrance"):
+            self.assertTrue(should_review_subject({**self.primary, "subject_fact": fact}, config), fact)
+        for fact in ("Bottles on shelves", "Pastries display case", "Food pantry storefront", "SUNDAZE sign",
+                     "No pizza sign", "Pizza sign is not visible", "Cafeteria furniture", "Pizza slice"):
+            self.assertFalse(should_review_subject({**self.primary, "subject_fact": fact}, config), fact)
+        self.assertFalse(should_review_subject({**self.primary, "subject_kind": "dining_space"}, config))
+
+    def test_conflict_policy_is_opt_in_and_does_not_assign_a_label(self):
+        config = json.loads((ROOT / "configs/week8/product_observation_subject_review_v2.json").read_text(encoding="utf-8"))
+        backend = Backend([self.primary, {"subject_kind": "retail_space", "subject_fact": "Retail grocery display"}])
+        generated = generate_observation(backend, "image.jpg", config)
+        self.assertEqual(generated["result"]["business_category"], "other")
+        self.assertEqual(len(backend.calls), 2)
+        self.assertEqual(replay_record(ROOT, self.record(generated), config), generated["result"])
