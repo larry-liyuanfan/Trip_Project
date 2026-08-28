@@ -1317,3 +1317,7 @@ manifest.
 - CPU probe job `29697455` 在独立 worktree 缺少 `data/yelp` 图片引用时退出，尚未创建
   Milvus 集合或发出查询；保留其日志和空输出目录。补齐既有图片目录的只读用途引用后，
   用独立 `candidate_retrieval_probe_v4.json` 重试，v3 不覆盖。
+- development 新紧凑协议在 `0009` 两次都生成 `seating: No visible seating`，被原有
+  否定证据校验正确拒绝。追加 `contract_ablation_v6.json`：只在新对象协议里把模型看到的
+  Schema 换成等价 `propertyNames` 表达，明确允许 `{}`、禁止填入缺席属性；内部仍用展开
+  Schema 完整校验，不降低失败/语义标准。该追加比较仍使用原 60 条和固定教师，不接触 final。

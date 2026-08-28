@@ -74,7 +74,7 @@ class CompactObservationTests(unittest.TestCase):
             map_observation(self.value, self.config)
 
     def test_new_configs_are_hash_bound_and_messages_have_no_targets(self):
-        for name in ("v4", "v5"):
+        for name in ("v4", "v5", "v6"):
             path = ROOT / f"configs/week8/product_observation_{name}.json"
             config = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(load_observation_config(path, canonical_config_sha256(config)), config)
@@ -83,6 +83,18 @@ class CompactObservationTests(unittest.TestCase):
             messages = observation_messages("fixture.jpg", config)
             self.assertIn("file://fixture.jpg", json.dumps(messages))
             self.assertNotIn("week8-product-v2-development", json.dumps(messages))
+
+    def test_compact_prompt_schema_retains_full_strict_validation(self):
+        self.config["prompt_schema_style"] = "property_names"
+        text = observation_messages("fixture.jpg", self.config)[1]["content"][1]["text"]
+        schema = json.loads(text.split("\nJSON Schema: ")[1])
+        facilities = schema["properties"]["facility_evidence"]
+        self.assertEqual(facilities["propertyNames"]["enum"], self.config["facility_vocabulary"])
+        self.assertEqual(facilities["additionalProperties"]["maxLength"], 80)
+        self.assertEqual(map_observation(self.value, self.config)["visible_facilities"], ["dining_tables", "seating"])
+        self.value["facility_evidence"]["invented"] = "anything"
+        with self.assertRaises(ValueError):
+            map_observation(self.value, self.config)
 
     def test_retry_has_previous_output_and_retains_measured_usage(self):
         value = self.value

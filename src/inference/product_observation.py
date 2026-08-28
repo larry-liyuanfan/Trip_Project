@@ -32,6 +32,10 @@ def load_observation_config(path: Path, expected_sha256: str):
         raise ValueError("invalid observation category mapping")
     if any(not isinstance(config.get(key), str) or not config[key].strip() for key in ("system_prompt", "task_prompt")):
         raise ValueError("observation prompt missing")
+    if config.get("prompt_schema_style", "expanded") not in {"expanded", "property_names"}:
+        raise ValueError("unsupported prompt schema presentation")
+    if config.get("prompt_schema_style") == "property_names" and config["protocol"] != "product_visual_observation_v4":
+        raise ValueError("compact schema presentation requires compact evidence objects")
     return config
 
 
@@ -134,7 +138,13 @@ def map_observation(value, config):
 
 def observation_messages(image, config):
     image_url = str(image) if str(image).startswith(("data:", "https://", "http://", "file://")) else "file://" + str(image).replace("\\", "/")
-    schema = json.dumps(observation_schema(config), ensure_ascii=False, separators=(",", ":"))
+    schema_value = observation_schema(config)
+    if config.get("prompt_schema_style") == "property_names":
+        # 与展开 Schema 等价；提示词不逐项列出可选属性，避免诱导把缺席设施也填满。
+        for field, vocabulary in (("style_evidence", "style_vocabulary"), ("facility_evidence", "facility_vocabulary")):
+            schema_value["properties"][field] = {"type": "object", "propertyNames": {"enum": config[vocabulary]},
+                "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 80}}
+    schema = json.dumps(schema_value, ensure_ascii=False, separators=(",", ":"))
     return [{"role": "system", "content": config["system_prompt"]},
             {"role": "user", "content": [{"type": "image_url", "image_url": {"url": image_url}},
              {"type": "text", "text": config["task_prompt"] + "\nJSON Schema: " + schema}]}]
