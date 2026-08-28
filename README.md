@@ -150,6 +150,7 @@ pip install -r requirements-llm.txt
 
 - `requirements-api.txt`: FastAPI service and smoke-test dependencies.
 - `requirements-data.txt`: Week 2 Yelp data processing dependencies only.
+- `requirements-test.txt`: 默认 API/data 依赖及全量 unittest 所需的已验证 TestClient 依赖，不安装 GPU 框架。
 - `requirements-llm.txt`: vLLM and Qwen-VL utilities for live model serving.
 - `requirements-clip.txt`: table dependencies added to the dedicated CUDA CLIP container.
 - `requirements.txt`: safe default aggregate for API + data dependencies. It intentionally does not install vLLM.
@@ -1005,7 +1006,16 @@ style F1 0.630435→0.637363，其他支持字段不退。2026-08-29准确v11真
 后续v2收窄到可见功能事实与类别矛盾才复查，保持原风格/设施/价位。v16真实60图类别
 32/39→34/39，综合0.754617→0.774020、JSON/Schema100%、失败0；平均耗时增2.53%。
 当前登记 `qwen3_vl_system_week8_v12.json` 待独立验收，不作为正式默认配置；完整910项
-unittest通过，新的真实业务/检索/单次final仍待执行。
+unittest通过，准确配置的真实业务/检索和24次固定输入性能已通过，raw独立复算一致；
+缓存没有实质提速。新100图final v6的正式/v9/v12综合为0.375508/0.714061/0.714061，
+质量验收及跨主机原始复算PASS；v12最终与v9持平，不能宣称最终再提升。交接包仍待验。
+
+完整CPU测试使用独立依赖组，不需要安装GPU推理框架：
+
+```bash
+python -m pip install -r requirements-test.txt
+python -m unittest discover -s tests -v
+```
 
 已解压来源不足时，可从已保存的合法归档建立新无标签身份池（仅CPU数据环境）：
 
