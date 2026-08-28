@@ -160,6 +160,44 @@ class VenueStyleScopeTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertIn("unrequested", result["attempts"][-1].error)
 
+    def abstention_config(self):
+        return json.loads((ROOT / "configs/week8/product_observation_scope_repair_v2.json").read_text(encoding="utf-8"))
+
+    def test_observable_tableware_is_not_venue_style_and_is_explicitly_unknown(self):
+        config = self.abstention_config()
+        self.observation["style_evidence"] = [{"label": "classy", "fact": "Sugared cocktail glass"}]
+        proposal = {"style_evidence": [{"label": "classy", "fact": "Glass with twisted stem"}]}
+        result = generate_observation(Backend([self.observation, proposal]), "x.jpg", config)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["result"]["style_tags"], [])
+        self.assertIn("style_tags", result["result"]["unknown_fields"])
+        self.assertEqual(result["style_evidence_abstentions"][0]["label"], "classy")
+        self.assertIn("Glass with twisted stem", result["attempts"][-1].raw_output)
+        record = {**result, "attempts": [item.model_dump() for item in result["attempts"]]}
+        self.assertEqual(replay_record(ROOT, record, config), result["result"])
+
+    def test_glass_architecture_and_lighting_are_not_mistaken_for_tableware(self):
+        for fact in ("Glass curtain wall", "Colored glass chandelier", "Etched glass doors", "Bottle display shelves"):
+            with self.subTest(fact=fact):
+                self.observation["style_evidence"] = [{"label": "classy", "fact": fact}]
+                self.assertEqual(venue_style_evidence(self.observation, self.abstention_config())[1], [])
+
+    def test_abstention_never_hides_invalid_structure_or_unrequested_hypotheses(self):
+        config = self.abstention_config()
+        for proposal in ({"style_evidence": [{"label": "casual", "fact": "Cotton shirts"}] * 2},
+                         {"style_evidence": [{"label": "classy", "fact": "Cocktail glass"}]},
+                         {"style_evidence": [{"label": "casual", "fact": "Shirts imply informal style"}]}):
+            with self.subTest(proposal=proposal):
+                result = generate_observation(Backend([self.observation, proposal, proposal]), "x.jpg", config)
+                self.assertFalse(result["passed"])
+
+    def test_abstention_cannot_be_enabled_for_independent_reference_replacement(self):
+        from src.inference.product_style_refinement import validate_refinement_config
+        config = self.abstention_config()
+        config["style_refinement"]["mode"] = "replace"
+        with self.assertRaisesRegex(ValueError, "only allowed"):
+            validate_refinement_config(config)
+
 
 if __name__ == "__main__":
     unittest.main()

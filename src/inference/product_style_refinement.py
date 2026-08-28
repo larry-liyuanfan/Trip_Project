@@ -33,6 +33,9 @@ def validate_refinement_config(config):
         validate_style_scope(config)
     if refinement["mode"] == "repair_invalid" and refinement["eligibility"] != "out_of_scope_fact":
         raise ValueError("targeted style repair requires scope-triggered eligibility")
+    action = refinement.get("unsupported_scope_action", "reject")
+    if action not in {"reject", "abstain"} or (action == "abstain" and refinement["mode"] != "repair_invalid"):
+        raise ValueError("scope abstention is only allowed for targeted inference hypotheses")
 
 
 def should_refine(observation, config):
@@ -81,13 +84,23 @@ def apply_refinement(primary, raw, config):
     # 先独立验证全部提议，不能靠合并去掉重复或矛盾标签以伪造有效输出。
     validation = {**copy.deepcopy(primary), "style_evidence": proposed}
     map_observation(validation, config)
-    if config.get("style_scope_policy") is not None:
+    if config["style_refinement"]["mode"] == "repair_invalid":
         from src.inference.product_style_scope import venue_style_evidence
-        if venue_style_evidence(validation, config)[1]:
-            raise ValueError("style review still uses nonvenue object facts; reobserve venue decor")
+        permitted = {cue["label"] for cue in venue_style_evidence(primary, config)[1]}
+        if any(cue["label"] not in permitted for cue in proposed):
+            raise ValueError("targeted review cannot add unrequested style labels")
     for cue in proposed:
         if re.search(r"\b(?:impl(?:y|ies|ied)|infer(?:red)?|suggest(?:s|ed)?|likely|presumably|must have)\b|意味着|应当有|推断|暗示", cue["fact"], re.I):
             raise ValueError("style review requires observable facts, not inference")
+    if config.get("style_scope_policy") is not None:
+        from src.inference.product_style_scope import venue_style_evidence
+        kept, excluded = venue_style_evidence(validation, config)
+        if excluded:
+            if config["style_refinement"].get("unsupported_scope_action", "reject") != "abstain":
+                raise ValueError("style review still uses nonvenue object facts; reobserve venue decor")
+            # 结构有效但只找到非场所物件：按显式未知策略弃权，不把玻璃杯等当作装修。
+            # 原始答复仍完整保留；结构、重复标签、推断句和长度错误仍然失败。
+            proposed = kept
     merged = copy.deepcopy(primary)
     if config["style_refinement"]["mode"] == "replace":
         merged["style_evidence"] = proposed
@@ -96,10 +109,7 @@ def apply_refinement(primary, raw, config):
         merged["style_evidence"].extend(cue for cue in proposed if cue["label"] not in known)
     else:
         from src.inference.product_style_scope import venue_style_evidence
-        kept, invalid = venue_style_evidence(primary, config)
-        permitted = {cue["label"] for cue in invalid}
-        if any(cue["label"] not in permitted for cue in proposed):
-            raise ValueError("targeted review cannot add unrequested style labels")
+        kept, _ = venue_style_evidence(primary, config)
         # 范围正确的标签保留；只修复或否定原先依据越界的假设，不作全面扩展。
         merged["style_evidence"] = copy.deepcopy(kept) + proposed
     # 仍用原十事实上限和完整公共 Schema，不截断正标签。
@@ -139,9 +149,14 @@ def generate_refined_observation(backend, image, config):
             input_tokens=generated.input_tokens, output_tokens=generated.output_tokens,
             latency_ms=(time.perf_counter() - started) * 1000))
         if error is None:
-            return {"passed": True, "result": product, "observation": observation, "attempts": attempts,
+            result = {"passed": True, "result": product, "observation": observation, "attempts": attempts,
                     "primary_attempt_count": primary["primary_attempt_count"], "refinement_applied": True,
                     "primary_scope_exclusions": primary.get("style_scope_exclusions", [])}
+            if config["style_refinement"].get("unsupported_scope_action") == "abstain":
+                from src.inference.product_style_scope import venue_style_evidence
+                proposal = parse_observation(generated.content, {"protocol": "product_visual_observation_v4"})
+                result["style_evidence_abstentions"] = venue_style_evidence(proposal, config)[1]
+            return result
         active = [*messages, {"role": "assistant", "content": generated.content},
                   {"role": "user", "content": "Validation error: " + error +
                    ". Reinspect the same image and return the complete style_evidence JSON, without guesses."}]

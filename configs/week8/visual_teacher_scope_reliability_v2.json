@@ -1,0 +1,21 @@
+{
+  "protocol": "independent_image_model_observation_silver_v3",
+  "run_id": "week8_visual_teacher_scope_reliability_20260828_v2",
+  "manifest": "outputs/week8/product_understanding_v7/locked_data/week8_product_understanding_20260827_v7/development/image_product_search.jsonl",
+  "development_indices": "all",
+  "model": "qwen3.7-plus",
+  "observation_config": "configs/week8/product_observation_teacher_scope_v1.json",
+  "output_root": "outputs/week8/review/week8_visual_teacher_scope_reliability_20260828_v2",
+  "max_tokens": 1200,
+  "max_attempts": 4,
+  "concurrency": 2,
+  "timeout_seconds": 120,
+  "label_source": "model_generated_silver",
+  "sample_weight": 0.5,
+  "human_annotation_count": 0,
+  "final_test_access": false,
+  "system_prompt": "Image-only independent silver teacher.",
+  "task_prompt": "Use the versioned observation contract without candidate outputs or merchant metadata.",
+  "retry_protocol": "bounded_history_correction_v1",
+  "evaluation": "reference_protocol_reliability_only_not_candidate_selection"
+}
