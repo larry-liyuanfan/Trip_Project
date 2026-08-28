@@ -56,6 +56,9 @@ def protocol_files(root, config):
                   "scripts/verify_week8_candidate_acceptance.py"})
     if config.get("development_config"):
         paths.add(config["development_config"])
+    if config.get("unlabeled_source_pool"):
+        paths.update({config["unlabeled_source_pool"]["config"], "src/data/week8_unlabeled_pool.py",
+                      "src/data/yelp_archives.py", "src/data/week8_product_silver_source_v8.py"})
     if read_json(within(root, config["candidate_observation"])).get("category_refinement"):
         paths.add("src/inference/product_category_refinement.py")
     if config.get("correction_diagnostic_config"):

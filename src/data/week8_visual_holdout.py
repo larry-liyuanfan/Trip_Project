@@ -147,6 +147,10 @@ def build_holdout(root, config_path):
         raise FileExistsError("holdout identity already sealed")
     consumed, history, audit, fresh = load_history(root, config)
     rows = list(iter_jsonl(root / audit["source"]["fresh_identity_path"]))
+    pool_lock = None
+    if config.get("unlabeled_source_pool"):
+        from src.data.week8_unlabeled_pool import verified_pool
+        rows, pool_lock = verified_pool(root, config["unlabeled_source_pool"], history)
     if config["template_id"] is not None:
         raise ValueError("native photos have no synthetic template; preserve null instead of inventing one")
     chosen, selection = choose_untouched(rows, consumed, config["sample_count"], config["seed"], config["template_id"], config["dataset_version"])
@@ -172,6 +176,9 @@ def build_holdout(root, config_path):
             "config_canonical_sha256": canonical_config_sha256(config), "final_labels_generated": False,
             "images_sha256": {row["image_path"]: row["image_sha256"] for row in chosen},
             "source_identity_sha256": fresh["identity_manifest"]["sha256"]}
+    if pool_lock:
+        lock["source_identity_sha256"] = pool_lock["files"]["identity_manifest.jsonl"]
+        lock["unlabeled_source_pool_lock_sha256"] = pool_lock["lock_sha256"]
     lock["lock_sha256"] = canonical_config_sha256(lock)
     write_json_new(output / "dataset_lock.json", lock)
     return {"status": "SEALED_WITHOUT_LABELS", "count": len(chosen), "eligible_count": selection["eligible_count"], "lock_sha256": lock["lock_sha256"]}
@@ -187,6 +194,20 @@ def validate_holdout(root, config):
             or read_json(output / "isolation.json")["status"] != "PASS"):
         raise ValueError("sealed holdout identity changed")
     rows = list(iter_jsonl(output / "manifest.jsonl"))
+    if config.get("unlabeled_source_pool"):
+        from src.data.week8_unlabeled_pool import verified_pool
+        consumed, history, _, _ = load_history(root, config)
+        pool_rows, pool_lock = verified_pool(root, config["unlabeled_source_pool"], history)
+        pool_by_source = {row["source_id"]: row for row in pool_rows}
+        if (lock.get("unlabeled_source_pool_lock_sha256") != pool_lock["lock_sha256"]
+                or lock["source_identity_sha256"] != pool_lock["files"]["identity_manifest.jsonl"]):
+            raise ValueError("holdout source pool binding changed")
+        for row in rows:
+            source = pool_by_source.get(row["source_id"], {})
+            if any(row[key] != source.get(key) for key in ("source_id", "group_id", "image_sha256", "constraint_template_id")):
+                raise ValueError("holdout image differs from identity-only source")
+            if any(value in consumed[key] for key, value in identity_projection(row).items() if value):
+                raise ValueError("holdout overlaps historical identities")
     if len(rows) != config["sample_count"] or len({row["sample_id"] for row in rows}) != len(rows):
         raise ValueError("sealed final sample count changed")
     for row in rows:
