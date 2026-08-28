@@ -1,4 +1,6 @@
 """Apply Qwen pixel bounds to both fast and legacy image processors."""
+import copy
+from contextlib import contextmanager
 
 
 def configure_visual_pixel_limit(processor, limit):
@@ -24,3 +26,23 @@ def configure_visual_pixel_limit(processor, limit):
     else:
         raise ValueError("image processor does not expose supported visual pixel bounds")
     image.max_pixels = limit
+
+
+@contextmanager
+def temporary_visual_pixel_limit(processor, limit):
+    """实验组只临时改处理器；异常也恢复，且调用者须持有模型执行锁。"""
+    if limit is None:
+        yield
+        return
+    image = getattr(processor, "image_processor", None)
+    original = {key: copy.deepcopy(getattr(image, key)) for key in ("size", "min_pixels", "max_pixels")
+                if hasattr(image, key)}
+    try:
+        configure_visual_pixel_limit(processor, limit)
+        yield
+    finally:
+        for key in ("size", "min_pixels", "max_pixels"):
+            if key in original:
+                setattr(image, key, original[key])
+            elif hasattr(image, key):
+                delattr(image, key)

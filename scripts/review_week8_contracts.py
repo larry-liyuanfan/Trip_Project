@@ -17,6 +17,8 @@ from src.inference.system_runtime import (
 )
 from src.training.week8_product import sha256_file
 from src.inference.product_observation import generate_observation
+from src.inference.visual_limits import temporary_visual_pixel_limit
+from src.inference.processor_cache import processor_signature
 
 
 def write_new(path, value):
@@ -37,6 +39,10 @@ def run(path):
     config = json.loads(path.read_text(encoding="utf-8"))
     if config["final_test_access"] is not False or config["human_annotation_count"] != 0:
         raise ValueError("development only; no human labels")
+    limits = config.get("profile_visual_max_pixels", {})
+    if (not isinstance(limits, dict) or not set(limits) <= set(config["profiles"])
+            or any(type(value) is not int or value <= 0 for value in limits.values())):
+        raise ValueError("visual pixel controls require explicit positive limits for known profiles")
     _, _, rows, validation, development_sha = load_review_inputs(ROOT, ROOT / config["source_review_config"])
     chosen = rows if config["development_indices"] == "all" else [rows[index] for index in config["development_indices"]]
     if len({row["sample_id"] for row in chosen}) != len(chosen):
@@ -63,6 +69,9 @@ def run(path):
         "observation_config_sha256": sha256_file(ROOT / config["observation_config"]) if observation else None,
         "observation_profile_config_hashes": {key: sha256_file(ROOT / value) for key, value in config.get("observation_profile_configs", {}).items()},
     }
+    if limits:
+        identity["profile_visual_max_pixels"] = limits
+        identity["visual_limits_implementation_sha256"] = sha256_file(ROOT / "src/inference/visual_limits.py")
     write_new(output / "identity.json", identity)
     backend = TransformersPeftBackend(settings)
     started = time.perf_counter()
@@ -96,7 +105,7 @@ def run(path):
         # 整段消融与生成共用锁，避免 adapter 状态泄漏到其他请求。
         with backend._execution_lock:
             context = backend._model.disable_adapter() if profile.endswith("_base") else nullcontext()
-            with context, (output / f"{profile}.jsonl").open("x", encoding="utf-8", newline="\n") as handle:
+            with context, temporary_visual_pixel_limit(backend._processor, limits.get(profile)), (output / f"{profile}.jsonl").open("x", encoding="utf-8", newline="\n") as handle:
                 for scenario, sample_id, request in requests:
                     started = time.perf_counter()
                     try:
@@ -114,6 +123,8 @@ def run(path):
                     record.update(sample_id=sample_id, scenario=scenario, profile=profile,
                                   adapter_enabled=not profile.endswith("_base"),
                                   elapsed_ms=(time.perf_counter() - started) * 1000)
+                    if limits:
+                        record["effective_processor_signature"] = processor_signature(backend._processor)
                     handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
                     handle.flush()
                     results.append(record)

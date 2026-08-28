@@ -136,6 +136,30 @@ class VenueStyleScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "explicit scope policy"):
             validate_refinement_config(config)
 
+    def targeted_config(self):
+        return json.loads((ROOT / "configs/week8/product_observation_scope_repair_v1.json").read_text(encoding="utf-8"))
+
+    def test_targeted_repair_keeps_valid_style_and_rechecks_only_invalid_hypothesis(self):
+        config = self.targeted_config()
+        backend = Backend([self.observation, {"style_evidence": [{"label": "casual", "fact": "Simple plastic chairs"}]}])
+        result = generate_observation(backend, "x.jpg", config)
+        self.assertTrue(result["passed"])
+        self.assertEqual(set(result["result"]["style_tags"]), {"casual", "modern"})
+        self.assertEqual(result["observation"]["style_evidence"][0], self.observation["style_evidence"][1])
+        record = {**result, "attempts": [item.model_dump() for item in result["attempts"]]}
+        self.assertEqual(replay_record(ROOT, record, config), result["result"])
+
+    def test_targeted_repair_can_reject_invalid_hypothesis_without_dropping_valid_style(self):
+        result = generate_observation(Backend([self.observation, {"style_evidence": []}]), "x.jpg", self.targeted_config())
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["result"]["style_tags"], ["modern"])
+
+    def test_targeted_repair_cannot_expand_unrequested_styles(self):
+        proposal = {"style_evidence": [{"label": "cozy", "fact": "Warm soft sofa"}]}
+        result = generate_observation(Backend([self.observation, proposal, proposal]), "x.jpg", self.targeted_config())
+        self.assertFalse(result["passed"])
+        self.assertIn("unrequested", result["attempts"][-1].error)
+
 
 if __name__ == "__main__":
     unittest.main()

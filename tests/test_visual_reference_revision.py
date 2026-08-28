@@ -143,6 +143,22 @@ class VisualReferenceRevisionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "authority"):
             replay_revision(self.source, result, self.audit, self.config, self.observation)
 
+    def test_revised_audit_cannot_claim_final_or_skip_verified_lineage(self):
+        from src.evaluation.week8_visual_silver import _validate_reference_audit
+        audit = {"protocol": self.config["protocol"], "metadata_supplied": False,
+            "candidate_outputs_supplied": False, "prior_targets_supplied": False, "model_independent": True,
+            "test_rows_read": False, "reference_raw_sha256": "a" * 64, "source_raw_sha256": "b" * 64,
+            "scope_audit_sha256": "c" * 64, "revision_identity_sha256": "d" * 64,
+            "scope_errors_remaining": 0, "five_dimensional_identity_verified": True,
+            "style_only_raw_replay_verified": True}
+        _validate_reference_audit(audit)
+        for key, value in (("scope_errors_remaining", 1), ("prior_targets_supplied", True),
+                           ("five_dimensional_identity_verified", False), ("source_raw_sha256", None)):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                _validate_reference_audit({**audit, key: value})
+        with self.assertRaises(ValueError):
+            _validate_reference_audit({**audit, "test_rows_read": True}, "final")
+
 
 if __name__ == "__main__":
     unittest.main()

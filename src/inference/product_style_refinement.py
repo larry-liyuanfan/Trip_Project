@@ -18,7 +18,7 @@ def validate_refinement_config(config):
     if (config.get("protocol") != "product_visual_observation_v3"
             or not isinstance(refinement, dict)
             or refinement.get("protocol") != "visual_style_review_v1"
-            or refinement.get("mode") not in {"replace", "add_only"}
+            or refinement.get("mode") not in {"replace", "add_only", "repair_invalid"}
             or refinement.get("eligibility") not in {"non_food_scene", "nonempty_style", "out_of_scope_fact"}
             or refinement.get("max_attempts") != 2
             or type(refinement.get("max_new_tokens")) is not int
@@ -31,6 +31,8 @@ def validate_refinement_config(config):
         if config.get("style_scope_policy") is None:
             raise ValueError("scope-triggered review requires its explicit scope policy")
         validate_style_scope(config)
+    if refinement["mode"] == "repair_invalid" and refinement["eligibility"] != "out_of_scope_fact":
+        raise ValueError("targeted style repair requires scope-triggered eligibility")
 
 
 def should_refine(observation, config):
@@ -60,6 +62,11 @@ def refinement_messages(image, primary, config):
         # 这只是同一候选先前生成的标签，不是评测参考；替换模式完全独立看图。
         text += "\nAlready recorded styles (do not repeat): " + json.dumps(
             primary["style_evidence"], ensure_ascii=False, separators=(",", ":"))
+    elif refinement["mode"] == "repair_invalid":
+        from src.inference.product_style_scope import venue_style_evidence
+        invalid = venue_style_evidence(primary, config)[1]
+        text += "\nUnverified style hypotheses to check (not reference labels): " + json.dumps(
+            [cue["label"] for cue in invalid], separators=(",", ":"))
     text += "\nJSON Schema: " + json.dumps(refinement_schema(config), separators=(",", ":"))
     return [{"role": "system", "content": refinement["system_prompt"]},
             {"role": "user", "content": [{"type": "image_url", "image_url": {"url": image_url}},
@@ -84,9 +91,17 @@ def apply_refinement(primary, raw, config):
     merged = copy.deepcopy(primary)
     if config["style_refinement"]["mode"] == "replace":
         merged["style_evidence"] = proposed
-    else:
+    elif config["style_refinement"]["mode"] == "add_only":
         known = {cue["label"] for cue in primary["style_evidence"]}
         merged["style_evidence"].extend(cue for cue in proposed if cue["label"] not in known)
+    else:
+        from src.inference.product_style_scope import venue_style_evidence
+        kept, invalid = venue_style_evidence(primary, config)
+        permitted = {cue["label"] for cue in invalid}
+        if any(cue["label"] not in permitted for cue in proposed):
+            raise ValueError("targeted review cannot add unrequested style labels")
+        # 范围正确的标签保留；只修复或否定原先依据越界的假设，不作全面扩展。
+        merged["style_evidence"] = copy.deepcopy(kept) + proposed
     # 仍用原十事实上限和完整公共 Schema，不截断正标签。
     product = map_observation(merged, config)
     return merged, product

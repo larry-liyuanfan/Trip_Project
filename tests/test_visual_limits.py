@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from src.inference.processor_cache import ProcessorInputCache, processor_signature
-from src.inference.visual_limits import configure_visual_pixel_limit
+from src.inference.visual_limits import configure_visual_pixel_limit, temporary_visual_pixel_limit
 
 
 class VisualPixelLimitTests(unittest.TestCase):
@@ -54,6 +54,27 @@ class VisualPixelLimitTests(unittest.TestCase):
         configure_visual_pixel_limit(processor, 131072)
         after = ProcessorInputCache.key([], processor_signature(processor))
         self.assertNotEqual(before, after)
+
+    def test_temporary_limit_restores_original_even_after_failure(self):
+        processor = self.fast()
+        before = processor_signature(processor)
+        with self.assertRaisesRegex(RuntimeError, "example"):
+            with temporary_visual_pixel_limit(processor, 65536):
+                self.assertEqual(processor.image_processor.max_pixels, 65536)
+                raise RuntimeError("example")
+        self.assertEqual(processor_signature(processor), before)
+
+    def test_temporary_limit_removes_new_attributes_and_none_changes_nothing(self):
+        processor = self.fast()
+        del processor.image_processor.max_pixels
+        del processor.image_processor.min_pixels
+        with temporary_visual_pixel_limit(processor, 131072):
+            self.assertEqual(processor.image_processor.max_pixels, 131072)
+        self.assertFalse(hasattr(processor.image_processor, "max_pixels"))
+        self.assertFalse(hasattr(processor.image_processor, "min_pixels"))
+        before = processor_signature(processor)
+        with temporary_visual_pixel_limit(processor, None):
+            self.assertEqual(processor_signature(processor), before)
 
 
 if __name__ == "__main__":

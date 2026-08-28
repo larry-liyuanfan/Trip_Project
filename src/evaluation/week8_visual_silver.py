@@ -49,7 +49,8 @@ def _validate_reference_audit(audit, phase="development"):
     if phase not in {"development", "final"}:
         raise ValueError("unknown evaluation phase")
     if (not isinstance(audit, dict)
-            or audit.get("protocol") != "independent_image_model_observation_silver_v3"
+            or audit.get("protocol") not in {"independent_image_model_observation_silver_v3",
+                                            "development_visual_style_reference_revision_v1"}
             or audit.get("metadata_supplied") is not False
             or audit.get("candidate_outputs_supplied") is not False
             or audit.get("model_independent") is not True
@@ -57,6 +58,14 @@ def _validate_reference_audit(audit, phase="development"):
             or not isinstance(audit.get("reference_raw_sha256"), str)
             or len(audit["reference_raw_sha256"]) != 64):
         raise ValueError("missing or invalid independent visual silver audit")
+    if audit["protocol"] == "development_visual_style_reference_revision_v1":
+        if (phase != "development" or audit.get("scope_errors_remaining") != 0
+                or audit.get("five_dimensional_identity_verified") is not True
+                or audit.get("style_only_raw_replay_verified") is not True
+                or audit.get("prior_targets_supplied") is not False
+                or any(not isinstance(audit.get(key), str) or len(audit[key]) != 64 for key in (
+                    "source_raw_sha256", "scope_audit_sha256", "revision_identity_sha256"))):
+            raise ValueError("incomplete development reference revision audit")
     if phase == "final" and (not isinstance(audit.get("candidate_lock_sha256"), str) or len(audit["candidate_lock_sha256"]) != 64):
         raise ValueError("final scoring requires a pre-existing candidate lock")
 
