@@ -19,13 +19,18 @@ def validate_refinement_config(config):
             or not isinstance(refinement, dict)
             or refinement.get("protocol") != "visual_style_review_v1"
             or refinement.get("mode") not in {"replace", "add_only"}
-            or refinement.get("eligibility") not in {"non_food_scene", "nonempty_style"}
+            or refinement.get("eligibility") not in {"non_food_scene", "nonempty_style", "out_of_scope_fact"}
             or refinement.get("max_attempts") != 2
             or type(refinement.get("max_new_tokens")) is not int
             or not 1 <= refinement["max_new_tokens"] <= 1024
             or any(not isinstance(refinement.get(key), str) or not refinement[key].strip()
                    for key in ("system_prompt", "task_prompt"))):
         raise ValueError("invalid bounded visual style refinement config")
+    if refinement["eligibility"] == "out_of_scope_fact":
+        from src.inference.product_style_scope import validate_style_scope
+        if config.get("style_scope_policy") is None:
+            raise ValueError("scope-triggered review requires its explicit scope policy")
+        validate_style_scope(config)
 
 
 def should_refine(observation, config):
@@ -33,6 +38,9 @@ def should_refine(observation, config):
     # 只按当前图像输出路由；不读取样本身份、教师或商家 metadata。
     if observation["subject_kind"] == "food_closeup":
         return False
+    if refinement["eligibility"] == "out_of_scope_fact":
+        from src.inference.product_style_scope import venue_style_evidence
+        return bool(venue_style_evidence(observation, config)[1])
     return (refinement["eligibility"] == "non_food_scene"
             or bool(observation["style_evidence"]))
 
@@ -66,6 +74,10 @@ def apply_refinement(primary, raw, config):
     # 先独立验证全部提议，不能靠合并去掉重复或矛盾标签以伪造有效输出。
     validation = {**copy.deepcopy(primary), "style_evidence": proposed}
     map_observation(validation, config)
+    if config.get("style_scope_policy") is not None:
+        from src.inference.product_style_scope import venue_style_evidence
+        if venue_style_evidence(validation, config)[1]:
+            raise ValueError("style review still uses nonvenue object facts; reobserve venue decor")
     for cue in proposed:
         if re.search(r"\b(?:impl(?:y|ies|ied)|infer(?:red)?|suggest(?:s|ed)?|likely|presumably|must have)\b|意味着|应当有|推断|暗示", cue["fact"], re.I):
             raise ValueError("style review requires observable facts, not inference")
@@ -113,13 +125,15 @@ def generate_refined_observation(backend, image, config):
             latency_ms=(time.perf_counter() - started) * 1000))
         if error is None:
             return {"passed": True, "result": product, "observation": observation, "attempts": attempts,
-                    "primary_attempt_count": primary["primary_attempt_count"], "refinement_applied": True}
+                    "primary_attempt_count": primary["primary_attempt_count"], "refinement_applied": True,
+                    "primary_scope_exclusions": primary.get("style_scope_exclusions", [])}
         active = [*messages, {"role": "assistant", "content": generated.content},
                   {"role": "user", "content": "Validation error: " + error +
                    ". Reinspect the same image and return the complete style_evidence JSON, without guesses."}]
     # 不以主阶段成功掩盖已要求的复查失败。
     return {"passed": False, "result": None, "observation": None, "attempts": attempts,
-            "primary_attempt_count": primary["primary_attempt_count"], "refinement_applied": True}
+            "primary_attempt_count": primary["primary_attempt_count"], "refinement_applied": True,
+            "primary_scope_exclusions": primary.get("style_scope_exclusions", [])}
 
 
 def replay_refined_observation(record, config):

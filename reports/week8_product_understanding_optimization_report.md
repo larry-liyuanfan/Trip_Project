@@ -1310,3 +1310,79 @@ python -m unittest discover -s tests -v
 本轮完成紧凑协议实验、严格选优及检索条件修复，未取得新的商品语义或稳定提速收益。
 风格误报、设施漏误识、稀疏业态/多主体与价位支持不足继续如实保留；所有新增参考依旧
 自动 silver，不安排人工工作，不宣称人工准确率或正式生产晋级。
+
+## 16. 持续自主优化：字段复查与实际视觉输入控制（进行中）
+
+用户进一步要求持续寻找路径直到达成优化目标；第 15 节的失败实验保留，但不作为
+本次目标完成。当前仍以 v9 为已通过候选，不覆盖其配置、adapter、Prompt 或交接包。
+
+### 16.1 风格专项复查
+
+`contract_ablation_v7.json` 保留完整原 60 条 development 与固定教师 v3。四组为
+formal、v9、非食品场景独立风格替换、已有风格场景仅补充遗漏标签。新配置为
+`product_observation_v7.json` / `product_observation_v8.json`，二阶段只接收原图和
+必要的候选自产风格，绝不接收教师 target、商家 metadata 或样本编号。首阶段 Prompt
+与 v9 完全相同，业态/设施/价位保留；不是先按参考挑出错行再只修这些行。
+
+逐阶段原始输出、两次以内纠错和 token/时延完整留存；复查失败计为请求失败。评分从
+完整生成序列重建合并结果，不信任派生字段或最终 style JSON 的自述。事实与 Schema
+上限不降低，不截断正标签。新增定向 54 条通过。
+
+Spartan 首次 CPU 预检发现缺少本地原教师副本，未启动 GPU；补传原始 raw/identity 并
+核验 SHA 后，60 条与五维隔离预检 PASS。GPU job `29704676` 执行 `151a8f2`、申请
+38 分钟 A100 MIG，目前排队，尚无商品对比结果；不提前声明质量提升或进入 final。
+配置 SHA `27069dc8aa52cfd731dc5ddda58e2c9a0698d7f09327b6738757fa8310e3515c`。
+
+### 16.2 像素参数真实生效修复：CPU 验证通过
+
+固定 Transformers 4.57.1 的 Qwen2VLImageProcessorFast 实际由 `size` 或成对 min/max
+派生缩放尺寸；旧 runtime 单独修改 max_pixels，可能被既有 size 覆盖。新兼容函数同时
+更新有效 size 和 min/max，保留 legacy 支持、最小视觉块检查及缓存身份变化。
+v9 的 visual_max_pixels=None 完全不变。
+
+CPU job `29704717` 使用独立校验 worktree 的 `6f3e31f`，22 秒完成；真实固定图与
+原处理器配置核验如下，不加载 VLM 权重、不使用 GPU：
+
+| 模式 | 实际像素 | visual tokens | input tokens | 上限生效 |
+|---|---:|---:|---:|---|
+| 原处理器 | 208896 | 204 | 1030 | N/A |
+| 旧方式仅 max_pixels=131072 | 208896 | 204 | 1030 | 否 |
+| 修复后 131072 | 119808 | 117 | 943 | 是 |
+| 修复后 65536 | 55296 | 54 | 880 | 是 |
+
+图像 SHA `cc5034c59eb75c3777457be2272604f635cb86a0929185725a4b17f07510f2e5`；summary
+`outputs/week8/review/week8_processor_limit_probe_20260828_v1/summary.json`，SHA
+`ba73c6effe87e7368e19d909855b2e75a32d6680658dfcd9048c68616dd812fb`。这证明配置修复，
+不证明降低分辨率后语义不回退，也不是重复 GPU 延迟基准。未切换任何 release 参数。
+历史采用单属性设置的像素实验不能被当作本实现的有效缩放证据。
+
+最新像素定向 31/31、完整 unittest 792/792（40.222 秒）通过，日志 v30 SHA
+`4f98caa3781ff59db5ab1e5985deba6e3183cac855cbf0e5c0d8a81407c149c8`。本阶段没有新
+人工工作、teacher、SFT 或最终 test。风格质量、低像素质量和端到端性能结果仍待实际验证，
+自主优化目标保持进行中，不以工程测试通过替代模型收益。
+
+### 16.3 场所风格证据范围：过滤实验未通过，转入条件式视觉复查
+
+固定 v9 development 原始输出中，3 条风格依据仅描述衣物或饮品。独立版本
+`product_observation_scope_v1.json` 按完整词、否定及场所上下文识别范围，原始事实和
+标签保留在 raw 与排除审计中，不更改教师或删除任何样本。直接过滤实验的结果为：
+
+| 指标 | v9 | 范围过滤 replay |
+|---|---:|---:|
+| style precision | 0.604167 | 0.622222 |
+| style recall（42 标签） | 0.690476 | 0.666667 |
+| style F1 | 0.644444 | 0.643678 |
+| label_completeness | 0.734441 | 0.729790 |
+| composite | 0.759287 | 0.759031 |
+
+其余字段、JSON/Schema 和失败率不变，但 recall/完整性回退，结论 KEEP_V9_CANDIDATE。
+3 条中有 1 个标签虽然匹配 silver，原模型却用外套支持 casual；直接删除没有验证该场所
+是否本来就有 casual 风格。这说明需要重新看图，而不是仅从文字依据判定最终标签。
+
+`outputs/week8/review/week8_style_scope_development_20260828_v1` 是基于 `6f3e31f` 加未
+提交 scope 实现的确定性诊断，不是新 GPU 执行；记录继承的时延/token 只用于保留原始
+生成来源，不作新性能测量。所有失败证据保留，所用新增实现随后纳入版本控制。
+
+新增 `product_observation_scope_review_v1.json` 将范围错误用作真实风格复查触发条件。
+无范围错误不增加调用、也不改标签；有范围错误时重新从图像判断场所风格，新事实仍
+越界则进入最多一次纠错，持续失败明确返回失败。定向 69 条通过，尚待实际模型结果。

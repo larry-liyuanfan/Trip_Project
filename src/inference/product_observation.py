@@ -39,6 +39,9 @@ def load_observation_config(path: Path, expected_sha256: str):
     if "style_refinement" in config:
         from src.inference.product_style_refinement import validate_refinement_config
         validate_refinement_config(config)
+    if "style_scope_policy" in config:
+        from src.inference.product_style_scope import validate_style_scope
+        validate_style_scope(config)
     return config
 
 
@@ -119,7 +122,9 @@ def negated_label_fact(label, fact):
 def map_observation(value, config):
     value = _canonical_observation(validate_observation(value, config), config)
     category = config["subject_categories"][value["subject_kind"]]
-    styles = sorted(item["label"] for item in value["style_evidence"])
+    from src.inference.product_style_scope import venue_style_evidence
+    style_evidence, _ = venue_style_evidence(value, config)
+    styles = sorted(item["label"] for item in style_evidence)
     facilities = sorted(item["label"] for item in value["facility_evidence"])
     facts = list(dict.fromkeys([value["subject_fact"]] + [item["fact"] for key in ("style_evidence", "facility_evidence") for item in value[key]]))
     if len(facts) > 10:
@@ -175,7 +180,11 @@ def generate_observation(backend, image, config):
                                      input_tokens=generated.input_tokens, output_tokens=generated.output_tokens,
                                      latency_ms=(time.perf_counter() - started) * 1000))
         if error is None:
-            return {"passed": True, "result": product, "observation": observation, "attempts": attempts}
+            result = {"passed": True, "result": product, "observation": observation, "attempts": attempts}
+            if config.get("style_scope_policy") is not None:
+                from src.inference.product_style_scope import venue_style_evidence
+                result["style_scope_exclusions"] = venue_style_evidence(observation, config)[1]
+            return result
         previous = [{"role": "assistant", "content": generated.content}] if config["protocol"] == "product_visual_observation_v4" else []
         active = [*messages, *previous, {"role": "user", "content": "Validation error: " + error + ". Reobserve the original image and return a complete corrected JSON. Do not invent facts."}]
     return {"passed": False, "result": None, "observation": None, "attempts": attempts}
