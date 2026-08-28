@@ -1,11 +1,38 @@
 """Image observation followed by deterministic public-product contract mapping."""
 import json
+import hashlib
+from pathlib import Path
 import re
 import time
 
 from src.evaluation.schema_validation import _validate_instance
 from src.inference.schemas import ModelAttempt
 from src.inference.transport_utils import strip_json_fence
+
+
+def canonical_config_sha256(config):
+    return hashlib.sha256(json.dumps(config, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+
+
+def load_observation_config(path: Path, expected_sha256: str):
+    config = json.loads(path.read_text(encoding="utf-8"))
+    if canonical_config_sha256(config) != expected_sha256:
+        raise ValueError("product observation config hash mismatch")
+    if (config.get("protocol") not in {"product_visual_observation_v1", "product_visual_observation_v2"}
+            or config.get("max_attempts") != 2 or type(config.get("max_new_tokens")) is not int
+            or not 1 <= config["max_new_tokens"] <= 4096
+            or config.get("price_policy") != "unknown_without_verified_comparison_scale"):
+        raise ValueError("unsupported product observation contract")
+    for field in ("style_vocabulary", "facility_vocabulary"):
+        values = config.get(field)
+        if not isinstance(values, list) or not values or any(not isinstance(value, str) or not value for value in values) or len(set(values)) != len(values):
+            raise ValueError("invalid observation vocabulary")
+    mapping = config.get("subject_categories")
+    if not isinstance(mapping, dict) or not mapping or any(value not in {"hotel", "restaurant", "attraction", "other", "unknown"} for value in mapping.values()):
+        raise ValueError("invalid observation category mapping")
+    if any(not isinstance(config.get(key), str) or not config[key].strip() for key in ("system_prompt", "task_prompt")):
+        raise ValueError("observation prompt missing")
+    return config
 
 
 def observation_schema(config):

@@ -9,6 +9,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from threading import RLock
 from typing import Any, Protocol
@@ -32,7 +33,7 @@ from src.inference.schemas import (
 )
 from src.inference.processor_cache import ProcessorInputCache, processor_signature
 from src.inference.transport_utils import normalize_image_url, strip_json_fence
-from src.inference.business_validation import BusinessValidationError, itinerary_business_errors, requested_days
+from src.inference.business_validation import BusinessValidationError, itinerary_business_errors, requested_days, itinerary_request_contract
 from src.inference.release_config import resolve_release_config
 
 
@@ -131,6 +132,9 @@ class ReleaseSettings:
     prepared_input_cache_max_entries: int = 0
     visual_max_pixels: int | None = None
     schema_constrained_retry: bool = True
+    itinerary_structured_request: bool = False
+    adapter_disabled_scenarios: tuple[str, ...] = ()
+    product_observation: dict[str, Any] | None = None
 
     @classmethod
     def load(
@@ -198,6 +202,9 @@ class ReleaseSettings:
                 else None
             ),
             schema_constrained_retry=generation.get("schema_constrained_retry", True),
+            itinerary_structured_request=generation.get("itinerary_structured_request", False),
+            adapter_disabled_scenarios=_disabled_adapter_scenarios(model),
+            product_observation=_load_release_observation(project_root, payload),
         )
         if settings.backend_name not in {"transformers-peft", "openai-compatible"}:
             raise RuntimeConfigurationError(
@@ -207,6 +214,12 @@ class ReleaseSettings:
             raise RuntimeConfigurationError("release must allow exactly one Schema retry")
         if not isinstance(settings.schema_constrained_retry, bool):
             raise RuntimeConfigurationError("schema_constrained_retry must be boolean")
+        if not isinstance(settings.itinerary_structured_request, bool):
+            raise RuntimeConfigurationError("itinerary_structured_request must be boolean")
+        if (settings.adapter_disabled_scenarios or settings.product_observation) and settings.backend_name != "transformers-peft":
+            raise RuntimeConfigurationError("scenario adapter routing and observation require transformers-peft")
+        if settings.product_observation and settings.prompt_versions["image_product_search"] != settings.product_observation["protocol"]:
+            raise RuntimeConfigurationError("product prompt identity differs from observation protocol")
         if settings.dialogue_prompt_version not in DIALOGUE_PROMPT_VERSIONS:
             raise RuntimeConfigurationError(
                 "unsupported dialogue prompt version: "
@@ -327,6 +340,29 @@ class OpenAICompatibleBackend:
         return content
 
 
+def _disabled_adapter_scenarios(model):
+    disabled = model.get("adapter_disabled_scenarios", [])
+    if (not isinstance(disabled, list) or any(not isinstance(value, str) or value not in {"image_product_search", "after_sales", "itinerary_planning", "dialogue"} for value in disabled)
+            or len(set(disabled)) != len(disabled)):
+        raise RuntimeConfigurationError("invalid adapter_disabled_scenarios")
+    return tuple(disabled)
+
+
+def _load_release_observation(root, payload):
+    pipeline = payload.get("product_pipeline")
+    if pipeline is None:
+        return None
+    try:
+        from src.inference.product_observation import load_observation_config
+        if not isinstance(pipeline, dict) or pipeline.get("mode") != "visual_observation":
+            raise ValueError("unsupported product pipeline")
+        path = (root / pipeline["config"]).resolve()
+        path.relative_to(root.resolve())
+        return load_observation_config(path, pipeline["config_canonical_sha256"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise RuntimeConfigurationError(f"invalid product pipeline: {exc}") from exc
+
+
 class TransformersPeftBackend:
     """Lazy local Qwen3-VL loader using NF4 and the selected PEFT adapter."""
 
@@ -373,6 +409,14 @@ class TransformersPeftBackend:
         """Return prepared-cache observability without exposing device tensors."""
 
         return self._prepared_input_cache.snapshot()
+
+    @contextmanager
+    def adapter_mode(self, enabled: bool):
+        """按请求临时关闭 adapter，持锁直到生成结束并在异常时恢复。"""
+        with self._execution_lock:
+            self._ensure_loaded()
+            with (nullcontext() if enabled else self._model.disable_adapter()):
+                yield
 
     def ready(self) -> tuple[bool, str]:
         if self.settings is not None:
@@ -641,6 +685,10 @@ class ScenarioService:
         for scenario, version in self.settings.schema_versions.items():
             try:
                 load_output_schema(self.settings.root, scenario, version)
+                if scenario == "image_product_search" and self.settings.product_observation:
+                    from src.inference.product_observation import observation_schema
+                    observation_schema(self.settings.product_observation)
+                    continue
                 render_standard_prompt(
                     self.settings.root,
                     scenario,
@@ -678,6 +726,18 @@ class ScenarioService:
         request = contract.model_validate(request.model_dump())
         prompt_version = self.settings.prompt_versions[scenario]
         schema_version = self.settings.schema_versions[scenario]
+        if scenario == "image_product_search" and self.settings.product_observation:
+            from src.inference.product_observation import generate_observation
+            with self._adapter_scope(scenario):
+                observed = generate_observation(self.backend, request.image_urls[0], self.settings.product_observation)
+            if not observed["passed"]:
+                raise ModelGenerationError("product observation failed after one correction", attempts=observed["attempts"])
+            validate_output(self.settings.root, scenario, observed["result"], schema_version)
+            return TaskResponse(scenario=scenario, result=observed["result"], schema_valid=True, business_valid=None,
+                prompt_version=prompt_version, model=self.settings.base_model,
+                adapter="none" if scenario in self.settings.adapter_disabled_scenarios else self.settings.adapter_name,
+                release_id=self.settings.release_id, attempts=observed["attempts"],
+                total_latency_ms=sum(item.latency_ms for item in observed["attempts"]))
         input_context = {
             "images": [{"path": path} for path in request.image_urls],
             "text_constraints": request.text_context,
@@ -688,13 +748,21 @@ class ScenarioService:
             input_context,
             prompt_version,
         )
-        parsed, attempts = self._generate_validated(
-            scenario=scenario,
-            schema_version=schema_version,
-            messages=rendered["messages"],
-            response_format=rendered.get("response_format"),
-            business_context=request.text_context if scenario == "itinerary_planning" else None,
-        )
+        if scenario == "itinerary_planning" and self.settings.itinerary_structured_request:
+            rendered["messages"].append({"role": "user", "content":
+                "Machine-readable requirements extracted only from user text: "
+                + json.dumps(itinerary_request_contract(request.text_context), ensure_ascii=False)
+                + " Return every required check and a complete plan. No invented calendar dates. "
+                  "Use generic transport modes rather than unverified line/station numbers. "
+                  "Every scheduled activity must actually satisfy the deadline and place exclusions."})
+        with self._adapter_scope(scenario):
+            parsed, attempts = self._generate_validated(
+                scenario=scenario,
+                schema_version=schema_version,
+                messages=rendered["messages"],
+                response_format=rendered.get("response_format"),
+                business_context=request.text_context if scenario == "itinerary_planning" else None,
+            )
         return TaskResponse(
             scenario=scenario,
             result=parsed,
@@ -702,11 +770,20 @@ class ScenarioService:
             business_valid=True if scenario == "itinerary_planning" else None,
             prompt_version=prompt_version,
             model=self.settings.base_model,
-            adapter=self.settings.adapter_name,
+            adapter="none" if scenario in self.settings.adapter_disabled_scenarios else self.settings.adapter_name,
             release_id=self.settings.release_id,
             attempts=attempts,
             total_latency_ms=sum(item.latency_ms for item in attempts),
         )
+
+    def _adapter_scope(self, scenario):
+        enabled = scenario not in self.settings.adapter_disabled_scenarios
+        scope = getattr(self.backend, "adapter_mode", None)
+        if callable(scope):
+            return scope(enabled)
+        if not enabled:
+            raise RuntimeConfigurationError("backend cannot provide scoped adapter routing")
+        return nullcontext()
 
     def run_dialogue(self, request: DialogueRequest) -> DialogueResponse:
         if self.dialogue_execution_mode == "deterministic_contract_v1":
@@ -832,6 +909,7 @@ class ScenarioService:
                 result = self.run_task(scenario, TaskRequest(image_urls=images, text_context=context if task == "itinerary" else None))
                 response.attempts.extend(result.attempts)
                 response.task_result = result.model_dump(exclude={"attempts"})
+                response.adapter = result.adapter
                 response.reply = json.dumps(result.result, ensure_ascii=False)
                 call["status"] = "COMPLETED"
             elif task == "retrieval":
@@ -852,6 +930,7 @@ class ScenarioService:
                 else:
                     parsed, attempts = self._generate_dialogue(_dialogue_messages(request, prompt_version="system_repair_dialogue_v1"))
                     response.attempts.extend(attempts)
+                    response.adapter = "none" if "dialogue" in self.settings.adapter_disabled_scenarios else self.settings.adapter_name
                     answer, pending_tools = parsed.reply, bool(parsed.tool_calls)
                 if pending_tools or re.search(r"将.*(?:处理|推荐)|简短直接回复|已承接当前|^(?:好的[，,。！! ]*)?(?:继续处理|正在处理|请稍等|收到)[。！! ]*$", answer):
                     raise ModelGenerationError("模型未完成实际问答，或工具尚未执行")
@@ -879,12 +958,13 @@ class ScenarioService:
         response_format = _state_update_fallback_response_format()
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
-            raw, input_tokens, output_tokens = _generate_once(
-                self.backend,
-                active_messages,
-                response_format=response_format,
-                max_new_tokens=min(self.dialogue_max_new_tokens, 128),
-            )
+            with self._adapter_scope("dialogue"):
+                raw, input_tokens, output_tokens = _generate_once(
+                    self.backend,
+                    active_messages,
+                    response_format=response_format,
+                    max_new_tokens=min(self.dialogue_max_new_tokens, 128),
+                )
             error: str | None = None
             updates: dict[str, Any] | None = None
             try:
@@ -1034,12 +1114,13 @@ class ScenarioService:
         )
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
-            raw, input_tokens, output_tokens = _generate_once(
-                self.backend,
-                active_messages,
-                response_format=active_response_format,
-                max_new_tokens=self.dialogue_max_new_tokens,
-            )
+            with self._adapter_scope("dialogue"):
+                raw, input_tokens, output_tokens = _generate_once(
+                    self.backend,
+                    active_messages,
+                    response_format=active_response_format,
+                    max_new_tokens=self.dialogue_max_new_tokens,
+                )
             error: str | None = None
             parsed: DialogueModelOutput | None = None
             try:

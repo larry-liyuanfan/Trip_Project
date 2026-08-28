@@ -76,6 +76,7 @@ def run(path):
         if profile not in {"release_adapter", "formal_adapter"}:
             active = replace(settings,
                 schema_constrained_retry=config.get("schema_constrained_retry", settings.schema_constrained_retry),
+                itinerary_structured_request=config.get("itinerary_structured_request", False),
                 prompt_versions={**settings.prompt_versions,
                     "image_product_search": config["product_prompt"],
                     "itinerary_planning": config["itinerary_prompt"]},

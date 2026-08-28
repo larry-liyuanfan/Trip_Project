@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 from scripts.review_week8_contracts import build_requests
 from src.evaluation.prompting import render_standard_prompt
-from src.inference.business_validation import itinerary_business_errors
+from src.inference.business_validation import itinerary_business_errors, itinerary_request_contract
 from src.inference.system_runtime import _json_schema_response_format
 from src.inference.system_runtime import ScenarioService
 from dataclasses import replace
@@ -82,6 +82,44 @@ class ContractAblationTests(unittest.TestCase):
         for text in ("0天行程", "15天行程"):
             with self.assertRaises(ValueError):
                 ItineraryTaskRequest(image_urls=["image.jpg"], text_context=text)
+
+    def test_equivalent_visit_constraints_are_not_rejected_as_missing(self):
+        output = copy.deepcopy(ITINERARY_OUTPUT)
+        output["itinerary"][0]["activities"][0]["place_name"] = "故宫博物院"
+        output["constraint_check"] = [{"constraint": "必去：故宫", "constraint_type": "hard", "status": "satisfied", "evidence": "Day 1故宫博物院"},
+                                      {"constraint": "禁去：长城", "constraint_type": "hard", "status": "satisfied", "evidence": "所有活动不含长城"}]
+        self.assertEqual(itinerary_business_errors(output, "必须包含故宫，不去长城"), [])
+        output["constraint_check"][1]["constraint"] = "必去：长城"
+        self.assertTrue(any("explicit_constraint_not_verified" in value for value in itinerary_business_errors(output, "必须包含故宫，不去长城")))
+
+    def test_dates_are_not_invented_or_shifted(self):
+        output = copy.deepcopy(ITINERARY_OUTPUT)
+        output["itinerary"][0]["date"] = "2025-04-01"
+        self.assertIn("calendar_date_invented_without_user_request", itinerary_business_errors(output, "一天行程"))
+        self.assertIn("calendar_dates_do_not_match_requested_start", itinerary_business_errors(output, "2026-08-28开始，一天行程"))
+        with self.assertRaises(ValueError):
+            ItineraryTaskRequest(image_urls=["x"], text_context="2026-02-30开始，一天行程")
+
+    def test_request_contract_is_input_derived_not_an_acceptance(self):
+        context = itinerary_request_contract("北京3天行程，必须包含故宫，不去长城")
+        self.assertEqual(context["days"], 3)
+        self.assertIsNone(context["start_date"])
+        self.assertTrue(context["not_a_completed_plan"])
+        self.assertEqual(set(context["required_checks"]), {"北京", "3天", "必须包含故宫", "不去长城"})
+
+    def test_city_alias_is_accepted_without_removing_city_requirement(self):
+        output = copy.deepcopy(ITINERARY_OUTPUT)
+        output["constraint_check"] = [{"constraint": "上海", "constraint_type": "hard", "status": "satisfied", "evidence": "上海博物馆"}]
+        self.assertEqual(itinerary_business_errors(output, "城市：Shanghai；一天行程"), [])
+        self.assertTrue(itinerary_business_errors(output, "城市：Beijing；一天行程"))
+
+    def test_probe_cannot_pass_without_repeated_business_inputs(self):
+        from scripts.verify_week8_candidate_runtime import validate_probe_config
+        config = json.loads((ROOT / "configs/week8/candidate_runtime_probe_v1.json").read_text(encoding="utf-8"))
+        validate_probe_config(config)
+        for field, value in (("cache_modes", []), ("itinerary_requests", []), ("latency_repetitions_per_mode", 1), ("test_rows_read", True)):
+            with self.assertRaises(ValueError):
+                validate_probe_config(dict(config, **{field: value}))
 
     def test_visual_teacher_payload_has_no_candidate_or_metadata(self):
         config = json.loads((ROOT / "configs/week8/visual_teacher_v1.json").read_text(encoding="utf-8"))

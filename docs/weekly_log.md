@@ -1068,3 +1068,8 @@ as the current validated dataset or accepted baseline.
   业务复审。新增活动时间/必去禁去/交通核验与请求天数纠错；新商品观察协议进入独立 pilot。
 - 完整 unittest 697/697 通过（31.205 秒）。首次新增教师测试因临时目录缺 Schema 失败，
   已补齐真实 Schema fixture 后全量重跑；不修改原失败日志。独立教师始终为 silver。
+- 全 60 条 development 三组模型实测完成（job `29684981`，执行 `7047093`）。独立视觉
+  silver 综合分正式/观察 v1/观察 v2 为 0.463794/0.619460/0.745493；v1 风格召回回退
+  未选，v2 全字段不回退，仅成为 development 候选。价位支持 0，单列 N/A。
+- 将观察协议和逐场景 adapter 开关接入真实服务，售后继续使用原 adapter；补充日期和
+  等义约束检查，加入独立生产 smoke 与三种缓存重复基准。尚未执行新最终 test。

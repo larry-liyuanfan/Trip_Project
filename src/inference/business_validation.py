@@ -2,6 +2,7 @@
 
 import json
 import re
+from datetime import date, timedelta
 from typing import Any
 
 
@@ -41,7 +42,7 @@ def itinerary_business_errors(payload: dict[str, Any], text: str) -> list[str]:
     explicit.extend(clause.strip() for clause in re.split(r"[；;，,。]", text)
                     if re.search(r"必须|不要|不去|不得|不超过|预算(?:上限|不超|为|[:：])", clause))
     for term in dict.fromkeys(explicit):
-        matching = [item for item in checks if term.casefold() in str(item.get("constraint", "")).casefold()]
+        matching = [item for item in checks if _constraint_matches(term, str(item.get("constraint", "")))]
         if not matching or not any(item.get("status") in {"satisfied", "met"} and item.get("evidence") for item in matching):
             errors.append(f"explicit_constraint_not_verified:{term}")
     if any(item.get("constraint_type") == "hard" and item.get("status") != "satisfied" for item in checks):
@@ -49,7 +50,59 @@ def itinerary_business_errors(payload: dict[str, Any], text: str) -> list[str]:
     if any(not day.get("activities") for day in days):
         errors.append("day_without_activities")
     errors.extend(_activity_constraint_errors(days, text))
+    start_date = requested_start_date(text)
+    has_date_request = bool(re.search(r"\d{1,2}月\d{1,2}[日号]|\d{4}-\d{1,2}-\d{1,2}|明天|后天|下周|本周|周[一二三四五六日天]", text))
+    if not has_date_request and any(day.get("date") is not None for day in days):
+        errors.append("calendar_date_invented_without_user_request")
+    if start_date is not None:
+        for index, day in enumerate(days):
+            if day.get("date") != (start_date + timedelta(days=index)).isoformat():
+                errors.append("calendar_dates_do_not_match_requested_start")
+                break
     return errors
+
+
+def _place_constraint(text):
+    for kind, pattern in (("required_place", r"^(?:必须包含|必须去|必须参观|必去)[:：]?\s*(.+)$"),
+                          ("excluded_place", r"^(?:不去|不要去|不得去|不参观|禁去)[:：]?\s*(.+)$")):
+        match = re.match(pattern, text.strip())
+        if match:
+            return kind, match.group(1).strip()
+    return None
+
+
+def _constraint_matches(requested, reported):
+    expected = _place_constraint(requested)
+    if expected is not None:
+        return expected == _place_constraint(reported)
+    def normalized(value):
+        value = re.sub(r"^(?:城市|目的地)[:：]\s*", "", value).casefold()
+        for english, chinese in (("shanghai", "上海"), ("beijing", "北京"), ("public transport", "公共交通")):
+            value = re.sub(r"\b" + english + r"\b", chinese, value)
+        return value
+    return normalized(requested) in normalized(reported)
+
+
+def requested_start_date(text):
+    match = re.search(r"(\d{4})[-年](\d{1,2})[-月](\d{1,2})(?:[日号])?", text)
+    if match:
+        return date(*map(int, match.groups()))
+    return None
+
+
+def itinerary_request_contract(text):
+    """给模型输入派生的结构化约束；不生成地点、标签或已完成的验收结果。"""
+    required_checks = list(dict.fromkeys(re.findall(r"上海|北京|广州|深圳|杭州|成都|Shanghai|Beijing|公共交通|public transport|\d{1,2}:\d{2}", text, re.I)))
+    required_checks.extend(clause.strip() for clause in re.split(r"[；;，,。]", text)
+                           if re.search(r"必须|不要|不去|不得|不超过|预算(?:上限|不超|为|[:：])", clause))
+    days = requested_days(text)
+    if days is not None:
+        required_checks.append(f"{days}天")
+    start = requested_start_date(text)
+    return {"days": days, "required_checks": list(dict.fromkeys(required_checks)),
+            "start_date": start.isoformat() if start else None,
+            "date_rule": "Use only user-specified dates; if none, every itinerary.date must be null.",
+            "source": "user_text_only", "not_a_completed_plan": True}
 
 
 def _clock_minutes(value: Any) -> int | None:
