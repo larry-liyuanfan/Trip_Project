@@ -328,7 +328,8 @@ class SystemRuntimeTest(unittest.TestCase):
         )
 
     def test_release_uses_prompt_pilot_winners(self):
-        release = ReleaseSettings.load(root=Path.cwd())
+        # 此用例核对历史正式Prompt，不应被操作者选择的候选环境变量改写。
+        release = ReleaseSettings.load(root=Path.cwd(), config_path=Path.cwd() / "configs/releases/qwen3_vl_system_v1.json")
         expected = {
             "image_product_search": (
                 "system_repair_product_compact_v3",
