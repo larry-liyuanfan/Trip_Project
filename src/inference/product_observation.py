@@ -36,6 +36,9 @@ def load_observation_config(path: Path, expected_sha256: str):
         raise ValueError("unsupported prompt schema presentation")
     if config.get("prompt_schema_style") == "property_names" and config["protocol"] != "product_visual_observation_v4":
         raise ValueError("compact schema presentation requires compact evidence objects")
+    if "style_refinement" in config:
+        from src.inference.product_style_refinement import validate_refinement_config
+        validate_refinement_config(config)
     return config
 
 
@@ -151,6 +154,9 @@ def observation_messages(image, config):
 
 
 def generate_observation(backend, image, config):
+    if config.get("style_refinement") is not None:
+        from src.inference.product_style_refinement import generate_refined_observation
+        return generate_refined_observation(backend, image, config)
     messages = observation_messages(image, config)
     attempts = []
     active = messages

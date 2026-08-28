@@ -31,10 +31,14 @@ def replay_record(root, record, observation=None):
     attempts = record.get("attempts", [])
     if not attempts or attempts[-1].get("error") is not None:
         raise ValueError("passing record has no successful raw attempt")
-    raw = attempts[-1]["raw_output"]
-    value = parse_observation(raw, observation) if observation is not None else json.loads(strip_json_fence(raw))
-    if observation is not None:
-        value = map_observation(value, observation)
+    if observation is not None and observation.get("style_refinement") is not None:
+        from src.inference.product_style_refinement import replay_refined_observation
+        value = replay_refined_observation(record, observation)
+    else:
+        raw = attempts[-1]["raw_output"]
+        value = parse_observation(raw, observation) if observation is not None else json.loads(strip_json_fence(raw))
+        if observation is not None:
+            value = map_observation(value, observation)
     validate_output(root, "image_product_search", value, "v1")
     if value != record.get("result"):
         raise ValueError("reported product differs from raw generation/mapping")
