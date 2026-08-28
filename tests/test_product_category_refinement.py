@@ -156,3 +156,26 @@ class ProductCategoryRefinementTests(unittest.TestCase):
         self.assertEqual(generated["result"]["business_category"], "other")
         self.assertEqual(len(backend.calls), 2)
         self.assertEqual(replay_record(ROOT, self.record(generated), config), generated["result"])
+
+    def test_runtime_subject_probe_requires_real_stage_and_expected_category(self):
+        from scripts.verify_week8_candidate_runtime import validate_product_scope_probe
+        generated = generate_observation(Backend([self.primary, self.review]), "image.jpg", self.config)
+        response = self.record(generated)
+        self.assertEqual(validate_product_scope_probe(response, self.config, root=ROOT,
+            expected_category="restaurant", require_subject_review=True), [])
+        with self.assertRaisesRegex(ValueError, "wrong category"):
+            validate_product_scope_probe(response, self.config, expected_category="hotel")
+        base = {key: value for key, value in self.config.items() if key != "category_refinement"}
+        no_review = self.record(generate_observation(Backend([self.primary]), "image.jpg", base))
+        with self.assertRaisesRegex(ValueError, "did not execute"):
+            validate_product_scope_probe(no_review, base, require_subject_review=True)
+
+    def test_runtime_abstention_probe_survives_later_subject_review(self):
+        from scripts.verify_week8_candidate_runtime import validate_product_scope_probe
+        primary = {**self.primary, "style_evidence": [{"label": "casual", "fact": "Casual cotton shirt"}]}
+        generated = generate_observation(Backend([primary, {"style_evidence": primary["style_evidence"]}, self.review]),
+                                         "image.jpg", self.config)
+        self.assertTrue(generated["passed"])
+        excluded = validate_product_scope_probe(self.record(generated), self.config, require_abstention=True,
+            expected_category="restaurant", require_subject_review=True)
+        self.assertEqual([row["label"] for row in excluded], ["casual"])

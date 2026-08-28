@@ -21,21 +21,32 @@ from src.inference.product_observation import parse_observation
 from src.inference.product_style_scope import venue_style_evidence
 
 
-def validate_product_scope_probe(response, observation, require_abstention=False, root=ROOT):
+def validate_product_scope_probe(response, observation, require_abstention=False, root=ROOT,
+                                 expected_category=None, require_subject_review=False):
     if not isinstance(observation, dict):
         raise ValueError("product scope probe requires a visual observation configuration")
     product = replay_record(root, response, observation)
     if product is None:
         raise ValueError("product scope probe request failed")
     excluded = []
-    if (observation.get("style_refinement", {}).get("unsupported_scope_action") == "abstain"
-            and len(response["attempts"]) > 1):
-        raw = parse_observation(response["attempts"][-1]["raw_output"], {"protocol": "product_visual_observation_v4"})
-        excluded = venue_style_evidence(raw, observation)[1]
+    reviewed_subject = False
+    for attempt in response["attempts"]:
+        if attempt.get("error") is not None:
+            continue
+        raw = parse_observation(attempt["raw_output"], {"protocol": "product_visual_observation_v4"})
+        # 先由完整raw重放确认阶段合法，再按各阶段的专用字段辨认；末条可能是主体复查。
+        if isinstance(raw, dict) and set(raw) == {"style_evidence"} and observation.get("style_refinement", {}).get("unsupported_scope_action") == "abstain":
+            excluded = venue_style_evidence(raw, observation)[1]
+        if isinstance(raw, dict) and set(raw) == {"subject_kind", "subject_fact"}:
+            reviewed_subject = True
     if require_abstention and not excluded:
         raise ValueError("fixed product scope probe did not exercise the abstention branch")
     if any(item["label"] in product["style_tags"] for item in excluded):
         raise ValueError("nonvenue style hypothesis leaked into the public product result")
+    if expected_category is not None and product["business_category"] != expected_category:
+        raise ValueError("fixed product subject probe has the wrong category")
+    if require_subject_review and (not observation.get("category_refinement") or not reviewed_subject):
+        raise ValueError("fixed product subject probe did not execute subject review")
     return excluded
 
 
@@ -111,7 +122,8 @@ def run(config_path):
         try:
             response = service.run_task("image_product_search", TaskRequest(image_urls=[str(probe_image)])).model_dump()
             response["passed"] = True
-            excluded = validate_product_scope_probe(response, settings.product_observation, spec.get("require_abstention", False))
+            excluded = validate_product_scope_probe(response, settings.product_observation, spec.get("require_abstention", False),
+                expected_category=spec.get("expected_category"), require_subject_review=spec.get("require_subject_review", False))
             value = {"passed": True, "response": response, "scope_abstentions": excluded, "specification": spec}
         except ModelGenerationError as exc:
             value = {"passed": False, "error": str(exc), "attempts": [item.model_dump() for item in exc.attempts], "specification": spec}

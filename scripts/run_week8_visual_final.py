@@ -173,7 +173,8 @@ def validate_runtime_probe(root, config):
             detail = read_json(directory / f"product_scope_{index}.json")
             if not detail["passed"] or detail["specification"] != spec or sha256_file(root / spec["image"]) != spec["image_sha256"]:
                 raise ValueError("product scope runtime probe is incomplete")
-            if detail["scope_abstentions"] != validate_product_scope_probe(detail["response"], observation, spec.get("require_abstention", False), root):
+            if detail["scope_abstentions"] != validate_product_scope_probe(detail["response"], observation, spec.get("require_abstention", False), root,
+                    expected_category=spec.get("expected_category"), require_subject_review=spec.get("require_subject_review", False)):
                 raise ValueError("product scope runtime probe differs from raw replay")
     if sha256_file(root / probe_config["release_config"]) != identity["release_config_sha256"]:
         raise ValueError("tested release identity changed")
