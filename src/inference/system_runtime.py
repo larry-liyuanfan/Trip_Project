@@ -32,7 +32,7 @@ from src.inference.schemas import (
 )
 from src.inference.processor_cache import ProcessorInputCache, processor_signature
 from src.inference.transport_utils import normalize_image_url, strip_json_fence
-from src.inference.business_validation import BusinessValidationError, itinerary_business_errors
+from src.inference.business_validation import BusinessValidationError, itinerary_business_errors, requested_days
 from src.inference.release_config import resolve_release_config
 
 
@@ -130,6 +130,7 @@ class ReleaseSettings:
     processor_cache_max_entries: int = 0
     prepared_input_cache_max_entries: int = 0
     visual_max_pixels: int | None = None
+    schema_constrained_retry: bool = True
 
     @classmethod
     def load(
@@ -196,6 +197,7 @@ class ReleaseSettings:
                 if generation.get("visual_max_pixels") is not None
                 else None
             ),
+            schema_constrained_retry=generation.get("schema_constrained_retry", True),
         )
         if settings.backend_name not in {"transformers-peft", "openai-compatible"}:
             raise RuntimeConfigurationError(
@@ -203,6 +205,8 @@ class ReleaseSettings:
             )
         if settings.max_schema_retries != 1:
             raise RuntimeConfigurationError("release must allow exactly one Schema retry")
+        if not isinstance(settings.schema_constrained_retry, bool):
+            raise RuntimeConfigurationError("schema_constrained_retry must be boolean")
         if settings.dialogue_prompt_version not in DIALOGUE_PROMPT_VERSIONS:
             raise RuntimeConfigurationError(
                 "unsupported dialogue prompt version: "
@@ -1008,7 +1012,8 @@ class ScenarioService:
                 self.settings.root,
                 scenario,
                 schema_version,
-            )
+                required_day_count=requested_days(business_context) if business_context else None,
+            ) if self.settings.schema_constrained_retry else {"type": "json_object"}
         raise ModelGenerationError(
             f"model output failed {scenario} "
             f"{'Schema/business validation' if business_context is not None else 'Schema'} after {len(attempts)} attempts: "
@@ -1527,16 +1532,15 @@ def _correction_messages(
     itinerary_contract = ""
     if scenario == "itinerary_planning":
         itinerary_contract = (
-            "行程纠错时必须使用以下九键骨架，不得在任何 ] 或 } 后插入自然语言："
-            '{"style_preferences":[],"hard_constraints":[],"soft_constraints":[],'
-            '"required_itinerary_elements":["daily_schedule"],'
-            '"itinerary":[{"day_index":1,"date":null,"summary":"简短摘要",'
-            '"activities":[{"start_time":null,"end_time":null,"place_name":null,'
-            '"activity":"简短活动","transport":null,"source_evidence":[]}]}],'
-            '"constraint_check":[],"observed_evidence":[],"unknown_fields":[],'
-            '"confidence":null}。只替换骨架中的内容值，不改变键、类型或嵌套层级；'
-            "必须覆盖用户要求的全部天数与日序，不得缩减为一天；每一天可用简洁真实活动，"
-            "不能复制简短摘要、简短活动等骨架占位文字。明确城市、交通和时间约束必须核验。"
+            "行程纠错必须保留九个顶层键："
+            '"style_preferences","hard_constraints","soft_constraints",'
+            '"required_itinerary_elements","itinerary","constraint_check",'
+            '"observed_evidence","unknown_fields","confidence"。'
+            "不得在任何 ] 或 } 后插入自然语言。itinerary 必须覆盖用户要求的全部天数，"
+            "day_index 从1连续递增；每天填写具体地点、活动、交通和建议时间，不能复制模板。"
+            "constraint_check 逐项记录 constraint、constraint_type、status、evidence，"
+            "evidence 必须引用实际计划，不能只自称满足要求。图片不能证明的规划地点可由"
+            "用户目的地和一般地理知识提出为建议，不假称检索或预订，不伪造实时价格。"
         )
     elif scenario == "dialogue":
         itinerary_contract = (
@@ -1550,7 +1554,7 @@ def _correction_messages(
         {
             "role": "user",
             "content": (
-                "上一次输出未通过 JSON/Schema 校验。"
+                "上一次输出未通过 JSON/Schema 或业务校验。"
                 f"错误：{error}。请重新读取原输入，只输出修正后的完整 JSON；"
                 "不要续写或局部修补上一次输出，必须从第一个顶层键开始重新生成；"
                 "保留 Schema 要求的全部字段，数组严格遵守 minItems/maxItems，"
@@ -1568,17 +1572,16 @@ def _json_schema_response_format(
     root: Path,
     scenario: str,
     schema_version: str,
+    *,
+    required_day_count: int | None = None,
 ) -> dict[str, Any]:
     schema = load_output_schema(root, scenario, schema_version)
     if scenario == "itinerary_planning":
         itinerary = schema["properties"]["itinerary"]
-        itinerary["maxItems"] = min(int(itinerary.get("maxItems", 4)), 4)
-        activities = itinerary["items"]["properties"]["activities"]
-        activities["maxItems"] = min(int(activities.get("maxItems", 2)), 2)
-        schema["properties"]["constraint_check"]["maxItems"] = min(
-            int(schema["properties"]["constraint_check"].get("maxItems", 12)),
-            12,
-        )
+        # 不以压缩输出为由把用户要求的五天以上行程强行截成四天。
+        if required_day_count is not None and 1 <= required_day_count <= itinerary.get("maxItems", 14):
+            itinerary["minItems"] = required_day_count
+            itinerary["maxItems"] = required_day_count
     return {
         "type": "json_schema",
         "json_schema": {

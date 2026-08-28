@@ -909,3 +909,14 @@ python -m unittest tests.test_week8_contract_ablation -v
 
 此命令对比旧 adapter、新 Prompt + adapter 和新 Prompt + base；业务/语法通过不代表
 视觉准确率通过，不会写入正式 release 或消费 final。
+
+第二轮使用逐标签可见证据协议并检查实际活动中的截止时间、交通和必去/禁去地点：
+
+```bash
+python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v2.json
+python scripts/collect_week8_visual_silver.py --config configs/week8/visual_teacher_v3.json
+```
+
+教师命令需要本地配置 `MODEL_API_KEY_FILE`，可通过 `MODEL_API_BASE_URL` 指定既有兼容
+端点。它只发送 development 图片与观察协议，不发送历史标签、商家 metadata 或候选答案；
+输出保留 `model_generated_silver`，不构成人工真值或自动发布授权。

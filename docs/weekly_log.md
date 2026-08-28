@@ -1064,3 +1064,7 @@ as the current validated dataset or accepted baseline.
 - 登记用户持续修复至可晋级候选的要求。修复独立 Prompt 版本中的行程契约冲突，新增
   图片事实约束版本与 development-only 消融脚本；正式 manifest 和冻结结果保持不变。
 - 定向测试 4/4、完整 unittest 683/683 通过。真实模型消融尚待运行，不提前宣称质量通过。
+- 第一轮消融已完成，确认 adapter 的模板/元数据偏差；base 描述更具体但仍未通过完整
+  业务复审。新增活动时间/必去禁去/交通核验与请求天数纠错；新商品观察协议进入独立 pilot。
+- 完整 unittest 697/697 通过（31.205 秒）。首次新增教师测试因临时目录缺 Schema 失败，
+  已补齐真实 Schema fixture 后全量重跑；不修改原失败日志。独立教师始终为 silver。

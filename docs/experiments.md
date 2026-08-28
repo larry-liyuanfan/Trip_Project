@@ -1223,3 +1223,15 @@ manifest.
 - 命令：`python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v1.json`。
   计划使用已验证的 A100 MIG 20GB，15 分钟 walltime；此处未声称模型结果通过。
 - 本地定向测试 4/4、完整 unittest 683/683 通过；不读取 final，无人工标签或自动晋级。
+
+- 第一轮 job `29684303`（执行 `0402a93`）已完成：三组商品均 6/6 Schema 通过，旧/新
+  Prompt + adapter 仍输出元数据和无依据价位；base 图像事实明显更具体，但仍有业态与
+  unknown 声明错误。base 两条行程旧检查为 1/2，复审发现所谓通过项有 18:30 超时，
+  按新增活动级检查实为未通过；不能把 1/2 写成业务改善。
+- 新增逐标签可见事实协议 `product_visual_observation_v1`，将观察与确定性字段映射
+  分开，保留所有原始尝试；价格无比较口径时仅保留 OCR，价位为 unknown。还移除纠错
+  的四天天数截断与占位骨架，提供可配置无强制解码纠错（仍执行完整 Schema 校验）。
+- 阿里云现有 qwen3.7-plus API 已实测可用，两个独立图像教师 pilot 分别 6/6 与 4/6
+  通过，后者两条超过 80 字符；全部是 model_generated_silver，非人工真值，不选优。
+  全 60 条 development 教师运行使用一次格式纠错、并发 2，保存失败、不删除样本。
+- 配置 `contract_ablation_v2.json` 对商品观察协议及修复后的行程继续实测；结果尚待运行。

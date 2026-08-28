@@ -498,20 +498,22 @@ class SystemRuntimeTest(unittest.TestCase):
 
         self.assertTrue(result.schema_valid)
         retry_text = backend.messages[1][-1]["content"]
-        self.assertIn("行程纠错时必须使用以下九键骨架", retry_text)
+        self.assertIn("行程纠错必须保留九个顶层键", retry_text)
         self.assertIn('"itinerary"', retry_text)
-        self.assertIn('"constraint_check":[]', retry_text)
+        self.assertIn('"constraint_check"', retry_text)
+        self.assertNotIn('"summary":"简短摘要"', retry_text)
         self.assertIn("不得在任何 ] 或 } 后插入自然语言", retry_text)
         correction_schema = backend.response_formats[1]["json_schema"]["schema"]
         itinerary_schema = correction_schema["properties"]["itinerary"]
-        self.assertEqual(itinerary_schema["maxItems"], 4)
+        self.assertEqual(itinerary_schema["maxItems"], 2)
+        self.assertEqual(itinerary_schema["minItems"], 2)
         self.assertEqual(
             itinerary_schema["items"]["properties"]["activities"]["maxItems"],
-            2,
+            6,
         )
         self.assertEqual(
             correction_schema["properties"]["constraint_check"]["maxItems"],
-            12,
+            24,
         )
 
     def test_readiness_verifies_adapter_file_hash(self):

@@ -16,6 +16,7 @@ from src.inference.system_runtime import (
     ModelGenerationError, ReleaseSettings, ScenarioService, TransformersPeftBackend,
 )
 from src.training.week8_product import sha256_file
+from src.inference.product_observation import generate_observation
 
 
 def write_new(path, value):
@@ -43,6 +44,7 @@ def run(path):
     output = ROOT / config["output_root"]
     output.mkdir(parents=True, exist_ok=False)
     settings = ReleaseSettings.load(ROOT, ROOT / config["release_config"])
+    observation = json.loads((ROOT / config["observation_config"]).read_text(encoding="utf-8")) if config.get("observation_config") else None
     prompt_paths = [ROOT / "configs/evaluation/prompts" / config[key] / filename
                     for key, filename in (("product_prompt", "common.yaml"),
                                           ("product_prompt", "image_product_search.yaml"),
@@ -57,6 +59,7 @@ def run(path):
         "prompt_hashes": {p.relative_to(ROOT).as_posix(): sha256_file(p) for p in prompt_paths},
         "selected_sample_ids": [row["sample_id"] for row in chosen],
         "human_annotation_count": 0, "visual_accuracy_claim_supported": False,
+        "observation_config_sha256": sha256_file(ROOT / config["observation_config"]) if observation else None,
     }
     write_new(output / "identity.json", identity)
     backend = TransformersPeftBackend(settings)
@@ -70,13 +73,14 @@ def run(path):
         active = settings
         if profile != "release_adapter":
             active = replace(settings,
+                schema_constrained_retry=config.get("schema_constrained_retry", settings.schema_constrained_retry),
                 prompt_versions={**settings.prompt_versions,
                     "image_product_search": config["product_prompt"],
                     "itinerary_planning": config["itinerary_prompt"]},
                 max_new_tokens_by_scenario={**settings.max_new_tokens_by_scenario,
                     "image_product_search": config["product_max_new_tokens"],
                     "itinerary_planning": config["itinerary_max_new_tokens"]})
-        if profile not in {"release_adapter", "repaired_adapter", "repaired_base"}:
+        if profile not in {"release_adapter", "repaired_adapter", "repaired_base", "observation_base"}:
             raise ValueError("unsupported ablation profile")
         service = ScenarioService(active, backend)
         requests = build_requests(ROOT, chosen, config["itinerary_requests"])
@@ -88,8 +92,14 @@ def run(path):
                 for scenario, sample_id, request in requests:
                     started = time.perf_counter()
                     try:
-                        response = service.run_task(scenario, request)
-                        record = {"passed": True, **response.model_dump()}
+                        if profile == "observation_base" and scenario == "image_product_search":
+                            if observation is None:
+                                raise ValueError("observation profile requires its config")
+                            record = generate_observation(backend, request.image_urls[0], observation)
+                            record["attempts"] = [item.model_dump() for item in record["attempts"]]
+                        else:
+                            response = service.run_task(scenario, request)
+                            record = {"passed": True, **response.model_dump()}
                     except ModelGenerationError as exc:
                         record = {"passed": False, "error": str(exc),
                                   "attempts": [item.model_dump() for item in exc.attempts]}

@@ -78,6 +78,10 @@ class ItineraryTaskRequest(TaskRequest):
     def nonblank_constraints(cls, value):
         if not value.strip():
             raise ValueError("itinerary requires non-empty text constraints")
+        from src.inference.business_validation import requested_days
+        days = requested_days(value)
+        if days is not None and not 1 <= days <= 14:
+            raise ValueError("itinerary day count must be between 1 and 14")
         return value
 
 

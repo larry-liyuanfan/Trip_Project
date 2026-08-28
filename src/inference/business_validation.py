@@ -48,4 +48,58 @@ def itinerary_business_errors(payload: dict[str, Any], text: str) -> list[str]:
         errors.append("hard_constraint_not_satisfied")
     if any(not day.get("activities") for day in days):
         errors.append("day_without_activities")
+    errors.extend(_activity_constraint_errors(days, text))
     return errors
+
+
+def _clock_minutes(value: Any) -> int | None:
+    if not isinstance(value, str):
+        return None
+    match = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", value)
+    if not match:
+        return None
+    hour, minute = map(int, match.groups())
+    return hour * 60 + minute if hour < 24 and minute < 60 else None
+
+
+def _activity_constraint_errors(days: list[dict], text: str) -> list[str]:
+    """检查可直接核对的计划内容，不能让模型的 satisfied 自证替代执行证据。"""
+    errors = []
+    deadline_match = re.search(r"(\d{1,2}:\d{2})\s*(?:之?前)\s*(?:结束|返回|回到)", text)
+    deadline = _clock_minutes(deadline_match.group(1)) if deadline_match else None
+    public_only = bool(re.search(r"公共交通|public transport", text, re.I))
+    activities = [activity for day in days for activity in day.get("activities", [])]
+    for day in days:
+        previous_end = None
+        for activity in day.get("activities", []):
+            start, end = (_clock_minutes(activity.get(key)) for key in ("start_time", "end_time"))
+            if any(activity.get(key) is not None and _clock_minutes(activity[key]) is None
+                   for key in ("start_time", "end_time")):
+                errors.append("invalid_activity_time")
+            if start is not None and end is not None and start >= end:
+                errors.append("activity_time_order_invalid")
+            if previous_end is not None and start is not None and start < previous_end:
+                errors.append("activity_time_overlap")
+            previous_end = end
+            if deadline is not None:
+                if end is None:
+                    errors.append("deadline_not_verifiable_without_activity_end")
+                elif end > deadline:
+                    errors.append("activity_ends_after_requested_deadline")
+            if public_only:
+                transport = str(activity.get("transport") or "")
+                if re.search(r"出租|打车|自驾|包车|taxi|private car|drive", transport, re.I):
+                    errors.append("private_transport_violates_public_transport")
+                if not re.search(r"公共交通|公交|地铁|步行|火车|轻轨|电车|public transport|bus|metro|subway|walk|train|tram", transport, re.I):
+                    errors.append("public_transport_not_verifiable")
+    activity_text = " ".join(str(item.get(key) or "") for item in activities for key in ("place_name", "activity"))
+    # 仅处理明确的地点包含/排除语法；未覆盖的自然语言条件不伪装成完整语义证明。
+    for match in re.finditer(r"(?:必须包含|必须去|必须参观|必去)\s*([^，。；,;]+)", text):
+        place = match.group(1).strip()
+        if place not in activity_text:
+            errors.append(f"required_place_missing_from_activities:{place}")
+    for match in re.finditer(r"(?:不去|不要去|不得去|不参观)\s*([^，。；,;]+)", text):
+        place = match.group(1).strip()
+        if place in activity_text:
+            errors.append(f"excluded_place_in_activities:{place}")
+    return list(dict.fromkeys(errors))
