@@ -42,3 +42,27 @@ class DevelopmentRevisionTests(unittest.TestCase):
         revised["summaries"]["candidate"]["supports"]["samples"] = 59
         with self.assertRaisesRegex(ValueError, "same fixed development"):
             compare(original, revised)
+
+    @patch("scripts.compare_week8_development_revision.select_development_candidate", return_value={"selected_role": "candidate"})
+    def test_composite_gain_does_not_hide_any_field_regression(self, selection):
+        for field in SEMANTIC_FIELDS:
+            original = self.comparison()
+            revised = copy.deepcopy(original)
+            revised["summaries"]["candidate"]["metrics"].update(composite=0.8)
+            revised["summaries"]["candidate"]["metrics"][field] = 0.6
+            with self.subTest(field=field):
+                result = compare(original, revised)
+                self.assertTrue(result["semantic_gain"])
+                self.assertFalse(result["new_final_allowed"])
+                self.assertEqual(result["regressed_fields"], [field])
+
+    @patch("scripts.compare_week8_development_revision.select_development_candidate", return_value={"selected_role": "candidate"})
+    def test_supported_field_becoming_na_is_not_nonregression(self, selection):
+        original = self.comparison()
+        revised = copy.deepcopy(original)
+        revised["summaries"]["candidate"]["metrics"].update(composite=0.8, price_range_accuracy=None)
+        result = compare(original, revised)
+        self.assertFalse(result["new_final_allowed"])
+        self.assertIn("price_range_accuracy", result["regressed_fields"])
+        original["summaries"]["candidate"]["metrics"]["price_range_accuracy"] = None
+        self.assertTrue(compare(original, revised)["new_final_allowed"])

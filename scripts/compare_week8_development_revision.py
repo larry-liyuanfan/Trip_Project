@@ -25,19 +25,23 @@ def compare(previous, current):
     after = current["summaries"][new_selection["selected_role"]]
     if before["supports"] != after["supports"] or before["reference_audit"] != after["reference_audit"]:
         raise ValueError("revision requires the same fixed development and reference")
-    deltas = {key: after["metrics"][key] - value if value is not None else None
+    deltas = {key: after["metrics"][key] - value if value is not None and after["metrics"][key] is not None else None
               for key, value in before["metrics"].items()}
     meaningful_semantic_gain = deltas["composite"] > 0
-    semantic_nonregression = all(deltas[key] is None or deltas[key] >= 0 for key in SEMANTIC_FIELDS)
+    # 综合分上升也不能覆盖单字段回退；原有支持变成 N/A 同样不算持平。
+    regressed_fields = [key for key in SEMANTIC_FIELDS if before["metrics"][key] is not None
+                        and (after["metrics"][key] is None or after["metrics"][key] < before["metrics"][key])]
+    semantic_nonregression = not regressed_fields
     latency_ratio = after["latency_ms"]["mean"] / before["latency_ms"]["mean"]
     token_ratio = after["tokens"]["output_mean"] / before["tokens"]["output_mean"]
     # 性能候选必须在同组语义不回退，并有 token 缩减佐证，避免把微小时延抖动当新候选。
     meaningful_speed_gain = (semantic_nonregression and latency_ratio <= 0.95 and token_ratio <= 0.90
                             and all(after["latency_ms"][key] <= before["latency_ms"][key] for key in ("p50", "p95")))
-    accepted = meaningful_semantic_gain or meaningful_speed_gain
+    accepted = semantic_nonregression and (meaningful_semantic_gain or meaningful_speed_gain)
     return {"status": "IMPROVED_DEVELOPMENT_REVISION" if accepted else "NO_IMPROVED_DEVELOPMENT_REVISION",
             "new_final_allowed": accepted, "metric_deltas": deltas, "latency_mean_ratio": latency_ratio,
             "output_token_ratio": token_ratio, "semantic_gain": meaningful_semantic_gain,
+            "semantic_nonregression": semantic_nonregression, "regressed_fields": regressed_fields,
             "speed_gain_without_semantic_regression": meaningful_speed_gain,
             "test_rows_read": False, "reference_changed": False, "human_visual_accuracy_claim": False}
 
