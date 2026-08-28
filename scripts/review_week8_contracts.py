@@ -38,7 +38,7 @@ def run(path):
     if config["final_test_access"] is not False or config["human_annotation_count"] != 0:
         raise ValueError("development only; no human labels")
     _, _, rows, validation, development_sha = load_review_inputs(ROOT, ROOT / config["source_review_config"])
-    chosen = [rows[index] for index in config["development_indices"]]
+    chosen = rows if config["development_indices"] == "all" else [rows[index] for index in config["development_indices"]]
     if len({row["sample_id"] for row in chosen}) != len(chosen):
         raise ValueError("duplicate development samples")
     output = ROOT / config["output_root"]
@@ -56,10 +56,12 @@ def run(path):
         "runner_sha256": sha256_file(Path(__file__)), "development_sha256": development_sha,
         "dataset_validation": validation, "test_rows_read": False,
         "adapter_sha256": sha256_file(settings.adapter_path / "adapter_model.safetensors"),
+        "base_model": settings.base_model, "base_revision": settings.base_revision,
         "prompt_hashes": {p.relative_to(ROOT).as_posix(): sha256_file(p) for p in prompt_paths},
         "selected_sample_ids": [row["sample_id"] for row in chosen],
         "human_annotation_count": 0, "visual_accuracy_claim_supported": False,
         "observation_config_sha256": sha256_file(ROOT / config["observation_config"]) if observation else None,
+        "observation_profile_config_hashes": {key: sha256_file(ROOT / value) for key, value in config.get("observation_profile_configs", {}).items()},
     }
     write_new(output / "identity.json", identity)
     backend = TransformersPeftBackend(settings)
@@ -71,7 +73,7 @@ def run(path):
     summaries = {}
     for profile in config["profiles"]:
         active = settings
-        if profile != "release_adapter":
+        if profile not in {"release_adapter", "formal_adapter"}:
             active = replace(settings,
                 schema_constrained_retry=config.get("schema_constrained_retry", settings.schema_constrained_retry),
                 prompt_versions={**settings.prompt_versions,
@@ -80,7 +82,12 @@ def run(path):
                 max_new_tokens_by_scenario={**settings.max_new_tokens_by_scenario,
                     "image_product_search": config["product_max_new_tokens"],
                     "itinerary_planning": config["itinerary_max_new_tokens"]})
-        if profile not in {"release_adapter", "repaired_adapter", "repaired_base", "observation_base"}:
+        if profile == "formal_adapter":
+            active = replace(settings, prompt_versions={**settings.prompt_versions, "image_product_search": "system_repair_product_compact_v3"})
+        active_observation = observation
+        if profile in config.get("observation_profile_configs", {}):
+            active_observation = json.loads((ROOT / config["observation_profile_configs"][profile]).read_text(encoding="utf-8"))
+        if profile not in {"release_adapter", "formal_adapter", "repaired_adapter", "repaired_base", "observation_base", "observation_enhanced_base"}:
             raise ValueError("unsupported ablation profile")
         service = ScenarioService(active, backend)
         requests = build_requests(ROOT, chosen, config["itinerary_requests"])
@@ -92,10 +99,10 @@ def run(path):
                 for scenario, sample_id, request in requests:
                     started = time.perf_counter()
                     try:
-                        if profile == "observation_base" and scenario == "image_product_search":
-                            if observation is None:
+                        if profile.startswith("observation_") and scenario == "image_product_search":
+                            if active_observation is None:
                                 raise ValueError("observation profile requires its config")
-                            record = generate_observation(backend, request.image_urls[0], observation)
+                            record = generate_observation(backend, request.image_urls[0], active_observation)
                             record["attempts"] = [item.model_dump() for item in record["attempts"]]
                         else:
                             response = service.run_task(scenario, request)

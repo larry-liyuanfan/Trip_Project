@@ -728,3 +728,8 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - 必须保留完整失败证据和五维隔离；仅在方案锁定后使用新 final 一次。通过状态必须
   来自实际运行，不能放宽标准或用单元测试替代真实业务验收。人工参与数继续为 0。
 - 继续在当前 feature 分支和 Spartan 本项目目录执行；本要求不授权合并长期分支或打标签。
+- 无人工条件下的独立图像教师对比单列 `independent_visual_silver_agreement`，不改动旧
+  metadata 选优的阻断。固定全部样本，对无正支持图片的误报也计分；类别、风格/设施
+  precision/recall/F1、unknown、完整性均不回退，综合分严格提升且格式/失败率通过后，
+  只能取得 development 候选资格。完整可晋级结论仍须独立一次 final 与全链路验证；
+  自动 silver 一致性不等同人工视觉准确率或无条件生产可用性。

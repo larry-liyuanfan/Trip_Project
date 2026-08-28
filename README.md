@@ -920,3 +920,12 @@ python scripts/collect_week8_visual_silver.py --config configs/week8/visual_teac
 教师命令需要本地配置 `MODEL_API_KEY_FILE`，可通过 `MODEL_API_BASE_URL` 指定既有兼容
 端点。它只发送 development 图片与观察协议，不发送历史标签、商家 metadata 或候选答案；
 输出保留 `model_generated_silver`，不构成人工真值或自动发布授权。
+
+完整的同口径 development 对比（仅在独立教师产物已校验时评分）：
+
+```bash
+python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v3.json
+python scripts/score_week8_visual_silver.py --config configs/week8/contract_ablation_v3.json --output outputs/week8/review/week8_contract_comparison_20260828_v3
+```
+
+`DEVELOPMENT_CANDIDATE` 仅表示固定图像银标口径下的开发候选，仍禁止据此直接晋级。

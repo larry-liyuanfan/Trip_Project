@@ -1235,3 +1235,14 @@ manifest.
   通过，后者两条超过 80 字符；全部是 model_generated_silver，非人工真值，不选优。
   全 60 条 development 教师运行使用一次格式纠错、并发 2，保存失败、不删除样本。
 - 配置 `contract_ablation_v2.json` 对商品观察协议及修复后的行程继续实测；结果尚待运行。
+- 第二轮 job `29684709` 已完成，6 张商品均首轮通过，mean 约 5.5 秒；食品特写不再
+  猜场所设施，仍有工业场所业态错误与风格漏识别。行程 1/2 通过当前检查，但复审又发现
+  无输入日期时生成了日期、等义约束被逐字匹配拒绝；仍不能认定完整业务通过。
+- 独立 qwen3.7-plus 教师全 60 条 development 已完成（11 条使用一次纠错、最终失败 0），
+  style/facility 正支持 34/37（标签 42/78），已知业态支持 39、unknown 业态 21，价位 N/A。
+  原始输出 SHA `19a5eeb588158deb991724868b8c14fd2386af7dccae3d895520b8baef9ad194`。
+- 完整 development 配置 `contract_ablation_v3.json` 预先绑定教师 raw/manifest 哈希，对比
+  正式 Prompt + adapter、观察 v1 + base、观察 v2 + base。评分包含无正标签图片的误报，
+  从原始生成重建结果，保留全部样本；任何参考污染、指标非有限数或字段回退均不可选。
+  此协议仅产生 development 候选，不宣称人工视觉准确率、统计显著性或已可晋级。
+- 本地完整 unittest 704/704 通过（30.709 秒）。
