@@ -206,9 +206,13 @@ def score(root, config_path):
     config = read_json(config_path)
     directory = within(root, config["output_root"])
     lock = read_json(directory / "candidate_lock.json")
-    if lock["source_files_lf_sha256"] != protocol_files(root, config):
+    if (lock["lock_sha256"] != canonical_config_sha256({key: value for key, value in lock.items() if key != "lock_sha256"})
+            or lock["config_canonical_sha256"] != canonical_config_sha256(config)
+            or lock["source_files_lf_sha256"] != protocol_files(root, config)):
         raise ValueError("cannot score with an unlocked implementation")
     rows, data_lock = validate_holdout(root, config)
+    if lock["data_lock_sha256"] != data_lock["lock_sha256"]:
+        raise ValueError("final dataset differs from candidate lock")
     summaries = {role: read_json(directory / role / "summary.json") for role in ("teacher", "inference")}
     for role, summary in summaries.items():
         consumed = read_json(directory / role / "consumed.json")

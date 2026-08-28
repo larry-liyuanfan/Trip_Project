@@ -8,12 +8,14 @@ import json
 import os
 import sys
 import time
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.api import routes
-from src.inference.schemas import VisualSearchRequest
+from src.inference.schemas import VisualSearchRequest, DialogueRequest
+from src.inference.system_runtime import ReleaseSettings, ScenarioService
 from src.retrieval.milvus_vectors import OTAMilvusVectorStore, load_milvus_config
 from src.retrieval.visual_search import VisualSearchService
 from src.retrieval.query_inputs import user_query_attributes
@@ -60,6 +62,7 @@ def run(config_path):
     routes.get_visual_search_service = lambda: service
     os.environ["APP_ENV"] = "production"
     results = []
+    dialogue_results = []
     try:
         for query in config["retrieval_queries"]:
             request = VisualSearchRequest(**query, top_k=5,
@@ -70,6 +73,15 @@ def run(config_path):
             correct = all(all(item.get(key) == value for key, value in attrs.items()) for item in response["results"])
             results.append({"request": query, "response": response, "filter_correct": correct,
                             "latency_ms": (time.perf_counter() - started) * 1000})
+        # 普通推荐必须实际进入相同生产检索服务；不需要模型的请求不能伪造模型 attempts。
+        dialogue_service = ScenarioService(ReleaseSettings.load(ROOT, ROOT / config["release_config"]), object(),
+                                          retrieval_runner=routes._run_dialogue_retrieval)
+        for text, expected_status in (("推荐餐厅", "COMPLETED"), ("推荐安静的餐厅", "NOT_COMPLETED")):
+            response = dialogue_service.run_dialogue(DialogueRequest(messages=[{"role": "user", "content": text}],
+                                                    state={"city": "Indianapolis"})).model_dump()
+            dialogue_results.append({"text": text, "expected_status": expected_status, "response": response,
+                                     "passed": response["task_status"] == expected_status and bool(response["tool_calls"])
+                                     and bool((response.get("task_result") or {}).get("results"))})
     finally:
         routes.get_visual_search_service = original_getter
         if original_env is None:
@@ -80,13 +92,15 @@ def run(config_path):
     changed = {row["business_id"] for row in results[0]["response"]["results"]} != {
         row["business_id"] for row in results[1]["response"]["results"]}
     passed = all(item["filter_correct"] for item in results) and changed and all(
-        results[index]["response"]["results"] for index in (0, 1))
+        results[index]["response"]["results"] for index in (0, 1)) and all(item["passed"] for item in dialogue_results)
     summary = {"status": "PASS" if passed else "FAIL", "queries": results, "query_change_changes_results": changed,
                "cached_encoder_calls": encoder.calls, "cached_vector_source_image_sha256": image_sha,
                "vectors_sha256": _sha256(vector_path), "metadata_sha256": _sha256(metadata_path),
                "backend": "isolated_milvus_lite_flat", "production_route_executed": True,
                "reference_query_metadata_used": False, "visual_relevance_improvement_assessed": False,
-               "final_test_labels_read": False}
+               "final_test_labels_read": False, "dialogue_routing": dialogue_results,
+               "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+               "runner_sha256": _sha256(Path(__file__)), "config_sha256": _sha256(config_path)}
     with (output / "summary.json").open("x", encoding="utf-8") as handle:
         json.dump(summary, handle, ensure_ascii=False, indent=2, sort_keys=True)
     print(json.dumps({"status": summary["status"], "query_change_changes_results": changed,

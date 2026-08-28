@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts.run_week8_visual_final import final_context, source_hash
+from scripts.run_week8_visual_final import final_context, source_hash, score
 from src.inference.product_observation import canonical_config_sha256
 
 
@@ -52,6 +52,14 @@ class FinalExecutionTests(unittest.TestCase):
         self.assertEqual(source_hash(a), source_hash(b))
         b.write_bytes(b"one\nchanged\n")
         self.assertNotEqual(source_hash(a), source_hash(b))
+
+    def test_scoring_revalidates_the_entire_candidate_lock(self):
+        path = self.root / "holdout/candidate_lock.json"
+        lock = json.loads(path.read_text(encoding="utf-8"))
+        lock["selected_role"] = "tampered"
+        path.write_text(json.dumps(lock), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "unlocked implementation"):
+            score(self.root, self.path)
 
 
 if __name__ == "__main__":
