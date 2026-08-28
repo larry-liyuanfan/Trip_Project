@@ -114,6 +114,26 @@ def load_history(root, config):
                     raise ValueError("historical row count mismatch")
                 extra.append({"path": path.relative_to(root).as_posix(), "sha256": digest, "count": count,
                               "scope": "identity_fields_only", "lock_sha256": sha256_file(directory / "dataset_lock.json")})
+    for previous in config.get("previous_visual_holdouts", []):
+        directory = within(root, previous["path"])
+        lock = read_json(directory / "dataset_lock.json")
+        if (lock["lock_sha256"] != previous["lock_sha256"]
+                or lock["lock_sha256"] != canonical_config_sha256({k: v for k, v in lock.items() if k != "lock_sha256"})):
+            raise ValueError("previous visual holdout lock changed")
+        path = directory / "manifest.jsonl"
+        if sha256_file(path) != lock["manifest_sha256"]:
+            raise ValueError("previous visual holdout manifest changed")
+        count = 0
+        for row in iter_jsonl(path):
+            # 失败的 final 仍永久消费；仅看五维身份，不读其参考或候选输出。
+            for field, value in identity_projection(row).items():
+                if value:
+                    consumed[field].add(value)
+            count += 1
+        if count != lock["count"]:
+            raise ValueError("previous visual holdout count changed")
+        extra.append({"path": path.relative_to(root).as_posix(), "sha256": lock["manifest_sha256"],
+                      "count": count, "scope": "identity_fields_only", "lock_sha256": lock["lock_sha256"]})
     evidence["week8_history"] = extra
     return consumed, evidence, audit, fresh
 

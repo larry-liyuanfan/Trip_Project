@@ -18,7 +18,7 @@ def load_observation_config(path: Path, expected_sha256: str):
     config = json.loads(path.read_text(encoding="utf-8"))
     if canonical_config_sha256(config) != expected_sha256:
         raise ValueError("product observation config hash mismatch")
-    if (config.get("protocol") not in {"product_visual_observation_v1", "product_visual_observation_v2"}
+    if (config.get("protocol") not in {"product_visual_observation_v1", "product_visual_observation_v2", "product_visual_observation_v3"}
             or config.get("max_attempts") != 2 or type(config.get("max_new_tokens")) is not int
             or not 1 <= config["max_new_tokens"] <= 4096
             or config.get("price_policy") != "unknown_without_verified_comparison_scale"):
@@ -61,9 +61,24 @@ def validate_observation(value, config):
         for item in value[field]:
             if re.search(r"\b(?:not visible|not shown|cannot see|assum\w*|probably)\b|未见|看不到|推测|可能存在|photo type", item["fact"], re.I):
                 raise ValueError(f"non-observational evidence in {field}")
+            if negated_label_fact(item["label"], item["fact"]):
+                raise ValueError(f"negated positive label evidence in {field}")
     if value["subject_kind"] == "food_closeup" and (value["style_evidence"] or value["facility_evidence"]):
         raise ValueError("food closeup cannot establish venue style or facilities")
     return value
+
+
+def negated_label_fact(label, fact):
+    # 否定须紧邻该标签或可见物件；不把“椅子旁没有杂物”误当作没有椅子。
+    aliases = {"seating": ("chairs", "chair", "benches", "bench", "stools", "stool"),
+               "dining_tables": ("tables", "table"), "front_desk": ("reception",),
+               "outdoor_seating": ("patio", "terrace"), "wifi_sign": ("wifi", "wi-fi"),
+               "parking": ("停车", "停车场")}
+    terms = (label.replace("_", " "), *aliases.get(label, ()))
+    target = "(?:" + "|".join(re.escape(term) for term in terms) + ")"
+    before = r"\b(?:no|not|without|neither|lack(?:s|ing)?|absent)\s+(?:(?:any|visible|accessible|a|an|the)\s+){0,3}" + target + r"\b"
+    after = r"\b" + target + r"\s+(?:(?:is|are|was|were)\s+)?(?:not|absent|unavailable|missing)\b"
+    return bool(re.search(before + "|" + after + r"|(?:没有|无|缺少)" + target, fact, re.I))
 
 
 def map_observation(value, config):

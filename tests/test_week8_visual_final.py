@@ -4,8 +4,43 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts.run_week8_visual_final import final_context, source_hash, score
+from scripts.run_week8_visual_final import final_context, source_hash, score, validate_development_identity
 from src.inference.product_observation import canonical_config_sha256
+from src.training.week7_data import sha256_file
+
+
+class DevelopmentBindingTests(unittest.TestCase):
+    def test_a_self_consistent_but_untested_candidate_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "dev").mkdir()
+            def put(name, value):
+                (root / name).write_text(json.dumps(value), encoding="utf-8")
+            put("observation.json", {"protocol": "tested"})
+            specification = {"output_root": "dev", "final_test_access": False,
+                             "reference_manifest_sha256": "manifest", "reference_raw_sha256": "reference",
+                             "observation_profile_configs": {"observation_enhanced_base": "observation.json"}}
+            put("development.json", specification)
+            identity = {"config_sha256": sha256_file(root / "development.json"), "test_rows_read": False,
+                        "development_sha256": "manifest", "base_model": "model", "base_revision": "revision",
+                        "adapter_sha256": "adapter", "observation_profile_config_hashes": {
+                            "observation_enhanced_base": sha256_file(root / "observation.json")}}
+            put("dev/identity.json", identity)
+            candidate = {"product_pipeline": {"config": "observation.json"}, "model": {"base_model": "model",
+                         "base_revision": "revision", "adapter_model_sha256": "adapter",
+                         "adapter_disabled_scenarios": ["image_product_search"]}}
+            put("candidate.json", candidate)
+            config = {"development_config": "development.json", "candidate_release": "candidate.json",
+                      "candidate_observation": "observation.json"}
+            comparison = {"generation_identity_sha256": sha256_file(root / "dev/identity.json"),
+                          "reference_raw_sha256": "reference", "selection": {"selected_role": "observation_enhanced_base"}}
+            self.assertEqual(validate_development_identity(root, config, comparison), sha256_file(root / "dev/identity.json"))
+            put("untested.json", {"protocol": "untested"})
+            candidate["product_pipeline"]["config"] = "untested.json"
+            put("candidate.json", candidate)
+            config["candidate_observation"] = "untested.json"
+            with self.assertRaisesRegex(ValueError, "development-tested observation"):
+                validate_development_identity(root, config, comparison)
 
 
 class FinalExecutionTests(unittest.TestCase):

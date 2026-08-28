@@ -37,6 +37,7 @@ RUNTIME_PATHS = [
     "configs/retrieval",
     "configs/week8/product_observation_v1.json",
     "configs/week8/product_observation_v2.json",
+    "configs/week8/product_observation_v3.json",
     "docker/system",
     "scripts/tripctl.py",
     "scripts/load_system_retrieval.py",

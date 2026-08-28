@@ -43,6 +43,19 @@ class ObservationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             map_observation(self.value, self.config)
 
+    def test_explicit_no_or_unavailable_is_not_positive_facility_evidence(self):
+        for label, fact in (("parking", "no parking"), ("parking", "without visible parking"),
+                            ("parking", "parking is unavailable"), ("seating", "no chairs"),
+                            ("parking", "没有停车场")):
+            with self.subTest(fact=fact):
+                self.value["facility_evidence"] = [{"label": label, "fact": fact}]
+                with self.assertRaisesRegex(ValueError, "negated positive label"):
+                    map_observation(self.value, self.config)
+        for label, fact in (("parking", "Parking beside a building without signage"),
+                            ("seating", "No clutter around chairs")):
+            self.value["facility_evidence"] = [{"label": label, "fact": fact}]
+            self.assertEqual(map_observation(self.value, self.config)["visible_facilities"], [label])
+
     def test_duplicate_labels_are_not_silently_repaired(self):
         self.value["style_evidence"].append(copy.deepcopy(self.value["style_evidence"][0]))
         with self.assertRaises(ValueError):
@@ -122,6 +135,13 @@ class ObservationTests(unittest.TestCase):
             path = Path(temporary) / "config.json"
             path.write_bytes(json.dumps(self.config, ensure_ascii=False, indent=2).replace("\n", "\r\n").encode("utf-8"))
             self.assertEqual(load_observation_config(path, canonical_config_sha256(self.config)), self.config)
+
+    def test_compact_observation_version_is_loadable_but_still_hash_bound(self):
+        path = ROOT / "configs/week8/product_observation_v3.json"
+        config = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(load_observation_config(path, canonical_config_sha256(config)), config)
+        with self.assertRaises(ValueError):
+            load_observation_config(path, canonical_config_sha256(self.config))
 
 
 if __name__ == "__main__":

@@ -21,6 +21,8 @@ from src.inference.schemas import TaskRequest
 from src.inference.system_runtime import ReleaseSettings, ScenarioService, TransformersPeftBackend, ModelGenerationError
 from src.inference.transport_utils import strip_json_fence
 from src.training.week7_data import IDENTITY_FIELDS, sha256_file, iter_jsonl
+from src.evaluation.visual_teacher_retry import collect_with_history
+from scripts.compare_week8_development_revision import compare as compare_revision
 
 
 def source_hash(path):
@@ -34,7 +36,11 @@ def protocol_files(root, config):
                   "src/inference/system_runtime.py", "src/inference/product_observation.py", "src/inference/schemas.py",
                   "src/inference/processor_cache.py", "src/inference/business_validation.py",
                   "src/evaluation/week8_visual_silver.py", "src/evaluation/product_semantics.py",
-                  "src/evaluation/schema_validation.py", "src/evaluation/prompting.py", "src/data/week8_visual_holdout.py"})
+                  "src/evaluation/schema_validation.py", "src/evaluation/prompting.py", "src/data/week8_visual_holdout.py",
+                  "src/evaluation/visual_teacher_retry.py", "scripts/compare_week8_development_revision.py",
+                  "scripts/verify_week8_candidate_acceptance.py"})
+    if config.get("development_config"):
+        paths.add(config["development_config"])
     for key in ("candidate_release", "formal_release"):
         release = read_json(root / config[key])
         for scenario, version in release["prompts"].items():
@@ -43,6 +49,44 @@ def protocol_files(root, config):
                 paths.update(p.relative_to(root).as_posix() for p in directory.glob("*.yaml"))
     paths.update(p.relative_to(root).as_posix() for p in (root / "configs/evaluation/schemas").glob("*.json"))
     return {path: source_hash(within(root, path)) for path in sorted(paths)}
+
+
+def validate_development_identity(root, config, comparison):
+    """把选优分数绑定到真正生成该分数的商品配置，不能只验证候选自己的哈希。"""
+    specification = read_json(within(root, config["development_config"]))
+    directory = within(root, specification["output_root"])
+    identity = read_json(directory / "identity.json")
+    candidate = read_json(within(root, config["candidate_release"]))
+    role = comparison["selection"]["selected_role"]
+    if (comparison["generation_identity_sha256"] != sha256_file(directory / "identity.json")
+            or identity["config_sha256"] != sha256_file(root / config["development_config"])
+            or identity["test_rows_read"] is not False or specification["final_test_access"] is not False
+            or identity["development_sha256"] != specification["reference_manifest_sha256"]
+            or comparison["reference_raw_sha256"] != specification["reference_raw_sha256"]):
+        raise ValueError("development generation identity mismatch")
+    observation_path = specification["observation_profile_configs"][role]
+    if (observation_path != config["candidate_observation"]
+            or identity["observation_profile_config_hashes"][role] != sha256_file(within(root, observation_path))
+            or candidate["product_pipeline"]["config"] != observation_path
+            or "image_product_search" not in candidate["model"].get("adapter_disabled_scenarios", [])
+            or role != "observation_enhanced_base"):
+        raise ValueError("candidate is not the development-tested observation and adapter route")
+    for key, identity_key in (("base_model", "base_model"), ("base_revision", "base_revision"), ("adapter_model_sha256", "adapter_sha256")):
+        if candidate["model"][key] != identity[identity_key]:
+            raise ValueError("candidate model differs from development")
+    if config.get("previous_final"):
+        previous = within(root, config["previous_final"])
+        failure = read_json(previous / "acceptance_failure.json")
+        if failure["classification"] != "INVALID_REFERENCE" or failure["semantic_scores_computed"] is not False:
+            raise ValueError("previous final outcomes cannot be used for candidate revision")
+        if not any(item["path"] == config["previous_final"] and item["lock_sha256"] == failure["data_lock_sha256"]
+                   for item in config.get("previous_visual_holdouts", [])):
+            raise ValueError("consumed previous final must be explicitly excluded")
+        previous_comparison = read_json(within(root, config["previous_development_comparison"]))
+        revision = compare_revision(previous_comparison, comparison)
+        if not revision["new_final_allowed"]:
+            raise ValueError("no substantive development revision; do not replace the final test")
+    return sha256_file(directory / "identity.json")
 
 
 def validate_runtime_probe(root, config):
@@ -100,6 +144,7 @@ def seal(root, config_path):
     selection = select_development_candidate(comparison["summaries"])
     if selection["selected_role"] != "observation_enhanced_base" or selection != comparison["selection"]:
         raise ValueError("candidate not selected by fixed development")
+    development_identity = validate_development_identity(root, config, comparison)
     probe = validate_runtime_probe(root, config)
     candidate = read_json(root / config["candidate_release"])
     observation = read_json(root / config["candidate_observation"])
@@ -108,6 +153,7 @@ def seal(root, config_path):
     lock = {"protocol": config["protocol"], "config_canonical_sha256": canonical_config_sha256(config),
             "data_lock_sha256": data_lock["lock_sha256"], "development_comparison_sha256": sha256_file(root / config["development_comparison"]),
             "selected_role": selection["selected_role"], "runtime_probe_files": probe,
+            "development_generation_identity_sha256": development_identity,
             "source_files_lf_sha256": protocol_files(root, config),
             "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
             "selection_only_used_development": True, "final_roles": ["teacher", "inference"],
@@ -149,7 +195,8 @@ def teacher(root, config_path):
     base_url = os.environ.get("MODEL_API_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1").rstrip("/")
     failures = 0
     with ThreadPoolExecutor(max_workers=specification["concurrency"]) as executor, (output / "raw_outputs.jsonl").open("x", encoding="utf-8", newline="\n") as handle:
-        for record in executor.map(lambda row: collect_row(row, specification, observation, root, base_url, key), rows):
+        collector = collect_with_history if specification.get("retry_protocol") == "bounded_history_correction_v1" else collect_row
+        for record in executor.map(lambda row: collector(row, specification, observation, root, base_url, key), rows):
             failures += int(bool(record.get("error")))
             handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
             handle.flush()
@@ -202,7 +249,7 @@ def inference(root, config_path):
     return summary
 
 
-def score(root, config_path):
+def replay_final(root, config_path):
     config = read_json(config_path)
     directory = within(root, config["output_root"])
     lock = read_json(directory / "candidate_lock.json")
@@ -247,6 +294,12 @@ def score(root, config_path):
         scores[role] = score_paired(root, references, records, observation, reference_audit=audit, phase="final")
     result = {"acceptance": validate_locked_final(scores["formal_adapter"], scores["locked_candidate"]), "scores": scores,
               "candidate_lock_sha256": lock["lock_sha256"], "human_annotation_count": 0, "test_used_for_tuning": False}
+    return result
+
+
+def score(root, config_path):
+    result = replay_final(root, config_path)
+    directory = within(root, read_json(config_path)["output_root"])
     write_json_new(directory / "final_comparison.json", result)
     return result["acceptance"]
 
