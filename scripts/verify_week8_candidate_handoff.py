@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.build_release_bundle import verify_runtime_archive
 from scripts.upload_release_oss import verify_release_dir
 from src.data.week8_visual_holdout import write_json_new
-from src.evaluation.week8_visual_silver import validate_locked_final
+from src.evaluation.week8_visual_silver import validate_locked_final, validate_incumbent_nonregression
 from src.inference.product_observation import canonical_config_sha256
 
 
@@ -59,6 +59,12 @@ def verify(release_dir, acceptance_member):
         gate = validate_locked_final(comparison["scores"]["formal_adapter"], comparison["scores"]["locked_candidate"])
         if gate["status"] != "PASS" or gate != comparison["acceptance"]:
             raise ValueError("packaged final quality has not passed")
+        expected_roles = set(lock.get("inference_roles", ["formal_adapter", "locked_candidate"]))
+        if "incumbent" in expected_roles:
+            incumbent_gate = validate_incumbent_nonregression(comparison["scores"]["incumbent"], comparison["scores"]["locked_candidate"])
+            if (comparison.get("overall_status") != "PASS" or incumbent_gate["status"] != "PASS" or incumbent_gate != comparison.get("incumbent_acceptance")
+                    or incumbent_gate != acceptance.get("incumbent_acceptance")):
+                raise ValueError("packaged candidate regressed against its incumbent")
         data = read(root / "dataset_lock.json")
         if (data["lock_sha256"] != lock["data_lock_sha256"]
                 or data["lock_sha256"] != canonical_config_sha256({k: v for k, v in data.items() if k != "lock_sha256"})
@@ -77,7 +83,7 @@ def verify(release_dir, acceptance_member):
             if role == "teacher":
                 if summary["count"] != data["count"] or summary["failures"] != 0:
                     raise ValueError("packaged teacher coverage or validity changed")
-            elif (set(summary["roles"]) != {"formal_adapter", "locked_candidate"}
+            elif (set(summary["roles"]) != expected_roles
                   or any(item["count"] != data["count"] or item["failures"] != 0 for item in summary["roles"].values())):
                 raise ValueError("packaged paired inference coverage changed")
             hashes = {"raw_outputs": summary["raw_sha256"]} if role == "teacher" else {

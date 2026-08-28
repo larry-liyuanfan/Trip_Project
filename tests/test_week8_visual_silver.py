@@ -2,7 +2,7 @@ import copy
 import json
 from pathlib import Path
 import unittest
-from src.evaluation.week8_visual_silver import score_paired, select_development_candidate, validate_locked_final
+from src.evaluation.week8_visual_silver import score_paired, select_development_candidate, validate_locked_final, validate_incumbent_nonregression
 from tests.test_system_runtime import PRODUCT_OUTPUT
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,6 +93,19 @@ class VisualSilverTests(unittest.TestCase):
     def test_final_without_prior_lock_fails_closed(self):
         with self.assertRaises(ValueError):
             score_paired(ROOT, self.references, [record(self.target)], reference_audit={**AUDIT, "test_rows_read": True}, phase="final")
+
+    def test_additional_incumbent_check_does_not_replace_formal_improvement_requirement(self):
+        audit = {**AUDIT, "test_rows_read": True, "candidate_lock_sha256": "b" * 64}
+        good = score_paired(ROOT, self.references, [record(self.target)], reference_audit=audit, phase="final")
+        self.assertEqual(validate_locked_final(good, good)["status"], "FAIL")
+        self.assertEqual(validate_incumbent_nonregression(good, good)["status"], "PASS")
+        wrong = copy.deepcopy(self.target)
+        wrong["business_category"] = "other"
+        worse = score_paired(ROOT, self.references, [record(wrong)], reference_audit=audit, phase="final")
+        self.assertEqual(validate_incumbent_nonregression(good, worse)["status"], "FAIL")
+        changed_support = copy.deepcopy(good)
+        changed_support["supports"]["samples"] = 0
+        self.assertEqual(validate_incumbent_nonregression(good, changed_support)["status"], "FAIL")
 
 
 if __name__ == "__main__":

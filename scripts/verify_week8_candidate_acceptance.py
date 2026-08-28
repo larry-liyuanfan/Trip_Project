@@ -43,6 +43,8 @@ def verify(root, config_path, retrieval_path, tests_path):
         raise ValueError("final metrics differ from immutable raw replay")
     if result["acceptance"]["status"] != "PASS":
         raise ValueError("final quality has not passed")
+    if config.get("incumbent_release") and result.get("incumbent_acceptance", {}).get("status") != "PASS":
+        raise ValueError("final candidate regressed against its locked incumbent")
     lock = read_json(directory / "candidate_lock.json")
     comparison = read_json(within(root, config["development_comparison"]))
     if (sha256_file(root / config["development_comparison"]) != lock["development_comparison_sha256"]
@@ -64,7 +66,7 @@ def verify(root, config_path, retrieval_path, tests_path):
         raise ValueError("dialogue did not complete real model-backed itinerary work")
     validate_retrieval(read_json(retrieval_path), release["release_id"])
     tests = validate_test_log(tests_path)
-    return {"status": "PASS", "candidate_quality_accepted": True, "release_id": release["release_id"],
+    acceptance = {"status": "PASS", "candidate_quality_accepted": True, "release_id": release["release_id"],
             "candidate_lock_sha256": lock["lock_sha256"], "final_comparison_sha256": sha256_file(directory / "final_comparison.json"),
             "release_config_sha256": sha256_file(root / config["candidate_release"]),
             "adapter_model_sha256": release["model"]["adapter_model_sha256"],
@@ -72,6 +74,9 @@ def verify(root, config_path, retrieval_path, tests_path):
             "human_annotation_count": 0, "human_visual_accuracy_claim": False,
             "label_source": "model_generated_silver", "test_used_for_tuning": False,
             "formal_release_replaced": False, "package_verification_required": True}
+    if config.get("incumbent_release"):
+        acceptance["incumbent_acceptance"] = result["incumbent_acceptance"]
+    return acceptance
 
 
 if __name__ == "__main__":

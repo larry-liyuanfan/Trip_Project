@@ -230,3 +230,14 @@ def validate_locked_final(baseline, candidate):
         failures.append("no_composite_improvement")
     return {"status": "PASS" if not failures else "FAIL", "failures": failures,
             "candidate_reselection_allowed": False, "human_visual_accuracy_claim": False}
+
+
+def validate_incumbent_nonregression(incumbent, candidate):
+    """额外保护当前候选；不替代相对正式模型的严格提升验收。"""
+    result = validate_locked_final(incumbent, candidate)
+    failures = list(result["failures"])
+    if (candidate["metrics"]["composite"] is not None
+            and candidate["metrics"]["composite"] == incumbent["metrics"]["composite"]):
+        failures = [value for value in failures if value != "no_composite_improvement"]
+    return {**result, "status": "PASS" if not failures else "FAIL", "failures": failures,
+            "protocol": "additional_locked_incumbent_nonregression_v1", "replaces_formal_improvement_check": False}

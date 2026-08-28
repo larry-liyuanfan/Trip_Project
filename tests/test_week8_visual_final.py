@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts.run_week8_visual_final import final_context, source_hash, score, validate_development_identity
+from scripts.run_week8_visual_final import final_context, source_hash, score, validate_development_identity, inference_roles
 from src.inference.product_observation import canonical_config_sha256
 from src.training.week7_data import sha256_file
 
@@ -89,6 +89,13 @@ class FinalExecutionTests(unittest.TestCase):
         final_context(self.root, self.path, "inference")
         with self.assertRaises(FileExistsError):
             final_context(self.root, self.path, "inference")
+
+    def test_new_final_keeps_formal_and_incumbent_roles_without_ambiguous_config(self):
+        self.assertEqual(inference_roles({}), ["formal_adapter", "locked_candidate"])
+        self.assertEqual(inference_roles({"incumbent_release": "release.json", "incumbent_observation": "obs.json"}),
+                         ["formal_adapter", "incumbent", "locked_candidate"])
+        with self.assertRaisesRegex(ValueError, "both release"):
+            inference_roles({"incumbent_release": "release.json"})
 
     def test_changed_code_or_unknown_role_cannot_start_final(self):
         with patch("scripts.run_week8_visual_final.protocol_files", return_value={"code.py": "changed"}):

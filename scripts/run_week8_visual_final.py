@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts.collect_week8_visual_silver import collect_row
 from src.data.week8_visual_holdout import read_json, write_json_new, within, validate_holdout
-from src.evaluation.week8_visual_silver import score_paired, validate_locked_final, select_development_candidate
+from src.evaluation.week8_visual_silver import score_paired, validate_locked_final, select_development_candidate, validate_incumbent_nonregression
 from src.inference.business_validation import itinerary_business_errors
 from src.inference.client import _read_api_key
 from src.inference.product_observation import canonical_config_sha256, map_observation
@@ -32,6 +32,14 @@ def source_hash(path):
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
+def inference_roles(config):
+    has_release = bool(config.get("incumbent_release"))
+    has_observation = bool(config.get("incumbent_observation"))
+    if has_release != has_observation:
+        raise ValueError("incumbent comparison requires both release and observation identities")
+    return ["formal_adapter", *(["incumbent"] if has_release else []), "locked_candidate"]
+
+
 def protocol_files(root, config):
     paths = {config[key] for key in ("candidate_release", "formal_release", "teacher_config", "teacher_observation", "candidate_observation")}
     paths.update({"scripts/run_week8_visual_final.py", "scripts/collect_week8_visual_silver.py",
@@ -45,6 +53,8 @@ def protocol_files(root, config):
                   "scripts/verify_week8_candidate_acceptance.py"})
     if config.get("development_config"):
         paths.add(config["development_config"])
+    if "incumbent" in inference_roles(config):
+        paths.update({config["incumbent_release"], config["incumbent_observation"]})
     if config.get("development_reference_revision"):
         paths.add(config["development_reference_revision"])
         revision = read_json(within(root, config["development_reference_revision"]))
@@ -84,6 +94,13 @@ def validate_development_identity(root, config, comparison):
         if (candidate["generation"].get("visual_max_pixels") != limit
                 or identity.get("profile_visual_max_pixels", {}) != specification.get("profile_visual_max_pixels", {})):
             raise ValueError("candidate visual limits differ from tested development settings")
+        if config.get("incumbent_release"):
+            incumbent = read_json(within(root, config["incumbent_release"]))
+            incumbent_observation = specification["observation_profile_configs"][improvement["incumbent_role"]]
+            if (config["incumbent_observation"] != incumbent_observation
+                    or incumbent["product_pipeline"]["config"] != incumbent_observation
+                    or incumbent["generation"].get("visual_max_pixels") != specification.get("profile_visual_max_pixels", {}).get(improvement["incumbent_role"])):
+                raise ValueError("final incumbent does not match its development-tested configuration")
     if (comparison["generation_identity_sha256"] != sha256_file(directory / "identity.json")
             or identity["config_sha256"] != sha256_file(root / config["development_config"])
             or identity["test_rows_read"] is not False or specification["final_test_access"] is not False
@@ -162,6 +179,9 @@ def validate_runtime_probe(root, config):
 
 def seal(root, config_path):
     config = read_json(config_path)
+    roles = inference_roles(config)
+    if config.get("development_reference_revision") and "incumbent" not in roles:
+        raise ValueError("a post-v9 revision must also retain its incumbent in final validation")
     directory = within(root, config["output_root"])
     if (directory / "candidate_lock.json").exists():
         raise FileExistsError("candidate lock already exists")
@@ -184,6 +204,8 @@ def seal(root, config_path):
             "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
             "selection_only_used_development": True, "final_roles": ["teacher", "inference"],
             "test_results_read_before_lock": False, "human_annotation_count": 0}
+    if "incumbent" in roles:
+        lock["inference_roles"] = roles
     lock["lock_sha256"] = canonical_config_sha256(lock)
     write_json_new(directory / "candidate_lock.json", lock)
     return {"status": "CANDIDATE_LOCKED_FOR_ONCE_ONLY_FINAL", "lock_sha256": lock["lock_sha256"]}
@@ -240,6 +262,12 @@ def inference(root, config_path):
     baseline = ReleaseSettings.load(root, root / config["formal_release"])
     if (candidate.base_model, candidate.base_revision, candidate.adapter_model_sha256) != (baseline.base_model, baseline.base_revision, baseline.adapter_model_sha256):
         raise ValueError("paired base/adapter identities differ")
+    settings_by_role = {"formal_adapter": baseline, "locked_candidate": candidate}
+    if "incumbent" in inference_roles(config):
+        incumbent = ReleaseSettings.load(root, root / config["incumbent_release"])
+        if (incumbent.base_model, incumbent.base_revision, incumbent.adapter_model_sha256) != (baseline.base_model, baseline.base_revision, baseline.adapter_model_sha256):
+            raise ValueError("incumbent base/adapter identities differ")
+        settings_by_role["incumbent"] = incumbent
     # 从正式处理器开始，每个组显式应用自己的像素参数；不能把候选上限泄漏给基线。
     backend = TransformersPeftBackend(baseline)
     started = time.perf_counter()
@@ -248,7 +276,8 @@ def inference(root, config_path):
         raise RuntimeError(detail)
     cold_start = (time.perf_counter() - started) * 1000
     roles = {}
-    for role, settings in (("formal_adapter", baseline), ("locked_candidate", candidate)):
+    for role in inference_roles(config):
+        settings = settings_by_role[role]
         backend.configure_processor_cache(settings.processor_cache_max_entries)
         backend.configure_prepared_input_cache(settings.prepared_input_cache_max_entries)
         service = ScenarioService(settings, backend)
@@ -307,7 +336,7 @@ def replay_final(root, config_path):
              "test_rows_read": True, "candidate_lock_sha256": lock["lock_sha256"], "reference_raw_sha256": sha256_file(teacher_path)}
     expected = {row["sample_id"]: {key: row[key] for key in IDENTITY_FIELDS} for row in rows}
     scores = {}
-    for role in ("formal_adapter", "locked_candidate"):
+    for role in inference_roles(config):
         path = directory / "inference" / (role + ".jsonl")
         if sha256_file(path) != summaries["inference"]["roles"][role]["raw_sha256"]:
             raise ValueError("inference raw bytes changed")
@@ -317,10 +346,15 @@ def replay_final(root, config_path):
                 raise ValueError("final sample coverage changed")
             if any({key: row[key] for key in IDENTITY_FIELDS} != expected[row["sample_id"]] for row in collection):
                 raise ValueError("final five-dimension identity mismatch")
-        observation = read_json(root / config["candidate_observation"]) if role == "locked_candidate" else None
+        observation = read_json(root / config["candidate_observation"]) if role == "locked_candidate" else (
+            read_json(root / config["incumbent_observation"]) if role == "incumbent" else None)
         scores[role] = score_paired(root, references, records, observation, reference_audit=audit, phase="final")
     result = {"acceptance": validate_locked_final(scores["formal_adapter"], scores["locked_candidate"]), "scores": scores,
               "candidate_lock_sha256": lock["lock_sha256"], "human_annotation_count": 0, "test_used_for_tuning": False}
+    if "incumbent" in scores:
+        result["incumbent_acceptance"] = validate_incumbent_nonregression(scores["incumbent"], scores["locked_candidate"])
+        result["overall_status"] = "PASS" if all(result[key]["status"] == "PASS" for key in (
+            "acceptance", "incumbent_acceptance")) else "FAIL"
     return result
 
 
@@ -328,6 +362,9 @@ def score(root, config_path):
     result = replay_final(root, config_path)
     directory = within(root, read_json(config_path)["output_root"])
     write_json_new(directory / "final_comparison.json", result)
+    if "incumbent_acceptance" in result:
+        return {"status": result["overall_status"], "formal_acceptance": result["acceptance"],
+                "incumbent_acceptance": result["incumbent_acceptance"]}
     return result["acceptance"]
 
 
