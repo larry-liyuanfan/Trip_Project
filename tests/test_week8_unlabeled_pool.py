@@ -12,7 +12,7 @@ import zipfile
 from PIL import Image
 
 from src.data.week8_unlabeled_pool import (
-    PROTOCOL, ROW_FIELDS, build_pool, choose_source_identities, validate_pool_images, verified_pool,
+    PROTOCOL, ROW_FIELDS, build_pool, choose_source_identities, validate_pool_images, verified_pool, validate_pool_snapshot,
 )
 from src.data.week8_visual_holdout import build_holdout, read_json, validate_holdout
 from src.inference.product_observation import canonical_config_sha256
@@ -158,3 +158,28 @@ class UnlabeledPoolTests(unittest.TestCase):
         self.assertEqual(result["status"], "INSUFFICIENT_SOURCE")
         with self.assertRaisesRegex(ValueError, "insufficient"):
             verified_pool(self.root, {"config": "pool-config.json", "lock_sha256": result["lock_sha256"]}, self.history)
+
+    def test_portable_snapshot_rejects_changed_members_or_unrelated_final(self):
+        path = self.prepare_build()
+        result = build_pool(self.root, path)
+        rows, lock = verified_pool(self.root, {"config": "pool-config.json", "lock_sha256": result["lock_sha256"]}, self.history)
+        data = {"unlabeled_source_pool_lock_sha256": lock["lock_sha256"], "source_identity_sha256": lock["files"]["identity_manifest.jsonl"]}
+        read = lambda name: (self.root / "pool" / name).read_text(encoding="utf-8")
+        digest = lambda name: sha256_file(self.root / "pool" / name)
+        validate_pool_snapshot(data, rows[:1], lock, read, digest)
+        unrelated = copy.deepcopy(rows[:1])
+        unrelated[0]["image_sha256"] = "different"
+        with self.assertRaisesRegex(ValueError, "does not belong"):
+            validate_pool_snapshot(data, unrelated, lock, read, digest)
+        with self.assertRaisesRegex(ValueError, "artifacts changed"):
+            validate_pool_snapshot(data, rows[:1], lock, read, lambda name: "bad")
+
+    def test_snapshot_rejects_missing_rejection_audit_even_if_lock_rehashed(self):
+        path = self.prepare_build()
+        result = build_pool(self.root, path)
+        rows, lock = verified_pool(self.root, {"config": "pool-config.json", "lock_sha256": result["lock_sha256"]}, self.history)
+        del lock["files"]["rejections.jsonl"]
+        lock["lock_sha256"] = canonical_config_sha256({k: v for k, v in lock.items() if k != "lock_sha256"})
+        data = {"unlabeled_source_pool_lock_sha256": lock["lock_sha256"], "source_identity_sha256": lock["files"]["identity_manifest.jsonl"]}
+        with self.assertRaisesRegex(ValueError, "artifacts changed"):
+            validate_pool_snapshot(data, rows[:1], lock, lambda name: "", lambda name: lock["files"][name])

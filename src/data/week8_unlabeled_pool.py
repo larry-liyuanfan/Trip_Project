@@ -178,3 +178,30 @@ def verified_pool(root, declaration, history):
         if field != "constraint_template_id" and (len(values) != len(rows) or len(set(values)) != len(rows)):
             raise ValueError("pool identity missing or duplicated")
     return rows, lock
+
+
+def validate_pool_snapshot(data_lock, final_rows, pool_lock, read_text, digest):
+    """Verify portable source provenance without requiring the original archive."""
+    if (pool_lock.get("protocol") != PROTOCOL or pool_lock.get("labels_generated") is not False
+            or pool_lock["lock_sha256"] != data_lock.get("unlabeled_source_pool_lock_sha256")
+            or pool_lock["lock_sha256"] != canonical_config_sha256({k: v for k, v in pool_lock.items() if k != "lock_sha256"})
+            or pool_lock["files"]["identity_manifest.jsonl"] != data_lock["source_identity_sha256"]):
+        raise ValueError("packaged unlabeled source pool binding changed")
+    required = {"requested_identities.jsonl", "identity_manifest.jsonl", "rejections.jsonl", "summary.json",
+                "raw/extract_photo_manifest.json"}
+    if set(pool_lock["files"]) != required or any(digest(name) != expected for name, expected in pool_lock["files"].items()):
+        raise ValueError("packaged unlabeled source pool artifacts changed")
+    summary = json.loads(read_text("summary.json"))
+    rows = [json.loads(line) for line in read_text("identity_manifest.jsonl").splitlines() if line.strip()]
+    if (summary["status"] != "PASS" or summary["labels_generated"] is not False
+            or summary["human_annotation_count"] != 0 or len(rows) != pool_lock["count"]
+            or canonical_config_sha256(summary["history"]) != pool_lock["history_sha256"]
+            or any(set(row) != ROW_FIELDS for row in rows)):
+        raise ValueError("packaged source is not a complete unlabeled pool")
+    by_source = {row["source_id"]: row for row in rows}
+    if len(by_source) != len(rows):
+        raise ValueError("packaged source has duplicate identities")
+    for row in final_rows:
+        source = by_source.get(row["source_id"], {})
+        if any(row[key] != source.get(key) for key in ("source_id", "group_id", "image_sha256", "constraint_template_id")):
+            raise ValueError("packaged final does not belong to its source pool")

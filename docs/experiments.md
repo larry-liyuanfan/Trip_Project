@@ -1678,3 +1678,7 @@ manifest.
   新增6项测试；全量906/906（25.970秒，v59），日志SHA
   `7ad86e44bebab33cb7381f5fb8e2beeeaa766fe4de89c6848bab363604927ec1`；冻结v9交接包PASS。
   这是实现验证，尚无提取数量或新final结果；不把自动可读性检查写成人工确认。
+- 身份池便携审计补入final与交接检查；定向18项、完整908/908（26.544秒，v60）通过。
+  日志SHA `6fd7dcc790275cee6408a4e08c74c92067daa4adf2c934f429bec4dcf0e5fab1`。
+  `observation_retry_probe_v6` audit-only核验34条/22图；只复验准确subject v2配置下
+  的纠错阶段，主体复查质量仍由全60图v16独立检验，不将局部诊断充当最终验证。

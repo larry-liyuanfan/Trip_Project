@@ -163,6 +163,14 @@ def build_holdout(root, config_path):
             image.verify()
     output.mkdir(parents=True, exist_ok=False)
     (output / "images").mkdir()
+    if pool_lock:
+        source_config = read_json(within(root, config["unlabeled_source_pool"]["config"]))
+        source_root = within(root, source_config["output_root"])
+        # 只携带来源锁和身份审计，不把整个原图池装入最终评测或发布包。
+        for name in ["source_pool_lock.json", *pool_lock["files"]]:
+            destination = within(output / "source_pool", name)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(within(source_root, name), destination)
     with (output / "manifest.jsonl").open("x", encoding="utf-8", newline="\n") as handle:
         for row in chosen:
             destination = output / "images" / (row["image_sha256"] + ".jpg")
@@ -195,9 +203,13 @@ def validate_holdout(root, config):
         raise ValueError("sealed holdout identity changed")
     rows = list(iter_jsonl(output / "manifest.jsonl"))
     if config.get("unlabeled_source_pool"):
-        from src.data.week8_unlabeled_pool import verified_pool
+        from src.data.week8_unlabeled_pool import verified_pool, validate_pool_snapshot
         consumed, history, _, _ = load_history(root, config)
         pool_rows, pool_lock = verified_pool(root, config["unlabeled_source_pool"], history)
+        snapshot = output / "source_pool"
+        validate_pool_snapshot(lock, rows, read_json(snapshot / "source_pool_lock.json"),
+            lambda name: within(snapshot, name).read_text(encoding="utf-8"),
+            lambda name: sha256_file(within(snapshot, name)))
         pool_by_source = {row["source_id"]: row for row in pool_rows}
         if (lock.get("unlabeled_source_pool_lock_sha256") != pool_lock["lock_sha256"]
                 or lock["source_identity_sha256"] != pool_lock["files"]["identity_manifest.jsonl"]):

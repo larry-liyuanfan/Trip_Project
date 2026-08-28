@@ -105,6 +105,12 @@ def verify(release_dir, acceptance_member):
             raise ValueError("packaged final data identity changed")
         if len(data["images_sha256"]) != data["count"]:
             raise ValueError("packaged image coverage changed")
+        if data.get("unlabeled_source_pool_lock_sha256"):
+            from src.data.week8_unlabeled_pool import validate_pool_snapshot
+            pool = root / "source_pool"
+            final_rows = [json.loads(line) for line in raw(root / "manifest.jsonl").splitlines() if line.strip()]
+            validate_pool_snapshot(data, final_rows, read(pool / "source_pool_lock.json"),
+                lambda name: raw(pool / name).decode("utf-8"), lambda name: digest(pool / name))
         for path, expected in data["images_sha256"].items():
             if digest(root / "images" / PurePosixPath(path).name) != expected:
                 raise ValueError("packaged final image SHA-256 mismatch")
