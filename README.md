@@ -93,8 +93,8 @@ GPU 作业入口为
 必须设置 `TRIP_SMOKE_IMAGE` 与 `TRIP_SMOKE_IMAGE_SHA256` 为该配置绑定的路径和 SHA。
 图片不匹配会在加载模型前失败。默认示例 `data/samples/images/cafe_001.jpg` 实际是
 64×64 图形占位图，只适合接口连通性检查，不能用作真实商品质量或照片延迟基准。
-最近真实照片测量中 512/384 输出上限均约 3.9 s，输出一致但仍有不可见设施猜测；
-因此没有宣称提速或更换已选商品 Prompt/adapter。
+历史 v3 探针中 512/384 输出上限均约 3.9 s，输出一致但仍有不可见设施猜测；该轮
+未证明提速。后续 v9 候选和本轮 development 结果见文末，不将不同配置的测量横比。
 
 ## Quick Start
 
@@ -971,3 +971,15 @@ release 没有替换，也未合并长期分支或打标签。商品使用 `prod
 python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v9.json validate
 python -c "from pathlib import Path; from scripts.verify_week8_candidate_handoff import verify; print(verify(Path('outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v9-rc1'), 'evidence/week8_visual_holdout_20260828_v3/promotion_acceptance.json'))"
 ```
+
+### v9 后续优化结果
+
+原 60 条 development 上，三个新商品紧凑证据方案均未超过同场 v9，且有请求失败，
+不替换已验收模型或重新运行 final。`configs/week8/` 下新配置
+`product_observation_v4.json`、`product_observation_v5.json`、`product_observation_v6.json`
+仅作保留失败证据的实验，不能作为发布默认值。
+
+feature 源码已修复检索冲突/歧义条件被误报完成和英语复数业态解析；真实 Milvus 的
+10 查询、4 对话状态检查通过，未支持条件仍明确未完成。此代码没有重新打包进冻结 v9。
+最新 unittest 769 条通过。各字段、支持、延迟/token、错误切片与无模型复核命令见
+`reports/week8_product_understanding_optimization_report.md` 第 15 节。

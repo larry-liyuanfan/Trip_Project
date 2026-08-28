@@ -1207,9 +1207,106 @@ summary SHA `93291db9bab1ad3dee57f582fe3c5c4a04c721c29fd930d0c6fb1e67cab356d5`�
 向量 SHA `021f09d764038a3ce53d28d348b4c1b6f5b50ba82f51d69ccd2b1acfeee059ee`，metadata
 SHA `7a79894fb027e2f0e6e6aa943a5af21c10c72b084f0dd866c931405debfcd42d`。
 
-### 15.4 等价简洁 Schema 追加实验
+### 15.4 等价简洁 Schema 追加实验：仍保留 v9
 
 `contract_ablation_v6.json` 绑定原 development/reference，执行代码 `fb49de6`。采用
 `propertyNames` 提示词表达可选标签，内部仍用完整展开 Schema 校验。job `29697591`
-仅在 `29697351` 完成后串行执行，同场复跑 formal/v9/观察 v6，申请 22 分钟。全量
-unittest 768/768（23.460 秒）已通过；本组模型结果待完成，不提前声明新候选通过。
+仅在 `29697351` 完成后串行执行，同场复跑 formal/v9/观察 v6，申请 22 分钟，实际
+18:39，`COMPLETED 0:0`。三组各 60 条，原数据、教师、字段支持不变。
+
+| 指标 | 同场 v9（观察 v3） | 简洁 Schema v6 |
+|---|---:|---:|
+| business_category_accuracy（39） | 0.820513 | 0.666667 |
+| style P/R/F1（34 样本/42 标签） | 0.604167/0.690476/0.644444 | 0.415584/0.761905/0.537815 |
+| facility P/R/F1（37 样本/78 标签） | 0.818182/0.807692/0.812903 | 0.750000/0.846154/0.795181 |
+| price_range_accuracy（0） | N/A | N/A |
+| unknown_accuracy（240） | 0.920833 | 0.854167 |
+| label_completeness | 0.734441 | 0.757918 |
+| composite | 0.759287 | 0.666554 |
+| JSON / Schema | 1/1 | 1/0.966667 |
+| 请求失败 | 0/60 | 2/60 |
+| mean / P50 / P95（ms） | 6424.501/6385.584/10389.095 | 6794.864/6416.848/12866.893 |
+| input / output token 均值 | 995.80/94.90 | 1176.65/98.78 |
+
+新 Schema 减少了相对紧凑 v5 的输入长度，但相对同场 v9 仍更慢、token 更多，且业态、
+风格 precision、设施 precision、unknown 与失败率回退。`KEEP_V9_CANDIDATE`，不新增
+final、不更换模型。两次完整实验累计 420 个 development 请求（另保留纠错尝试），不是
+420 个独立样本。A100 MIG 1g.20gb，第二组冷加载 34727.378 ms，峰值 allocated
+8143745536 B；第一组冷加载 35504.525 ms、峰值相同。这是批次观测，不是新的固定图
+重复性能基准，也不声称 P95 具有独立稳定性结论。
+
+| 追加实验身份/证据 | SHA-256 |
+|---|---|
+| contract_ablation_v6.json | d81e84e8b9d988ec88f5845dee3872518219b88dd882c7f0ab999caa995a0fbb |
+| formal raw | 419b3d1fcc63af131465d50772ebe5e7fcdb00d1034545062fdf231912709761 |
+| v9 raw | 497fdce9dcea8766ef67edf5611a73c75b5645a66d7f273ea953fdb033eedca4 |
+| 简洁 Schema v6 raw | ed6f9ec82fecf6c57760a35aafdc231d5b16a3d67acc9f7057041c29ea660188 |
+| comparison | 933bb3d96d006cb07cc649da2a75b862721faafed3796549da6eaafee44de406 |
+| incumbent decision | 100f3dc48a7de273c8e3f5b861791a4c73346c451a853c3e71411d35569cb270 |
+
+### 15.5 development 错误切片与检索补充
+
+全部原始输出经过当前 mapper 重放；以下是与固定图像 silver 不一致的样本数，不是人工
+判错数。v9 取第一组，第二组同一 v9 的质量指标一致。失败仍在分母内，没有删难样本。
+
+| 错误切片（支持） | v9 | 紧凑 v4 | 语义 v5 | Schema v6 |
+|---|---:|---:|---:|---:|
+| 已知业态（39） | 7 | 7 | 15 | 13 |
+| 食品特写（17） | 1 | 1 | 6 | 5 |
+| 多主体/主体不明（4） | 3 | 3 | 4 | 3 |
+| 多风格（7） | 5 | 5 | 6 | 6 |
+| 风格漏标或扩展（60） | 24 | 30 | 36 | 32 |
+| 设施漏标或扩展（60） | 22 | 24 | 28 | 27 |
+| 应为 unknown 时猜测或请求失败（60） | 4 | 11 | 19 | 14 |
+| Schema 合格但语义不一致（60） | 36 | 37 | 43 | 40 |
+| 至少一项语义错误或请求失败（60） | 36 | 38 | 45 | 42 |
+
+所有成功输出价位均为 unknown；价位切片中的 0/1/2/2 错误计数来自请求失败，不应描述为
+生成了错误价位。价位等级正支持仍为 0。业态支持细分 restaurant/hotel/attraction/other
+为 30/1/4/4，另有 unknown 21，不能据此宣称稀疏业态和多主体问题全面解决。
+切片产物 `outputs/week8/review/week8_continuation_development_slices_20260828_v1.json`，
+SHA `e215f8452ab02788831b1fadb1945387fb2fdc48fa39da396908bee35240b842`。
+
+英语复数业态修复后，CPU job `29698776` 在提交 `06f1b48` 完成 v5 真实检索复验，
+`COMPLETED 0:0`、9 秒，10/10 查询和 4/4 对话状态检查 PASS。新增
+`find cheap restaurants` 应用 restaurant+budget，返回 5 条；`find hotels` 应用 hotel，
+返回空集，明确只表示查询执行完成，不代表找到合适推荐。原有冲突、歧义条件的三条对话
+仍返回 NOT_COMPLETED。所有对话各实际调用一次检索，不使用确认语假装业务完成。
+使用既有 1,000 条向量的 Milvus Lite FLAT，非新 CLIP 或相关性评测。
+summary SHA `1e9e915d140b0ed53d635d465222f53fe52aeb0649841587ad7da8f3498bee98`。
+
+### 15.6 本轮验证、复现与交付边界
+
+- 最新定向 44/44（0.027 秒）、完整 unittest 769/769（23.892 秒）通过；完整日志
+  `outputs/week8/review/week8_full_unittest_20260828_v28.log`，SHA
+  `7315eb0538efc302dba72e99263ce71c3f7cdd34f8eacfc4ec7388d63036c949`。
+- 固定 development manifest SHA
+  `39670e793fdbb9d26e255465c66361e3b49cbabeb41d2fc7ab5ccf3840d8cce5`，原教师 raw SHA
+  `19a5eeb588158deb991724868b8c14fd2386af7dccae3d895520b8baef9ad194`。两组评分均核验
+  generation/config/reference/raw 身份和逐条五维配对，human=0。没有生成新标签、读取
+  final 进行选优、改变历史隔离或降低字段支持。
+- v9 显式 release 验证、原运行包隔离导入与四层归档哈希复验通过；正式与 v9 配置、
+  observation v3、原 adapter 保持不变。本轮不重复 final，不新增 SFT 或 adapter 回载。
+- `compileall`、工作区及完整 `git diff --check dev...HEAD` 通过；627 个跟踪文件扫描
+  无大于 10 MiB 的文件、无所检私钥/AWS/OpenAI 密钥特征命中。Spartan 原 adapter SHA
+  复验仍为 `c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a`。
+- 商品新增方案均被拒绝，故未开展新候选的业务 smoke 或重复图加速验收；不把历史
+  v9 的此类结果写成本轮重新执行。检索的真实 API/分派复验是本轮实际执行。
+- 只提交/推送 `feature/week8-product-understanding`，主工作树 34 个既有改动不处理。
+  检索修复在 feature 源码中，未重新打包或部署；第 14 节的候选通过只绑定原 v9 包。
+
+从已同步既有产物的仓库根目录复核（下列 `recheck` 目录/文件必须尚不存在；不调用模型）：
+
+```bash
+python scripts/score_week8_visual_silver.py --config configs/week8/contract_ablation_v5.json --output outputs/week8/review/compact_v5_recheck
+python scripts/compare_week8_incumbent.py --comparison outputs/week8/review/compact_v5_recheck/comparison.json --output outputs/week8/review/compact_v5_incumbent_recheck.json
+python scripts/score_week8_visual_silver.py --config configs/week8/contract_ablation_v6.json --output outputs/week8/review/compact_v6_recheck
+python scripts/compare_week8_incumbent.py --comparison outputs/week8/review/compact_v6_recheck/comparison.json --output outputs/week8/review/compact_v6_incumbent_recheck.json
+python -m unittest tests.test_product_observation_compact tests.test_query_constraint_coverage -v
+python -m unittest discover -s tests -v
+```
+
+最终选择不变：`product_visual_observation_v3` + base；不把未通过的 v4/v5/v6 接入 release。
+本轮完成紧凑协议实验、严格选优及检索条件修复，未取得新的商品语义或稳定提速收益。
+风格误报、设施漏误识、稀疏业态/多主体与价位支持不足继续如实保留；所有新增参考依旧
+自动 silver，不安排人工工作，不宣称人工准确率或正式生产晋级。
