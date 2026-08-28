@@ -44,6 +44,7 @@ def protocol_files(root, config):
     paths = {config[key] for key in ("candidate_release", "formal_release", "teacher_config", "teacher_observation", "candidate_observation")}
     paths.update({"scripts/run_week8_visual_final.py", "scripts/collect_week8_visual_silver.py",
                   "src/inference/system_runtime.py", "src/inference/product_observation.py", "src/inference/schemas.py",
+                  "src/inference/observation_constraints.py",
                   "src/inference/processor_cache.py", "src/inference/business_validation.py",
                   "src/evaluation/week8_visual_silver.py", "src/evaluation/product_semantics.py",
                   "src/evaluation/schema_validation.py", "src/evaluation/prompting.py", "src/data/week8_visual_holdout.py",

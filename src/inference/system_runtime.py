@@ -531,10 +531,18 @@ class TransformersPeftBackend:
                     raise RuntimeConfigurationError(
                         "processor does not expose a tokenizer for constrained decoding"
                     )
+                constraint_protocol = response_format.get("constraint_protocol")
+                if constraint_protocol is not None:
+                    from src.inference.observation_constraints import PROTOCOL, build_observation_constraint_parser
+                    if constraint_protocol != PROTOCOL:
+                        raise RuntimeConfigurationError("unsupported decoder constraint protocol")
+                    parser = build_observation_constraint_parser(schema)
+                else:
+                    parser = JsonSchemaParser(schema)
                 generation_constraints["prefix_allowed_tokens_fn"] = (
                     build_transformers_prefix_allowed_tokens_fn(
                         tokenizer,
-                        JsonSchemaParser(schema),
+                        parser,
                     )
                 )
             with self._torch.inference_mode():

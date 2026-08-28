@@ -12,6 +12,7 @@ from scripts.review_week8_observation_retry import load_cases
 from src.data.week8_visual_holdout import read_json, within, write_json_new
 from src.training.week7_data import iter_jsonl, sha256_file
 from src.inference.product_observation import canonical_config_sha256, observation_messages, observation_correction_messages, parse_observation, map_observation
+from src.inference.product_observation import observation_correction_response_format
 
 
 def replay_records(root, cases, records, observation, generation_root=None):
@@ -26,6 +27,9 @@ def replay_records(root, cases, records, observation, generation_root=None):
             case["previous_raw"], case["validation_error"], observation)
         if row["sample_id"] != case["sample_id"] or row["input_messages_sha256"] != canonical_config_sha256(messages):
             raise ValueError("correction model inputs differ from locked development case")
+        response_format = observation_correction_response_format(observation)
+        if (response_format is not None or "response_format_sha256" in row) and row.get("response_format_sha256") != canonical_config_sha256(response_format):
+            raise ValueError("correction decoder constraints differ from the tested protocol")
         value = None
         if row.get("raw_output") is not None:
             try:
@@ -57,6 +61,8 @@ def verify(root, config_path, generation_root=None):
             or identity["reference_targets_supplied"] is not False or identity["human_annotation_count"] != 0
             or identity["runner_sha256"] != sha256_file(root / "scripts/review_week8_observation_retry.py")
             or identity["correction_implementation_sha256"] != sha256_file(root / "src/inference/product_observation.py")
+            or identity.get("decoder_implementation_sha256") != sha256_file(root / "src/inference/observation_constraints.py")
+            or identity.get("backend_implementation_sha256") != sha256_file(root / "src/inference/system_runtime.py")
             or any(identity.get(key) != value for key, value in source_audit.items())
             or summary["status"] != "COMPLETED" or summary["final_test_access"] is not False
             or summary["case_manifest_sha256"] != sha256_file(output / "cases.jsonl")

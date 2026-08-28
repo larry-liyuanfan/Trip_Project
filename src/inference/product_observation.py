@@ -183,10 +183,19 @@ def observation_messages(image, config):
 
 def validate_correction_protocol(config):
     protocol = config.get("correction_protocol", "legacy_v1")
-    if protocol not in {"legacy_v1", "bounded_history_v1"}:
+    if protocol not in {"legacy_v1", "bounded_history_v1", "subject_schema_v1"}:
         raise ValueError("unsupported observation correction protocol")
-    if protocol == "bounded_history_v1" and (config.get("protocol") != "product_visual_observation_v3" or config.get("max_attempts") != 2):
-        raise ValueError("history correction requires v3 with exactly one correction")
+    if protocol != "legacy_v1" and (config.get("protocol") != "product_visual_observation_v3" or config.get("max_attempts") != 2):
+        raise ValueError("bounded correction requires v3 with exactly one correction")
+
+
+def observation_correction_response_format(config):
+    validate_correction_protocol(config)
+    if config.get("correction_protocol") != "subject_schema_v1":
+        return None
+    from src.inference.observation_constraints import PROTOCOL
+    return {"type": "json_schema", "constraint_protocol": PROTOCOL,
+            "json_schema": {"name": "product_observation_correction", "schema": observation_schema(config)}}
 
 
 def observation_correction_messages(messages, raw, error, config):
@@ -214,7 +223,8 @@ def generate_observation(backend, image, config):
     active = messages
     for attempt in range(1, config["max_attempts"] + 1):
         started = time.perf_counter()
-        generated = backend.generate_with_usage(active, response_format=None, max_new_tokens=config["max_new_tokens"])
+        response_format = observation_correction_response_format(config) if attempt > 1 else None
+        generated = backend.generate_with_usage(active, response_format=response_format, max_new_tokens=config["max_new_tokens"])
         error = None
         observation = product = None
         try:

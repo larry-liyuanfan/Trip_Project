@@ -15,6 +15,7 @@ from src.training.week7_data import IDENTITY_FIELDS, iter_jsonl, sha256_file
 from src.inference.product_observation import (
     canonical_config_sha256, load_observation_config, observation_messages,
     observation_correction_messages, parse_observation, map_observation,
+    observation_correction_response_format,
 )
 from src.inference.system_runtime import ReleaseSettings, TransformersPeftBackend, ModelGenerationError
 
@@ -114,6 +115,8 @@ def run(config_path, audit_only=False):
         "base_model": settings.base_model, "base_revision": settings.base_revision,
         "profile_config_hashes": {name: sha256_file(within(ROOT, path)) for name, path in config["profiles"].items()},
         "runner_sha256": sha256_file(Path(__file__)), "correction_implementation_sha256": sha256_file(ROOT / "src/inference/product_observation.py"),
+        "decoder_implementation_sha256": sha256_file(ROOT / "src/inference/observation_constraints.py"),
+        "backend_implementation_sha256": sha256_file(ROOT / "src/inference/system_runtime.py"),
         "reference_targets_supplied": False, "final_test_access": False, "human_annotation_count": 0})
     with (output / "cases.jsonl").open("x", encoding="utf-8", newline="\n") as handle:
         for case in cases:
@@ -132,9 +135,11 @@ def run(config_path, audit_only=False):
                 messages = observation_correction_messages(observation_messages(str(ROOT / case["image_path"]), observation),
                     case["previous_raw"], case["validation_error"], observation)
                 started = time.perf_counter()
-                record = {"case_id": case["case_id"], "sample_id": case["sample_id"], "input_messages_sha256": canonical_config_sha256(messages)}
+                response_format = observation_correction_response_format(observation)
+                record = {"case_id": case["case_id"], "sample_id": case["sample_id"], "input_messages_sha256": canonical_config_sha256(messages),
+                          "response_format_sha256": canonical_config_sha256(response_format)}
                 try:
-                    generated = backend.generate_with_usage(messages, response_format=None, max_new_tokens=observation["max_new_tokens"])
+                    generated = backend.generate_with_usage(messages, response_format=response_format, max_new_tokens=observation["max_new_tokens"])
                     record.update(raw_output=generated.content, input_tokens=generated.input_tokens, output_tokens=generated.output_tokens)
                     record["result"] = map_observation(parse_observation(generated.content, observation), observation)
                     record.update(passed=True, error=None)
