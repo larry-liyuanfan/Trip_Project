@@ -2,12 +2,12 @@
 
 ## 1. 结论
 
-**2026-08-29 当前：v12通过development与独立final v6质量验收，完整交接待验；v11最终失败不晋级，v9冻结包保留历史自动silver资格。**
+**2026-08-29 当前：v12已完整通过自动silver候选验收及双端交接，达到本轮可晋级候选目标；未替换正式发布。**
 后续 v10 虽在 development 和新 final 都有小幅风格收益，但新 final 请求失败 1/100，
 因此不晋级；v11 虽无请求失败，却因业态准确率低于同批正式基线而再次被拒绝。继续优化
-目标尚待交接复验；v12 development综合0.754617→0.774020，final与同场v9各指标持平，
+v12 development综合0.754617→0.774020，final与同场v9各指标持平，
 不得声称最终再提升。最新完整表见16.22。v9/v10/v11已生成产物均不覆盖。
-最近一次通过的最终结果与交接证据见 14.8—14.9；九项确定性缺陷及后续复审反例已修复。v7 的
+v9历史通过证据见14.8—14.9，当前v12结果与交接见16.22—16.24；九项确定性缺陷及后续复审反例已修复。v7 的
 猜测/行程问题、v8 的无效最终参考均保留为失败证据。此结论不是人工视觉准确率或无条件
 生产可用性。以下第 1—13 节的旧选择和分数为历史记录，不能作为现行候选的晋级依据。
 
@@ -1989,4 +1989,64 @@ CPU29710265（7秒/0:0）完成一次评分和独立验收。正式基线严格�
 此修正发生在final及验收完成后，没有改动其锁定的模型、数据、评分或源码。
 Spartan原缺陷定向29710335为64/64（0.226秒），本地完整v64为910/910（35.084秒），
 v64日志SHA `36de771c358627733a767a0e52f7c3aa3178d9ee735400f84cc23f77577e845e`。
-Spartan完整复跑和交接包仍待验证，不能将定向测试代替全量。
+Spartan在36a8348完整复跑29710448通过（作业33秒/0:0，910/910测试17.540秒），随后
+完整final原始/身份/业务验收再次PASS。日志SHA
+`fdfac8b5d55025b21e13db6e7aa435a120c39949a5ff4faab54fc0bbfa4f2060`；新增验收receipt位于
+`outputs/week8/review/week8_v12_spartan_full_suite_acceptance_20260829_v1.json`，没有覆盖
+原final验收记录。两端原始数据/adapter哈希一致，旧v9完整交接包再次复验PASS。
+
+### 16.24 v12交接完成与当前边界
+
+交接目录为`outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v12-rc1`，本地验证及
+Spartan CPU29710473（36a8348，4秒/0:0）均PASS：四层哈希、锁、100张图片、原始
+参考/推理、完整样本/失败披露、纠错切片及新无标签来源池快照均通过。模型协议源码锁
+仍是53dd1db，后续只改测试fixture/依赖和交付说明，没有改模型、参考或最终评分实现。
+manifest SHA `1a9868e6d4a28e1dfcfa619839f3526a0a5277146550aa49202bf04418325ab0`。
+
+| 层 | bytes / 文件数 | SHA-256 |
+|---|---:|---|
+| runtime | 125880 / 143 | `5c2f842472f2180946503d0a330fa4ccd3f514e1f70adc40e8231b4ca90c957b` |
+| adapter | 57850259 / 4 | `f74c078738fa0229574114986c58040bbc280e11ba4ec06558c9a488c2de619d` |
+| retrieval | 1951172 / 3 | `3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b` |
+| evidence | 7147110 / 213 | `82c54c56bd8dc8aafe788c87706222116983e84f76fa9bb94ab5d2091d90df6e` |
+
+adapter/retrieval与冻结v9完全相同。运行层和实际所选配置在脱离工作树的临时环境导入，
+两端10条OpenAPI路径相同且必需业务路径完整。本地FastAPI0.136.1/Starlette1.0.1与
+Spartan0.141.1/1.6.0的顶层路由对象计数为14/6；远端有两个`_IncludedRouter`，这是
+框架对象表示差异，不等于业务接口缺失。没有声称两份验证JSON逐字相同；四层内容和
+实际路径集合一致。跨主机receipt SHA
+`e009474a5da090022cdc0159f7e6584545ceea5818cdc6380723bae8edd9fb22`。
+
+`configs/week8/candidate_handoff_v12.json`登记37个证据输入及来源版本。按该清单在本地新的
+临时目录实际重建，manifest及四层逐字节一致，重建包独立交接检查也PASS；原包不改。
+recipe SHA `502cdfc73006dc120229454ea90fbb35d1da5e8d4402cafd7c6c9b9b4abdaf25`，重建
+receipt SHA `a9a3d1af4cc1445cf65d1837a899b7bd1a90e3141d46b8c0c641d0edd529a54c`。
+该字节重现结论针对相同字节源；跨主机验证的是已分发的同一包，不声称任意换行/权限
+环境重新打包也天然逐字节相同。
+
+现有包可直接只读复验，不启动GPU或消费final：
+
+```bash
+python -c "from pathlib import Path; from scripts.verify_week8_candidate_handoff import verify; print(verify(Path('outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v12-rc1'), 'evidence/week8_visual_holdout_20260829_v6/promotion_acceptance.json'))"
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v12.json validate
+```
+
+重建时从recipe读取`adapter_dir`、`retrieval_dir`、`release_config`及`evidence_paths`，
+交给已有`build_release_bundle.build_bundle`，输出必须是新目录。版本化清单不是重新
+运行teacher/inference的授权；final v6已永久消费，不能复跑或用于调参。
+
+当前完成：商品标签/证据口径与原九项缺陷修复、原development实测改进、新100图单次
+最终验收、真实商品/对话/约束行程与检索、重复性能基准、完整原始重放和可复现交接。
+本地/Spartan全量910/910、原缺陷定向64/64分别通过；CLI/Compose静态检查通过，未
+启动Compose服务。715个tracked/新增文件的密钥特征/敏感路径/>5MB扫描均0，工作树
+及`dev...HEAD`的diff检查通过。主`dev`的34项既有改动保留，未reset/stash/暂存/提交。
+交付仅在`feature/week8-product-understanding`，没有合并、打标签或改正式默认配置。
+
+仍待优化的准确边界：
+
+- 新final指标与v9持平；development的两例餐饮门面修复不能推出整体泛化能力再提高。
+- 业态/多主体和风格、设施仍有漏识别/误识别；完整切片见16.19，不能以结构完整等同语义正确。
+- 价位视觉正支持0，N/A；没有依据时保持unknown，不增加人工或用商家价格替代视觉证据。
+- 缓存没有实质加速，v12 final均时比v9约慢1.18%；保留失败的降像素/压缩/纠错尝试，不能写成提速完成。
+- 行程对话仍有一次模型纠错，检索未支持条件仍明确NOT_COMPLETED；检索闭环通过不等于证明新的视觉相关性提升。
+- 所有新增参考仍为model_generated_silver，权重0.5，人工参与0；不声称人工准确率、统计显著性或无条件生产可用。

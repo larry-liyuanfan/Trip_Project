@@ -1005,10 +1005,11 @@ style F1 0.630435→0.637363，其他支持字段不退。2026-08-29准确v11真
 `product_observation_subject_review_v1.json` 的固定60图实测类别32/39→30/39，已拒绝。
 后续v2收窄到可见功能事实与类别矛盾才复查，保持原风格/设施/价位。v16真实60图类别
 32/39→34/39，综合0.754617→0.774020、JSON/Schema100%、失败0；平均耗时增2.53%。
-当前登记 `qwen3_vl_system_week8_v12.json` 待独立验收，不作为正式默认配置；完整910项
+当前 `qwen3_vl_system_week8_v12.json` 已通过自动silver候选验收，不作为正式默认配置；完整910项
 unittest通过，准确配置的真实业务/检索和24次固定输入性能已通过，raw独立复算一致；
 缓存没有实质提速。新100图final v6的正式/v9/v12综合为0.375508/0.714061/0.714061，
-质量验收及跨主机原始复算PASS；v12最终与v9持平，不能宣称最终再提升。交接包仍待验。
+质量验收及跨主机原始复算PASS；v12最终与v9持平，不能宣称最终再提升。四层交接包本地与
+Spartan均PASS，完整测试两端910/910；准确限制与当前结果见商品报告16.22—16.24。
 
 完整CPU测试使用独立依赖组，不需要安装GPU推理框架：
 
@@ -1037,3 +1038,12 @@ python scripts/score_week8_reference_revision.py --generation-config configs/wee
 ```
 
 实际模型/API 调用与失败记录见商品报告第 16 节。自动 silver 不等于人工视觉准确率。
+
+当前完整候选包：`outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v12-rc1`。
+可复现输入清单为`configs/week8/candidate_handoff_v12.json`，实际重建已验证四层字节一致。
+只读检查不消费已冻结的final，也不启动模型：
+
+```bash
+python -c "from pathlib import Path; from scripts.verify_week8_candidate_handoff import verify; print(verify(Path('outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v12-rc1'), 'evidence/week8_visual_holdout_20260829_v6/promotion_acceptance.json'))"
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v12.json validate
+```
