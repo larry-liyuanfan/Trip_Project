@@ -934,16 +934,15 @@ python scripts/score_week8_visual_silver.py --config configs/week8/contract_abla
 观察结果按确定性规则映射到原商品 Schema，缺乏价位比较口径时返回 unknown。售后可保留
 正式 adapter，商品/行程/对话独立关闭 adapter，异常时恢复状态。配置哈希不匹配直接失败。
 
-持续复验与一次性 final 的入口如下。输出目录已存在时拒绝覆盖；不要重跑已消费 final。
-先完成 development 与真实业务探针，再执行 `seal`，最后 teacher/inference 各一次和评分。
+当前已消费的 `visual_final_v2.json` 因无效参考失败，不能重新运行；原锁定协议对应
+`40a0f34`，详见商品报告 14.5。当前继续进行下列 development-only 验证，产物目录已
+存在时均拒绝覆盖，不要为了获得 PASS 更换旧最终参考或反复重新抽样。
 
 ```bash
-python scripts/verify_week8_candidate_runtime.py --config configs/week8/candidate_runtime_probe_v3.json
-python scripts/build_week8_visual_holdout.py --config configs/week8/visual_final_v2.json
-python scripts/run_week8_visual_final.py seal --config configs/week8/visual_final_v2.json
-python scripts/run_week8_visual_final.py teacher --config configs/week8/visual_final_v2.json
-python scripts/run_week8_visual_final.py inference --config configs/week8/visual_final_v2.json
-python scripts/run_week8_visual_final.py score --config configs/week8/visual_final_v2.json
+python scripts/collect_week8_teacher_reliability.py --config configs/week8/visual_teacher_v4.json
+python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v4.json
+python scripts/score_week8_visual_silver.py --config configs/week8/contract_ablation_v4.json --output outputs/week8/review/week8_contract_comparison_20260828_v4
+python scripts/compare_week8_development_revision.py --previous outputs/week8/review/week8_contract_comparison_20260828_v3/comparison.json --current outputs/week8/review/week8_contract_comparison_20260828_v4/comparison.json --output outputs/week8/review/week8_development_revision_20260828_v1.json
 ```
 
 `seal` 需要已存在且通过的探针和候选 release；缺失时禁止启动最终推理。原生图片模板
