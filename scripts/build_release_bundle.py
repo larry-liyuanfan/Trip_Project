@@ -64,8 +64,14 @@ def verify_runtime_archive(archive_path: Path) -> dict:
                 "from src.api.app import app; from src.inference.system_runtime import ReleaseSettings; "
                 "from src.retrieval.visual_search import VisualSearchService; "
                 "settings=ReleaseSettings.load(root,root/'release/release_config.json'); "
+                "paths=sorted(app.openapi()['paths']); "
+                "required={'/health','/ready','/v1/tasks/image-product-search','/v1/tasks/after-sales',"
+                "'/v1/tasks/itinerary-planning','/v1/dialogue','/v1/visual-search'}; "
+                "missing=required-set(paths)\n"
+                "if missing: raise ValueError('required business routes missing: '+','.join(sorted(missing)))\n"
                 "print(json.dumps({'status':'PASS','release_id':settings.release_id,"
-                "'route_count':len(app.routes),'observation_loaded':settings.product_observation is not None}))")
+                "'route_count':len(app.routes),'registered_paths':paths,'required_business_paths_present':True,"
+                "'observation_loaded':settings.product_observation is not None}))")
         result = subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", code], cwd=root,
                                 env=dict(os.environ, APP_ENV="production", PYTHONIOENCODING="utf-8"),
                                 capture_output=True, text=True, encoding="utf-8", timeout=60)

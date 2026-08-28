@@ -964,6 +964,8 @@ release 没有替换，也未合并长期分支或打标签。商品使用 `prod
 `reports/week8_product_understanding_optimization_report.md` 第 14 节。以下命令只校验
 候选配置或已生成交接包，不调用模型、不重新消费 final：
 
+交接验证还会检查七个必需 API 端点是否齐全，不依赖 FastAPI 内部路由对象数量。
+
 ```bash
 python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v9.json validate
 python -c "from pathlib import Path; from scripts.verify_week8_candidate_handoff import verify; print(verify(Path('outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v9-rc1'), 'evidence/week8_visual_holdout_20260828_v3/promotion_acceptance.json'))"
