@@ -1355,3 +1355,13 @@ manifest.
   不并发其他 GPU 作业。质量结果尚未产生，不提前宣称达成优化目标。
 - 完整 unittest 786/786（49.368 秒）通过，日志独立保存为
   `outputs/week8/review/week8_full_unittest_20260828_v29.log`；旧协议及本轮各失败路径均覆盖。
+- 执行提交 `151a8f2`，GPU job `29704676`，38 分钟 A100 MIG。提交前预检发现 Spartan
+  不存在原教师副本，未启动 GPU；从本地原样补传 raw/identity 后 SHA、60 条与五维隔离
+  检查通过再提交。不是新 teacher，不改标签或消费 final。
+- 检查固定 Transformers 4.57.1 源码发现 FastImageProcessor 的像素边界由 `size` 或
+  成对 min/max 生成，原 runtime 单独设置 `max_pixels` 可能未生效。新增兼容 fast/legacy
+  的边界设置器和实际 processor CPU 探针，None 对 v9 保持 no-op；31 条定向回归通过。
+  该修复尚未改变任何已锁定 release 的像素参数，也不据此宣称商品提速或质量提升。
+- 像素边界修复后的完整 unittest 792/792（40.222 秒）通过，日志
+  `outputs/week8/review/week8_full_unittest_20260828_v30.log`，SHA
+  `4f98caa3781ff59db5ab1e5985deba6e3183cac855cbf0e5c0d8a81407c149c8`。

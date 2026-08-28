@@ -1,0 +1,18 @@
+{
+  "run_id": "week8_processor_limit_probe_20260828_v1",
+  "output_root": "outputs/week8/review/week8_processor_limit_probe_20260828_v1",
+  "image_path": "outputs/week8/product_understanding_v7/locked_data/week8_product_understanding_20260827_v7/images/public/cc5034c59eb75c3777457be2272604f635cb86a0929185725a4b17f07510f2e5.jpg",
+  "image_sha256": "cc5034c59eb75c3777457be2272604f635cb86a0929185725a4b17f07510f2e5",
+  "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+  "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+  "observation_config": "configs/week8/product_observation_v3.json",
+  "cpu_threads": 4,
+  "modes": [
+    {"mode": "baseline", "max_pixels": null},
+    {"mode": "legacy_attribute", "max_pixels": 131072},
+    {"mode": "effective_limit", "max_pixels": 131072},
+    {"mode": "effective_limit", "max_pixels": 65536}
+  ],
+  "final_test_access": false,
+  "human_annotation_count": 0
+}

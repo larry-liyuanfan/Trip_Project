@@ -616,9 +616,8 @@ class TransformersPeftBackend:
             revision=self.settings.base_revision,
             trust_remote_code=False,
         )
-        image_processor = getattr(processor, "image_processor", None)
-        if image_processor is not None and self.settings.visual_max_pixels is not None:
-            image_processor.max_pixels = self.settings.visual_max_pixels
+        from src.inference.visual_limits import configure_visual_pixel_limit
+        configure_visual_pixel_limit(processor, self.settings.visual_max_pixels)
         # 只有完整初始化后才发布状态，processor 加载失败不会留下半就绪模型。
         self._model, self._processor, self._torch = model, processor, torch
 
