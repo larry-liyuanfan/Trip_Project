@@ -13,6 +13,7 @@ from src.inference.product_observation import (
 from src.inference.system_runtime import GenerationResult
 from src.evaluation.visual_reference_validation import map_teacher_observation
 from scripts.review_week8_observation_retry import load_cases, previous_wire
+from scripts.verify_week8_observation_retry import replay_records
 from src.training.week7_data import sha256_file
 
 
@@ -137,6 +138,34 @@ class ObservationHistoryCorrectionTests(unittest.TestCase):
         for flag in (True, None):
             with self.assertRaisesRegex(ValueError, "development-only"):
                 load_cases(ROOT, {"final_test_access": flag, "human_annotation_count": 0})
+
+    def test_probe_raw_replay_catches_tampered_output_history_and_coverage(self):
+        case = {"case_id": "case-1", "sample_id": "dev-1", "image_path": "image.jpg",
+                "previous_raw": json.dumps(self.invalid), "validation_error": "food closeup cannot establish venue style or facilities"}
+        messages = observation_correction_messages(observation_messages(str(ROOT / case["image_path"]), self.config),
+            case["previous_raw"], case["validation_error"], self.config)
+        record = {"case_id": case["case_id"], "sample_id": case["sample_id"],
+                  "input_messages_sha256": canonical_config_sha256(messages), "passed": True, "error": None,
+                  "raw_output": json.dumps(self.valid), "result": map_observation(self.valid, self.config), "elapsed_ms": 1.0,
+                  "input_tokens": 10, "output_tokens": 20}
+        result = replay_records(ROOT, [case], [record], self.config)
+        self.assertEqual(result["failures"], 0)
+        for updates in ({"input_messages_sha256": "bad"}, {"result": {}}, {"raw_output": json.dumps(self.invalid)},
+                        {"passed": False, "error": "invented failure"}, {"elapsed_ms": float("nan")}):
+            with self.assertRaises(ValueError):
+                replay_records(ROOT, [case], [{**record, **updates}], self.config)
+        with self.assertRaises(ValueError):
+            replay_records(ROOT, [case], [], self.config)
+        failed = {**record, "passed": False, "result": None, "raw_output": json.dumps(self.invalid),
+                  "error": "food closeup cannot establish venue style or facilities"}
+        self.assertEqual(replay_records(ROOT, [case], [failed], self.config)["failures"], 1)
+        remote_root = "/example/generation/root"
+        remote_messages = observation_correction_messages(observation_messages(remote_root + "/image.jpg", self.config),
+            case["previous_raw"], case["validation_error"], self.config)
+        remote_record = {**record, "input_messages_sha256": canonical_config_sha256(remote_messages)}
+        self.assertEqual(replay_records(ROOT, [case], [remote_record], self.config, remote_root)["failures"], 0)
+        with self.assertRaises(ValueError):
+            replay_records(ROOT, [case], [remote_record], self.config)
 
 
 if __name__ == "__main__":
