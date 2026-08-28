@@ -42,6 +42,7 @@ def load_observation_config(path: Path, expected_sha256: str):
     if "style_scope_policy" in config:
         from src.inference.product_style_scope import validate_style_scope
         validate_style_scope(config)
+    validate_correction_protocol(config)
     return config
 
 
@@ -158,7 +159,31 @@ def observation_messages(image, config):
              {"type": "text", "text": config["task_prompt"] + "\nJSON Schema: " + schema}]}]
 
 
+def validate_correction_protocol(config):
+    protocol = config.get("correction_protocol", "legacy_v1")
+    if protocol not in {"legacy_v1", "bounded_history_v1"}:
+        raise ValueError("unsupported observation correction protocol")
+    if protocol == "bounded_history_v1" and (config.get("protocol") != "product_visual_observation_v3" or config.get("max_attempts") != 2):
+        raise ValueError("history correction requires v3 with exactly one correction")
+
+
+def observation_correction_messages(messages, raw, error, config):
+    validate_correction_protocol(config)
+    history = config.get("correction_protocol") == "bounded_history_v1"
+    previous = [{"role": "assistant", "content": raw}] if history or config["protocol"] == "product_visual_observation_v4" else []
+    instruction = "Validation error: " + error + ". Reobserve the original image and return a complete corrected JSON. Do not invent facts."
+    if history:
+        # 只带本请求的一条失败答复；不注入参考标签、不修改映射规则或增加纠错次数。
+        instruction += (" Your previous response is invalid; do not repeat the contradiction or return a partial patch. "
+                        "Check subject_kind against the actual visible scene and make all evidence fields consistent with it. "
+                        "A food_closeup has no venue style or facility evidence; those arrays must be empty. "
+                        "Only use a venue subject_kind when the image itself establishes a venue. "
+                        "Unsupported evidence must remain absent.")
+    return [*messages, *previous, {"role": "user", "content": instruction}]
+
+
 def generate_observation(backend, image, config):
+    validate_correction_protocol(config)
     if config.get("style_refinement") is not None:
         from src.inference.product_style_refinement import generate_refined_observation
         return generate_refined_observation(backend, image, config)
@@ -185,6 +210,5 @@ def generate_observation(backend, image, config):
                 from src.inference.product_style_scope import venue_style_evidence
                 result["style_scope_exclusions"] = venue_style_evidence(observation, config)[1]
             return result
-        previous = [{"role": "assistant", "content": generated.content}] if config["protocol"] == "product_visual_observation_v4" else []
-        active = [*messages, *previous, {"role": "user", "content": "Validation error: " + error + ". Reobserve the original image and return a complete corrected JSON. Do not invent facts."}]
+        active = observation_correction_messages(messages, generated.content, error, config)
     return {"passed": False, "result": None, "observation": None, "attempts": attempts}
