@@ -74,6 +74,16 @@ class ContractAblationTests(unittest.TestCase):
         output["itinerary"][0]["activities"][0]["place_name"] = "上海某文化空间（参考图中环境）"
         self.assertIn("activity_place_is_placeholder", itinerary_business_errors(output, "一天行程"))
 
+    def test_model_cannot_fabricate_retrieval_or_transport_details(self):
+        output = copy.deepcopy(ITINERARY_OUTPUT)
+        activity = output["itinerary"][0]["activities"][0]
+        activity.update(source_evidence=["imagined citation"], transport="地铁1号线至静安寺站步行5分钟")
+        errors = itinerary_business_errors(output, "一天行程")
+        self.assertIn("source_evidence_must_be_empty_without_retrieval", errors)
+        self.assertIn("transport_must_use_generic_mode_without_unverified_route", errors)
+        activity.update(source_evidence=[], transport="地铁或步行")
+        self.assertEqual(itinerary_business_errors(output, "一天行程"), [])
+
     def test_required_and_excluded_places_are_checked_in_activities(self):
         output = copy.deepcopy(ITINERARY_OUTPUT)
         output["constraint_check"] = [{"constraint": "必须包含故宫，不去长城", "constraint_type": "hard",

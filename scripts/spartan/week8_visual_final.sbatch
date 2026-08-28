@@ -22,7 +22,7 @@ export TMPDIR="$XDG_CACHE_HOME/tmp"
 mkdir -p "$TMPDIR"
 source "$TRIP_VENV/bin/activate"
 set +e
-python scripts/run_week8_visual_final.py inference --config "${TRIP_FINAL_CONFIG:-configs/week8/visual_final_v1.json}"
+python scripts/run_week8_visual_final.py inference --config "${TRIP_FINAL_CONFIG:-configs/week8/visual_final_v2.json}"
 status=$?
 if [[ "$status" != 0 ]]; then
   printf '%s\n' 'Application failed; preserve the consumed final attempt and retain allocation for 180 seconds diagnosis.'

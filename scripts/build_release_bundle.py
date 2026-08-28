@@ -6,21 +6,37 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
+import shutil
+import subprocess
+import sys
 import tarfile
+import tempfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RELEASE_CONFIG = ROOT / "configs/releases/qwen3_vl_system_v1.json"
 RUNTIME_PATHS = [
+    "src/__init__.py",
     "src/api",
     "src/inference",
     "src/retrieval",
+    "src/planning",
+    "src/data/__init__.py",
+    "src/data/yelp_paths.py",
+    "src/data/product_labels.py",
+    "src/evaluation/__init__.py",
+    "src/evaluation/scenarios.py",
     "src/evaluation/schema_validation.py",
     "src/evaluation/prompting.py",
+    "src/evaluation/product_semantics.py",
     "configs/evaluation/prompts",
     "configs/evaluation/schemas",
     "configs/releases",
+    "configs/retrieval",
+    "configs/week8/product_observation_v1.json",
+    "configs/week8/product_observation_v2.json",
     "docker/system",
     "scripts/tripctl.py",
     "scripts/load_system_retrieval.py",
@@ -28,6 +44,33 @@ RUNTIME_PATHS = [
     "requirements-training.txt",
     "requirements-milvus.txt",
 ]
+
+
+def verify_runtime_archive(archive_path: Path) -> dict:
+    """隔离导入打包后服务，不能借用源工作树掩盖缺失的运行依赖。"""
+    with tempfile.TemporaryDirectory(prefix="trip-runtime-verify-") as temporary:
+        root = Path(temporary).resolve()
+        with tarfile.open(archive_path, "r:gz") as archive:
+            for member in archive.getmembers():
+                destination = (root / member.name).resolve()
+                destination.relative_to(root)
+                if not member.isfile():
+                    raise ValueError("runtime archive may contain only regular files")
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with archive.extractfile(member) as source, destination.open("xb") as target:
+                    shutil.copyfileobj(source, target)
+        code = ("import json,sys; from pathlib import Path; root=Path.cwd(); sys.path.insert(0,str(root)); "
+                "from src.api.app import app; from src.inference.system_runtime import ReleaseSettings; "
+                "from src.retrieval.visual_search import VisualSearchService; "
+                "settings=ReleaseSettings.load(root,root/'release/release_config.json'); "
+                "print(json.dumps({'status':'PASS','release_id':settings.release_id,"
+                "'route_count':len(app.routes),'observation_loaded':settings.product_observation is not None}))")
+        result = subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", code], cwd=root,
+                                env=dict(os.environ, APP_ENV="production", PYTHONIOENCODING="utf-8"),
+                                capture_output=True, text=True, encoding="utf-8", timeout=60)
+        if result.returncode:
+            raise ValueError("isolated runtime import failed: " + result.stderr[-2000:])
+        return json.loads(result.stdout)
 
 
 def build_bundle(

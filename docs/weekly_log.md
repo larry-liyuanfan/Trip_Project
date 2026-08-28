@@ -1078,3 +1078,9 @@ as the current validated dataset or accepted baseline.
 - 新最终集构建器按五维身份排除 Week 3/5/6/7、system repair、所有 Week 8 商品锁、
   hard-slice 训练及五版检索身份；检索裸 business_id 与商品命名空间统一后排除。
   最终标签尚未生成；执行器要求先通过 development 与业务复验再锁定，每个角色只运行一次。
+- CPU job `29689536` 排除后剩余 428 张，封存 100 张无标签图片；复查发现无模板照片被
+  赋予实验模板名，保留 v1 产物但不消费，v2 用同 seed/来源顺序保留真实 null 模板。
+- 探针 v2 的北京请求仍漏城市检查；还发现未检索却生成线路和 source_evidence。新增
+  对应业务错误、结构化输入规则和行程 v4，保持一次纠错，不自动伪造通过检查。
+- 修复 runtime 包缺少 planning、data 辅助模块、scenarios 及商品/检索配置的问题；
+  隔离解包导入与故意缺依赖的反例均通过。完整 unittest 729/729 通过（23.130 秒）。

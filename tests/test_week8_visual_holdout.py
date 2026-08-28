@@ -40,6 +40,16 @@ class VisualHoldoutTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertNotIn("target", str(first))
 
+    def test_untemplated_photos_remain_null_not_artificially_isolated(self):
+        consumed = {key: set() for key in IDENTITY_FIELDS}
+        rows = [{"source_id": "s", "group_id": "g", "image_sha256": "a" * 64, "image_path": "a.jpg"}]
+        chosen, audit = choose_untouched(rows, consumed, 1, "seed", None)
+        self.assertIsNone(chosen[0]["constraint_template_id"])
+        self.assertEqual(audit["template_identity_status"], "not_applicable_untemplated_images")
+        rows[0]["constraint_template_id"] = "real-template"
+        with self.assertRaises(ValueError):
+            choose_untouched(rows, consumed, 1, "seed", None)
+
 
 if __name__ == "__main__":
     unittest.main()

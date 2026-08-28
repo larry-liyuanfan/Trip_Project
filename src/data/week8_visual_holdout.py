@@ -37,7 +37,7 @@ def identity_projection(row):
     return identity
 
 
-def choose_untouched(rows, consumed, count, seed, template):
+def choose_untouched(rows, consumed, count, seed, template, namespace="week8-visual-final-v1"):
     if type(count) is not int or count <= 0:
         raise ValueError("positive fixed sample count required")
     eligible, rejected = [], []
@@ -57,7 +57,9 @@ def choose_untouched(rows, consumed, count, seed, template):
     unique = {key: set() for key in ("sample_id", "source_id", "group_id", "image_sha256")}
     for index, row in enumerate(eligible[:count]):
         identity = identity_projection(row)
-        identity.update(sample_id=f"week8-visual-final-v1-{index:04d}", constraint_template_id=template)
+        if identity["constraint_template_id"] is not None and identity["constraint_template_id"] != template:
+            raise ValueError("cannot replace a real source template identity")
+        identity.update(sample_id=f"{namespace}-{index:04d}", constraint_template_id=template)
         for key in IDENTITY_FIELDS:
             if identity[key] in consumed[key]:
                 raise ValueError(f"historical {key} collision")
@@ -69,6 +71,7 @@ def choose_untouched(rows, consumed, count, seed, template):
     return chosen, {"source_count": len(rows), "eligible_count": len(eligible), "selected_count": count,
                     "rejected_count": len(rejected), "rejected_identities": rejected,
                     "selection": "seeded_source_identity_hash_without_labels", "dimensions": list(IDENTITY_FIELDS),
+                    "template_identity_status": "not_applicable_untemplated_images" if template is None else "explicit_template",
                     "historical_overlap_counts": {key: 0 for key in IDENTITY_FIELDS}}
 
 
@@ -124,7 +127,9 @@ def build_holdout(root, config_path):
         raise FileExistsError("holdout identity already sealed")
     consumed, history, audit, fresh = load_history(root, config)
     rows = list(iter_jsonl(root / audit["source"]["fresh_identity_path"]))
-    chosen, selection = choose_untouched(rows, consumed, config["sample_count"], config["seed"], config["template_id"])
+    if config["template_id"] is not None:
+        raise ValueError("native photos have no synthetic template; preserve null instead of inventing one")
+    chosen, selection = choose_untouched(rows, consumed, config["sample_count"], config["seed"], config["template_id"], config["dataset_version"])
     # 选定后检查全部图片；任何损坏直接失败，不替换难例或静默减少支持。
     for row in chosen:
         path = within(root, row["source_image_path"])

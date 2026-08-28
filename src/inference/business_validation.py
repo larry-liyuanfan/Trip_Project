@@ -102,6 +102,8 @@ def itinerary_request_contract(text):
     return {"days": days, "required_checks": list(dict.fromkeys(required_checks)),
             "start_date": start.isoformat() if start else None,
             "date_rule": "Use only user-specified dates; if none, every itinerary.date must be null.",
+            "transport_rule": "Only a generic mode (地铁/公交/步行); never line numbers, stations or estimated travel minutes.",
+            "source_evidence_rule": "No retrieval was performed. Every activity.source_evidence must be an empty list [].",
             "source": "user_text_only", "not_a_completed_plan": True}
 
 
@@ -129,6 +131,11 @@ def _activity_constraint_errors(days: list[dict], text: str) -> list[str]:
             place = activity.get("place_name")
             if (not place and has_destination) or re.search(r"某(?:个|家|处|文化|美术|景点)|附近.*(?:或|场所|地点)|或类似|待定|待确认|to be determined|some (?:museum|place|cafe)", str(place), re.I):
                 errors.append("activity_place_is_placeholder")
+            if activity.get("source_evidence"):
+                errors.append("source_evidence_must_be_empty_without_retrieval")
+            transport_text = str(activity.get("transport") or "")
+            if re.search(r"\d+\s*(?:号?线|分钟|min(?:utes)?\b)|(?:至|到|from|to)\s*[^，,。;；]*站|\bline\s*\d+", transport_text, re.I):
+                errors.append("transport_must_use_generic_mode_without_unverified_route")
             start, end = (_clock_minutes(activity.get(key)) for key in ("start_time", "end_time"))
             if any(activity.get(key) is not None and _clock_minutes(activity[key]) is None
                    for key in ("start_time", "end_time")):

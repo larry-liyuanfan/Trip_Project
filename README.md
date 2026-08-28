@@ -929,3 +929,24 @@ python scripts/score_week8_visual_silver.py --config configs/week8/contract_abla
 ```
 
 `DEVELOPMENT_CANDIDATE` 仅表示固定图像银标口径下的开发候选，仍禁止据此直接晋级。
+
+实际服务支持版本化 `product_pipeline=visual_observation` 与逐场景 adapter 开关；商品
+观察结果按确定性规则映射到原商品 Schema，缺乏价位比较口径时返回 unknown。售后可保留
+正式 adapter，商品/行程/对话独立关闭 adapter，异常时恢复状态。配置哈希不匹配直接失败。
+
+持续复验与一次性 final 的入口如下。输出目录已存在时拒绝覆盖；不要重跑已消费 final。
+先完成 development 与真实业务探针，再执行 `seal`，最后 teacher/inference 各一次和评分。
+
+```bash
+python scripts/verify_week8_candidate_runtime.py --config configs/week8/candidate_runtime_probe_v3.json
+python scripts/build_week8_visual_holdout.py --config configs/week8/visual_final_v2.json
+python scripts/run_week8_visual_final.py seal --config configs/week8/visual_final_v2.json
+python scripts/run_week8_visual_final.py teacher --config configs/week8/visual_final_v2.json
+python scripts/run_week8_visual_final.py inference --config configs/week8/visual_final_v2.json
+python scripts/run_week8_visual_final.py score --config configs/week8/visual_final_v2.json
+```
+
+`seal` 需要已存在且通过的探针和候选 release；缺失时禁止启动最终推理。原生图片模板
+身份为 null/N/A，不人为制造模板隔离。最终结果仅用于锁定候选的验收，不能传入 development
+选择器。运行层打包后应调用 `scripts.build_release_bundle.verify_runtime_archive`，隔离导入
+API 与实际 release 配置；文件哈希正确不代表依赖完整或业务通过。

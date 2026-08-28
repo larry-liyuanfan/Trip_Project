@@ -250,6 +250,6 @@ def score(root, config_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["seal", "teacher", "inference", "score"])
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/week8/visual_final_v1.json")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/week8/visual_final_v2.json")
     args = parser.parse_args()
     print(json.dumps(globals()[args.action](ROOT, args.config.resolve()), ensure_ascii=False), flush=True)

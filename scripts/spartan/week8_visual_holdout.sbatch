@@ -14,4 +14,4 @@ cd "$TRIP_PROJECT_ROOT"
 module purge
 module load GCCcore/11.3.0 Python/3.11.3
 source "$TRIP_DATA_VENV/bin/activate"
-python scripts/build_week8_visual_holdout.py --config "${TRIP_FINAL_CONFIG:-configs/week8/visual_final_v1.json}"
+python scripts/build_week8_visual_holdout.py --config "${TRIP_FINAL_CONFIG:-configs/week8/visual_final_v2.json}"

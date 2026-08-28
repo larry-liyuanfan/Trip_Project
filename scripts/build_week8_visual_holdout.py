@@ -10,5 +10,5 @@ from src.data.week8_visual_holdout import build_holdout
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/week8/visual_final_v1.json")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/week8/visual_final_v2.json")
     print(json.dumps(build_holdout(ROOT, parser.parse_args().config.resolve())))
