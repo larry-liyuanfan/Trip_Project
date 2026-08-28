@@ -1321,3 +1321,6 @@ manifest.
   否定证据校验正确拒绝。追加 `contract_ablation_v6.json`：只在新对象协议里把模型看到的
   Schema 换成等价 `propertyNames` 表达，明确允许 `{}`、禁止填入缺席属性；内部仍用展开
   Schema 完整校验，不降低失败/语义标准。该追加比较仍使用原 60 条和固定教师，不接触 final。
+- 扩展检索 v4 job `29697507`（`8afd53c`）通过 8 查询、4 对话状态检查；原索引/CLIP
+  向量未变。进一步修复英语复数业态未被解析的问题，`restaurants/hotels/cafes/museums/parks`
+  按完整词映射原类别，继续保留否定处理；新 v5 探针增加两条英语查询，不修改旧探针结果。

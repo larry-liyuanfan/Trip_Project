@@ -6,7 +6,7 @@ from src.data.product_labels import affirmative_term
 
 
 QUERY_TERMS = {
-    "business_category": {"hotel": ("hotel", "酒店"), "restaurant": ("restaurant", "cafe", "餐厅", "咖啡馆"), "attraction": ("museum", "park", "景点", "博物馆")},
+    "business_category": {"hotel": ("hotel", "hotels", "酒店"), "restaurant": ("restaurant", "restaurants", "cafe", "cafes", "餐厅", "咖啡馆"), "attraction": ("museum", "museums", "park", "parks", "景点", "博物馆")},
     "price_range": {"budget": ("budget", "cheap", "便宜", "经济"), "mid_range": ("mid range", "适中"), "premium": ("premium", "高档"), "luxury": ("luxury", "奢华")},
 }
 

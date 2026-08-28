@@ -35,6 +35,16 @@ class QueryConstraintCoverageTests(unittest.TestCase):
         self.assertEqual(unapplied_query_text("find calm restaurant", {"city": "a", "business_category": "restaurant"}), "calm")
         self.assertEqual(unapplied_query_text("find restaurant in LA", {"city": "LA", "business_category": "restaurant"}), "")
 
+    def test_plural_categories_apply_the_same_filters_without_substring_matches(self):
+        for term, category in (("restaurants", "restaurant"), ("hotels", "hotel"), ("cafes", "restaurant"), ("museums", "attraction"), ("parks", "attraction")):
+            with self.subTest(term=term):
+                text = "find cheap " + term
+                attrs = user_query_attributes(text)
+                self.assertEqual(attrs, {"business_category": category, "price_range": "budget"})
+                self.assertEqual(unapplied_query_text(text, attrs), "")
+                self.assertNotIn("business_category", user_query_attributes("no " + term))
+        self.assertEqual(user_query_attributes("find sparks"), {})
+
     def test_production_api_does_not_report_conflicting_query_as_completed(self):
         service = Mock()
         service.search.return_value = [{"business_id": "b1", "price_range": "budget"}]
