@@ -25,6 +25,7 @@ from src.evaluation.visual_teacher_retry import collect_with_history
 from src.evaluation.visual_reference_validation import map_teacher_observation
 from src.inference.visual_limits import temporary_visual_pixel_limit
 from scripts.compare_week8_development_revision import compare as compare_revision
+from scripts.validate_week8_correction_evidence import validate_correction_evidence
 
 
 def source_hash(path):
@@ -55,6 +56,10 @@ def protocol_files(root, config):
                   "scripts/verify_week8_candidate_acceptance.py"})
     if config.get("development_config"):
         paths.add(config["development_config"])
+    if config.get("correction_diagnostic_config"):
+        paths.add(config["correction_diagnostic_config"])
+        paths.update({"scripts/validate_week8_correction_evidence.py", "scripts/summarize_week8_retry_semantics.py",
+                      "scripts/review_week8_observation_retry.py", "scripts/verify_week8_observation_retry.py"})
     if "incumbent" in inference_roles(config):
         paths.update({config["incumbent_release"], config["incumbent_observation"]})
     if config.get("development_reference_revision"):
@@ -202,6 +207,7 @@ def seal(root, config_path):
     if selection["selected_role"] != "observation_enhanced_base" or selection != comparison["selection"]:
         raise ValueError("candidate not selected by fixed development")
     development_identity = validate_development_identity(root, config, comparison)
+    correction_evidence = validate_correction_evidence(root, config)
     probe = validate_runtime_probe(root, config)
     candidate = read_json(root / config["candidate_release"])
     observation = read_json(root / config["candidate_observation"])
@@ -217,6 +223,8 @@ def seal(root, config_path):
             "test_results_read_before_lock": False, "human_annotation_count": 0}
     if "incumbent" in roles:
         lock["inference_roles"] = roles
+    if correction_evidence is not None:
+        lock["correction_evidence"] = correction_evidence
     lock["lock_sha256"] = canonical_config_sha256(lock)
     write_json_new(directory / "candidate_lock.json", lock)
     return {"status": "CANDIDATE_LOCKED_FOR_ONCE_ONLY_FINAL", "lock_sha256": lock["lock_sha256"]}
@@ -233,6 +241,8 @@ def final_context(root, config_path, role):
         raise ValueError("locked final protocol changed")
     if role not in lock["final_roles"]:
         raise ValueError("unknown once-only final role")
+    if validate_correction_evidence(root, config) != lock.get("correction_evidence"):
+        raise ValueError("locked correction evidence changed")
     rows, data_lock = validate_holdout(root, config)
     if data_lock["lock_sha256"] != lock["data_lock_sha256"]:
         raise ValueError("final data identity changed after candidate lock")
@@ -324,6 +334,8 @@ def replay_final(root, config_path):
             or lock["config_canonical_sha256"] != canonical_config_sha256(config)
             or lock["source_files_lf_sha256"] != protocol_files(root, config)):
         raise ValueError("cannot score with an unlocked implementation")
+    if validate_correction_evidence(root, config) != lock.get("correction_evidence"):
+        raise ValueError("locked correction evidence changed")
     rows, data_lock = validate_holdout(root, config)
     if lock["data_lock_sha256"] != data_lock["lock_sha256"]:
         raise ValueError("final dataset differs from candidate lock")

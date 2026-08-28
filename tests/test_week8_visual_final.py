@@ -105,6 +105,12 @@ class FinalExecutionTests(unittest.TestCase):
             final_context(self.root, self.path, "candidate_2")
         self.assertFalse((self.root / "holdout/teacher").exists())
 
+    def test_correction_regression_is_rejected_before_consuming_a_final_role(self):
+        with patch("scripts.run_week8_visual_final.validate_correction_evidence", side_effect=ValueError("correction facility regressed")):
+            with self.assertRaisesRegex(ValueError, "facility regressed"):
+                final_context(self.root, self.path, "teacher")
+        self.assertFalse((self.root / "holdout/teacher").exists())
+
     def test_source_identity_is_cross_platform_but_not_content_insensitive(self):
         a, b = self.root / "a.py", self.root / "b.py"
         a.write_bytes(b"one\ntwo\n")

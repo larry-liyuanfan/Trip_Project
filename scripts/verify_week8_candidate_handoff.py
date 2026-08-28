@@ -13,6 +13,7 @@ from scripts.upload_release_oss import verify_release_dir
 from src.data.week8_visual_holdout import write_json_new
 from src.evaluation.week8_visual_silver import validate_locked_final, validate_incumbent_nonregression
 from src.inference.product_observation import canonical_config_sha256
+from scripts.validate_week8_correction_evidence import validate_nonregression
 
 
 def bind_acceptance(acceptance, release):
@@ -26,6 +27,23 @@ def bind_acceptance(acceptance, release):
                         ("adapter_model_sha256", "adapter_model_sha256")):
         if acceptance.get(key) != release[source]:
             raise ValueError("packaged candidate identity mismatch")
+
+
+def validate_inference_coverage(summary, count, expected_roles, scores, records):
+    if (type(count) is not int or count <= 0 or not {"formal_adapter", "locked_candidate"} <= expected_roles
+            or set(summary["roles"]) != expected_roles or set(records) != expected_roles):
+        raise ValueError("packaged paired inference roles changed")
+    for role, declared in summary["roles"].items():
+        rows = records[role]
+        if (declared["count"] != count or len(rows) != count
+                or any(type(row.get("passed")) is not bool for row in rows)):
+            raise ValueError("packaged paired inference coverage changed")
+        failures = sum(not row["passed"] for row in rows)
+        if declared["failures"] != failures or abs(scores[role]["metrics"]["request_failure_rate"] - failures / count) > 1e-12:
+            raise ValueError("packaged inference failure disclosure differs from raw")
+        # 基线失败可以用于衡量修复；只有新候选必须零失败，不能要求旧模型先被修好。
+        if role == "locked_candidate" and failures:
+            raise ValueError("packaged candidate inference has request failures")
 
 
 def verify(release_dir, acceptance_member):
@@ -56,6 +74,20 @@ def verify(release_dir, acceptance_member):
                 or lock["lock_sha256"] != canonical_config_sha256({k: v for k, v in lock.items() if k != "lock_sha256"})
                 or comparison["candidate_lock_sha256"] != lock["lock_sha256"]):
             raise ValueError("packaged quality evidence changed")
+        correction = lock.get("correction_evidence")
+        if correction is not None:
+            if correction.get("status") != "PASS" or not correction.get("packaged_artifact_sha256"):
+                raise ValueError("packaged correction evidence is incomplete")
+            for name, expected in correction["packaged_artifact_sha256"].items():
+                path = PurePosixPath(name)
+                if path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] != "evidence" or digest(path) != expected:
+                    raise ValueError("packaged correction evidence changed")
+            if correction.get("semantic_evidence_member") not in correction["packaged_artifact_sha256"]:
+                raise ValueError("packaged correction semantics is not hash-bound")
+            semantics = read(correction["semantic_evidence_member"])
+            validate_nonregression(semantics)
+            if semantics["reference_audit"]["reference_raw_sha256"] != correction["reference_raw_sha256"]:
+                raise ValueError("packaged correction reference identity changed")
         gate = validate_locked_final(comparison["scores"]["formal_adapter"], comparison["scores"]["locked_candidate"])
         if gate["status"] != "PASS" or gate != comparison["acceptance"]:
             raise ValueError("packaged final quality has not passed")
@@ -83,9 +115,10 @@ def verify(release_dir, acceptance_member):
             if role == "teacher":
                 if summary["count"] != data["count"] or summary["failures"] != 0:
                     raise ValueError("packaged teacher coverage or validity changed")
-            elif (set(summary["roles"]) != expected_roles
-                  or any(item["count"] != data["count"] or item["failures"] != 0 for item in summary["roles"].values())):
-                raise ValueError("packaged paired inference coverage changed")
+            else:
+                records = {name: [json.loads(line) for line in raw(root / role / (name + ".jsonl")).splitlines()]
+                           for name in expected_roles}
+                validate_inference_coverage(summary, data["count"], expected_roles, comparison["scores"], records)
             hashes = {"raw_outputs": summary["raw_sha256"]} if role == "teacher" else {
                 name: item["raw_sha256"] for name, item in summary["roles"].items()}
             for name, expected in hashes.items():

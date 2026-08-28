@@ -89,6 +89,7 @@ def verify(root, config_path, generation_root=None):
             "unique_development_images": source_audit["unique_development_images"],
             "case_manifest_sha256": summary["case_manifest_sha256"], "summary_sha256": sha256_file(output / "summary.json"),
             "reference_targets_supplied": False, "final_test_access": False,
+            "generation_root": str(generation_root or root).replace("\\", "/"),
             "continuation": continuation, "execution_interruptions": int(continuation is not None),
             "product_quality_selection_requires_complete_fixed_development": True}
 

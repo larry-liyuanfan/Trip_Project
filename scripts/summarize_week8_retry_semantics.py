@@ -37,13 +37,13 @@ def semantic_counts(cases, records, references):
     return groups
 
 
-def run(config_path, reference_config_path, output, generation_root=None):
+def build_summary(root, config_path, reference_config_path, generation_root=None):
     config = read_json(config_path)
-    cases, source_audit = load_cases(ROOT, config)
-    references, audit, revision, _ = verified_references(reference_config_path)
+    cases, source_audit = load_cases(root, config)
+    references, audit, revision, _ = verified_references(reference_config_path, root)
     if revision["manifest_sha256"] != config["development_manifest_sha256"]:
         raise ValueError("diagnostic reference must use the exact fixed development manifest")
-    directory = ROOT / config["output_root"]
+    directory = root / config["output_root"]
     summary = read_json(directory / "summary.json")
     identity = read_json(directory / "identity.json")
     if (summary["status"] != "COMPLETED" or summary["final_test_access"] is not False
@@ -55,10 +55,10 @@ def run(config_path, reference_config_path, output, generation_root=None):
     for role, observation_path in config["profiles"].items():
         raw_path = directory / (role + ".jsonl")
         if (sha256_file(raw_path) != summary["profiles"][role]["raw_sha256"]
-                or identity["profile_config_hashes"][role] != sha256_file(ROOT / observation_path)):
+                or identity["profile_config_hashes"][role] != sha256_file(root / observation_path)):
             raise ValueError("correction raw identity changed")
         records = list(iter_jsonl(raw_path))
-        replay_records(ROOT, cases, records, read_json(ROOT / observation_path), generation_root)
+        replay_records(root, cases, records, read_json(root / observation_path), generation_root)
         groups[role] = semantic_counts(cases, records, {row["sample_id"]: row for row in references})
         raw_hashes[role] = sha256_file(raw_path)
     result = {"scope": "repeated_historical_development_error_cases_not_independent_quality_estimate",
@@ -68,6 +68,11 @@ def run(config_path, reference_config_path, output, generation_root=None):
         "human_annotation_count": 0, "label_source": "model_generated_silver", "selection_allowed": False,
         "new_model_requests": 0, "generation_runtime_revalidated": False,
         "interpretation": "Semantic raw replay supplements, and does not replace, the original source-bound execution verification."}
+    return result
+
+
+def run(config_path, reference_config_path, output, generation_root=None):
+    result = build_summary(ROOT, config_path, reference_config_path, generation_root)
     write_json_new(output, result)
     return result
 
