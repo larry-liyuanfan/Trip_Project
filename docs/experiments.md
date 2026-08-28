@@ -1314,3 +1314,6 @@ manifest.
 - 本地二次 review 修复紧凑校验重复调用改变 wire representation，以及检索冲突条件被
   错误删除的问题；全量 767/767（25.855 秒）通过。GPU 仍执行固定 `1764324`，不热改
   其目录；扩展检索使用项目目录内独立校验 worktree，不产生新模型或人工标签。
+- CPU probe job `29697455` 在独立 worktree 缺少 `data/yelp` 图片引用时退出，尚未创建
+  Milvus 集合或发出查询；保留其日志和空输出目录。补齐既有图片目录的只读用途引用后，
+  用独立 `candidate_retrieval_probe_v4.json` 重试，v3 不覆盖。
