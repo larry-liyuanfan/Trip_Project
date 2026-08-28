@@ -1295,3 +1295,16 @@ manifest.
   但 OpenAPI 路径均为 10 个。增加七个必需业务/健康端点的明确检查和缺路由反例；本地
   原包复验 PASS，全量 747/747（24.750 秒）。只加强交接检查，没有修改归档、模型、
   Prompt、评分器或 final 结果；新验证记录不覆盖旧记录。
+
+### 2026-08-28：v9 后商品证据精简 development 对照
+
+- 新配置 `configs/week8/contract_ablation_v5.json`，完整原 60 条 development、原教师 v3
+  silver 及其哈希不变；同场比较 formal、v9、紧凑 label→fact 对象、紧凑对象加语义边界。
+  不读取已消费 final，不新增人工工作，不覆盖 v9 配置/adapter/交接包。
+- 新 `product_visual_observation_v4` wire protocol 仅去掉重复的 label/fact 键名，仍保留
+  全部正标签、逐标签简短事实、十事实上限和 unknown 价位。新增重复 JSON 键及
+  “菜单暗示有座位”等推断证据的拒绝路径，原 v1/v2/v3 协议行为保持不变。
+- 新 incumbent 比较器要求所有有支持语义字段均不低于同场 v9；提速还须 mean 至少 5%、
+  输出 token 至少 10% 改善且 P50/P95 不回退。只有 development 资格，不自动替换发布。
+- 定向 35/35，全量 760/760（25.814 秒）通过；真实模型结果尚未产生，不提前声明提升。
+  按上轮 60 条约 6–7 分钟，四组申请 30 分钟 A100 MIG，沿用既有模型缓存与环境。

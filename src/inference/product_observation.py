@@ -18,7 +18,7 @@ def load_observation_config(path: Path, expected_sha256: str):
     config = json.loads(path.read_text(encoding="utf-8"))
     if canonical_config_sha256(config) != expected_sha256:
         raise ValueError("product observation config hash mismatch")
-    if (config.get("protocol") not in {"product_visual_observation_v1", "product_visual_observation_v2", "product_visual_observation_v3"}
+    if (config.get("protocol") not in {"product_visual_observation_v1", "product_visual_observation_v2", "product_visual_observation_v3", "product_visual_observation_v4"}
             or config.get("max_attempts") != 2 or type(config.get("max_new_tokens")) is not int
             or not 1 <= config["max_new_tokens"] <= 4096
             or config.get("price_policy") != "unknown_without_verified_comparison_scale"):
@@ -37,6 +37,10 @@ def load_observation_config(path: Path, expected_sha256: str):
 
 def observation_schema(config):
     def cues(values):
+        if config["protocol"] == "product_visual_observation_v4":
+            # label -> fact 去掉重复键名，不删除正标签或缩减事实支持。
+            return {"type": "object", "additionalProperties": False, "properties": {
+                label: {"type": "string", "minLength": 1, "maxLength": 80} for label in values}}
         return {"type": "array", "maxItems": len(values), "items": {
             "type": "object", "additionalProperties": False, "required": ["label", "fact"],
             "properties": {"label": {"type": "string", "enum": values},
@@ -54,11 +58,17 @@ def observation_schema(config):
 
 def validate_observation(value, config):
     _validate_instance(observation_schema(config), value, path="$")
+    compact = config["protocol"] == "product_visual_observation_v4"
+    if compact:
+        value = {**value, **{field: [{"label": label, "fact": fact} for label, fact in value[field].items()]
+                            for field in ("style_evidence", "facility_evidence")}}
     for field in ("style_evidence", "facility_evidence"):
         labels = [item["label"] for item in value[field]]
         if len(labels) != len(set(labels)):
             raise ValueError(f"duplicate labels in {field}")
         for item in value[field]:
+            if compact and re.search(r"\b(?:impl(?:y|ies|ied)|infer(?:red)?|suggest(?:s|ed)?|likely|presumably|must have)\b|意味着|应当有|推断|暗示", item["fact"], re.I):
+                raise ValueError(f"inferred rather than observable evidence in {field}")
             if re.search(r"\b(?:not visible|not shown|cannot see|assum\w*|probably)\b|未见|看不到|推测|可能存在|photo type", item["fact"], re.I):
                 raise ValueError(f"non-observational evidence in {field}")
             if negated_label_fact(item["label"], item["fact"]):
@@ -66,6 +76,18 @@ def validate_observation(value, config):
     if value["subject_kind"] == "food_closeup" and (value["style_evidence"] or value["facility_evidence"]):
         raise ValueError("food closeup cannot establish venue style or facilities")
     return value
+
+
+def parse_observation(raw, config):
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate observation key: " + key)
+            result[key] = value
+        return result
+    options = {"object_pairs_hook": unique_object} if config["protocol"] == "product_visual_observation_v4" else {}
+    return json.loads(strip_json_fence(raw), **options)
 
 
 def negated_label_fact(label, fact):
@@ -122,7 +144,7 @@ def generate_observation(backend, image, config):
         error = None
         observation = product = None
         try:
-            observation = json.loads(strip_json_fence(generated.content))
+            observation = parse_observation(generated.content, config)
             product = map_observation(observation, config)
         except ValueError as exc:
             # 不把错误对象的完整 instance/schema 重复塞回 Prompt。
@@ -132,5 +154,6 @@ def generate_observation(backend, image, config):
                                      latency_ms=(time.perf_counter() - started) * 1000))
         if error is None:
             return {"passed": True, "result": product, "observation": observation, "attempts": attempts}
-        active = [*messages, {"role": "user", "content": "Validation error: " + error + ". Reobserve the original image and return a complete corrected JSON. Do not invent facts."}]
+        previous = [{"role": "assistant", "content": generated.content}] if config["protocol"] == "product_visual_observation_v4" else []
+        active = [*messages, *previous, {"role": "user", "content": "Validation error: " + error + ". Reobserve the original image and return a complete corrected JSON. Do not invent facts."}]
     return {"passed": False, "result": None, "observation": None, "attempts": attempts}

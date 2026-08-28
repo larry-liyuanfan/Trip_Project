@@ -733,3 +733,12 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   precision/recall/F1、unknown、完整性均不回退，综合分严格提升且格式/失败率通过后，
   只能取得 development 候选资格。完整可晋级结论仍须独立一次 final 与全链路验证；
   自动 silver 一致性不等同人工视觉准确率或无条件生产可用性。
+
+### 2026-08-28 v9 候选后的继续优化
+
+- 在已通过的 v9 基础上继续优化商品证据表示、风格/设施判定及延迟；先在原固定 60 条
+  development 与原图像教师 silver 上比较，不读取已消费 final 的样本或输出调参。
+- 新协议、配置、运行及结果均独立版本化。v9 manifest、Prompt 配置、adapter 和交接包
+  不覆盖；未证实优于 v9 的实验不替换候选。不得用字段支持下降或质量回退换取速度。
+- 人工 annotation/review/acceptance 保持 0；仅有 development 改善不宣称最终 test 通过。
+  feature 分支和 Spartan 本项目目录边界不变，不合并长期分支或打标签。

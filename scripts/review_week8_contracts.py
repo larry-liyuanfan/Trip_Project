@@ -88,7 +88,7 @@ def run(path):
         active_observation = observation
         if profile in config.get("observation_profile_configs", {}):
             active_observation = json.loads((ROOT / config["observation_profile_configs"][profile]).read_text(encoding="utf-8"))
-        if profile not in {"release_adapter", "formal_adapter", "repaired_adapter", "repaired_base", "observation_base", "observation_enhanced_base"}:
+        if profile not in {"release_adapter", "formal_adapter", "repaired_adapter", "repaired_base", "observation_base", "observation_enhanced_base", "observation_candidate_base"}:
             raise ValueError("unsupported ablation profile")
         service = ScenarioService(active, backend)
         requests = build_requests(ROOT, chosen, config["itinerary_requests"])

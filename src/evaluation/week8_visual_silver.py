@@ -5,7 +5,7 @@ import statistics
 
 from src.evaluation.product_semantics import product_consistency_errors
 from src.evaluation.schema_validation import validate_output
-from src.inference.product_observation import map_observation
+from src.inference.product_observation import map_observation, parse_observation
 from src.inference.transport_utils import strip_json_fence
 
 
@@ -31,7 +31,8 @@ def replay_record(root, record, observation=None):
     attempts = record.get("attempts", [])
     if not attempts or attempts[-1].get("error") is not None:
         raise ValueError("passing record has no successful raw attempt")
-    value = json.loads(strip_json_fence(attempts[-1]["raw_output"]))
+    raw = attempts[-1]["raw_output"]
+    value = parse_observation(raw, observation) if observation is not None else json.loads(strip_json_fence(raw))
     if observation is not None:
         value = map_observation(value, observation)
     validate_output(root, "image_product_search", value, "v1")
