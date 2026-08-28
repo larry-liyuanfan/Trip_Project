@@ -66,10 +66,13 @@ def run(args):
         records = list(iter_jsonl(path))
         if len(records) != len(references) or {row["sample_id"] for row in records} != expected:
             raise ValueError("slice inputs must retain all paired samples")
-        observation = read_json(args.observation) if role == "candidate" else None
+        observation_path = args.observation if role == "candidate" else getattr(args, "baseline_observation", None)
+        observation = read_json(observation_path) if observation_path is not None else None
         predictions[role] = {row["sample_id"]: replay_record(ROOT, row, observation) for row in records}
     result = summarize(references, predictions)
     result["source_sha256"] = {key: sha256_file(getattr(args, key)) for key in ("references", "baseline", "candidate", "observation")}
+    if getattr(args, "baseline_observation", None) is not None:
+        result["source_sha256"]["baseline_observation"] = sha256_file(args.baseline_observation)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     write_json_new(args.output, result)
     print(json.dumps({key: value for key, value in result.items() if key not in {"details", "source_sha256"}}, ensure_ascii=False))
@@ -79,4 +82,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("references", "baseline", "candidate", "observation", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument("--baseline-observation", type=Path,
+                        help="Optional observation config for replaying an incumbent candidate instead of the formal direct-JSON baseline.")
     run(parser.parse_args())
