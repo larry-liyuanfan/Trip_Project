@@ -46,6 +46,11 @@ class ContractAblationTests(unittest.TestCase):
         self.assertIn("bottles, a drink, glassware, shaker or beer sign alone are not a bar", prompt)
         self.assertIn("not traffic or cars merely seen through a window", prompt)
         self.assertIn("remove the label when its fact names only a different object", prompt)
+        incumbent = json.loads((
+            ROOT / "configs/week8/product_observation_subject_review_v2.json"
+        ).read_text(encoding="utf-8"))
+        incumbent["task_prompt"] = config["task_prompt"]
+        self.assertEqual(config, incumbent)
 
     def test_itinerary_v5_starts_with_complete_schema_order(self):
         rendered = render_standard_prompt(ROOT, "itinerary_planning", {
@@ -121,6 +126,11 @@ class ContractAblationTests(unittest.TestCase):
         self.assertTrue((
             ROOT / "configs/evaluation/prompts" / recovery_v2["itinerary_prompt"] / "common.yaml"
         ).is_file())
+        recovery_v4 = json.loads((
+            ROOT / "configs/week8/contract_ablation_v17_recovery_v4.json"
+        ).read_text(encoding="utf-8"))
+        self.assertEqual(set(recovery_v4["profile_adapter_modes"].values()), {"base"})
+        self.assertEqual(set(recovery_v4["profile_adapter_modes"]), set(recovery_v4["profiles"]))
 
     def test_observation_profile_adapter_route_must_be_explicit(self):
         with self.assertRaisesRegex(ValueError, "explicit adapter mode"):
