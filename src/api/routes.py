@@ -149,7 +149,7 @@ def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
             "query_attributes": query_attributes,
             "query_status": "PARTIAL_UNSUPPORTED_CONSTRAINTS" if unapplied else "COMPLETED",
             "unapplied_query_text": unapplied,
-            "text_interpretation": "structured_category_price_and_explicit_city_only",
+            "text_interpretation": "structured_category_price_disjunction_and_explicit_city_only",
             "embedding_model": "openai/clip-vit-base-patch32",
             "results": results,
         }

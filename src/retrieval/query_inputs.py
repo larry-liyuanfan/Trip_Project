@@ -33,6 +33,10 @@ def user_query_attributes(text, explicit=None):
             _affirmative_query_term(text, term) for term in terms)]
         if field not in attributes and len(values) == 1:
             attributes[field] = values[0]
+        elif (field not in attributes and len(values) > 1
+              and re.search(r"(?:\bor\b|或|或者)", text, re.I)):
+            # 同一字段的显式析取可由既有 Milvus IN 过滤完整执行；没有连接词仍保持歧义。
+            attributes[field] = values
     return attributes
 
 
@@ -49,10 +53,15 @@ def unapplied_query_text(text, attributes):
         return text.strip()
     remainder = text
     for value in attributes.values():
-        remainder = re.sub(_term_pattern(str(value)), " ", remainder, flags=re.I)
+        for item in value if isinstance(value, (list, tuple)) else (value,):
+            remainder = re.sub(_term_pattern(str(item)), " ", remainder, flags=re.I)
     # 只消费真正应用的条件；多候选或与显式过滤冲突的文字不能被洗成 COMPLETED。
     for field, mapping in QUERY_TERMS.items():
-        for term in mapping.get(attributes.get(field), ()):
-            remainder = re.sub(_term_pattern(term), " ", remainder, flags=re.I)
+        values = attributes.get(field)
+        for value in values if isinstance(values, (list, tuple)) else (values,):
+            for term in mapping.get(value, ()):
+                remainder = re.sub(_term_pattern(term), " ", remainder, flags=re.I)
+    if any(isinstance(value, (list, tuple)) for value in attributes.values()):
+        remainder = re.sub(r"\b(?:or|either)\b|或者|或", " ", remainder, flags=re.I)
     remainder = re.sub(r"推荐|查找|搜索|帮我|请|一个|一些|的|\b(?:find|recommend|search|for|a|an|in|please)\b", " ", remainder, flags=re.I)
-    return re.sub(r"[\s，。；,;.!?：:]+", " ", remainder).strip()
+    return re.sub(r"[\s，。、；,;.!?：:]+", " ", remainder).strip()

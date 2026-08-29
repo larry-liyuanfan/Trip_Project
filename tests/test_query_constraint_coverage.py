@@ -1,4 +1,6 @@
 import os
+import json
+from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
@@ -8,28 +10,42 @@ from src.retrieval.query_inputs import unapplied_query_text, user_query_attribut
 
 
 class QueryConstraintCoverageTests(unittest.TestCase):
+    def test_v8_probe_promotes_only_explicit_disjunctions(self):
+        root = Path(__file__).resolve().parents[1]
+        config = json.loads((root / "configs/week8/candidate_retrieval_probe_v8.json").read_text(encoding="utf-8"))
+        status = {row["query_text"]: row.get("expected_query_status") for row in config["retrieval_queries"]}
+        self.assertEqual(status["推荐便宜或高档餐厅"], "COMPLETED")
+        self.assertEqual(status["推荐酒店或餐厅"], "COMPLETED")
+        self.assertEqual(status["推荐奢华餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
+        dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
+        self.assertEqual(dialogue["推荐安静的餐厅"], "NOT_COMPLETED")
     def test_applied_simple_constraints_remain_complete(self):
         for text in ("推荐便宜餐厅", "find a budget restaurant", "推荐酒店"):
             self.assertEqual(unapplied_query_text(text, user_query_attributes(text)), "")
 
-    def test_ambiguous_categories_are_not_claimed_as_applied(self):
+    def test_explicit_category_disjunction_is_applied(self):
         text = "推荐酒店或餐厅"
         attrs = user_query_attributes(text)
-        self.assertNotIn("business_category", attrs)
-        remainder = unapplied_query_text(text, attrs)
-        self.assertIn("酒店", remainder)
-        self.assertIn("餐厅", remainder)
+        self.assertEqual(attrs["business_category"], ["hotel", "restaurant"])
+        self.assertEqual(unapplied_query_text(text, attrs), "")
 
     def test_conflicting_price_is_preserved_after_explicit_filter(self):
         attrs = user_query_attributes("推荐奢华餐厅", {"price_range": "budget"})
         self.assertEqual(attrs, {"price_range": "budget", "business_category": "restaurant"})
         self.assertEqual(unapplied_query_text("推荐奢华餐厅", attrs), "奢华")
 
-    def test_ambiguous_prices_are_not_discarded(self):
+    def test_explicit_price_disjunction_is_applied(self):
         text = "推荐便宜或高档餐厅"
         attrs = user_query_attributes(text)
-        self.assertNotIn("price_range", attrs)
-        self.assertEqual(unapplied_query_text(text, attrs), "便宜或高档")
+        self.assertEqual(attrs["price_range"], ["budget", "premium"])
+        self.assertEqual(attrs["business_category"], "restaurant")
+        self.assertEqual(unapplied_query_text(text, attrs), "")
+
+    def test_multiple_values_without_disjunction_remain_unapplied(self):
+        text = "推荐酒店、餐厅"
+        attrs = user_query_attributes(text)
+        self.assertNotIn("business_category", attrs)
+        self.assertEqual(unapplied_query_text(text, attrs), "酒店 餐厅")
 
     def test_city_substring_does_not_erase_unapplied_words(self):
         self.assertEqual(unapplied_query_text("find calm restaurant", {"city": "a", "business_category": "restaurant"}), "calm")

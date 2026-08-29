@@ -422,11 +422,12 @@ def _metadata_score(query: dict[str, Any], candidate: dict[str, Any], weights: d
     numerator = denominator = 0.0
     for field, weight in weights.items():
         value = query.get(field)
-        if value in (None, "", "unknown"):
+        if value is None or value == "" or value == "unknown" or value == []:
             continue
         numeric_weight = float(weight)
         denominator += numeric_weight
-        numerator += numeric_weight * float(value == candidate.get(field))
+        matches = candidate.get(field) in value if isinstance(value, (list, tuple)) else value == candidate.get(field)
+        numerator += numeric_weight * float(matches)
     return numerator / denominator if denominator else 0.0
 
 
@@ -527,7 +528,7 @@ class MetadataRankingCache:
                 filters = {
                     field: metadata[field]
                     for field in fields
-                    if metadata.get(field) not in {None, "unknown"}
+                    if metadata.get(field) is not None and metadata.get(field) != "unknown"
                 }
                 if filters:
                     self.search(
@@ -543,14 +544,19 @@ class MetadataRankingCache:
     ) -> tuple[Any, ...]:
         weights = self.config["evaluation"]["relevance_weights"]
         query_identity = tuple(
-            (field, query_metadata.get(field)) for field in sorted(weights)
+            (field, tuple(query_metadata.get(field)) if isinstance(query_metadata.get(field), list)
+             else query_metadata.get(field)) for field in sorted(weights)
         )
-        filter_identity = tuple(sorted((filters or {}).items()))
+        filter_identity = tuple(sorted(
+            (field, tuple(value) if isinstance(value, list) else value)
+            for field, value in (filters or {}).items()
+        ))
         return query_identity, filter_identity
 
 
-def _matches_filters(metadata: dict[str, Any], filters: dict[str, str]) -> bool:
-    return all(metadata.get(field) == value for field, value in filters.items())
+def _matches_filters(metadata: dict[str, Any], filters: dict[str, Any]) -> bool:
+    return all(metadata.get(field) in value if isinstance(value, (list, tuple))
+               else metadata.get(field) == value for field, value in filters.items())
 
 
 def _dot(left: Any, right: Any) -> float:

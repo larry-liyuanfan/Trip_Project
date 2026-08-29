@@ -141,6 +141,23 @@ class Week8AuditFixTests(unittest.TestCase):
         self.assertEqual(store.query_metadata.call_args.kwargs["filters"]["business_category"], "hotel")
         self.assertEqual(result[0]["business_id"], "b")
 
+    def test_keyword_disjunction_is_forwarded_as_in_filter(self):
+        encoder = Mock()
+        store = Mock()
+        store.query_metadata.return_value = [
+            {"image_id": "i", "business_id": "b", "business_category": "hotel"}
+        ]
+        service = VisualSearchService(encoder, store)
+        result = service.search(
+            None, retrieval_mode="keyword", query_text="推荐酒店或餐厅"
+        )
+        encoder.encode.assert_not_called()
+        self.assertEqual(
+            store.query_metadata.call_args.kwargs["filters"]["business_category"],
+            ["hotel", "restaurant"],
+        )
+        self.assertEqual(result[0]["business_id"], "b")
+
     def test_cli_and_runtime_reject_same_missing_release(self):
         with patch.dict("os.environ", {"TRIP_RELEASE_CONFIG": "nonexistent/release.json"}):
             self.assertEqual(tripctl.validate()["status"], "failed")
@@ -186,6 +203,34 @@ class Week8AuditFixTests(unittest.TestCase):
     def test_chinese_negation_is_not_a_positive_query_filter(self):
         self.assertNotIn("business_category", user_query_attributes("不要酒店"))
         self.assertEqual(user_query_attributes("不要酒店，而是咖啡馆")["business_category"], "restaurant")
+
+    def test_explicit_disjunction_reaches_safe_in_filter_and_metadata_score(self):
+        from src.retrieval.milvus_vectors import build_filter_expression
+        from src.retrieval.week8_hybrid import metadata_ranking
+
+        attrs = user_query_attributes("推荐酒店或餐厅")
+        self.assertEqual(
+            build_filter_expression(attrs),
+            'business_category in ["hotel", "restaurant"]',
+        )
+        config = {"evaluation": {"relevance_weights": {"business_category": 1.0}}}
+        rows = [
+            {"sample_id": "a", "metadata": {"business_category": "hotel"}},
+            {"sample_id": "b", "metadata": {"business_category": "attraction"}},
+        ]
+        hits = metadata_ranking(config, attrs, rows, top_k=2, filters=attrs)
+        self.assertEqual([hit["row"]["sample_id"] for hit in hits], ["a"])
+
+    def test_disjunction_cache_key_is_hashable_and_order_stable(self):
+        from src.retrieval.week8_hybrid import MetadataRankingCache
+
+        config = {"evaluation": {"relevance_weights": {"business_category": 1.0}}}
+        rows = [{"sample_id": "a", "metadata": {"business_category": "hotel"}}]
+        cache = MetadataRankingCache(config, rows, capacity=2)
+        filters = {"business_category": ["hotel", "restaurant"]}
+        self.assertEqual(len(cache.search(filters, top_k=1, filters=filters)), 1)
+        self.assertEqual(len(cache.search(filters, top_k=1, filters=filters)), 1)
+        self.assertEqual(cache.stats()["hits"], 1)
 
     def test_actual_ranking_is_invariant_to_query_reference_metadata(self):
         config = {"evaluation": {"candidate_pool_size": 2, "rerank_weights": {"business_category": 2}}}

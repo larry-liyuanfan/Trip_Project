@@ -67,6 +67,14 @@ class ContractAblationTests(unittest.TestCase):
         for profile in config["profiles"]:
             self.assertIn(f'"{profile}"', runner)
 
+        recovery = json.loads((
+            ROOT / "configs/week8/contract_ablation_v17_recovery_v1.json"
+        ).read_text(encoding="utf-8"))
+        self.assertEqual(recovery["recovery_of"], config["run_id"])
+        self.assertNotEqual(recovery["output_root"], config["output_root"])
+        self.assertEqual(recovery["development_indices"], "all")
+        self.assertFalse(recovery["final_test_access"])
+
     def test_requests_use_locked_image_path_without_target_metadata(self):
         rows = [{"sample_id": "dev01", "image_path": "images/a.jpg",
                  "target": {"parking": True}, "business_description": "secret-reference"}]
