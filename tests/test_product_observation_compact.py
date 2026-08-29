@@ -137,7 +137,7 @@ class IncumbentSelectionTests(unittest.TestCase):
         payload = self.payload()
         payload["summaries"]["revision"]["metrics"].update(composite=0.9, style_precision=0.7)
         result = self.checked(payload)
-        self.assertEqual(result["status"], "KEEP_V9_CANDIDATE")
+        self.assertEqual(result["status"], "KEEP_INCUMBENT_CANDIDATE")
         self.assertIn("style_precision_below_incumbent", result["candidates"]["revision"]["failures"])
 
     def test_material_speed_gain_requires_token_reduction_and_no_quality_loss(self):

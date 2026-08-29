@@ -1,4 +1,4 @@
-"""Compare development-only revisions against the already selected v9, not final."""
+"""Compare development-only revisions against the explicitly named incumbent."""
 import argparse
 import json
 from pathlib import Path
@@ -43,7 +43,7 @@ def compare(comparison, incumbent_role):
                          "speed_gain": speed_gain}
     eligible = [role for role, value in results.items() if value["eligible"]]
     chosen = min(eligible, key=lambda role: (-summaries[role]["metrics"]["composite"], summaries[role]["latency_ms"]["mean"])) if eligible else None
-    return {"status": "IMPROVED_DEVELOPMENT_CANDIDATE" if chosen else "KEEP_V9_CANDIDATE",
+    return {"status": "IMPROVED_DEVELOPMENT_CANDIDATE" if chosen else "KEEP_INCUMBENT_CANDIDATE",
             "selected_role": chosen, "incumbent_role": incumbent_role, "candidates": results,
             "test_rows_read": False, "promotion_allowed": False, "release_changed": False,
             "human_visual_accuracy_claim": False}
