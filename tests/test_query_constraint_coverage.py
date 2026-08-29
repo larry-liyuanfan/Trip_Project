@@ -10,9 +10,9 @@ from src.retrieval.query_inputs import unapplied_query_text, user_query_attribut
 
 
 class QueryConstraintCoverageTests(unittest.TestCase):
-    def test_v8_probe_promotes_only_explicit_disjunctions(self):
+    def test_v9_probe_promotes_only_explicit_disjunctions(self):
         root = Path(__file__).resolve().parents[1]
-        config = json.loads((root / "configs/week8/candidate_retrieval_probe_v8.json").read_text(encoding="utf-8"))
+        config = json.loads((root / "configs/week8/candidate_retrieval_probe_v9.json").read_text(encoding="utf-8"))
         status = {row["query_text"]: row.get("expected_query_status") for row in config["retrieval_queries"]}
         self.assertEqual(status["推荐便宜或高档餐厅"], "COMPLETED")
         self.assertEqual(status["推荐酒店或餐厅"], "COMPLETED")
@@ -22,6 +22,14 @@ class QueryConstraintCoverageTests(unittest.TestCase):
         launcher = (root / "scripts/spartan/week8_candidate_retrieval_probe.sbatch").read_text(encoding="utf-8")
         self.assertIn("TRIP_RETRIEVAL_CONFIG", launcher)
         self.assertIn("verify_week8_retrieval_routing.py", launcher)
+
+    def test_v12_handoff_retrieval_v8_remains_frozen(self):
+        root = Path(__file__).resolve().parents[1]
+        config = json.loads((root / "configs/week8/candidate_retrieval_probe_v8.json").read_text(encoding="utf-8"))
+        statuses = {row["query_text"]: row.get("expected_query_status") for row in config["retrieval_queries"]}
+        self.assertEqual(statuses["推荐酒店或餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
+        dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
+        self.assertEqual(dialogue["推荐酒店或餐厅"], "NOT_COMPLETED")
     def test_applied_simple_constraints_remain_complete(self):
         for text in ("推荐便宜餐厅", "find a budget restaurant", "推荐酒店"):
             self.assertEqual(unapplied_query_text(text, user_query_attributes(text)), "")

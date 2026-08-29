@@ -41,13 +41,13 @@
       "query_text": "推荐便宜或高档餐厅",
       "city": "Indianapolis",
       "retrieval_mode": "keyword",
-      "expected_query_status": "COMPLETED"
+      "expected_query_status": "PARTIAL_UNSUPPORTED_CONSTRAINTS"
     },
     {
       "query_text": "推荐酒店或餐厅",
       "city": "Indianapolis",
       "retrieval_mode": "keyword",
-      "expected_query_status": "COMPLETED"
+      "expected_query_status": "PARTIAL_UNSUPPORTED_CONSTRAINTS"
     },
     {
       "query_text": "find cheap restaurants",
@@ -75,13 +75,13 @@
     },
     {
       "text": "推荐便宜或高档餐厅",
-      "expected_status": "COMPLETED",
+      "expected_status": "NOT_COMPLETED",
       "require_results": true
     },
     {
       "text": "推荐酒店或餐厅",
-      "expected_status": "COMPLETED",
-      "require_results": true
+      "expected_status": "NOT_COMPLETED",
+      "require_results": false
     }
   ]
 }

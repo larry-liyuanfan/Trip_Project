@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=trip-w8-retrieval-v8
+#SBATCH --job-name=trip-w8-retrieval-v9
 #SBATCH --account=punim2936
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
