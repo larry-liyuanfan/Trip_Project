@@ -61,6 +61,24 @@ def validate_probe_config(config):
         raise ValueError("probe requires repeated paired cache modes and business requests")
 
 
+def attempt_metrics(responses):
+    """Count bounded correction use without treating a corrected task as first-pass."""
+    attempts = [item for response in responses for item in response.get("attempts", [])]
+    return {
+        "requests": len(responses),
+        "passed": sum(bool(response.get("passed", True)) for response in responses),
+        "first_attempt_pass": sum(
+            bool(response.get("attempts")) and response["attempts"][0].get("error") is None
+            and bool(response.get("passed", True))
+            for response in responses
+        ),
+        "attempts_total": len(attempts),
+        "input_tokens_total": sum(item.get("input_tokens") or 0 for item in attempts),
+        "output_tokens_total": sum(item.get("output_tokens") or 0 for item in attempts),
+        "latency_ms_total": sum(item.get("latency_ms") or 0 for item in attempts),
+    }
+
+
 def run(config_path):
     config = json.loads(config_path.read_text(encoding="utf-8"))
     validate_probe_config(config)
@@ -167,7 +185,9 @@ def run(config_path):
                and all(scope_probes)
                and all(value["failure_count"] == 0 and value["all_labels_equal"] for value in timings.values()) else "FAIL",
                "model_smoke_status": smoke["status"], "itinerary_business_pass": sum(row["passed"] for row in itineraries),
-               "itinerary_count": len(itineraries), "dialogue_tasks": dialogues, "latency": timings,
+               "itinerary_count": len(itineraries), "itinerary_attempts": attempt_metrics(itineraries),
+               "dialogue_itinerary_attempts": attempt_metrics([{**smoke["dialogue"], "passed": smoke["dialogue"]["task_status"] == "COMPLETED"}]),
+               "dialogue_tasks": dialogues, "latency": timings,
                "product_scope_probes": scope_probes,
                "cold_start_ms": cold_start_ms, "hardware": backend._torch.cuda.get_device_name(0),
                "peak_gpu_allocated_bytes": backend._torch.cuda.max_memory_allocated(),

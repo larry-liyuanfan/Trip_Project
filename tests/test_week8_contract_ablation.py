@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from scripts.review_week8_contracts import build_requests, resolve_profile_adapter_modes
+from scripts.verify_week8_candidate_runtime import attempt_metrics
 from src.evaluation.prompting import render_standard_prompt
 from src.inference.business_validation import itinerary_business_errors, itinerary_request_contract
 from src.inference.system_runtime import _json_schema_response_format
@@ -73,6 +74,22 @@ class ContractAblationTests(unittest.TestCase):
         self.assertEqual(len(probe["itinerary_requests"]), 3)
         self.assertFalse(probe["test_rows_read"])
         self.assertEqual(probe["human_annotation_count"], 0)
+
+    def test_runtime_attempt_metrics_distinguish_corrected_success(self):
+        summary = attempt_metrics([
+            {"passed": True, "attempts": [
+                {"error": "missing fields", "input_tokens": 10, "output_tokens": 3, "latency_ms": 20},
+                {"error": None, "input_tokens": 12, "output_tokens": 4, "latency_ms": 25},
+            ]},
+            {"passed": True, "attempts": [
+                {"error": None, "input_tokens": 8, "output_tokens": 2, "latency_ms": 15},
+            ]},
+        ])
+        self.assertEqual(summary["passed"], 2)
+        self.assertEqual(summary["first_attempt_pass"], 1)
+        self.assertEqual(summary["attempts_total"], 3)
+        self.assertEqual(summary["input_tokens_total"], 30)
+        self.assertEqual(summary["latency_ms_total"], 60)
 
     def test_v17_is_development_only_and_keeps_all_rows(self):
         config = json.loads((
