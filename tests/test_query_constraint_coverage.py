@@ -30,6 +30,15 @@ class QueryConstraintCoverageTests(unittest.TestCase):
         self.assertEqual(statuses["推荐酒店或餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
         dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
         self.assertEqual(dialogue["推荐酒店或餐厅"], "NOT_COMPLETED")
+
+    def test_v9_recovery_adds_cross_field_fail_closed_case(self):
+        root = Path(__file__).resolve().parents[1]
+        config = json.loads((root / "configs/week8/candidate_retrieval_probe_v9_recovery_v1.json").read_text(encoding="utf-8"))
+        self.assertEqual(config["recovery_of"], "week8_candidate_retrieval_routing_20260829_v9")
+        statuses = {row["query_text"]: row.get("expected_query_status") for row in config["retrieval_queries"]}
+        self.assertEqual(statuses["推荐酒店或便宜餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
+        dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
+        self.assertEqual(dialogue["推荐酒店或便宜餐厅"], "NOT_COMPLETED")
     def test_applied_simple_constraints_remain_complete(self):
         for text in ("推荐便宜餐厅", "find a budget restaurant", "推荐酒店"):
             self.assertEqual(unapplied_query_text(text, user_query_attributes(text)), "")
@@ -57,6 +66,16 @@ class QueryConstraintCoverageTests(unittest.TestCase):
         attrs = user_query_attributes(text)
         self.assertNotIn("business_category", attrs)
         self.assertEqual(unapplied_query_text(text, attrs), "酒店 餐厅")
+
+    def test_cross_field_disjunction_is_not_rewritten_as_conjunction(self):
+        text = "推荐酒店或便宜餐厅"
+        attrs = user_query_attributes(text)
+        self.assertNotIn("business_category", attrs)
+        self.assertNotIn("price_range", attrs)
+        self.assertEqual(unapplied_query_text(text, attrs), "酒店或便宜餐厅")
+        explicit = user_query_attributes("推荐酒店或餐厅", {"price_range": "budget"})
+        self.assertEqual(explicit["business_category"], ["hotel", "restaurant"])
+        self.assertEqual(explicit["price_range"], "budget")
 
     def test_city_substring_does_not_erase_unapplied_words(self):
         self.assertEqual(unapplied_query_text("find calm restaurant", {"city": "a", "business_category": "restaurant"}), "calm")

@@ -26,6 +26,9 @@ def _affirmative_query_term(text, term):
 
 
 def user_query_attributes(text, explicit=None):
+    explicit_fields = {key for key, value in (explicit or {}).items()
+                       if key in {"city", "business_category", "price_range"}
+                       and value not in (None, "", "unknown")}
     attributes = {key: value for key, value in (explicit or {}).items()
                   if key in {"city", "business_category", "price_range"} and value not in (None, "", "unknown")}
     for field, mapping in QUERY_TERMS.items():
@@ -37,6 +40,12 @@ def user_query_attributes(text, explicit=None):
               and re.search(r"(?:\bor\b|或|或者)", text, re.I)):
             # 同一字段的显式析取可由既有 Milvus IN 过滤完整执行；没有连接词仍保持歧义。
             attributes[field] = values
+    # “酒店或便宜餐厅”是跨字段析取，不能错误实现成“便宜的酒店或餐厅”的字段交集。
+    # 显式 API filter 由调用者独立提供，可安全地作用于整个析取结果。
+    if (isinstance(attributes.get("business_category"), list)
+            and "price_range" in attributes and "price_range" not in explicit_fields):
+        attributes.pop("business_category", None)
+        attributes.pop("price_range", None)
     return attributes
 
 
