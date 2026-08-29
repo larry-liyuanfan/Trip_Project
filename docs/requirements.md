@@ -765,3 +765,13 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   逐图标签或输出调参，也不能放宽正式基线或incumbent非回退条件。
 - 广泛主体复查若回退则保留失败，只在原development验证收窄触发；新100图final不足时，
   可从现存合法原始归档建立无标签身份池并排除全部历史，不降低样本量或新增人工工作。
+
+### 2026-08-29 晋级候选后的持续复审与整理推送
+
+- 用户要求在现有 Week 8 候选基础上继续全项目 review，优先处理商品理解尚未完成的
+  可泛化语义问题，同时完成仍可验证的对话、检索和性能优化；能够自行解决的问题直接
+  修复、测试和复审，不新增人工标注、人工 review 或人工 acceptance。
+- 只使用固定 development 及新的未消费身份验证新方案；已消费 final 的逐样本标签、
+  输出和错误不得用于调参。未胜出的实验保留真实结果，不覆盖 v12 候选及冻结历史。
+- 整理完成后仅提交并推送当前 `feature/week8-product-understanding`，保持主工作树既有
+  改动不受影响；未经明确批准不合并 `dev/stg/main`、不打标签。

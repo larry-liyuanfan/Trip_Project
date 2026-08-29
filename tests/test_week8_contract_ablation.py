@@ -36,6 +36,34 @@ class ContractAblationTests(unittest.TestCase):
         self.assertIn("装修档次不是价格证据", rendered["layers"]["task_instruction"])
         self.assertIn('"visible_facilities"', rendered["layers"]["output_constraint"])
 
+    def test_evidence_guard_prompt_rejects_cross_field_object_substitution(self):
+        config = json.loads((
+            ROOT / "configs/week8/product_observation_evidence_guard_v1.json"
+        ).read_text(encoding="utf-8"))
+        prompt = config["task_prompt"]
+        self.assertIn("a person, menu, plate, glass or napkin alone is not seating", prompt)
+        self.assertIn("bottles, a drink, glassware, shaker or beer sign alone are not a bar", prompt)
+        self.assertIn("not traffic or cars merely seen through a window", prompt)
+        self.assertIn("remove the label when its fact names only a different object", prompt)
+
+    def test_itinerary_v5_starts_with_complete_schema_order(self):
+        rendered = render_standard_prompt(ROOT, "itinerary_planning", {
+            "images": [{"path": "fixture.jpg"}], "text_constraints": "上海两日行程"},
+            "week8_itinerary_actionable_v5")
+        constraint = rendered["layers"]["output_constraint"]
+        self.assertIn("all nine top-level keys exactly once", constraint)
+        self.assertIn("beginning with style_preferences and hard_constraints", constraint)
+        self.assertIn("do not begin with itinerary or constraint_check", constraint)
+
+    def test_v17_is_development_only_and_keeps_all_rows(self):
+        config = json.loads((
+            ROOT / "configs/week8/contract_ablation_v17.json"
+        ).read_text(encoding="utf-8"))
+        self.assertEqual(config["development_indices"], "all")
+        self.assertFalse(config["final_test_access"])
+        self.assertEqual(config["human_annotation_count"], 0)
+        self.assertEqual(config["incumbent_role"], "observation_incumbent")
+
     def test_requests_use_locked_image_path_without_target_metadata(self):
         rows = [{"sample_id": "dev01", "image_path": "images/a.jpg",
                  "target": {"parking": True}, "business_description": "secret-reference"}]
