@@ -31,6 +31,17 @@ def compare(comparison, incumbent_role):
             before_value, after_value = incumbent["metrics"][field], after["metrics"][field]
             if before_value is not None and (after_value is None or after_value < before_value):
                 failures.append(field + "_below_incumbent")
+        before_evidence = incumbent.get("evidence_consistency")
+        after_evidence = after.get("evidence_consistency")
+        if (before_evidence is None) != (after_evidence is None):
+            raise ValueError("incumbent and revision must use the same target-free evidence audit")
+        if before_evidence is not None:
+            identity = ("protocol", "records_read", "successful_observations", "target_free", "selection_use")
+            if any(before_evidence.get(key) != after_evidence.get(key) for key in identity):
+                raise ValueError("target-free evidence audit identity changed")
+            for key in ("inconsistent_evidence_labels", "samples_with_errors"):
+                if after_evidence.get(key, 0) > before_evidence.get(key, 0):
+                    failures.append("target_free_" + key + "_increased")
         semantic_gain = after["metrics"]["composite"] > incumbent["metrics"]["composite"]
         mean_ratio = after["latency_ms"]["mean"] / incumbent["latency_ms"]["mean"]
         token_ratio = after["tokens"]["output_mean"] / incumbent["tokens"]["output_mean"]

@@ -160,6 +160,23 @@ class IncumbentSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identical references"):
             self.checked(payload)
 
+    def test_target_free_evidence_regression_blocks_silver_metric_gain(self):
+        payload = self.payload()
+        audit = {"protocol": "product_evidence_consistency_v1", "records_read": 60,
+                 "successful_observations": 60, "target_free": True, "selection_use": "diagnostic_only",
+                 "inconsistent_evidence_labels": 2, "samples_with_errors": 2}
+        payload["summaries"]["observation_base"]["evidence_consistency"] = copy.deepcopy(audit)
+        revision = payload["summaries"]["revision"]
+        revision["evidence_consistency"] = {**audit, "inconsistent_evidence_labels": 3}
+        revision["metrics"]["composite"] = 0.9
+        result = self.checked(payload)
+        self.assertIsNone(result["selected_role"])
+        self.assertIn("target_free_inconsistent_evidence_labels_increased",
+                      result["candidates"]["revision"]["failures"])
+        del revision["evidence_consistency"]
+        with self.assertRaisesRegex(ValueError, "same target-free"):
+            self.checked(payload)
+
 
 if __name__ == "__main__":
     unittest.main()

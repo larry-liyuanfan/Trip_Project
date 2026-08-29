@@ -1047,3 +1047,15 @@ python scripts/score_week8_reference_revision.py --generation-config configs/wee
 python -c "from pathlib import Path; from scripts.verify_week8_candidate_handoff import verify; print(verify(Path('outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v12-rc1'), 'evidence/week8_visual_holdout_20260829_v6/promotion_acceptance.json'))"
 python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v12.json validate
 ```
+
+持续复审后，完整商品候选仍为v12；`qwen3_vl_system_week8_v13.json`只是在相同商品配置上
+通过真实首轮行程复测的release-only派生候选。整体证据约束Prompt因风格/类别回退被拒绝。
+独立设施复查在固定development把facility F1从0.812903提高到0.851351且其他语义字段不退，
+但mean延迟增加28.28%，并且已锁定的Week 8 final不能重跑，因此尚未写入候选release。
+完整原始证据、失败身份与边界见商品报告16.25—16.27。以下命令只校验已有配置/比较文件，
+不启动模型或读取final：
+
+```bash
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v13.json validate
+python scripts/compare_week8_runtime_probes.py --config configs/week8/runtime_probe_comparison_v1.json
+```
