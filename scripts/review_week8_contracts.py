@@ -36,6 +36,24 @@ def build_requests(root, chosen, texts):
     return requests
 
 
+def resolve_profile_adapter_modes(config):
+    """Fail closed when a diagnostic profile does not state its weight route."""
+    declared = config.get("profile_adapter_modes", {})
+    if not isinstance(declared, dict) or not set(declared) <= set(config["profiles"]):
+        raise ValueError("profile_adapter_modes must map only configured profiles")
+    modes = {}
+    for profile in config["profiles"]:
+        mode = declared.get(profile)
+        if mode is None:
+            if profile.startswith("observation_") and not profile.endswith("_base"):
+                raise ValueError(f"observation profile requires explicit adapter mode: {profile}")
+            mode = "base" if profile.endswith("_base") else "adapter"
+        if mode not in {"base", "adapter"}:
+            raise ValueError(f"unsupported adapter mode for {profile}: {mode}")
+        modes[profile] = mode
+    return modes
+
+
 def run(path):
     config = json.loads(path.read_text(encoding="utf-8"))
     if config["final_test_access"] is not False or config["human_annotation_count"] != 0:
@@ -44,6 +62,7 @@ def run(path):
     if (not isinstance(limits, dict) or not set(limits) <= set(config["profiles"])
             or any(type(value) is not int or value <= 0 for value in limits.values())):
         raise ValueError("visual pixel controls require explicit positive limits for known profiles")
+    adapter_modes = resolve_profile_adapter_modes(config)
     _, _, rows, validation, development_sha = load_review_inputs(ROOT, ROOT / config["source_review_config"])
     chosen = rows if config["development_indices"] == "all" else [rows[index] for index in config["development_indices"]]
     if len({row["sample_id"] for row in chosen}) != len(chosen):
@@ -67,6 +86,7 @@ def run(path):
         "prompt_hashes": {p.relative_to(ROOT).as_posix(): sha256_file(p) for p in prompt_paths},
         "selected_sample_ids": [row["sample_id"] for row in chosen],
         "human_annotation_count": 0, "visual_accuracy_claim_supported": False,
+        "profile_adapter_modes": adapter_modes,
         "observation_config_sha256": sha256_file(ROOT / config["observation_config"]) if observation else None,
         "observation_profile_config_hashes": {key: sha256_file(ROOT / value) for key, value in config.get("observation_profile_configs", {}).items()},
     }
@@ -110,7 +130,7 @@ def run(path):
         results = []
         # 整段消融与生成共用锁，避免 adapter 状态泄漏到其他请求。
         with backend._execution_lock:
-            context = backend._model.disable_adapter() if profile.endswith("_base") else nullcontext()
+            context = backend._model.disable_adapter() if adapter_modes[profile] == "base" else nullcontext()
             with context, temporary_visual_pixel_limit(backend._processor, limits.get(profile)), (output / f"{profile}.jsonl").open("x", encoding="utf-8", newline="\n") as handle:
                 for scenario, sample_id, request in requests:
                     started = time.perf_counter()
@@ -127,7 +147,7 @@ def run(path):
                         record = {"passed": False, "error": str(exc),
                                   "attempts": [item.model_dump() for item in exc.attempts]}
                     record.update(sample_id=sample_id, scenario=scenario, profile=profile,
-                                  adapter_enabled=not profile.endswith("_base"),
+                                  adapter_enabled=adapter_modes[profile] == "adapter",
                                   elapsed_ms=(time.perf_counter() - started) * 1000)
                     if limits:
                         record["effective_processor_signature"] = processor_signature(backend._processor)

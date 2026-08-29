@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from scripts.review_week8_contracts import build_requests
+from scripts.review_week8_contracts import build_requests, resolve_profile_adapter_modes
 from src.evaluation.prompting import render_standard_prompt
 from src.inference.business_validation import itinerary_business_errors, itinerary_request_contract
 from src.inference.system_runtime import _json_schema_response_format
@@ -104,6 +104,19 @@ class ContractAblationTests(unittest.TestCase):
         self.assertTrue((
             ROOT / "configs/evaluation/prompts" / recovery_v2["itinerary_prompt"] / "common.yaml"
         ).is_file())
+
+    def test_observation_profile_adapter_route_must_be_explicit(self):
+        with self.assertRaisesRegex(ValueError, "explicit adapter mode"):
+            resolve_profile_adapter_modes({"profiles": ["observation_candidate"]})
+        self.assertEqual(resolve_profile_adapter_modes({
+            "profiles": ["observation_incumbent", "observation_candidate"],
+            "profile_adapter_modes": {
+                "observation_incumbent": "base", "observation_candidate": "adapter",
+            },
+        }), {"observation_incumbent": "base", "observation_candidate": "adapter"})
+        self.assertEqual(resolve_profile_adapter_modes({
+            "profiles": ["observation_enhanced_base"],
+        }), {"observation_enhanced_base": "base"})
 
     def test_requests_use_locked_image_path_without_target_metadata(self):
         rows = [{"sample_id": "dev01", "image_path": "images/a.jpg",
