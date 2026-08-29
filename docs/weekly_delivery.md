@@ -987,4 +987,7 @@ FastAPI 版本的内部路由对象计数。新增缺路由反例后，全量 74
   JSON/Schema 100%、失败0、证据矛盾下降；延迟增加28.28%，明确不是速度优化。
 - [x] 不读取/重跑final，不生成新人工标签，不训练或覆盖adapter；v12仍是完整商品候选，
   v13只作为行程派生候选，设施方案只登记development改进。
-- [ ] 最终941项本地/Spartan回归、安全与大文件扫描、diff检查及feature末次推送待本节收口。
+- [x] 最终本地/Spartan均941/941；v18跨主机原始重放逐字节一致，v12/v13与adapter哈希通过。
+- [x] `compileall`、CLI、Compose静态、候选包、diff、安全及大文件扫描通过；737 tracked文件
+  中>5MB和密钥特征均0，5个`.env.example`仅为占位配置；主dev原34项保持不变。
+- [x] feature末次整理提交与推送完成；未合并dev/stg/main、未打标签、未替换正式release。

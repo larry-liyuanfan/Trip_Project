@@ -2146,3 +2146,27 @@ human视觉准确率声明为false。comparison SHA
 风格错误仍存在。价位支持仍为0/N/A，只能保持unknown。商品缓存没有实质提速，设施复查
 又明确增加延迟；若要求低延迟，不能在没有同口径质量复验的情况下启用它。新增参考与验收
 仍全部为自动silver、human=0，不声称人工视觉准确率或统计显著性。
+
+### 16.28 最终回归、跨主机重放与交付状态
+
+本地最终完整回归为941/941（25.250秒），日志SHA
+`4607e7186b29589fee993c8f5752f2cfe067589a01392ae62c7b63f5a7cc17d6`；原审查缺陷、
+对话/检索/行程定向102/102通过。Spartan第一次命令未加载Python模块，解释器在测试前
+失败；第二次误用缺FastAPI/pyarrow的GPU环境，仅加载755项并失败，两份日志均保留且
+不计为通过。改用已有独立数据/测试环境后完整941/941（16.636秒），日志SHA
+`a635367fdb23d5bafd7c0d04376993df6fc55cd8356b036ba3acb824ad728f7b`。
+
+Spartan对v18原始输出重新评分的comparison/decision SHA与本地逐字节相同：
+`d04b3772e0a27037e5ce55e231409bb5b90bd43783f853d417e3915ce5041a31` / 
+`36eb033f5906f2ef301fde842dbbfff3a3aec02cc141b8717c59396a742c3ab2`。
+v12/v13 release SHA为`d8a8874c…b3fd0`/`74403534…80b1`，ck87 adapter SHA仍为
+`c2fbb5c7…aa2a`，跨主机一致。v12四层候选包及隔离导入PASS；当前工作树直接调用final
+raw replayer被“implementation unlocked”按设计拒绝，因为final锁定后源码已有版本化修改，
+没有绕过该保护。五维身份、100图及原始证据由冻结v12包的独立交接验证完成，不重新生成。
+
+`compileall`、v12/v13准确CLI、Compose静态配置、候选包验证与`git diff --check`通过。
+737个tracked文件中大于5MB为0、私钥/常见令牌特征为0；5个`.env.example`均为版本化
+占位配置，不是密钥。主`dev`仍为原34项未提交改动，未暂存、覆盖、格式化或提交。
+最终只推送`feature/week8-product-understanding`；未合并dev/stg/main、未打标签、未替换
+正式默认release。v12是完整自动silver商品候选，v13是行程派生候选，v18是尚未通过新final
+的development设施改进，三者身份和完成层级不得混写。

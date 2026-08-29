@@ -1224,3 +1224,6 @@ as the current validated dataset or accepted baseline.
   对话行程从二次纠错降为首轮通过，延迟约减51.72%。不宣称检索视觉相关性或商品加速。
 - 本地全量阶段性940/940、原缺陷定向102/102通过；目标无关证据非回退加入选优安全检查。
   所有新增工作human=0、final读取0；最终测试/双端复验和feature推送状态见本周交付末节。
+- 最终本地/Spartan完整回归均941/941；远端v18原始重放与本地comparison/decision哈希
+  一致。两次Spartan命令环境错误的失败日志如实保留，正确测试环境通过后才计入交付。
+  v12/v13 release、adapter、Compose/CLI、四层包、安全/大文件检查通过；主dev仍保留34项。
