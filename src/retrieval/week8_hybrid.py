@@ -42,7 +42,7 @@ class OfflineImageChannel:
         index_rows: list[dict[str, Any]],
         *,
         top_k: int,
-        filters: dict[str, str] | None = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         started = time.perf_counter()
         candidates = [
@@ -147,7 +147,7 @@ class MilvusImageChannel:
         index_rows: list[dict[str, Any]],
         *,
         top_k: int,
-        filters: dict[str, str] | None = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         if index_rows is not self.index_rows and {
             row["sample_id"] for row in index_rows
@@ -437,7 +437,7 @@ def metadata_ranking(
     index_rows: list[dict[str, Any]],
     *,
     top_k: int,
-    filters: dict[str, str] | None = None,
+    filters: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     weights = config["evaluation"]["relevance_weights"]
     hits = []
@@ -492,7 +492,7 @@ class MetadataRankingCache:
         query_metadata: dict[str, Any],
         *,
         top_k: int,
-        filters: dict[str, str] | None = None,
+        filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         key = self._key(query_metadata, filters)
         cached = self._cache.get(key)
@@ -540,7 +540,7 @@ class MetadataRankingCache:
     def _key(
         self,
         query_metadata: dict[str, Any],
-        filters: dict[str, str] | None,
+        filters: dict[str, Any] | None,
     ) -> tuple[Any, ...]:
         weights = self.config["evaluation"]["relevance_weights"]
         query_identity = tuple(

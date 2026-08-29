@@ -67,7 +67,7 @@ def summarize_evidence_consistency(records):
     samples_with_errors = 0
     for record in records:
         observation = record.get("observation")
-        if not isinstance(observation, dict):
+        if record.get("passed") is False or not isinstance(observation, dict):
             continue
         successful += 1
         labels += len(observation.get("facility_evidence", []))

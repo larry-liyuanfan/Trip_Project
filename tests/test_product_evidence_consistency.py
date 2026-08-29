@@ -37,7 +37,10 @@ class ProductEvidenceConsistencyTests(unittest.TestCase):
         records = [{"observation": {"facility_evidence": [
             {"label": "seating", "fact": "Menu on table"},
             {"label": "bar", "fact": "Fixed bar with beer taps"},
-        ], "style_evidence": []}}, {"passed": False}]
+        ], "style_evidence": []}}, {"passed": False, "observation": {
+            "facility_evidence": [{"label": "parking", "fact": "Cars through windows"}],
+            "style_evidence": [],
+        }}]
         summary = summarize_evidence_consistency(records)
         self.assertTrue(summary["target_free"])
         self.assertEqual(summary["selection_use"], "diagnostic_only")
