@@ -2157,7 +2157,7 @@ human视觉准确率声明为false。comparison SHA
 `a635367fdb23d5bafd7c0d04376993df6fc55cd8356b036ba3acb824ad728f7b`。
 
 Spartan对v18原始输出重新评分的comparison/decision SHA与本地逐字节相同：
-`d04b3772e0a27037e5ce55e231409bb5b90bd43783f853d417e3915ce5041a31` / 
+`d04b3772e0a27037e5ce55e231409bb5b90bd43783f853d417e3915ce5041a31` /
 `36eb033f5906f2ef301fde842dbbfff3a3aec02cc141b8717c59396a742c3ab2`。
 v12/v13 release SHA为`d8a8874c…b3fd0`/`74403534…80b1`，ck87 adapter SHA仍为
 `c2fbb5c7…aa2a`，跨主机一致。v12四层候选包及隔离导入PASS；当前工作树直接调用final
