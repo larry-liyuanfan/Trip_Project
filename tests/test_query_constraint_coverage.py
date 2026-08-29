@@ -19,6 +19,9 @@ class QueryConstraintCoverageTests(unittest.TestCase):
         self.assertEqual(status["推荐奢华餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
         dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
         self.assertEqual(dialogue["推荐安静的餐厅"], "NOT_COMPLETED")
+        launcher = (root / "scripts/spartan/week8_candidate_retrieval_probe.sbatch").read_text(encoding="utf-8")
+        self.assertIn("TRIP_RETRIEVAL_CONFIG", launcher)
+        self.assertIn("verify_week8_retrieval_routing.py", launcher)
     def test_applied_simple_constraints_remain_complete(self):
         for text in ("推荐便宜餐厅", "find a budget restaurant", "推荐酒店"):
             self.assertEqual(unapplied_query_text(text, user_query_attributes(text)), "")
