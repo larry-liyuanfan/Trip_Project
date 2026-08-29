@@ -75,6 +75,17 @@ class ContractAblationTests(unittest.TestCase):
         self.assertEqual(recovery["development_indices"], "all")
         self.assertFalse(recovery["final_test_access"])
 
+        recovery_v2 = json.loads((
+            ROOT / "configs/week8/contract_ablation_v17_recovery_v2.json"
+        ).read_text(encoding="utf-8"))
+        self.assertEqual(recovery_v2["recovery_of"], recovery["run_id"])
+        self.assertTrue((
+            ROOT / "configs/evaluation/prompts" / recovery_v2["product_prompt"] / "common.yaml"
+        ).is_file())
+        self.assertTrue((
+            ROOT / "configs/evaluation/prompts" / recovery_v2["itinerary_prompt"] / "common.yaml"
+        ).is_file())
+
     def test_requests_use_locked_image_path_without_target_metadata(self):
         rows = [{"sample_id": "dev01", "image_path": "images/a.jpg",
                  "target": {"parking": True}, "business_description": "secret-reference"}]
