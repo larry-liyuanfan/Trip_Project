@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 from scripts.review_week8_contracts import build_requests, resolve_profile_adapter_modes
 from scripts.verify_week8_candidate_runtime import attempt_metrics
+from scripts.compare_week8_runtime_probes import validate_itinerary_only_release_change
 from src.evaluation.prompting import render_standard_prompt
 from src.inference.business_validation import itinerary_business_errors, itinerary_request_contract
 from src.inference.system_runtime import _json_schema_response_format
@@ -95,6 +96,19 @@ class ContractAblationTests(unittest.TestCase):
         self.assertEqual(summary["attempts_total"], 3)
         self.assertEqual(summary["input_tokens_total"], 30)
         self.assertEqual(summary["latency_ms_total"], 60)
+
+    def test_itinerary_runtime_comparison_is_release_scope_locked(self):
+        incumbent = json.loads((
+            ROOT / "configs/releases/qwen3_vl_system_week8_v12.json"
+        ).read_text(encoding="utf-8"))
+        candidate = json.loads((
+            ROOT / "configs/releases/qwen3_vl_system_week8_v13.json"
+        ).read_text(encoding="utf-8"))
+        validate_itinerary_only_release_change(incumbent, candidate)
+        changed = copy.deepcopy(candidate)
+        changed["generation"]["max_new_tokens"] -= 1
+        with self.assertRaisesRegex(ValueError, "changes more"):
+            validate_itinerary_only_release_change(incumbent, changed)
 
     def test_v17_is_development_only_and_keeps_all_rows(self):
         config = json.loads((
