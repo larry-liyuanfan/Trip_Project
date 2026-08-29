@@ -22,6 +22,14 @@ from src.retrieval.query_inputs import user_query_attributes
 from scripts.run_system_model_smoke import _sha256
 
 
+def result_matches_attributes(result, attributes):
+    """A scalar result satisfies an explicit same-field OR when it is a member."""
+    return all(
+        result.get(key) in expected if isinstance(expected, list) else result.get(key) == expected
+        for key, expected in attributes.items()
+    )
+
+
 def run(config_path):
     import numpy as np
     config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -71,7 +79,7 @@ def run(config_path):
             started = time.perf_counter()
             response = routes.visual_search(request)
             attrs = user_query_attributes(query["query_text"], {key: query.get(key) for key in ("city", "business_category", "price_range")})
-            correct = all(all(item.get(key) == value for key, value in attrs.items()) for item in response["results"])
+            correct = all(result_matches_attributes(item, attrs) for item in response["results"])
             results.append({"request": query, "response": response, "filter_correct": correct,
                             "query_status_correct": expected_status is None or response["query_status"] == expected_status,
                             "latency_ms": (time.perf_counter() - started) * 1000})
@@ -111,6 +119,8 @@ def run(config_path):
         json.dump(summary, handle, ensure_ascii=False, indent=2, sort_keys=True)
     print(json.dumps({"status": summary["status"], "query_change_changes_results": changed,
                       "result_counts": [len(row["response"]["results"]) for row in results]}))
+    if not passed:
+        raise SystemExit("retrieval routing verification failed")
 
 
 if __name__ == "__main__":

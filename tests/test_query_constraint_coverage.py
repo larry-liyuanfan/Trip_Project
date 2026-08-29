@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from src.api.routes import visual_search
 from src.inference.schemas import VisualSearchRequest
 from src.retrieval.query_inputs import unapplied_query_text, user_query_attributes
+from scripts.verify_week8_retrieval_routing import result_matches_attributes
 
 
 class QueryConstraintCoverageTests(unittest.TestCase):
@@ -39,6 +40,23 @@ class QueryConstraintCoverageTests(unittest.TestCase):
         self.assertEqual(statuses["推荐酒店或便宜餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
         dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
         self.assertEqual(dialogue["推荐酒店或便宜餐厅"], "NOT_COMPLETED")
+        recovery_v2 = json.loads((
+            root / "configs/week8/candidate_retrieval_probe_v9_recovery_v2.json"
+        ).read_text(encoding="utf-8"))
+        self.assertEqual(recovery_v2["recovery_of"], config["run_id"])
+        self.assertNotEqual(recovery_v2["output_root"], config["output_root"])
+
+    def test_probe_checks_disjunction_results_by_membership(self):
+        self.assertTrue(result_matches_attributes(
+            {"city": "Indianapolis", "business_category": "restaurant", "price_range": "budget"},
+            {"city": "Indianapolis", "business_category": ["hotel", "restaurant"],
+             "price_range": ["budget", "premium"]},
+        ))
+        self.assertFalse(result_matches_attributes(
+            {"city": "Indianapolis", "business_category": "attraction"},
+            {"city": "Indianapolis", "business_category": ["hotel", "restaurant"]},
+        ))
+
     def test_applied_simple_constraints_remain_complete(self):
         for text in ("推荐便宜餐厅", "find a budget restaurant", "推荐酒店"):
             self.assertEqual(unapplied_query_text(text, user_query_attributes(text)), "")
