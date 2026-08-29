@@ -11,6 +11,7 @@ from scripts.repair_week8_visual_reference import load_revision_inputs
 from src.data.week8_visual_holdout import read_json, write_json_new
 from src.evaluation.visual_reference_revision import PROTOCOL, replay_revision, supports
 from src.evaluation.week8_visual_silver import score_paired, select_development_candidate
+from src.evaluation.product_evidence_consistency import summarize_evidence_consistency
 from src.inference.product_style_scope import venue_style_evidence
 from src.training.week7_data import iter_jsonl, sha256_file
 from src.inference.product_category_refinement import validate_category_review_identity
@@ -85,7 +86,9 @@ def build_comparison(generation_path, revision_path, root=ROOT):
             if sha256_file(path) != expected:
                 raise ValueError("generation observation config identity changed")
             observation = read_json(path)
-        summaries[role] = score_paired(root, references, list(iter_jsonl(raw_path)), observation, reference_audit=audit)
+        records = list(iter_jsonl(raw_path))
+        summaries[role] = score_paired(root, references, records, observation, reference_audit=audit)
+        summaries[role]["evidence_consistency"] = summarize_evidence_consistency(records)
     historical_formal = None
     if "formal_adapter" not in summaries:
         formal_config_path = root / config["formal_baseline_generation_config"]
