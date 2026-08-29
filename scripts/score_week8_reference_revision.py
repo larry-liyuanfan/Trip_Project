@@ -15,6 +15,7 @@ from src.evaluation.product_evidence_consistency import summarize_evidence_consi
 from src.inference.product_style_scope import venue_style_evidence
 from src.training.week7_data import iter_jsonl, sha256_file
 from src.inference.product_category_refinement import validate_category_review_identity
+from src.inference.product_facility_refinement import validate_facility_review_identity
 
 
 def verified_references(config_path, root=ROOT):
@@ -60,6 +61,7 @@ def generation_details(generation_path, revision_config, references, root=ROOT):
     identity = read_json(source / "identity.json")
     generation_summary = read_json(source / "summary.json")
     validate_category_review_identity(root, config, identity)
+    validate_facility_review_identity(root, config, identity)
     if (identity["config_sha256"] != sha256_file(generation_path)
             or config["final_test_access"] is not False or identity["test_rows_read"] is not False
             or generation_summary["status"] != "COMPLETED"
