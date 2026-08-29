@@ -3,6 +3,7 @@
   "incumbent_release": "configs/releases/qwen3_vl_system_week8_v12.json",
   "candidate_release": "configs/releases/qwen3_vl_system_week8_v13.json",
   "incumbent_probe_config": "configs/week8/candidate_runtime_probe_v7.json",
+  "incumbent_candidate_lock": "outputs/week8/visual_holdout/week8_visual_holdout_20260829_v6/candidate_lock.json",
   "candidate_probe_config": "configs/week8/candidate_runtime_probe_v8.json",
   "output": "outputs/week8/review/week8_itinerary_runtime_comparison_20260829_v1.json",
   "final_test_access": false,

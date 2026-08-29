@@ -180,6 +180,7 @@ def run(config_path):
                          "output_tokens": sum(tokens), "generated_tokens_per_second": sum(tokens) / (sum(latencies) / 1000),
                          "processor_cache": backend.processor_cache_snapshot(), "prepared_cache": backend.prepared_input_cache_snapshot()}
         print(json.dumps({"cache_mode": mode, "metrics": timings[mode]}), flush=True)
+    artifact_sha256 = {path.name: sha256_file(path) for path in sorted(output.iterdir()) if path.is_file()}
     summary = {"status": "PASS" if smoke["status"] == "PASS" and all(row["passed"] for row in itineraries)
                and all(value == "COMPLETED" for value in dialogues.values())
                and all(scope_probes)
@@ -193,6 +194,7 @@ def run(config_path):
                "peak_gpu_allocated_bytes": backend._torch.cuda.max_memory_allocated(),
                "peak_gpu_reserved_bytes": backend._torch.cuda.max_memory_reserved(),
                "test_rows_read": False, "visual_accuracy_claim": "not_established_by_smoke_or_repeated_inputs"}
+    summary["artifact_sha256"] = artifact_sha256
     write_new(output / "summary.json", summary)
     print(json.dumps(summary), flush=True)
 

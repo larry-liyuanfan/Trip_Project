@@ -24,7 +24,7 @@ def validate_itinerary_only_release_change(incumbent, candidate):
         raise ValueError("runtime candidate changes more than release id and itinerary prompt")
 
 
-def probe_details(root, probe_config_path, release_path):
+def probe_details(root, probe_config_path, release_path, external_artifact_hashes=None):
     config = read_json(probe_config_path)
     output = root / config["output_root"]
     identity, summary = read_json(output / "identity.json"), read_json(output / "summary.json")
@@ -33,6 +33,17 @@ def probe_details(root, probe_config_path, release_path):
             or identity["test_rows_read"] is not False or summary["test_rows_read"] is not False
             or summary["status"] != "PASS"):
         raise ValueError("runtime probe identity or status is invalid")
+    actual_artifacts = {
+        path.name: sha256_file(path) for path in sorted(output.iterdir())
+        if path.is_file() and path.name != "summary.json"
+    }
+    if external_artifact_hashes is not None:
+        if (external_artifact_hashes.get("summary.json") != sha256_file(output / "summary.json")
+                or {key: value for key, value in external_artifact_hashes.items() if key != "summary.json"}
+                != actual_artifacts):
+            raise ValueError("historical runtime probe differs from its candidate lock")
+    elif summary.get("artifact_sha256") != actual_artifacts:
+        raise ValueError("runtime probe artifacts differ from its summary")
     itineraries = [read_json(output / f"itinerary_{index}.json") for index in range(len(config["itinerary_requests"]))]
     if [item["request"] for item in itineraries] != config["itinerary_requests"]:
         raise ValueError("runtime probe requests changed")
@@ -57,8 +68,10 @@ def compare(config_path, root=ROOT):
     candidate_release_path = root / config["candidate_release"]
     incumbent_release, candidate_release = read_json(incumbent_release_path), read_json(candidate_release_path)
     validate_itinerary_only_release_change(incumbent_release, candidate_release)
+    incumbent_lock = read_json(root / config["incumbent_candidate_lock"])
     incumbent_config, incumbent = probe_details(
-        root, root / config["incumbent_probe_config"], incumbent_release_path)
+        root, root / config["incumbent_probe_config"], incumbent_release_path,
+        incumbent_lock["runtime_probe_files"])
     candidate_config, candidate = probe_details(
         root, root / config["candidate_probe_config"], candidate_release_path)
     if incumbent_config["itinerary_requests"] != candidate_config["itinerary_requests"]:
