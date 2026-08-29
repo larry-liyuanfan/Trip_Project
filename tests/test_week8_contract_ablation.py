@@ -63,6 +63,9 @@ class ContractAblationTests(unittest.TestCase):
         self.assertFalse(config["final_test_access"])
         self.assertEqual(config["human_annotation_count"], 0)
         self.assertEqual(config["incumbent_role"], "observation_incumbent")
+        runner = (ROOT / "scripts/review_week8_contracts.py").read_text(encoding="utf-8")
+        for profile in config["profiles"]:
+            self.assertIn(f'"{profile}"', runner)
 
     def test_requests_use_locked_image_path_without_target_metadata(self):
         rows = [{"sample_id": "dev01", "image_path": "images/a.jpg",
