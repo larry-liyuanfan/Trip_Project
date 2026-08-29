@@ -1227,3 +1227,8 @@ as the current validated dataset or accepted baseline.
 - 最终本地/Spartan完整回归均941/941；远端v18原始重放与本地comparison/decision哈希
   一致。两次Spartan命令环境错误的失败日志如实保留，正确测试环境通过后才计入交付。
   v12/v13 release、adapter、Compose/CLI、四层包、安全/大文件检查通过；主dev仍保留34项。
+- 完成商品设施复查的目标无关路由权衡：仅证据冲突触发15/60时facility F1
+  0.812903→0.810811，明确拒绝；冲突或酒店/餐饮/零售/工业场景设施为空触发17/60时F1为0.826667，
+  但mean延迟增加10.89%，且仅为development反事实复算，不晋级。综合选择后续联调采用
+  v13运行配置，商品final/四层验收仍严格引用v12，v18不进入默认链路。
+  新增定向4/4、完整945/945通过；v13 CLI/运行时比较及v12四层交接复验均PASS。

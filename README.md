@@ -1059,3 +1059,16 @@ python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week
 python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v13.json validate
 python scripts/compare_week8_runtime_probes.py --config configs/week8/runtime_probe_comparison_v1.json
 ```
+
+综合质量、证据等级和运行成本后的默认候选选择为：后续联调使用v13运行配置，商品验收身份
+仍引用v12四层包。v13与v12的商品模型、adapter模式、Prompt和观察配置相同，只增加已通过
+真实复测的行程v5；这不是重新完成商品final或替换正式release。设施复查保持development-only，
+不进入默认链路。目标无关路由的可复算权衡使用：
+
+```bash
+python scripts/analyze_week8_facility_routing.py --generation-config configs/week8/contract_ablation_v18.json --revision-config configs/week8/visual_teacher_style_revision_v1.json --output outputs/week8/review/local_facility_routing_tradeoff.json
+```
+
+冻结结果显示：仅证据冲突触发会把facility TP 63降至60、F1 0.812903降至0.810811；
+“冲突或酒店/餐饮/零售/工业场景设施为空”触发17/60条，F1为0.826667，但只是既有development输出的
+反事实复算，mean延迟仍增加10.89%，没有新final或真实路由运行证据，因此不替代v12。
