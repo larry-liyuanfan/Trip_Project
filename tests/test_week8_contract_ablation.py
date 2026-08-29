@@ -55,6 +55,25 @@ class ContractAblationTests(unittest.TestCase):
         self.assertIn("beginning with style_preferences and hard_constraints", constraint)
         self.assertIn("do not begin with itinerary or constraint_check", constraint)
 
+    def test_v13_changes_only_the_itinerary_prompt_and_has_fixed_probe(self):
+        incumbent = json.loads((
+            ROOT / "configs/releases/qwen3_vl_system_week8_v12.json"
+        ).read_text(encoding="utf-8"))
+        candidate = json.loads((
+            ROOT / "configs/releases/qwen3_vl_system_week8_v13.json"
+        ).read_text(encoding="utf-8"))
+        self.assertEqual(candidate["prompts"]["itinerary_planning"], "week8_itinerary_actionable_v5")
+        incumbent["release_id"] = candidate["release_id"]
+        incumbent["prompts"]["itinerary_planning"] = candidate["prompts"]["itinerary_planning"]
+        self.assertEqual(candidate, incumbent)
+        probe = json.loads((
+            ROOT / "configs/week8/candidate_runtime_probe_v8.json"
+        ).read_text(encoding="utf-8"))
+        self.assertEqual(probe["release_config"], "configs/releases/qwen3_vl_system_week8_v13.json")
+        self.assertEqual(len(probe["itinerary_requests"]), 3)
+        self.assertFalse(probe["test_rows_read"])
+        self.assertEqual(probe["human_annotation_count"], 0)
+
     def test_v17_is_development_only_and_keeps_all_rows(self):
         config = json.loads((
             ROOT / "configs/week8/contract_ablation_v17.json"
