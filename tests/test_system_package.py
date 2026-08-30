@@ -11,7 +11,7 @@ from scripts import (
     load_system_retrieval,
     run_system_model_smoke,
     tripctl,
-    upload_release_oss,
+    release_manifest,
     verify_model_handoff,
 )
 from src.retrieval.clip_embeddings import ClipEmbeddingError, _validate_vectors
@@ -290,19 +290,19 @@ class SystemPackageTest(unittest.TestCase):
                 (output / "release_manifest.json").read_text(encoding="utf-8")
             )
             self.assertEqual(set(manifest["layers"]), {"runtime", "adapter", "retrieval", "evidence"})
-            self.assertEqual(saved["visibility"], "private")
+            self.assertEqual(saved["distribution"], "local_handoff")
             self.assertEqual(saved["release"]["release_id"], "test-release")
             with tarfile.open(output / "adapter.tar.gz", "r:gz") as archive:
                 self.assertIn("adapter/adapter_model.safetensors", archive.getnames())
 
-            verified = upload_release_oss.verify_release_dir(output)
+            verified = release_manifest.verify_release_dir(output)
             self.assertEqual(verified, saved)
             (output / "adapter.tar.gz").write_bytes(b"tampered")
             with self.assertRaisesRegex(
-                upload_release_oss.ReleaseVerificationError,
+                release_manifest.ReleaseVerificationError,
                 "size mismatch|SHA-256 mismatch",
             ):
-                upload_release_oss.verify_release_dir(output)
+                release_manifest.verify_release_dir(output)
 
     def test_release_builder_rejects_adapter_not_bound_to_config(self):
         with TemporaryDirectory() as tmpdir:

@@ -38,7 +38,9 @@ from src.data.week5_workflow import (
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="Manage Week 5 instruction data")
-    result.add_argument("--config", default="configs/week5_dataset.json")
+    result.add_argument(
+        "--config", default="configs/week5_dataset_qwen3_vl_4b_single_operator.json"
+    )
     subparsers = result.add_subparsers(dest="command", required=True)
     subparsers.add_parser("build-pools")
     subparsers.add_parser("validate-pools")

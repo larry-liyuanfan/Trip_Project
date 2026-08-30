@@ -282,31 +282,6 @@ class Week4PromptOptimizationTest(unittest.TestCase):
         self.assertEqual(row["baseline_mean_latency_ms"], 7000.0)
         self.assertEqual(row["baseline_run_id"], "qwen37-baseline")
 
-    def test_qwen37_week4_config_binds_qwen37_baseline(self):
-        from src.evaluation.week4_runner import load_week4_config
-
-        config = load_week4_config(
-            self.PROJECT_ROOT,
-            "configs/evaluation_week4_qwen37_plus_aliyun.yaml",
-        )
-
-        self.assertEqual(
-            config["validation"]["baseline_run_id"],
-            "week3_qwen37_baseline_full_20260802_002",
-        )
-        self.assertEqual(
-            config["validation"]["full_run_id"],
-            "week4_qwen37_winners_full_20260802_001",
-        )
-        self.assertEqual(
-            config["validation"]["expected_winners"],
-            {
-                "image_product_search": "fewshot_4_v2",
-                "after_sales": "fewshot_4_v2",
-                "itinerary_planning": "standardized_v2",
-            },
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

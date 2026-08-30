@@ -1,6 +1,0 @@
-scenario: image_product_search
-schema_name: image_product_search_v1.schema.json
-format_skeleton: >-
-  {"business_category":"unknown","style_tags":[],"visible_facilities":[],"price_range":"unknown","observed_evidence":[],"inferred_attributes":[],"unknown_fields":[],"confidence":null}
-task_instruction: >-
-  逐字段检查 business_category、style_tags、visible_facilities、price_range。多主体或主体不清时保守标记 unknown；风格和设施只列图片中可见项；价位没有菜单价格、价格标识或明确奢华等级视觉证据时必须为 unknown。observed_evidence 只写支持已输出标签的短视觉事实，然后立即闭合 JSON。

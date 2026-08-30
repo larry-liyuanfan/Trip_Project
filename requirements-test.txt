@@ -1,4 +1,4 @@
 -r requirements.txt
 
-# 与本地及 Spartan 已验证的 TestClient 依赖保持一致；不加入生产运行层。
+# 与本地已验证的 TestClient 依赖保持一致；不加入生产运行层。
 httpx==0.28.1

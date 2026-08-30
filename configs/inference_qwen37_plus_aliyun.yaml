@@ -1,7 +1,0 @@
-temperature: 0.1
-top_p: 0.9
-max_tokens: 1280
-enable_thinking: false
-prompt_version: baseline_minimal_v1_or_standardized_v2
-input_type: image_plus_text
-dataset_version: week3_evaluation_v2

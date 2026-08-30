@@ -2,9 +2,10 @@ import copy
 import json
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from scripts import build_release_bundle, tripctl
-from scripts.upload_release_oss import ReleaseVerificationError
+from scripts.release_manifest import ReleaseVerificationError
 from scripts.verify_final_delivery import validate_release_lineage
 from src.inference.release_config import DEFAULT_RELEASE_CONFIG
 from src.inference.system_runtime import DEFAULT_RELEASE_CONFIG as RUNTIME_DEFAULT_RELEASE_CONFIG
@@ -14,6 +15,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class FinalDeliveryTests(unittest.TestCase):
+    def test_formal_v1_package_is_verify_only(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(ValueError, "formal v1 is immutable"):
+                build_release_bundle.build_bundle(
+                    root / "release",
+                    adapter_dir=root / "adapter",
+                    retrieval_dir=root / "retrieval",
+                    evidence_paths=[],
+                )
+
     def load(self, name):
         return json.loads((ROOT / "configs/releases" / name).read_text(encoding="utf-8"))
 

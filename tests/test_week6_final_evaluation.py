@@ -67,15 +67,6 @@ class Week6FinalEvaluationTests(unittest.TestCase):
         self.assertEqual(messages[0]["content"][1]["type"], "image")
         self.assertEqual(messages[0]["content"][1]["image"].size, (2, 2))
 
-    def test_spartan_script_keeps_failed_child_allocation_alive(self):
-        script = (
-            ROOT / "scripts/spartan/week6_final_evaluation.sbatch"
-        ).read_text(encoding="utf-8")
-        self.assertIn("#SBATCH --time=01:30:00", script)
-        self.assertIn("waiting_for_versioned_diagnosis", script)
-        self.assertIn('export HOME="${runtime_cache}/home"', script)
-        self.assertIn("--prompt-version standardized_v2", script)
-
 
 if __name__ == "__main__":
     unittest.main()

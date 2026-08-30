@@ -1,6 +1,0 @@
-scenario: image_product_search
-schema_name: image_product_search_v1.schema.json
-format_skeleton: >-
-  {"business_category":"unknown","style_tags":[],"visible_facilities":[],"price_range":"unknown","observed_evidence":[],"inferred_attributes":[],"unknown_fields":[],"confidence":null}
-task_instruction: >-
-  按 business_category、style_tags、visible_facilities、price_range、observed_evidence、inferred_attributes、unknown_fields、confidence 的顺序检查并输出。先区分酒店、景点、餐厅与无法确定；再记录可见风格和设施；最后仅在图片存在直接价格证据时判断价位，否则 price_range 使用 unknown。单份食物、装饰风格或商家元数据不足以单独证明业态或价位。observed_evidence 只写直接可见事实，推断内容只能进入 inferred_attributes。

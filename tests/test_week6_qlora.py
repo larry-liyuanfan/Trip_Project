@@ -50,52 +50,6 @@ class Week6QLoRATests(unittest.TestCase):
         with self.assertRaisesRegex(Week6TrainingError, "multimodal content list"):
             _normalize_processor_messages([{"role": "assistant", "content": []}])
 
-    def test_spartan_environment_is_pinned_to_cuda_128_stack(self) -> None:
-        requirements = (
-            ROOT / "requirements-training-spartan-cu128.txt"
-        ).read_text(encoding="utf-8")
-        setup = (
-            ROOT / "scripts/spartan/setup_week6_cuda128_venv.sbatch"
-        ).read_text(encoding="utf-8")
-        repair = (
-            ROOT / "scripts/spartan/repair_week6_torchvision.sbatch"
-        ).read_text(encoding="utf-8")
-        self.assertIn("transformers==4.57.1", requirements)
-        self.assertIn("bitsandbytes==0.47.0", requirements)
-        self.assertIn("kernels==0.11.7", requirements)
-        self.assertIn("torch==2.8.0+cu128", setup)
-        self.assertIn("torchvision==0.23.0+cu128", setup)
-        self.assertIn("refusing to mutate an existing environment", setup)
-        self.assertIn("PIP_NO_CACHE_DIR=1", setup)
-        self.assertNotIn(
-            '-r "${TRIP_PROJECT_ROOT}/requirements.txt"',
-            setup,
-        )
-        self.assertIn("torchvision==0.23.0+cu128", repair)
-        self.assertIn("refusing to repair an unexpected torch/CUDA environment", repair)
-        supervised = (
-            ROOT / "scripts/spartan/week6_qlora_supervised.sbatch"
-        ).read_text(encoding="utf-8")
-        evaluation = (
-            ROOT / "scripts/spartan/week6_adapter_evaluation.sbatch"
-        ).read_text(encoding="utf-8")
-        self.assertIn("#SBATCH --time=08:00:00", supervised)
-        self.assertIn("waiting_for_versioned_resume", supervised)
-        self.assertIn("--init-adapter", supervised)
-        self.assertIn('export HOME="${runtime_cache}/home"', supervised)
-        self.assertIn('export XDG_CACHE_HOME="${runtime_cache}/xdg"', supervised)
-        self.assertIn(
-            'export PYTORCH_KERNEL_CACHE_PATH="${runtime_cache}/torch/kernels"',
-            supervised,
-        )
-        self.assertIn("#SBATCH --time=02:00:00", evaluation)
-        self.assertIn("--resume", evaluation)
-        self.assertIn('export HOME="${runtime_cache}/home"', evaluation)
-        self.assertIn(
-            'export PYTORCH_KERNEL_CACHE_PATH="${runtime_cache}/torch/kernels"',
-            evaluation,
-        )
-
     def _pilot_summary(self, config: dict) -> dict:
         return {
             "status": "completed",

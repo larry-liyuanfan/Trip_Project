@@ -1,4 +1,0 @@
-scenario: itinerary_planning
-schema_name: itinerary_planning_v2.schema.json
-task_instruction: >-
-  从用户原文与输入派生的结构化要求确定目的地、天数、必去/禁去、交通、预算和结束时间。Shanghai=上海，Beijing=北京；城市和天数也逐项进入 hard_constraints 与 constraint_check。按准确天数生成完整 itinerary，day_index 从1连续递增；未指定日历日期时每一天 date 必须为 null。默认每天两个具体建议活动，明确要求更多时增加。每个 place_name 都必须是指定城市中一个具体名称，不是“某地点”“附近某类场所”或多个备选的占位词。活动填写建议 HH:MM 开始和结束时间，满足用户截止时间；交通只写地铁、公交、步行等方式，不编造线路号或精确车程。source_evidence 为 []，没有检索就不能编造引用。实时开放/预约信息未核实，在 unknown_fields 说明。constraint_check 的 status 为 satisfied/violated/unknown，evidence 简短引用计划内容。没有金额就不生成金额预算；有金额则提供标明估算的分项和合计，不伪装实际报价。图片直接可见的简短事实才进入 observed_evidence，不能把“上海”这样的用户目的地改写成图像事实；文字偏好只进 soft_constraints。required_itinerary_elements 只列实际提供的部分，不复制全部枚举。

@@ -1,4 +1,0 @@
-scenario: itinerary_planning
-schema_name: itinerary_planning_v2.schema.json
-task_instruction: >-
-  依据图片和原始文字约束规划行程，严格输出指定 JSON Schema。保留未知字段，不得用外部知识补齐。

@@ -21,7 +21,7 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument(
         "--config",
         type=Path,
-        default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v3.json",
+        default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json",
     )
     subcommands = command.add_subparsers(dest="command", required=True)
     build = subcommands.add_parser("build-lock")

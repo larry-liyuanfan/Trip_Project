@@ -587,47 +587,10 @@ class SystemRepairTest(unittest.TestCase):
             self.assertEqual(result["adapter_model_sha256"], adapter_hash)
             self.assertFalse(result["test_consumed"])
 
-    def test_spartan_job_requests_one_gpu_and_six_hours(self):
-        text = (ROOT / "scripts/spartan/system_repair_train.sbatch").read_text(
-            encoding="utf-8"
-        )
-
-        self.assertIn("#SBATCH --gpus=1", text)
-        self.assertIn("#SBATCH --time=06:00:00", text)
-        self.assertNotIn("--gpus=2", text)
-
     def test_week5_resume_identity_binds_git_commit(self):
         source = inspect.getsource(run_week5_repair_queue)
 
         self.assertIn('"git_commit": _git_commit(root)', source)
-
-    def test_spartan_inference_job_is_resumable_and_reuses_one_adapter(self):
-        text = (
-            ROOT / "scripts/spartan/system_repair_inference.sbatch"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn("#SBATCH --gpus=1", text)
-        self.assertIn("#SBATCH --time=03:00:00", text)
-        self.assertIn("run-inference-repair", text)
-        self.assertIn("TRIP_ADAPTER_DIR", text)
-        self.assertNotIn("uvicorn", text)
-        self.assertNotIn("#SBATCH --array", text)
-
-    def test_spartan_development_job_compares_existing_and_zero_shot(self):
-        text = (
-            ROOT / "scripts/spartan/system_repair_development_eval.sbatch"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn("#SBATCH --gpus=1", text)
-        self.assertIn("#SBATCH --time=06:00:00", text)
-        self.assertIn("--model-role multitask_existing", text)
-        self.assertIn("--model-role zero_shot", text)
-        self.assertIn("--model-role week6_single_task_adapter", text)
-        self.assertIn("evaluate-week6-dialogue-development", text)
-        self.assertIn("combine-week6-development", text)
-        self.assertIn("qwen3_vl_8b_system_repair_v2.json", text)
-        self.assertNotIn("--max-new-tokens 3072", text)
-        self.assertNotIn("final-test", text)
 
     def test_development_baselines_use_candidate_metric_support_protocol(self):
         source = inspect.getsource(run_transformers_development)
@@ -636,18 +599,6 @@ class SystemRepairTest(unittest.TestCase):
             'metric_support_protocol=config["evaluation"].get(',
             source,
         )
-
-    def test_spartan_final_test_is_one_gpu_and_gate_bound(self):
-        text = (
-            ROOT / "scripts/spartan/system_repair_final_test.sbatch"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn("#SBATCH --gpus=1", text)
-        self.assertIn("#SBATCH --time=04:00:00", text)
-        self.assertIn("run-final-test", text)
-        self.assertIn("TRIP_SELECTION", text)
-        self.assertIn("TRIP_GATE", text)
-        self.assertNotIn("evaluate-development", text)
 
     def test_final_test_recomputes_all_development_gate_inputs(self):
         text = (ROOT / "src/training/week7_inference.py").read_text(

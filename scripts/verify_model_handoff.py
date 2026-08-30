@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.upload_release_oss import ReleaseVerificationError, verify_release_dir
+from scripts.release_manifest import ReleaseVerificationError, verify_release_dir
 
 
 SMOKE_MEMBER = "evidence/system_release_model_smoke_20260825_v6.json"

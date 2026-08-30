@@ -1,4 +1,0 @@
-scenario: after_sales
-schema_name: after_sales_v1.schema.json
-task_instruction: >-
-  读取视觉证据，判断问题类型、严重度和关键信息，严格输出指定 JSON Schema。先在内部核对证据来源，再逐字段输出；缺少证据时保留 unknown，不得猜测。

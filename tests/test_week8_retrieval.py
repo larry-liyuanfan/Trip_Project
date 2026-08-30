@@ -32,24 +32,6 @@ from src.retrieval.week8_hybrid import (
 class Week8RetrievalTests(unittest.TestCase):
     def test_repository_config_has_fixed_release_and_silver_isolated_protocol(self):
         config = load_config("configs/week8/retrieval_relevance_v3.json")
-        legacy = json.loads(
-            Path("configs/week8/retrieval_relevance_v1.json").read_text(encoding="utf-8")
-        )
-
-        self.assertEqual(legacy["schema_version"], "week8_retrieval_relevance_config_v1")
-        self.assertEqual(legacy["experiment_id"], "week8_retrieval_relevance_20260826_v1")
-        self.assertEqual(legacy["dataset_version"], "week8_retrieval_query_index_20260826_v1")
-        self.assertNotIn("hybrid", legacy)
-        self.assertEqual(legacy["selection"]["candidate_method"], "metadata_rerank")
-        self.assertEqual(
-            legacy["split"]["template_ids"]["final_test_query"],
-            "week8_retrieval_final_test_query_v1",
-        )
-        v2 = json.loads(
-            Path("configs/week8/retrieval_relevance_v2.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(v2["schema_version"], "week8_retrieval_relevance_config_v2")
-        self.assertEqual(v2["experiment_id"], "week8_retrieval_relevance_20260827_v2")
         self.assertEqual(config["schema_version"], "week8_retrieval_relevance_config_v3")
         self.assertEqual(config["dataset_version"], "week8_retrieval_query_index_20260827_v3")
         self.assertEqual(config["source"]["expected_count"], 1000)

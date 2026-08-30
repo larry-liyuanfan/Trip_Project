@@ -50,7 +50,7 @@ python scripts/verify_final_delivery.py \
   outputs/releases/trip-qwen3-vl-8b-week8-final-v1
 ```
 
-验证器检查四层哈希、adapter 身份、v12 商品验收、v13 行程派生范围、最终质量边界、完整测试日志和 runtime 隔离导入。当前结果为 `PASS`，完整测试为 948/948。
+验证器检查四层哈希、adapter 身份、v12 商品验收、v13 行程派生范围、最终质量边界、完整测试日志和 runtime 隔离导入。当前结果为 `PASS`。包内保留封装时的 948/948 测试证据；精简后的当前仓库回归集为 521/521。
 
 ## 解压与运行
 

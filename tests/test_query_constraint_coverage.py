@@ -1,6 +1,4 @@
 import os
-import json
-from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
@@ -11,41 +9,6 @@ from scripts.verify_week8_retrieval_routing import result_matches_attributes
 
 
 class QueryConstraintCoverageTests(unittest.TestCase):
-    def test_v9_probe_promotes_only_explicit_disjunctions(self):
-        root = Path(__file__).resolve().parents[1]
-        config = json.loads((root / "configs/week8/candidate_retrieval_probe_v9.json").read_text(encoding="utf-8"))
-        status = {row["query_text"]: row.get("expected_query_status") for row in config["retrieval_queries"]}
-        self.assertEqual(status["推荐便宜或高档餐厅"], "COMPLETED")
-        self.assertEqual(status["推荐酒店或餐厅"], "COMPLETED")
-        self.assertEqual(status["推荐奢华餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
-        dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
-        self.assertEqual(dialogue["推荐安静的餐厅"], "NOT_COMPLETED")
-        launcher = (root / "scripts/spartan/week8_candidate_retrieval_probe.sbatch").read_text(encoding="utf-8")
-        self.assertIn("TRIP_RETRIEVAL_CONFIG", launcher)
-        self.assertIn("verify_week8_retrieval_routing.py", launcher)
-
-    def test_v12_handoff_retrieval_v8_remains_frozen(self):
-        root = Path(__file__).resolve().parents[1]
-        config = json.loads((root / "configs/week8/candidate_retrieval_probe_v8.json").read_text(encoding="utf-8"))
-        statuses = {row["query_text"]: row.get("expected_query_status") for row in config["retrieval_queries"]}
-        self.assertEqual(statuses["推荐酒店或餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
-        dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
-        self.assertEqual(dialogue["推荐酒店或餐厅"], "NOT_COMPLETED")
-
-    def test_v9_recovery_adds_cross_field_fail_closed_case(self):
-        root = Path(__file__).resolve().parents[1]
-        config = json.loads((root / "configs/week8/candidate_retrieval_probe_v9_recovery_v1.json").read_text(encoding="utf-8"))
-        self.assertEqual(config["recovery_of"], "week8_candidate_retrieval_routing_20260829_v9")
-        statuses = {row["query_text"]: row.get("expected_query_status") for row in config["retrieval_queries"]}
-        self.assertEqual(statuses["推荐酒店或便宜餐厅"], "PARTIAL_UNSUPPORTED_CONSTRAINTS")
-        dialogue = {row["text"]: row["expected_status"] for row in config["dialogue_cases"]}
-        self.assertEqual(dialogue["推荐酒店或便宜餐厅"], "NOT_COMPLETED")
-        recovery_v2 = json.loads((
-            root / "configs/week8/candidate_retrieval_probe_v9_recovery_v2.json"
-        ).read_text(encoding="utf-8"))
-        self.assertEqual(recovery_v2["recovery_of"], config["run_id"])
-        self.assertNotEqual(recovery_v2["output_root"], config["output_root"])
-
     def test_probe_checks_disjunction_results_by_membership(self):
         self.assertTrue(result_matches_attributes(
             {"city": "Indianapolis", "business_category": "restaurant", "price_range": "budget"},

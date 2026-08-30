@@ -42,7 +42,11 @@ from src.training.week7_adversarial_audit import audit_week7_repository
 
 def build_parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("--config", type=Path, default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v3.json")
+    result.add_argument(
+        "--config",
+        type=Path,
+        default=ROOT / "configs/week7/qwen3_vl_8b_multitask_context_v4_fix2.json",
+    )
     commands = result.add_subparsers(dest="command", required=True)
     commands.add_parser("check-environment")
     train = commands.add_parser("train-multitask")

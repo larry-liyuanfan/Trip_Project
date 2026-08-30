@@ -1,4 +1,0 @@
-scenario: itinerary_planning
-schema_name: itinerary_planning_v2.schema.json
-task_instruction: >-
-  按用户文字给出的目的地、天数、必去/禁去地点、交通、预算和截止时间制定完整行程。itinerary 的天数必须准确，day_index 从 1 连续递增，每天至少两个具体活动，填写建议开始/结束时间、真实地点名称和交通方式；用户未给日期则 date 为 null。城市来自用户文字，不必由图片证明。style_preferences 只来自图片，文字偏好进入 soft_constraints。hard_constraints 逐项保留明确要求。constraint_check 覆盖每个明确要求，status 只能为 satisfied、violated 或 unknown，evidence 用简短事实说明实际计划如何满足该条件，不得只重复要求。预算可以给出明确标为估算的分项与合计，不得把估算说成报价。不能核实营业时间等事实在 unknown_fields 声明。observed_evidence 只写可见图像事实。source_evidence 只记录真实输入来源，不编造网页或检索结果。禁止“简短活动”“简短摘要”等模板答案。

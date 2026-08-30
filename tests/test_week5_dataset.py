@@ -265,27 +265,6 @@ class Week5DatasetTests(unittest.TestCase):
         }
         return root, config, sample_id
 
-    def test_config_uses_current_schemas_and_qwen37_prompts(self) -> None:
-        config = load_week5_config(ROOT, "configs/week5_dataset.json")
-        self.assertEqual(config["prompt_versions"]["image_product_search"], "fewshot_4_v2")
-        self.assertEqual(config["prompt_versions"]["after_sales"], "fewshot_4_v2")
-        self.assertEqual(config["prompt_versions"]["itinerary_planning"], "standardized_v4")
-        self.assertTrue(config["schemas"]["itinerary_planning"].endswith("itinerary_planning_v2.schema.json"))
-
-    def test_qwen3_vl_4b_config_uses_project_control_prompt_mapping(self) -> None:
-        config = load_week5_config(ROOT, "configs/week5_dataset_qwen3_vl_4b_gpu.json")
-        self.assertEqual(config["prompt_versions"]["image_product_search"], "standardized_v2")
-        self.assertEqual(config["prompt_versions"]["after_sales"], "fewshot_4_v2")
-        self.assertEqual(config["prompt_versions"]["itinerary_planning"], "standardized_v4")
-        self.assertEqual(
-            config["pilot"]["itinerary_prompt_versions"],
-            ["fewshot_4_v2", "standardized_v4"],
-        )
-        self.assertLessEqual(config["pilot"]["max_total_requests"], 60)
-        self.assertLessEqual(config["pilot"]["max_gpu_hours"], 1.0)
-        self.assertLessEqual(config["pilot"]["max_cost_cny"], 20.0)
-        self.assertTrue(config["schemas"]["dialogue"].endswith("multimodal_dialogue_v2.schema.json"))
-
     def test_single_operator_config_reduces_and_nests_qc_samples(self) -> None:
         config = load_week5_config(
             ROOT, "configs/week5_dataset_qwen3_vl_4b_single_operator.json"
@@ -666,7 +645,9 @@ class Week5DatasetTests(unittest.TestCase):
             self.assertTrue(all(json.loads(row)["error_type"] == "input_error" for row in attempts))
 
     def test_single_operator_qc_selection_is_nested_and_rate_bounded(self) -> None:
-        config = load_week5_config(ROOT, "configs/week5_dataset.json")
+        config = load_week5_config(
+            ROOT, "configs/week5_dataset_qwen3_vl_4b_single_operator.json"
+        )
         first = qc_audit_selected("sample-1", "after_sales", config)
         self.assertEqual(first, qc_audit_selected("sample-1", "after_sales", config))
         ids = [f"sample-{index}" for index in range(10000)]

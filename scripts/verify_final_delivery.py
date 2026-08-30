@@ -17,7 +17,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.build_release_bundle import verify_runtime_archive
-from scripts.upload_release_oss import ReleaseVerificationError, verify_release_dir
+from scripts.release_manifest import ReleaseVerificationError, verify_release_dir
 from src.inference.product_observation import canonical_config_sha256
 
 

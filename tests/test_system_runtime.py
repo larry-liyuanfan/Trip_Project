@@ -9,7 +9,6 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from src.api.routes import dialogue, readiness, visual_search
-from src.evaluation.prompting import render_standard_prompt
 from src.inference.client import OpenAICompatibleClient
 from src.inference.schemas import (
     DialogueRequest,
@@ -327,38 +326,25 @@ class SystemRuntimeTest(unittest.TestCase):
             },
         )
 
-    def test_release_uses_prompt_pilot_winners(self):
-        # 此用例核对历史正式Prompt，不应被操作者选择的候选环境变量改写。
-        release = ReleaseSettings.load(root=Path.cwd(), config_path=Path.cwd() / "configs/releases/qwen3_vl_system_v1.json")
-        expected = {
-            "image_product_search": (
-                "system_repair_product_compact_v3",
-                "八个顶层键",
-            ),
-            "after_sales": (
-                "system_repair_after_sales_evidence_v3",
-                "ocr_text",
-            ),
-            "itinerary_planning": (
-                "system_repair_itinerary_structured_v4",
-                "constraint_check 必须是对象数组",
-            ),
-        }
-
-        for scenario, (version, expected_text) in expected.items():
-            context = {
-                "images": [{"path": "sample.jpg"}],
-                "text_constraints": "行程共2天" if scenario == "itinerary_planning" else None,
-            }
-            rendered = render_standard_prompt(Path.cwd(), scenario, context, version)
-            self.assertEqual(release.prompt_versions[scenario], version)
-            self.assertIn(expected_text, rendered["layers"]["task_instruction"])
+    def test_release_uses_final_prompt_selection(self):
+        release = ReleaseSettings.load(
+            root=Path.cwd(),
+            config_path=Path.cwd() / "configs/releases/qwen3_vl_system_final_v1.json",
+        )
+        self.assertEqual(
+            release.prompt_versions,
+            {
+                "image_product_search": "product_visual_observation_v3",
+                "after_sales": "system_repair_after_sales_evidence_v3",
+                "itinerary_planning": "week8_itinerary_actionable_v5",
+            },
+        )
         self.assertEqual(
             release.max_new_tokens_by_scenario,
             {
-                "image_product_search": 512,
+                "image_product_search": 768,
                 "after_sales": 512,
-                "itinerary_planning": 1024,
+                "itinerary_planning": 3072,
             },
         )
 

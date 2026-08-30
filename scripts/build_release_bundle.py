@@ -1,10 +1,9 @@
-"""Build layered private-OSS release archives and a checksum manifest."""
+"""Build a layered local handoff package and checksum manifest."""
 
 from __future__ import annotations
 
 import argparse
 import gzip
-import hashlib
 import json
 import os
 import shutil
@@ -14,9 +13,12 @@ import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
 
+from scripts.release_manifest import SCHEMA_VERSION, sha256_file
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RELEASE_CONFIG = ROOT / "configs/releases/qwen3_vl_system_final_v1.json"
+IMMUTABLE_RELEASE_ID = "trip-qwen3-vl-8b-week8-final-v1"
 RUNTIME_PATHS = [
     "src/__init__.py",
     "src/api",
@@ -34,9 +36,6 @@ RUNTIME_PATHS = [
     "configs/evaluation/prompts",
     "configs/evaluation/schemas",
     "configs/retrieval",
-    "configs/week8/product_observation_v1.json",
-    "configs/week8/product_observation_v2.json",
-    "configs/week8/product_observation_v3.json",
     "docker/system",
     "scripts/tripctl.py",
     "scripts/load_system_retrieval.py",
@@ -57,7 +56,10 @@ def runtime_paths(release: dict) -> list[str]:
         if (relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("configs",)
                 or relative.suffix != ".json"):
             raise ValueError("runtime observation config must stay inside repository configs")
-        (ROOT / relative).resolve().relative_to(ROOT.resolve())
+        selected_path = (ROOT / relative).resolve()
+        selected_path.relative_to(ROOT.resolve())
+        if not selected_path.is_file():
+            raise FileNotFoundError(selected_path)
         # 目录已包含目标时不重复归档；禁止通过目标配置带入密钥等非配置文件。
         if not any(relative == PurePosixPath(path) or PurePosixPath(path) in relative.parents for path in paths):
             paths.append(relative.as_posix())
@@ -106,11 +108,14 @@ def build_bundle(
     release_config: Path = DEFAULT_RELEASE_CONFIG,
 ) -> dict:
     release_config = Path(release_config).resolve()
-    adapter_dir = Path(adapter_dir).resolve()
     release = json.loads(release_config.read_text(encoding="utf-8"))
-    adapter_model = adapter_dir / "adapter_model.safetensors"
+    if release.get("release_id") == IMMUTABLE_RELEASE_ID:
+        raise ValueError("formal v1 is immutable; verify the existing handoff package")
+    adapter_dir = Path(adapter_dir).resolve()
+    retrieval_dir = Path(retrieval_dir).resolve()
     expected_adapter_sha = release.get("model", {}).get("adapter_model_sha256")
-    if not adapter_model.is_file() or _sha256(adapter_model) != expected_adapter_sha:
+    adapter_model = adapter_dir / "adapter_model.safetensors"
+    if not adapter_model.is_file() or sha256_file(adapter_model) != expected_adapter_sha:
         raise ValueError("adapter does not match the release config SHA-256")
     if output_dir.exists():
         raise FileExistsError(f"release output already exists: {output_dir}")
@@ -141,12 +146,12 @@ def build_bundle(
         ),
     }
     manifest = {
-        "schema_version": "private_oss_release_v1",
-        "visibility": "private",
+        "schema_version": SCHEMA_VERSION,
+        "distribution": "local_handoff",
         "release": {
             "release_id": release.get("release_id"),
             "config_member": "release/release_config.json",
-            "config_sha256": _sha256(release_config),
+            "config_sha256": sha256_file(release_config),
             "adapter_model_sha256": expected_adapter_sha,
         },
         "layers": layers,
@@ -172,7 +177,7 @@ def _archive(output: Path, sources: list[tuple[Path, Path]]) -> dict:
                     members += _add_path(archive, source, arcname)
     return {
         "file": output.name,
-        "sha256": _sha256(output),
+        "sha256": sha256_file(output),
         "size_bytes": output.stat().st_size,
         "member_count": members,
     }
@@ -193,14 +198,6 @@ def _add_path(archive: tarfile.TarFile, source: Path, arcname: Path) -> int:
             archive.addfile(info, handle)
         count += 1
     return count
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def main() -> None:
