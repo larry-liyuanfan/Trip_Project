@@ -109,8 +109,7 @@ Capture readiness-only evidence without sending Week 3 images:
 python scripts/capture_week3_readiness.py --config configs/evaluation_week3.yaml --evidence-id <evidence-id>
 ```
 
-Reuse the validated completed baseline while its artifact hashes match. A new
-live baseline would use:
+Reuse the validated completed baseline while its artifact hashes match. A new live baseline would use:
 
 ```powershell
 python scripts/run_week3_evaluation.py --config configs/evaluation_week3.yaml --run-id <baseline-run-id> --mode live --run-scope full --prompt-version baseline_minimal_v1
@@ -127,7 +126,4 @@ python scripts/run_week3_evaluation.py --config configs/evaluation_week3.yaml --
 
 Stage 4 scoring is separate from this runner. The mentor-required metric definitions and scoring command are documented in `docs/evaluation_metrics.md`.
 
-The deterministic baseline coding stage reads only `scenario`, `raw_output`,
-the versioned codebook, and normalization rules. It completes predictions
-before manifests or annotations are loaded. The scoring stage then joins those
-frozen predictions to human gold by `sample_id`.
+The deterministic baseline coding stage reads only `scenario`, `raw_output`, the versioned codebook, and normalization rules. It completes predictions before manifests or annotations are loaded. The scoring stage then joins those frozen predictions to human gold by `sample_id`.

@@ -200,21 +200,9 @@ Local GPU capacity may limit full inference, and public after-sales evidence may
 - Use a documented, reproducible metric interpretation for baseline and optimized outputs. Preserve the existing Week 3 scores and store Week 4 runs and comparisons separately.
 - The selected prompt is best only among the tested candidates. Reports must not claim global optimality.
 
-2026-07-26 审查澄清：上述 Few-Shot 示例来自最终测试集金标，因此现有
-pilot 只能作为描述性运行证据，不能用于无偏泛化效果声明。当前范围仍禁止
-新增人工标注或数据集版本，所以不临时构造新的 demo/dev pool。最终胜出的
-`standardized_v2` 不使用示例，其 450 条全量结果不受该污染直接影响。
-baseline 与 winner 的业务差值必须另存为共同确定性语义轨道：两组原始输出
-使用同一编码器、同一 codebook、同一指标函数和相同 `sample_id` 成对评分；
-不得覆盖 Week 3 原评分。
+2026-07-26 审查澄清：上述 Few-Shot 示例来自最终测试集金标，因此现有 pilot 只能作为描述性运行证据，不能用于无偏泛化效果声明。当前范围仍禁止新增人工标注或数据集版本，所以不临时构造新的 demo/dev pool。最终胜出的 `standardized_v2` 不使用示例，其 450 条全量结果不受该污染直接影响。baseline 与 winner 的业务差值必须另存为共同确定性语义轨道：两组原始输出使用同一编码器、同一 codebook、同一指标函数和相同 `sample_id` 成对评分；不得覆盖 Week 3 原评分。
 
-2026-07-26 用户后续直接授权完成全部未完成项，包括新建独立 demo/dev pool
-及其人工标注，因此该授权只在此项上取代上一段“禁止新增”的临时限制。
-独立池固定命名为 `week4_demo_dev_v1`、split 为 `development`，不得复用
-最终 evaluation 金标；必须与 `week3_evaluation_v2` 在样本、来源、图片
-哈希和来源组上隔离。每场景人工完成 12 条，从中选 5 个正例和 2 个边界例，
-固定 evaluation pilot 不变。旧 test-gold Few-Shot 运行保留为历史证据，
-新比较、全量 winner 和报告必须另行版本化。
+2026-07-26 用户后续直接授权完成全部未完成项，包括新建独立 demo/dev pool 及其人工标注，因此该授权只在此项上取代上一段“禁止新增”的临时限制。独立池固定命名为 `week4_demo_dev_v1`、split 为 `development`，不得复用最终 evaluation 金标；必须与 `week3_evaluation_v2` 在样本、来源、图片哈希和来源组上隔离。每场景人工完成 12 条，从中选 5 个正例和 2 个边界例，固定 evaluation pilot 不变。旧 test-gold Few-Shot 运行保留为历史证据，新比较、全量 winner 和报告必须另行版本化。
 
 The format fallback may remove an optional Markdown code fence, parse JSON, and validate the existing scenario Schema. It must preserve the raw output and return explicit errors. It must not invent fields, change enum values, infer missing labels, or call the model again.
 
@@ -252,23 +240,17 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 
 #### 1. 标注规范与标注方案
 
-- 分别制定以图搜商品、智能售后、多模态行程规划的标注规范，明确输入构成、
-  输出字段、取值范围、格式标准和质量验收规则，统一全量标注口径。
-- 设计各场景标准 JSON Schema，与前期 Prompt 工程输出格式保持一致，保证训练
-  与推理结构统一。
-- 标注流水线采用“模型预标注 + 人工修正 + 分层质检”，明确各环节责任与验收
-  标准。
+- 分别制定以图搜商品、智能售后、多模态行程规划的标注规范，明确输入构成、输出字段、取值范围、格式标准和质量验收规则，统一全量标注口径。
+- 设计各场景标准 JSON Schema，与前期 Prompt 工程输出格式保持一致，保证训练与推理结构统一。
+- 标注流水线采用“模型预标注 + 人工修正 + 分层质检”，明确各环节责任与验收标准。
 - 配置多模态标注模板，导入原始样本池并设置字段自动校验规则。
 
 #### 2. 分场景样本池与预标注
 
 - 从第 1 周 OTA 数据中分层抽样，与独立测试集严格隔离，避免数据泄漏。
-- 以图搜商品：构建 5 万张高质量商家实景图样本池，覆盖酒店、餐饮、景点，
-  兼顾风格、价位和城市分布。
-- 智能售后：构建 2 万条公开场景凭证与业务合成样本，覆盖卫生污渍、设施损坏、
-  景点关闭、交通延误，均衡不同严重等级。
-- 多模态行程规划：构建 1 万组“风格参考图 + 出行约束”，覆盖不同出行人群、
-  预算档位和行程天数。
+- 以图搜商品：构建 5 万张高质量商家实景图样本池，覆盖酒店、餐饮、景点，兼顾风格、价位和城市分布。
+- 智能售后：构建 2 万条公开场景凭证与业务合成样本，覆盖卫生污渍、设施损坏、景点关闭、交通延误，均衡不同严重等级。
+- 多模态行程规划：构建 1 万组“风格参考图 + 出行约束”，覆盖不同出行人群、预算档位和行程天数。
 - 复用前期沉淀的最优 Prompt，对全量样本批量预标注并生成初始结果。
 
 #### 3. 全量人工标注修正
@@ -281,40 +263,29 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 
 #### 4. 多级质检与数据清洗
 
-- 执行单人三级质检：人工修正保存时显式完成自审；确定性选中样本由同一标注人
-  在不同 `review_session_id` 中进行同场景盲二次复核；其子集再执行核心样本抽检。
-  不得伪造第二位审核人或把自动校验记为人工质检。
-- 为最大程度降低唯一标注人的重复劳动并将全池额外质检控制在 500 次以下，商品
-  交叉复核/核心抽检比例为 0.2%/0.05%，售后和行程为 0.5%/0.1%。选择使用
-  `sample_id` SHA-256 固定，核心抽检是交叉复核的嵌套子集。未抽中样本在真实人工
-  修正和内联自审通过后可 accepted。
-- 剔除或修正标注错误、字段缺失、格式非法、图文不匹配和歧义样本，统一同类
-  表述口径。
+- 执行单人三级质检：人工修正保存时显式完成自审；确定性选中样本由同一标注人在不同 `review_session_id` 中进行同场景盲二次复核；其子集再执行核心样本抽检。不得伪造第二位审核人或把自动校验记为人工质检。
+- 为最大程度降低唯一标注人的重复劳动并将全池额外质检控制在 500 次以下，商品交叉复核/核心抽检比例为 0.2%/0.05%，售后和行程为 0.5%/0.1%。选择使用 `sample_id` SHA-256 固定，核心抽检是交叉复核的嵌套子集。未抽中样本在真实人工修正和内联自审通过后可 accepted。
+- 剔除或修正标注错误、字段缺失、格式非法、图文不匹配和歧义样本，统一同类表述口径。
 - 统计各场景标注合格率和问题分布，输出质检报告；不达标批次执行返工。
-- 最终达标样本：以图搜商品不少于 4.5 万条，智能售后不少于 1.8 万条，
-  行程规划不少于 0.9 万条。
+- 最终达标样本：以图搜商品不少于 4.5 万条，智能售后不少于 1.8 万条，行程规划不少于 0.9 万条。
 
 ### B. 多轮多模态对话数据集构建
 
 #### 1. 对话场景与交互范式
 
 - 三类场景为以图搜咨询、行程规划迭代、售后协商，典型对话为 3-8 轮。
-- 对话结构包含对话 ID、场景类型、图片资源列表、多轮消息及其角色、内容和
-  图片引用，并规范图片引用和指代规则。
-- 对话应逻辑连贯、符合真实用户表达、上下文指代清晰、回复符合业务规范，
-  禁止编造信息和违规承诺。
+- 对话结构包含对话 ID、场景类型、图片资源列表、多轮消息及其角色、内容和图片引用，并规范图片引用和指代规则。
+- 对话应逻辑连贯、符合真实用户表达、上下文指代清晰、回复符合业务规范，禁止编造信息和违规承诺。
 
 #### 2. 多轮对话样本生成
 
 - 基于单轮指令样本，通过大模型辅助生成和人工校验扩展多轮对话。
-- 覆盖首轮上传图片、轮中补充图片或条件、追问历史结果、修改约束重新生成、
-  指代历史图片等交互模式。
+- 覆盖首轮上传图片、轮中补充图片或条件、追问历史结果、修改约束重新生成、指代历史图片等交互模式。
 - 构建不少于 1 万条多轮对话样本，三类场景分布均衡，平均轮次不少于 4 轮。
 
 #### 3. 对话质检与归一化
 
-- 校验逻辑连贯性、上下文一致性、图片指代正确性和业务合规性，剔除逻辑断裂、
-  前后矛盾和不符合业务规则的样本。
+- 校验逻辑连贯性、上下文一致性、图片指代正确性和业务合规性，剔除逻辑断裂、前后矛盾和不符合业务规则的样本。
 - 助手回复统一为专业、规范、友好的 OTA 客服语气；用户表达保持真实口语化。
 - 清洗过长、过短及无效对话，最终达标多轮对话样本不少于 0.9 万条。
 
@@ -325,159 +296,71 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 - 多轮对话结构规范、生成结果和质检结果。
 - 各场景数据统计与质检报告。
 
-所有完成数量、人工标注、交叉互审、抽检和合格率必须来自实际结果，不得把目标
-数量或模型预标注数量写成已完成人工标注或质检数量。数据集不得与独立测试集重叠。
+所有完成数量、人工标注、交叉互审、抽检和合格率必须来自实际结果，不得把目标数量或模型预标注数量写成已完成人工标注或质检数量。数据集不得与独立测试集重叠。
 
 ### 2026-08-09 Project Control 执行澄清
 
-- Qwen3-VL-4B 商品/售后 Prompt 固定为 `standardized_v2`/`fewshot_4_v2`；
-  行程只允许在同一组最多 30 条候选上配对比较 `fewshot_4_v2` 与
-  `standardized_v4`，不得扩展候选或用全量结果反向选 Prompt。没有有效结论时
-  使用 `fewshot_4_v2`。
-- 现有商品/售后/行程 50,000/20,000/10,000 候选保持不可覆盖。候选池与冻结
-  评测集必须在 `sample_id/source_id/image_sha256/group_id/constraint_template_id`
-  五维隔离；训练候选场景之间允许共享来源业务组，但不得共享 sample、source 或
-  图片哈希。
-- 不原地迁移候选中的旧 `pending`。workflow v2 使用 sidecar 绑定候选哈希，
-  `model_preannotation.status` 与人工 `workflow_status` 分离。无人工修正时固定为
-  `awaiting_human_annotation`；其余允许值为 `partial`、
-  `awaiting_cross_review`、`awaiting_core_audit`、`accepted`、`rejected`。
-- 多轮对话采用版本化 v2 Schema，必须包含 `schema_version/dialogue_id/scenario/
-  image_resources/turns/source_sample_ids/generation/human_review/qc`。候选的
-  `human_review` 为 `awaiting_human_annotation`，`qc` 为 `partial`；v1 保留不变。
-- 全量预标注的前置条件为不可覆盖 run ID、独立目录、配置/候选哈希、输入和请求
-  哈希、独立 raw 输出、逐次尝试和 retry、分片/checkpoint、独立 failures，以及
-  元数据完全一致的显式 resume。
-- 当前只授权受限行程 pilot：最多 30 个唯一样本、两个 Prompt、60 次总请求、
-  1.0 GPU 小时、CNY 20；首 5 组后请求或基础设施失败率超过 20% 即停止。
-  未授权 `preannotate-all`、80,000 条全量预标注、批量对话生成或任何训练。
+- Qwen3-VL-4B 商品/售后 Prompt 固定为 `standardized_v2`/`fewshot_4_v2`；行程只允许在同一组最多 30 条候选上配对比较 `fewshot_4_v2` 与 `standardized_v4`，不得扩展候选或用全量结果反向选 Prompt。没有有效结论时使用 `fewshot_4_v2`。
+- 现有商品/售后/行程 50,000/20,000/10,000 候选保持不可覆盖。候选池与冻结评测集必须在 `sample_id/source_id/image_sha256/group_id/constraint_template_id` 五维隔离；训练候选场景之间允许共享来源业务组，但不得共享 sample、source 或图片哈希。
+- 不原地迁移候选中的旧 `pending`。workflow v2 使用 sidecar 绑定候选哈希，`model_preannotation.status` 与人工 `workflow_status` 分离。无人工修正时固定为 `awaiting_human_annotation`；其余允许值为 `partial`、`awaiting_cross_review`、`awaiting_core_audit`、`accepted`、`rejected`。
+- 多轮对话采用版本化 v2 Schema，必须包含 `schema_version/dialogue_id/scenario/image_resources/turns/source_sample_ids/generation/human_review/qc`。候选的 `human_review` 为 `awaiting_human_annotation`，`qc` 为 `partial`；v1 保留不变。
+- 全量预标注的前置条件为不可覆盖 run ID、独立目录、配置/候选哈希、输入和请求哈希、独立 raw 输出、逐次尝试和 retry、分片/checkpoint、独立 failures，以及元数据完全一致的显式 resume。
+- 当前只授权受限行程 pilot：最多 30 个唯一样本、两个 Prompt、60 次总请求、1.0 GPU 小时、CNY 20；首 5 组后请求或基础设施失败率超过 20% 即停止。未授权 `preannotate-all`、80,000 条全量预标注、批量对话生成或任何训练。
 
 ### 2026-08-12 计算迁移与验收补充
 
-- 用户后续直接授权的全量预标注继续有效。Week 5 模型固定为
-  `Qwen/Qwen3-VL-4B-Instruct`，商品/售后/行程继续使用已冻结的
-  `standardized_v2`/`fewshot_4_v2`/`standardized_v4` 映射，不得在同一全量
-  数据中改用 8B 或反向重选 Prompt。
-- 阿里云 A10 因欠费停止后，剩余预标注迁移到 Spartan。迁移必须使用独立版本、
-  确定性互斥分片、不可覆盖 run ID、原始输出、checkpoint、失败记录和严格合并；
-  A10 历史 run 保持只读。
-- 模型预标注仍不是人工金标。单人实际人工处理预算控制在 3 小时以内、全部操作
-  低于 500 次；降低人工预算只能减少 accepted 数量，不得把未人工确认的 silver
-  数据改写为人工完成。
-- 2026-08-14 用户进一步确认采用可完成的抽样验收：三场景各固定选择 100 条人工
-  验证样本，并在该队列内固定包含每场景 10 条盲二次复核候选和 3 条核心抽检候选。
-  已完成的 27 条真实修订计入三场景各 100 条目标，因此计划总操作为
-  `300 + 30 + 9 = 339`。多轮对话先自动生成 10,000 条候选，再固定抽取 100 条由
-  本人验收，因此总人工操作上限为 439，满足 3 小时与低于 500 次边界。未进入人工队列的成功
-  预标注保持 `silver`，不得计为 `human_revised`、`accepted` 或人工合格数据。
-- 原始 4.5 万/1.8 万/0.9 万单轮合格目标和 0.9 万人工合格对话目标，在当前单人
-  预算下不作为人工完成声明；工程输出、silver 候选、人工抽样合格和对话候选/人工
-  合格必须分别报告。自动生成的多轮对话可以作为候选，但未由本人检查的记录保持
-  `awaiting_human_validation`；仅抽样验收通过的对话可计为人工 accepted，不得美化
-  未抽样对话。
-- Week 5 工程验收要求 80,000 条均具有成功预标注或明确未解决失败记录；人工
-  `human_revised/self_reviewed/cross_reviewed/core_audited/accepted` 和对话 accepted
-  继续按真实输入单独报告。
-- Spartan 项目文件、缓存、日志、输出和虚拟环境只能写入
-  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`；不得使用 home。
-  Python 3.11 虚拟环境必须由 Slurm 作业创建并完成依赖校验，Week 5 Apptainer
-  推理环境与 Week 6 宿主 venv 保持分离。
-- 100 条 L40S benchmark 通过后，直接提交四个互斥分片的唯一 array 作业并持续监控，
-  不再设置额外人工审批。出现明确可修复故障时自动修复、验证并只恢复失败或未完成
-  分片；禁止盲目重试、成功样本重复请求、跨 run 双写或多分区竞争提交。
-- 全量自动执行的完成条件是 80,000 个唯一候选均有成功结果或经安全恢复后仍明确保留的
-  最终失败记录，并通过 merge、去重、隔离、配置/候选哈希和 JSONL 完整性验证。
-- 2026-08-16 用户直接要求保留活动对话作业不变，同时对 10,000 条多轮对话使用
-  独立运行目录的确定性互斥分片申请额外 GPU。分片必须绑定相同配置与 qualified
-  sample 集合哈希，按 index 范围和 modulo 互斥，每个作业写独立 JSONL；最终只能
-  通过显式 merge、Schema、图片引用、唯一 ID 和 10,000 条完整覆盖校验形成权威候选。
-  该授权仅放宽多轮对话的“唯一活动作业”限制，不允许分片共同写文件或执行 Week 6。
-- 2026-08-16 Week 5 最终完成事实：权威合并 run
-  `week5_dialogues_merged_10000_20260816_522b4af` 含 10,000 个唯一候选，索引
-  0–9999 完整，三场景分布 3334/3333/3333，消息数 8–12，角色交替、图片引用、
-  配置与 qualified 集合哈希均通过验证，duplicate/conflict/missing 均为 0。固定
-  100 条人工验收队列已由本人全部完成，五项 checks 完整且 100 条 decision 均为
-  `pass`。只允许这 100 条计为人工 accepted；其余 9,900 条仍为未人工验收候选。
-  至此 Week 5 已按单人预算内验收口径闭环，不表示执行或完成任何 Week 6 训练。
+- 用户后续直接授权的全量预标注继续有效。Week 5 模型固定为 `Qwen/Qwen3-VL-4B-Instruct`，商品/售后/行程继续使用已冻结的 `standardized_v2`/`fewshot_4_v2`/`standardized_v4` 映射，不得在同一全量数据中改用 8B 或反向重选 Prompt。
+- 阿里云 A10 因欠费停止后，剩余预标注迁移到 Spartan。迁移必须使用独立版本、确定性互斥分片、不可覆盖 run ID、原始输出、checkpoint、失败记录和严格合并；A10 历史 run 保持只读。
+- 模型预标注仍不是人工金标。单人实际人工处理预算控制在 3 小时以内、全部操作低于 500 次；降低人工预算只能减少 accepted 数量，不得把未人工确认的 silver 数据改写为人工完成。
+- 2026-08-14 用户进一步确认采用可完成的抽样验收：三场景各固定选择 100 条人工验证样本，并在该队列内固定包含每场景 10 条盲二次复核候选和 3 条核心抽检候选。已完成的 27 条真实修订计入三场景各 100 条目标，因此计划总操作为 `300 + 30 + 9 = 339`。多轮对话先自动生成 10,000 条候选，再固定抽取 100 条由本人验收，因此总人工操作上限为 439，满足 3 小时与低于 500 次边界。未进入人工队列的成功预标注保持 `silver`，不得计为 `human_revised`、`accepted` 或人工合格数据。
+- 原始 4.5 万/1.8 万/0.9 万单轮合格目标和 0.9 万人工合格对话目标，在当前单人预算下不作为人工完成声明；工程输出、silver 候选、人工抽样合格和对话候选/人工合格必须分别报告。自动生成的多轮对话可以作为候选，但未由本人检查的记录保持 `awaiting_human_validation`；仅抽样验收通过的对话可计为人工 accepted，不得美化未抽样对话。
+- Week 5 工程验收要求 80,000 条均具有成功预标注或明确未解决失败记录；人工 `human_revised/self_reviewed/cross_reviewed/core_audited/accepted` 和对话 accepted 继续按真实输入单独报告。
+- Spartan 项目文件、缓存、日志、输出和虚拟环境只能写入 `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`；不得使用 home。Python 3.11 虚拟环境必须由 Slurm 作业创建并完成依赖校验，Week 5 Apptainer 推理环境与 Week 6 宿主 venv 保持分离。
+- 100 条 L40S benchmark 通过后，直接提交四个互斥分片的唯一 array 作业并持续监控，不再设置额外人工审批。出现明确可修复故障时自动修复、验证并只恢复失败或未完成分片；禁止盲目重试、成功样本重复请求、跨 run 双写或多分区竞争提交。
+- 全量自动执行的完成条件是 80,000 个唯一候选均有成功结果或经安全恢复后仍明确保留的最终失败记录，并通过 merge、去重、隔离、配置/候选哈希和 JSONL 完整性验证。
+- 2026-08-16 用户直接要求保留活动对话作业不变，同时对 10,000 条多轮对话使用独立运行目录的确定性互斥分片申请额外 GPU。分片必须绑定相同配置与 qualified sample 集合哈希，按 index 范围和 modulo 互斥，每个作业写独立 JSONL；最终只能通过显式 merge、Schema、图片引用、唯一 ID 和 10,000 条完整覆盖校验形成权威候选。该授权仅放宽多轮对话的“唯一活动作业”限制，不允许分片共同写文件或执行 Week 6。
+- 2026-08-16 Week 5 最终完成事实：权威合并 run `week5_dialogues_merged_10000_20260816_522b4af` 含 10,000 个唯一候选，索引 0–9999 完整，三场景分布 3334/3333/3333，消息数 8–12，角色交替、图片引用、配置与 qualified 集合哈希均通过验证，duplicate/conflict/missing 均为 0。固定 100 条人工验收队列已由本人全部完成，五项 checks 完整且 100 条 decision 均为 `pass`。只允许这 100 条计为人工 accepted；其余 9,900 条仍为未人工验收候选。至此 Week 5 已按单人预算内验收口径闭环，不表示执行或完成任何 Week 6 训练。
 
 ## Week 6：单场景 QLoRA 小样本链路与专项训练
 
 ### 当前授权边界
 
-- Week 6 工程框架可与 Week 5 剩余计算并行建设；正式训练只有在 Week 5 数据版本、
-  训练/验证切分和 manifest/split SHA-256 锁定后才能开始。
-- 主基座为 `Qwen/Qwen3-VL-8B-Instruct`。售后和行程优先 8B；商品保留 4B 对照，
-  先执行 8B 小样本链路验证，不因模型变大而重做 Week 5 全量预标注。
-- 使用 transformers、PEFT、bitsandbytes；NF4、double quantization、bf16、基座
-  参数冻结和 gradient checkpointing。LoRA 固定 `r=16`、`alpha=32`、
-  `dropout=0.05`、`bias=none`，覆盖语言注意力投影和实际模型存在的视觉投影模块。
-- adapter 独立保存，不合并基座。AdamW、cosine scheduler、warmup 0.03、weight
-  decay 0.01；单 GPU batch 1、梯度累积 16，等效全局 batch 16。
-- 模型预标注训练样本必须显式标记为 silver，权重不超过 0.5；人工修订样本可使用
-  1.0 权重。任何自动校验、8B 二次输出或 Agent 行为都不能生成真人身份或金标状态。
-- 冻结 Week 3 独立人工评测集只在训练参数锁定后进行最终效果评估，不参与训练、
-  validation、early stopping 或反复调参。
+- Week 6 工程框架可与 Week 5 剩余计算并行建设；正式训练只有在 Week 5 数据版本、训练/验证切分和 manifest/split SHA-256 锁定后才能开始。
+- 主基座为 `Qwen/Qwen3-VL-8B-Instruct`。售后和行程优先 8B；商品保留 4B 对照，先执行 8B 小样本链路验证，不因模型变大而重做 Week 5 全量预标注。
+- 使用 transformers、PEFT、bitsandbytes；NF4、double quantization、bf16、基座参数冻结和 gradient checkpointing。LoRA 固定 `r=16`、`alpha=32`、`dropout=0.05`、`bias=none`，覆盖语言注意力投影和实际模型存在的视觉投影模块。
+- adapter 独立保存，不合并基座。AdamW、cosine scheduler、warmup 0.03、weight decay 0.01；单 GPU batch 1、梯度累积 16，等效全局 batch 16。
+- 模型预标注训练样本必须显式标记为 silver，权重不超过 0.5；人工修订样本可使用 1.0 权重。任何自动校验、8B 二次输出或 Agent 行为都不能生成真人身份或金标状态。
+- 冻结 Week 3 独立人工评测集只在训练参数锁定后进行最终效果评估，不参与训练、validation、early stopping 或反复调参。
 
 ### 验收
 
-- 依赖版本、CUDA、bf16、4bit 量化、LoRA 目标层、反向传播、adapter 保存和断点
-  checkpoint 在 Spartan 小样本试跑中真实通过后，才能标记链路完成。
-- 正式三场景训练、最优 checkpoint 和效果评测必须按实际 Slurm 运行产物报告；
-  只有配置和脚本时状态为 `READY FOR PILOT`，不是训练完成。
+- 依赖版本、CUDA、bf16、4bit 量化、LoRA 目标层、反向传播、adapter 保存和断点 checkpoint 在 Spartan 小样本试跑中真实通过后，才能标记链路完成。
+- 正式三场景训练、最优 checkpoint 和效果评测必须按实际 Slurm 运行产物报告；只有配置和脚本时状态为 `READY FOR PILOT`，不是训练完成。
 
 ### 2026-08-19 终态后质量改进授权
 
-- Week 6 已完成的 adapter、450 条冻结评测和归档保持不可覆盖；`week3_evaluation_v2`
-  已被消费为终态测试，不得再用于方法选择、超参数选择、early stopping 或数据筛选。
-- 后续提升先从未进入冻结集的来源建立新的 development/test 锁，按五维隔离、身份、
-  支持数和 SHA-256 进行版本化；没有新锁时只能完成研究和工程准备，不能声称指标上升。
-- 优先级固定为：错误切片数据质量与目标对齐、Schema 约束解码实验、场景平衡 SFT；
-  只有可验证偏好对通过审计后才允许一次多模态 DPO 消融。不得默认换大模型、增加 epoch
-  或使用高成本 RL。
-- 详细证据与论文映射见 `reports/week6_post_training_improvement_review.md`；任何新运行
-  必须在 `docs/experiments.md` 记录实际 commit、数据锁、命令、指标、失败和下一动作。
+- Week 6 已完成的 adapter、450 条冻结评测和归档保持不可覆盖；`week3_evaluation_v2` 已被消费为终态测试，不得再用于方法选择、超参数选择、early stopping 或数据筛选。
+- 后续提升先从未进入冻结集的来源建立新的 development/test 锁，按五维隔离、身份、支持数和 SHA-256 进行版本化；没有新锁时只能完成研究和工程准备，不能声称指标上升。
+- 优先级固定为：错误切片数据质量与目标对齐、Schema 约束解码实验、场景平衡 SFT；只有可验证偏好对通过审计后才允许一次多模态 DPO 消融。不得默认换大模型、增加 epoch 或使用高成本 RL。
+- 详细证据与论文映射见 `reports/week6_post_training_improvement_review.md`；任何新运行必须在 `docs/experiments.md` 记录实际 commit、数据锁、命令、指标、失败和下一动作。
 
 ## Week 7：多任务混合微调与上下文搭建
 
 ### 2026-08-24 门禁与分支修复授权（v4 fix2）
 
-- 用户要求修复 fix1 长期无法过门禁的根因，而不是降低阈值或回溯改写 fix1。fix1 的
-  config、数据锁、raw、checkpoint、selector FAIL 和 test 未消费状态保持不可变。
-- 新身份必须把 v3、首版 v4 和 fix1 的完整 identity manifest 都作为排除来源，建立
-  fresh train/development/test；旧 development 只能用于定位评分缺陷，不得用于 fix2
-  阈值选择、checkpoint 选择或 test 决策。
-- 对话结构化值按叶子字段计分，避免单个嵌套字段错误把整个对象计 0。主观或自由文本
-  caption 保持 programmatic silver，只作非门禁证据；不得把逐字 caption 匹配冒充
-  视觉语义金标。逐轮协议完整性与逐轮语义准确率必须分开报告。
-- 训练 early stopping 与最终 selector 必须使用同一 hard-gate-first 方向；任何通过
-  全门禁的 checkpoint 必须优先于未通过候选，再按原加权综合分及最早 step 裁决。
-  阈值不依据 fix1 结果下调。
-- ADR-004 的长期分支只有 `dev`、`stg`、`main`；执行分支只是临时工作分支。修复代码、
-  锁和真实证据进入 `dev` 后，应删除已合并的 `codex/*` 本地及远端分支。本次仍禁止
-  进入 `stg`、打标签或进入 Week 8。
+- 用户要求修复 fix1 长期无法过门禁的根因，而不是降低阈值或回溯改写 fix1。fix1 的 config、数据锁、raw、checkpoint、selector FAIL 和 test 未消费状态保持不可变。
+- 新身份必须把 v3、首版 v4 和 fix1 的完整 identity manifest 都作为排除来源，建立 fresh train/development/test；旧 development 只能用于定位评分缺陷，不得用于 fix2 阈值选择、checkpoint 选择或 test 决策。
+- 对话结构化值按叶子字段计分，避免单个嵌套字段错误把整个对象计 0。主观或自由文本 caption 保持 programmatic silver，只作非门禁证据；不得把逐字 caption 匹配冒充视觉语义金标。逐轮协议完整性与逐轮语义准确率必须分开报告。
+- 训练 early stopping 与最终 selector 必须使用同一 hard-gate-first 方向；任何通过全门禁的 checkpoint 必须优先于未通过候选，再按原加权综合分及最早 step 裁决。阈值不依据 fix1 结果下调。
+- ADR-004 的长期分支只有 `dev`、`stg`、`main`；执行分支只是临时工作分支。修复代码、锁和真实证据进入 `dev` 后，应删除已合并的 `codex/*` 本地及远端分支。本次仍禁止进入 `stg`、打标签或进入 Week 8。
 
 ### 2026-08-22 用户直接修正授权（v4）
 
-- 用户最新指令取代原 Week 7 对“v3 test 不可重开”和“必须继续人工抽样”的
-  限制。v3 的 train/development/test 对话轮次构造有助手回复早于对应用户要求的
-  系统性缺陷，因此 v3 数据、训练、原始输出和一次性 test 仅作不可改写的
-  历史证据，不得用于声称已正确验证多轮能力。
-- 新建 `week7_corrected_multitask_context_20260822_v4`，在保持核心场景分区边界和随机种子的
-  前提下，替换 train/development/test 全部对话构造：每个用户轮必须先于回答，
-  图片仅出现在首个用户轮，支持 5–8 个用户轮，最终结构化目标必须与当前
-  上下文状态一致。v4 必须重建全数据锁、从原底座重训统一 adapter，不从 v3
-  checkpoint 续训。
-- v4 development 以确定性机器指标和对抗切片为主门禁；指标包含 JSON 格式、
-  上下文键覆盖、上下文值准确率、任务结果键覆盖、上下文召回和失败率。
-  已有 corrected development 24 条真人四维结果仅作辅助的历史描述；本轮不再
-  等待新的人工输入，Agent 或机器指标不得改写为真人评分、人工验收或
-  统计显著结论。
-- 只有通过预注册自动门禁的 development checkpoint 才可锁定。锁定后允许对
-  v4 corrected-dialogue test 执行一次新的自动评测，并同时对比锁定的 Week 6
-  routed adapters 和零样本底座。开始消费 test 后无论作业成功或门禁失败都
-  不得换参数重跑。
-- 已完成的唯一一次 mDPO-style 消融因 validation 门禁失败而拒绝新 adapter；
-  v4 不重试 DPO，不以自标注或机器自举冒充新的高质量偏好对。
+- 用户最新指令取代原 Week 7 对“v3 test 不可重开”和“必须继续人工抽样”的限制。v3 的 train/development/test 对话轮次构造有助手回复早于对应用户要求的系统性缺陷，因此 v3 数据、训练、原始输出和一次性 test 仅作不可改写的历史证据，不得用于声称已正确验证多轮能力。
+- 新建 `week7_corrected_multitask_context_20260822_v4`，在保持核心场景分区边界和随机种子的前提下，替换 train/development/test 全部对话构造：每个用户轮必须先于回答，图片仅出现在首个用户轮，支持 5–8 个用户轮，最终结构化目标必须与当前上下文状态一致。v4 必须重建全数据锁、从原底座重训统一 adapter，不从 v3 checkpoint 续训。
+- v4 development 以确定性机器指标和对抗切片为主门禁；指标包含 JSON 格式、上下文键覆盖、上下文值准确率、任务结果键覆盖、上下文召回和失败率。已有 corrected development 24 条真人四维结果仅作辅助的历史描述；本轮不再等待新的人工输入，Agent 或机器指标不得改写为真人评分、人工验收或统计显著结论。
+- 只有通过预注册自动门禁的 development checkpoint 才可锁定。锁定后允许对 v4 corrected-dialogue test 执行一次新的自动评测，并同时对比锁定的 Week 6 routed adapters 和零样本底座。开始消费 test 后无论作业成功或门禁失败都不得换参数重跑。
+- 已完成的唯一一次 mDPO-style 消融因 validation 门禁失败而拒绝新 adapter；v4 不重试 DPO，不以自标注或机器自举冒充新的高质量偏好对。
 
 ### Week 6 交接与执行边界
 
@@ -566,49 +449,30 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
 ### 当前范围
 
 - 对 Week 1-7 已发现的工程和模型问题执行实际修复，不以新增“已知限制”代替修复。
-- 不新增人工标注；新构建标签只允许标记为 `silver` 或自动验证结果。Week 3、Week 6、
-  Week 7 的冻结数据、运行和报告保持不可变。
-- 默认业务模型为 `Qwen/Qwen3-VL-8B-Instruct` 加 Week 7 unified adapter；规范运行时为
-  Transformers、PEFT 和 NF4，vLLM 仅保留为可选后端。
-- 所有修复使用新的 config、dataset、run 和 test identity。开发门禁通过前不得读取新 test；
-  test 只能消费一次。
+- 不新增人工标注；新构建标签只允许标记为 `silver` 或自动验证结果。Week 3、Week 6、Week 7 的冻结数据、运行和报告保持不可变。
+- 默认业务模型为 `Qwen/Qwen3-VL-8B-Instruct` 加 Week 7 unified adapter；规范运行时为 Transformers、PEFT 和 NF4，vLLM 仅保留为可选后端。
+- 所有修复使用新的 config、dataset、run 和 test identity。开发门禁通过前不得读取新 test；test 只能消费一次。
 
 ### 必须修复
 
 - API 生产模式禁止静默 fallback；模型、Schema 或检索失败必须返回明确错误。
-- 提供三场景任务接口、多轮对话、CLIP/Milvus 视觉检索、`/health` 和严格 `/ready`。
-  `/ready` 必须核验模型、adapter、Prompt、Schema、CLIP、Milvus 和 release identity。
+- 提供三场景任务接口、多轮对话、CLIP/Milvus 视觉检索、`/health` 和严格 `/ready`。`/ready` 必须核验模型、adapter、Prompt、Schema、CLIP、Milvus 和 release identity。
 - 每个结构化模型请求最多允许一次模型级 Schema 纠错；保留两次原始输出，脚本不得补字段。
-- 新建 `week5_preannotation_repair_v2`，替换 44 个不可读输入并修复 20 个 JSON/Schema
-  失败；原 80,000 候选、64 条失败和人工 accepted 统计保持不变。
-- 建立 1,980 条自动修复训练集和独立 development/test：三个核心场景各 500、对话
-  300、通用正则 180，silver 权重不超过 0.5；从 checkpoint-226 受控继续 SFT，旧
-  adapter 不覆盖。
-- 在每场景 48 条 fresh development 上比较当前 Week 7、`compact_schema_v1` 和
-  `evidence_state_v1`；不根据 test 或全量运行反向选 Prompt。
-- 使用 1,000 张真实 OTA 图片生成 CLIP 512 维向量，完成 Milvus HNSW/COSINE CRUD、
-  过滤、延迟和 Recall@K 实测。
-- 提供统一 Compose、release manifest、`tripctl doctor/validate/serve/smoke` 和本地分层
-  交接包；不得打包密钥、模型缓存或未经许可的原始 Yelp 数据。
+- 新建 `week5_preannotation_repair_v2`，替换 44 个不可读输入并修复 20 个 JSON/Schema 失败；原 80,000 候选、64 条失败和人工 accepted 统计保持不变。
+- 建立 1,980 条自动修复训练集和独立 development/test：三个核心场景各 500、对话 300、通用正则 180，silver 权重不超过 0.5；从 checkpoint-226 受控继续 SFT，旧 adapter 不覆盖。
+- 在每场景 48 条 fresh development 上比较当前 Week 7、`compact_schema_v1` 和 `evidence_state_v1`；不根据 test 或全量运行反向选 Prompt。
+- 使用 1,000 张真实 OTA 图片生成 CLIP 512 维向量，完成 Milvus HNSW/COSINE CRUD、过滤、延迟和 Recall@K 实测。
+- 提供统一 Compose、release manifest、`tripctl doctor/validate/serve/smoke` 和本地分层交接包；不得打包密钥、模型缓存或未经许可的原始 Yelp 数据。
 
 ### 晋级门禁
 
-- 核心场景主要业务指标不得低于同一 development 上最佳现有基线；JSON/Schema 目标均
-  不低于 95%，失败率不高于 2%，平均延迟不超过基线 1.25 倍，支持数不得通过删除困难
-  样本下降。
-- 对话使用独立 `DIALOGUE_BETA` 门禁，同时必须超过 Week 6 routed 与 zero-shot；旧严格
-  研究门禁结论不改写。
-- 只有代码测试、Week 5 80,000/80,000 Schema-valid、Prompt pilot、修复 adapter、四场景
-  smoke、Milvus 实测、Docker/本地交接包哈希和干净 checkout 全部通过，才允许快进 `dev` 与
-  `stg`；否则代码和失败证据可进入 `dev`，但不得进入 `stg`。
+- 核心场景主要业务指标不得低于同一 development 上最佳现有基线；JSON/Schema 目标均不低于 95%，失败率不高于 2%，平均延迟不超过基线 1.25 倍，支持数不得通过删除困难样本下降。
+- 对话使用独立 `DIALOGUE_BETA` 门禁，同时必须超过 Week 6 routed 与 zero-shot；旧严格研究门禁结论不改写。
+- 只有代码测试、Week 5 80,000/80,000 Schema-valid、Prompt pilot、修复 adapter、四场景 smoke、Milvus 实测、Docker/本地交接包哈希和干净 checkout 全部通过，才允许快进 `dev` 与 `stg`；否则代码和失败证据可进入 `dev`，但不得进入 `stg`。
 
 ### 2026-08-25 导师交接口径修正
 
-- 交付目标是让下一位接手者能够验证、解压和运行当前模型，不要求使用 Spartan 或 OSS
-  留存，也不要求保留每周全部原始数据、运行输出、checkpoint 和模型缓存。
-- Git 保存代码、配置、Prompt、Schema、测试、交接说明和汇总报告；Git 外只保留一份
-  通过 SHA-256 复验的 adapter/runtime/retrieval/evidence 本地交接包。
-- 允许清理可下载或可再生成的 Yelp 数据、基座缓存、迁移目录及历史中间输出，但不得
-  删除唯一交接包、修改冻结历史结论或把凭据纳入交付。
-- 导师要求提出若干 Week 8 优化方向供其调整任务。当前只输出证据、候选方向和建议验收
-  指标，不把任何候选写成已确定 Week 8 计划。
+- 交付目标是让下一位接手者能够验证、解压和运行当前模型，不要求使用 Spartan 或 OSS 留存，也不要求保留每周全部原始数据、运行输出、checkpoint 和模型缓存。
+- Git 保存代码、配置、Prompt、Schema、测试、交接说明和汇总报告；Git 外只保留一份通过 SHA-256 复验的 adapter/runtime/retrieval/evidence 本地交接包。
+- 允许清理可下载或可再生成的 Yelp 数据、基座缓存、迁移目录及历史中间输出，但不得删除唯一交接包、修改冻结历史结论或把凭据纳入交付。
+- 导师要求提出若干 Week 8 优化方向供其调整任务。当前只输出证据、候选方向和建议验收指标，不把任何候选写成已确定 Week 8 计划。

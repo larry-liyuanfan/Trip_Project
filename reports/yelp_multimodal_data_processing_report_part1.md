@@ -1,9 +1,7 @@
 # Yelp 多模态数据处理说明报告（第一部分）
 
 ## 1. Week 2 目标与验收范围
-本周目标是把 Yelp Open Dataset 转换为可复现、可校验、可用于后续 VLM 训练与检索实验的多粒度图文数据。
-验收范围覆盖完整源文件解析、本地图片有效性校验、强/中/弱对齐、CLIP 语义降噪、统计分析和产出验证。
-本周不训练模型、不构建前端，也不把原始数据、图片、模型权重或大型生成表提交到 Git。
+本周目标是把 Yelp Open Dataset 转换为可复现、可校验、可用于后续 VLM 训练与检索实验的多粒度图文数据。验收范围覆盖完整源文件解析、本地图片有效性校验、强/中/弱对齐、CLIP 语义降噪、统计分析和产出验证。本周不训练模型、不构建前端，也不把原始数据、图片、模型权重或大型生成表提交到 Git。
 
 ### 核心验收结果
 | 指标 | 实际结果 |
@@ -18,8 +16,7 @@
 | Covered cities | 1416 |
 
 ## 2. 原始数据文件、格式与数据特性
-Yelp 数据属于 UGC 数据：评论、评分、caption 和图片均来自用户贡献，因此存在文本噪声、空 caption、损坏图片和商家级弱语义关联。
-原始 JSON 使用 JSON Lines 格式，可以逐行读取；图片元数据通过 `photo_id` 对应本地 JPEG，并通过 `business_id` 关联商家。
+Yelp 数据属于 UGC 数据：评论、评分、caption 和图片均来自用户贡献，因此存在文本噪声、空 caption、损坏图片和商家级弱语义关联。原始 JSON 使用 JSON Lines 格式，可以逐行读取；图片元数据通过 `photo_id` 对应本地 JPEG，并通过 `business_id` 关联商家。
 
 | 原始输入 | 配置路径 | 主要用途 |
 | --- | --- | --- |
@@ -43,9 +40,7 @@ data/yelp/validation/-> validation summary
 reports/             -> mentor-facing Markdown report
 ```
 
-处理顺序：归档解压 -> JSONL 流式解析 -> 评论清洗 -> 图片并行校验 -> 多粒度对齐 -> CLIP 候选打分 -> 输出验收 -> 报告生成。
-`TableStreamWriter` 按配置 chunk 写入，业务嵌套字段先序列化为稳定 JSON，避免不同 Parquet 批次因 schema 漂移失败。
-图片验证在有界批次内并行执行；弱对齐仅读取每个目标商家的有限评论，避免加载和组合全部评论。
+处理顺序：归档解压 -> JSONL 流式解析 -> 评论清洗 -> 图片并行校验 -> 多粒度对齐 -> CLIP 候选打分 -> 输出验收 -> 报告生成。`TableStreamWriter` 按配置 chunk 写入，业务嵌套字段先序列化为稳定 JSON，避免不同 Parquet 批次因 schema 漂移失败。图片验证在有界批次内并行执行；弱对齐仅读取每个目标商家的有限评论，避免加载和组合全部评论。
 
 ## 4. 字段设计与清洗规则
 
@@ -59,13 +54,11 @@ reports/             -> mentor-facing Markdown report
 | 营业知识 | `attributes`, `hours` | 稳定 JSON 存储，同时展开关键属性字段 |
 
 ### 4.2 评论结构化表
-核心字段为 `review_id`, `business_id`, `user_id`, `stars`, `useful`, `funny`, `cool`, `text`, `date`。
-拒绝规则依次覆盖缺失关联键、空文本、纯符号文本和低于最小字符阈值的文本；每种原因单独计数，不静默丢弃。
+核心字段为 `review_id`, `business_id`, `user_id`, `stars`, `useful`, `funny`, `cool`, `text`, `date`。拒绝规则依次覆盖缺失关联键、空文本、纯符号文本和低于最小字符阈值的文本；每种原因单独计数，不静默丢弃。
 - Review filter counts: input=6990280, valid=6989830, empty=0, too_short=419, symbol_only=31, missing_identifier=0
 
 ### 4.3 图片元数据与图片索引
-图片元数据保留 `photo_id`, `business_id`, `caption`, `label`, `image_path`。图片索引额外记录 `image_valid`, `image_width`, `image_height`, `validation_error`。
-`photo_id` 缺失的元数据无法映射本地文件并被拒绝；图片文件存在但 Pillow 无法完整解码时标记为 corrupted，而不是删除源文件。
+图片元数据保留 `photo_id`, `business_id`, `caption`, `label`, `image_path`。图片索引额外记录 `image_valid`, `image_width`, `image_height`, `validation_error`。`photo_id` 缺失的元数据无法映射本地文件并被拒绝；图片文件存在但 Pillow 无法完整解码时标记为 corrupted，而不是删除源文件。
 
 ## 5. 图片有效性、覆盖度与数据质量
 - Photo metadata entries parsed: 200100
@@ -93,21 +86,15 @@ reports/             -> mentor-facing Markdown report
 缺失或损坏图片保留在验证摘要中，但从强、中、弱和 CLIP 对齐产出中排除。品类和城市统计来自实际输出人口，不使用人工估算。
 
 ## 6. 强对齐：图片 + 原生图片文本
-- Strong alignment: 96733 valid image-caption-label pairs keyed by `photo_id`.
-强对齐要求本地图片可读且原生 caption 非空；join key 为 `photo_id`，输出字段包括 `pair_id`, `photo_id`, `business_id`, `image_path`, `caption`, `label`, `alignment_type`。
-该数据适用于图像描述、场景标签识别和高质量单图文本监督；空 caption 图片不会被错误计入强监督规模。
+- Strong alignment: 96733 valid image-caption-label pairs keyed by `photo_id`. 强对齐要求本地图片可读且原生 caption 非空；join key 为 `photo_id`，输出字段包括 `pair_id`, `photo_id`, `business_id`, `image_path`, `caption`, `label`, `alignment_type`。该数据适用于图像描述、场景标签识别和高质量单图文本监督；空 caption 图片不会被错误计入强监督规模。
 - Photo label distribution: {'inside': 24662, 'drink': 7547, 'food': 55330, 'outside': 8287, 'menu': 907}
 - Caption length statistics: {'caption_count': 96733, 'min_chars': 1, 'mean_chars': 31.47060465404774, 'max_chars': 140}
 
 ## 7. 中粒度对齐：图片 + 商家结构化知识
-- Medium alignment: 199994 valid image-business metadata pairs with generated business descriptions.
-中粒度对齐使用 `business_id`，把商家名称、品类、评分、停车、氛围、服务和营业时间转换为标准化自然语言描述。
-输出保留 `attribute_dimension_labels`，便于后续按属性维度构建识别、问答或知识推理任务。图片只要求可读，不要求原生 caption。
+- Medium alignment: 199994 valid image-business metadata pairs with generated business descriptions. 中粒度对齐使用 `business_id`，把商家名称、品类、评分、停车、氛围、服务和营业时间转换为标准化自然语言描述。输出保留 `attribute_dimension_labels`，便于后续按属性维度构建识别、问答或知识推理任务。图片只要求可读，不要求原生 caption。
 
 ## 8. 弱对齐：商家级图片集合 + 评论集合
-- Weak alignment: 36673 business-level groups containing bounded image lists and selected review texts.
-弱对齐的语义假设是同一商家的图片集合与评论集合相关，但不声称每张图片都精确对应每条评论。每商家图片和评论数量均由配置限制，避免全量笛卡尔积。
-输出字段包括 `business_id`, `photo_ids`, `image_paths`, `review_ids`, `review_texts`，用于弱监督检索和商家级多模态表示。
+- Weak alignment: 36673 business-level groups containing bounded image lists and selected review texts. 弱对齐的语义假设是同一商家的图片集合与评论集合相关，但不声称每张图片都精确对应每条评论。每商家图片和评论数量均由配置限制，避免全量笛卡尔积。输出字段包括 `business_id`, `photo_ids`, `image_paths`, `review_ids`, `review_texts`，用于弱监督检索和商家级多模态表示。
 - 弱对齐品类覆盖：
 
 | 排名 | 品类 | 数量 | 排名 | 品类 | 数量 |
@@ -130,9 +117,7 @@ reports/             -> mentor-facing Markdown report
 - CLIP threshold: 0.25
 - CLIP runtime: model=openai/clip-vit-base-patch32, device=cuda, candidate batch size=256.
 - CLIP scoring coverage: groups=36673, scored=555459, skipped candidates=0.
-- Similarity distribution: {'count': 555459, 'min': 0.022613827139139175, 'mean': 0.22104937891548743, 'max': 0.4198649227619171}
-CLIP 对每个候选图片和评论生成归一化向量并计算余弦相似度；低于阈值的候选不进入 `weak_pairs_denoised`。
-模型运行在独立 GPU Docker task 中，vLLM 先停止以释放 8GB GPU。阈值是当前基线参数，不代表人工标注的最优决策边界。
+- Similarity distribution: {'count': 555459, 'min': 0.022613827139139175, 'mean': 0.22104937891548743, 'max': 0.4198649227619171} CLIP 对每个候选图片和评论生成归一化向量并计算余弦相似度；低于阈值的候选不进入 `weak_pairs_denoised`。模型运行在独立 GPU Docker task 中，vLLM 先停止以释放 8GB GPU。阈值是当前基线参数，不代表人工标注的最优决策边界。
 
 ## 10. 输出清单、复现命令、限制与后续计划
 

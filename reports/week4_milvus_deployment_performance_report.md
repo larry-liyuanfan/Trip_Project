@@ -12,13 +12,11 @@
 - 向量索引：HNSW/COSINE，`M=16`、`efConstruction=128`、查询 `ef=64`
 - 标量索引：8 个可过滤元数据字段
 
-三个容器均达到 healthy。真实 SDK 连接创建并验证了固定十字段 Schema、
-一个 HNSW 索引和八个标量索引，没有用 Qwen2-VL 充当 embedding 接口。
+三个容器均达到 healthy。真实 SDK 连接创建并验证了固定十字段 Schema、一个 HNSW 索引和八个标量索引，没有用 Qwen2-VL 充当 embedding 接口。
 
 ## CRUD 与性能
 
-基准使用 20 张真实 Yelp OTA 图片及 CUDA 生成的归一化
-`openai/clip-vit-base-patch32` 向量。启动 CLIP 前已停止 vLLM。
+基准使用 20 张真实 Yelp OTA 图片及 CUDA 生成的归一化 `openai/clip-vit-base-patch32` 向量。启动 CLIP 前已停止 vLLM。
 
 | 实测项 | 结果 |
 | --- | ---: |
@@ -35,24 +33,15 @@
 | P95 延迟 | 10.7236 ms |
 | Recall@5 | 1.0000 |
 
-环境为 Windows 11（`10.0.26200`）、Python 3.13.13、Intel64 Family 6
-Model 183。以上只是本机小规模实测，不宣称生产级性能。
+环境为 Windows 11（`10.0.26200`）、Python 3.13.13、Intel64 Family 6 Model 183。以上只是本机小规模实测，不宣称生产级性能。
 
 ## 审查问题修复
 
-- `configs/milvus_week4.yaml` 只保存环境变量名；Compose 只引用
-  `MINIO_ROOT_USER` 和 `MINIO_ROOT_PASSWORD`。仓库提交
-  `docker/milvus/.env.example`，真实 `.env` 保持忽略。
-- 已使用不落盘的新随机凭据重建 MinIO 和 Milvus 容器；三个服务恢复
-  healthy，原有 19 条逻辑可见向量仍可查询。
+- `configs/milvus_week4.yaml` 只保存环境变量名；Compose 只引用 `MINIO_ROOT_USER` 和 `MINIO_ROOT_PASSWORD`。仓库提交 `docker/milvus/.env.example`，真实 `.env` 保持忽略。
+- 已使用不落盘的新随机凭据重建 MinIO 和 Milvus 容器；三个服务恢复 healthy，原有 19 条逻辑可见向量仍可查询。
 - 基准脚本在写入前同时拒绝既有输出和非空集合，避免重复运行累积数据。
-- `actual_vector_count_*` 现在来自 Milvus `count(*)` 逻辑可见行查询，
-  不再根据输入列表长度推断；插入后必须为 20，删除后必须为 19。
-- 2026-07-26 当前复核：Milvus、MinIO、etcd 均为 healthy；正式集合仍有
-  19 条逻辑可见行和 9 个索引（1 个 HNSW + 8 个标量索引）。唯一临时集合
-  实测插入 1、可见计数 1、过滤检索命中 1、删除后计数 0，随后仅删除该
-  临时集合。首次未 load 的临时查询被 Milvus 拒绝，按正式
-  `flush → build → load` 顺序重试通过。
+- `actual_vector_count_*` 现在来自 Milvus `count(*)` 逻辑可见行查询，不再根据输入列表长度推断；插入后必须为 20，删除后必须为 19。
+- 2026-07-26 当前复核：Milvus、MinIO、etcd 均为 healthy；正式集合仍有 19 条逻辑可见行和 9 个索引（1 个 HNSW + 8 个标量索引）。唯一临时集合实测插入 1、可见计数 1、过滤检索命中 1、删除后计数 0，随后仅删除该临时集合。首次未 load 的临时查询被 Milvus 拒绝，按正式 `flush → build → load` 顺序重试通过。
 
 ## 复现命令
 

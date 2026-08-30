@@ -78,408 +78,215 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 
 - **日期**：2026-07-25
 - **状态**：Accepted
-- **决策**：使用固定 v2 金标示例和不重叠 pilot，对比
-  `standardized_v2`、4-shot、7-shot；按已提交的业务、JSON、Schema、
-  token 和延迟加权分数选择每场景胜出版本，再只对胜出版本执行 v2 全量跑测。
+- **决策**：使用固定 v2 金标示例和不重叠 pilot，对比 `standardized_v2`、4-shot、7-shot；按已提交的业务、JSON、Schema、token 和延迟加权分数选择每场景胜出版本，再只对胜出版本执行 v2 全量跑测。
 - **原因**：在不修改金标、不猜标签、不扩展候选搜索的前提下满足导师要求。
-- **影响**：`standardized_v2` 只是本次三个候选中的场景胜出版本。
-  旧 Few-Shot v1 行程请求因上下文超限而失效；版本化 v2 在不改变模型和
-  生成参数的前提下压缩重复上下文并完成有效重跑。新增 Few-Shot 候选仍未
-  超过控制组，因此不称为新的“优化后最优 Prompt”。Week 3 产物保持不可变；
-  baseline 词法编码与结构化严格评分不可直接比较，不计算业务差值。
+- **影响**：`standardized_v2` 只是本次三个候选中的场景胜出版本。旧 Few-Shot v1 行程请求因上下文超限而失效；版本化 v2 在不改变模型和生成参数的前提下压缩重复上下文并完成有效重跑。新增 Few-Shot 候选仍未超过控制组，因此不称为新的“优化后最优 Prompt”。Week 3 产物保持不可变；baseline 词法编码与结构化严格评分不可直接比较，不计算业务差值。
 
 ## ADR-011：Milvus 和 CLIP 与业务推理解耦
 
 - **日期**：2026-07-25
 - **状态**：Accepted
-- **决策**：使用固定版本 Milvus standalone 和独立 PyMilvus 依赖组，
-  存储归一化的 512 维 `openai/clip-vit-base-patch32` 图片向量。
-  Qwen2-VL 保持现有 vLLM 推理接口，不作为 embedding 端点。
-- **原因**：完成真实向量 CRUD，同时不污染现有 API/data/vLLM 依赖，
-  并遵守本地 8 GB GPU 资源边界。
-- **影响**：运行 CLIP 前停止 vLLM；生成向量和 volumes 保持忽略。
-  检索只支持固定标量白名单以及配置中的 HNSW/COSINE 参数。
+- **决策**：使用固定版本 Milvus standalone 和独立 PyMilvus 依赖组，存储归一化的 512 维 `openai/clip-vit-base-patch32` 图片向量。Qwen2-VL 保持现有 vLLM 推理接口，不作为 embedding 端点。
+- **原因**：完成真实向量 CRUD，同时不污染现有 API/data/vLLM 依赖，并遵守本地 8 GB GPU 资源边界。
+- **影响**：运行 CLIP 前停止 vLLM；生成向量和 volumes 保持忽略。检索只支持固定标量白名单以及配置中的 HNSW/COSINE 参数。
 
 ## ADR-012：评估文本哈希跨平台稳定
 
 - **日期**：2026-07-25
 - **状态**：Accepted
-- **决策**：通过 `.gitattributes` 强制评估 Prompt、Schema 和配置使用 LF；
-  provenance 对文本换行归一化，并兼容既有运行曾按 LF 或 CRLF 原始字节
-  记录的哈希。非换行字节变化仍必须导致验证失败。
+- **决策**：通过 `.gitattributes` 强制评估 Prompt、Schema 和配置使用 LF；provenance 对文本换行归一化，并兼容既有运行曾按 LF 或 CRLF 原始字节记录的哈希。非换行字节变化仍必须导致验证失败。
 - **原因**：Windows 自动换行转换不应使不可变运行证据失效。
-- **影响**：Week 3 历史运行无需修改即可跨平台验证；未来运行使用统一的
-  LF 文本哈希。
+- **影响**：Week 3 历史运行无需修改即可跨平台验证；未来运行使用统一的 LF 文本哈希。
 
 ## ADR-013：共同语义轨道与 Few-Shot 证据边界
 
 - **日期**：2026-07-26
 - **状态**：Accepted
-- **决策**：保留 Week 3 原词法评分和 Week 4 原严格结构化评分；另建
-  `week4_common_semantic_coding_v1`，将两组冻结原始输出交给同一个
-  `BaselineSemanticCoder.encode` 和 codebook，全部预测完成后再连接同一
-  人工金标并执行同一指标与 paired bootstrap。现有 Few-Shot 示例来自最终
-  测试集金标，其 pilot 仅作描述性证据，不支持无偏效果声明。
-- **原因**：原业务指标使用不同预测转换，不能直接相减；同时示例与 pilot
-  不重叠仍不能消除利用最终测试集金标设计 Prompt 的污染风险。
-- **影响**：Week 3 原产物不覆盖。`standardized_v2` 的无示例全量运行仍可
-  报告；Few-Shot 泛化比较保持 `PARTIAL`，除非以后获得明确授权的独立
-  demo/dev pool，但本决策不创建该数据或未来任务。
+- **决策**：保留 Week 3 原词法评分和 Week 4 原严格结构化评分；另建 `week4_common_semantic_coding_v1`，将两组冻结原始输出交给同一个 `BaselineSemanticCoder.encode` 和 codebook，全部预测完成后再连接同一人工金标并执行同一指标与 paired bootstrap。现有 Few-Shot 示例来自最终测试集金标，其 pilot 仅作描述性证据，不支持无偏效果声明。
+- **原因**：原业务指标使用不同预测转换，不能直接相减；同时示例与 pilot 不重叠仍不能消除利用最终测试集金标设计 Prompt 的污染风险。
+- **影响**：Week 3 原产物不覆盖。`standardized_v2` 的无示例全量运行仍可报告；Few-Shot 泛化比较保持 `PARTIAL`，除非以后获得明确授权的独立 demo/dev pool，但本决策不创建该数据或未来任务。
 
-> 2026-07-26 后续直接授权已满足上述条件；Few-Shot 数据边界由 ADR-014
-> 接替。共同语义轨道部分继续有效。
+> 2026-07-26 后续直接授权已满足上述条件；Few-Shot 数据边界由 ADR-014 接替。共同语义轨道部分继续有效。
 
 ## ADR-014：独立 demo/dev Few-Shot 证据
 
 - **日期**：2026-07-26
 - **状态**：Accepted
-- **决策**：使用单独版本 `week4_demo_dev_v1` 和 `development` split
-  保存 36 条人工金标；示例与最终 `week3_evaluation_v2` 在 sample、
-  source、图片 SHA-256 和来源组四层隔离。选择文件升级为
-  `week4_prompt_selection_v2`，旧 v1 不覆盖。
-- **原因**：消除使用最终 test gold 设计 Prompt 的污染，使固定 pilot
-  能支持本次候选内的无偏比较。
-- **影响**：三组新 pilot 均须真实重跑且请求错误为 0；胜出版本只表示
-  固定综合规则下的候选内最高分。全量结果不得反向用于重选 Prompt。
+- **决策**：使用单独版本 `week4_demo_dev_v1` 和 `development` split 保存 36 条人工金标；示例与最终 `week3_evaluation_v2` 在 sample、source、图片 SHA-256 和来源组四层隔离。选择文件升级为 `week4_prompt_selection_v2`，旧 v1 不覆盖。
+- **原因**：消除使用最终 test gold 设计 Prompt 的污染，使固定 pilot 能支持本次候选内的无偏比较。
+- **影响**：三组新 pilot 均须真实重跑且请求错误为 0；胜出版本只表示固定综合规则下的候选内最高分。全量结果不得反向用于重选 Prompt。
 
 ## ADR-015：Qwen3.7 行程输出使用紧凑 v4 Prompt
 
 - **日期**：2026-08-02
 - **状态**：Accepted
-- **决策**：保留历史 v2/v3 产物，新增 `standardized_v4`。行程场景使用
-  2560 token 独立输出预算，约束保持原文，活动证据不重复，Schema 枚举固定
-  使用英文协议值；评估 CLI 允许在完整数据门禁后仅运行指定场景。
-- **原因**：67/100 个旧输出因达到 1280 token 上限截断；v3 消除截断后，
-  剩余失败全部来自 `required_itinerary_elements` 被翻译成中文。
-- **影响**：最终 100 条行程 JSON/Schema 均通过，旧 Week 3/4 run、Prompt、
-  Schema 和评分保持不可变。商品和售后配置不受影响。
+- **决策**：保留历史 v2/v3 产物，新增 `standardized_v4`。行程场景使用 2560 token 独立输出预算，约束保持原文，活动证据不重复，Schema 枚举固定使用英文协议值；评估 CLI 允许在完整数据门禁后仅运行指定场景。
+- **原因**：67/100 个旧输出因达到 1280 token 上限截断；v3 消除截断后，剩余失败全部来自 `required_itinerary_elements` 被翻译成中文。
+- **影响**：最终 100 条行程 JSON/Schema 均通过，旧 Week 3/4 run、Prompt、Schema 和评分保持不可变。商品和售后配置不受影响。
 
 ## ADR-016：Week 5 Qwen3-VL-4B 运行、状态与对话版本边界
 
 - **日期**：2026-08-09
 - **状态**：Accepted
-- **决策**：Qwen3-VL-4B 的商品预标注固定使用 `standardized_v2`，售后固定
-  使用 `fewshot_4_v2`。行程仅允许在同一组最多 30 条 Week 5 候选上配对比较
-  `fewshot_4_v2` 与 `standardized_v4`；若没有有效结论，默认使用
-  `fewshot_4_v2`。Week 5 候选只需与冻结评测集在样本、来源、图片、来源组和
-  约束模板五维隔离，训练候选场景之间不要求 `group_id` 互斥。现有 80,000 条
-  候选和 30 条历史 pilot 不覆盖。
-- **决策**：新增 workflow v2 sidecar，以候选文件哈希和 `sample_id` 绑定原候选；
-  模型状态与人工状态分离。新增 `multimodal_dialogue_v2`，使用
-  `image_resources/turns/source_sample_ids/generation/human_review/qc`，保留 v1
-  不变且禁止别名混用。
-- **决策**：任何全量预标注前必须具备不可覆盖 run ID、独立运行目录、配置和
-  候选哈希、逐请求输入/请求哈希、独立原始输出、尝试与 retry 记录、确定性分片、
-  checkpoint、独立失败文件，以及仅在元数据哈希完全一致时允许的显式 resume。
-- **成本边界**：本次仅授权行程配对 pilot：最多 30 个唯一样本、两个 Prompt、
-  60 次总请求、1.0 GPU 小时和 CNY 20，任一上限先到即停止；首 5 组后基础设施
-  或请求失败率超过 20% 立即停止。未授权 80,000 条全量预标注。
-- **原因**：模型预标注不能替代人工金标；历史候选和运行必须保持可追溯且不可
-  覆盖；GPU 成本需要显式上限。
-- **影响**：工具链和测试通过后才可启动 ECS。pilot 后必须停止 vLLM、执行
-  `sync`，并确认 ECS 为“已停止 + 节省停机模式”。Week 6 训练不在范围内。
+- **决策**：Qwen3-VL-4B 的商品预标注固定使用 `standardized_v2`，售后固定使用 `fewshot_4_v2`。行程仅允许在同一组最多 30 条 Week 5 候选上配对比较 `fewshot_4_v2` 与 `standardized_v4`；若没有有效结论，默认使用 `fewshot_4_v2`。Week 5 候选只需与冻结评测集在样本、来源、图片、来源组和约束模板五维隔离，训练候选场景之间不要求 `group_id` 互斥。现有 80,000 条候选和 30 条历史 pilot 不覆盖。
+- **决策**：新增 workflow v2 sidecar，以候选文件哈希和 `sample_id` 绑定原候选；模型状态与人工状态分离。新增 `multimodal_dialogue_v2`，使用 `image_resources/turns/source_sample_ids/generation/human_review/qc`，保留 v1 不变且禁止别名混用。
+- **决策**：任何全量预标注前必须具备不可覆盖 run ID、独立运行目录、配置和候选哈希、逐请求输入/请求哈希、独立原始输出、尝试与 retry 记录、确定性分片、checkpoint、独立失败文件，以及仅在元数据哈希完全一致时允许的显式 resume。
+- **成本边界**：本次仅授权行程配对 pilot：最多 30 个唯一样本、两个 Prompt、60 次总请求、1.0 GPU 小时和 CNY 20，任一上限先到即停止；首 5 组后基础设施或请求失败率超过 20% 立即停止。未授权 80,000 条全量预标注。
+- **原因**：模型预标注不能替代人工金标；历史候选和运行必须保持可追溯且不可覆盖；GPU 成本需要显式上限。
+- **影响**：工具链和测试通过后才可启动 ECS。pilot 后必须停止 vLLM、执行 `sync`，并确认 ECS 为“已停止 + 节省停机模式”。Week 6 训练不在范围内。
 
 ## ADR-017：Week 5 全量模型预标注授权
 
 - **日期**：2026-08-09
 - **状态**：Accepted
-- **决策**：用户直接批准执行现有 80,000 条候选的 Qwen3-VL-4B 全量模型预标注，
-  因而仅替代 ADR-016 中“未授权全量预标注”的成本门结论；Prompt 映射、候选哈希、
-  不可覆盖运行目录、逐请求审计、确定性分片、checkpoint、failure 导出和显式 resume
-  要求继续有效。沿用 pilot 实测线性估算约 50.6 GPU 小时、CNY 927；实际费用与耗时
-  以运行记录为准。用户同时要求暂不停止 ECS。
-- **边界**：本授权只覆盖模型预标注，不把模型结果计为人工金标；真实人工修订、自审、
-  交叉互审、核心抽检和多轮对话人工验收仍须等待真实人员输入，也不授权 Week 6 训练。
-- **影响**：补齐全量运行审计入口并通过测试后，可启动新的唯一 run；历史 pilot、候选池、
-  Week 3/4 冻结产物和用户现有工作区改动保持不变。
+- **决策**：用户直接批准执行现有 80,000 条候选的 Qwen3-VL-4B 全量模型预标注，因而仅替代 ADR-016 中“未授权全量预标注”的成本门结论；Prompt 映射、候选哈希、不可覆盖运行目录、逐请求审计、确定性分片、checkpoint、failure 导出和显式 resume 要求继续有效。沿用 pilot 实测线性估算约 50.6 GPU 小时、CNY 927；实际费用与耗时以运行记录为准。用户同时要求暂不停止 ECS。
+- **边界**：本授权只覆盖模型预标注，不把模型结果计为人工金标；真实人工修订、自审、交叉互审、核心抽检和多轮对话人工验收仍须等待真实人员输入，也不授权 Week 6 训练。
+- **影响**：补齐全量运行审计入口并通过测试后，可启动新的唯一 run；历史 pilot、候选池、Week 3/4 冻结产物和用户现有工作区改动保持不变。
 
 ## ADR-018：Week 5 单人最小人工三级质检
 
 - **日期**：2026-08-10
 - **状态**：Accepted
-- **决策**：用户确认只有一名人工操作者，并要求最大程度减少重复质检。每条最终数据
-  仍须由该操作者查看原始输入、确认或修正模型结果，并在保存时显式完成自审；商品按
-  1%/0.5%、售后和行程按 2%/1% 分别执行盲二次复核/核心抽检。两级抽样使用同一
-  `sample_id` SHA-256 值形成嵌套集合。三阶段允许同一真实人员执行，但复核必须使用
-  不同 `review_session_id`，且不得声称人员独立性。
-- **原因**：原“所有样本交叉互审 + 5%/10% 抽检”在单人条件下既无法满足不同人员
-  互审，也产生不可承受的重复劳动；确定性风险抽样能保留可审计的三级记录。
-- **影响**：未抽中样本在真实人工修正和内联自审通过后可 accepted；抽中样本必须按
-  当前 revision 完成相应后续阶段。模型输出、自动校验和 Agent 不能代替任何人工确认。
+- **决策**：用户确认只有一名人工操作者，并要求最大程度减少重复质检。每条最终数据仍须由该操作者查看原始输入、确认或修正模型结果，并在保存时显式完成自审；商品按 1%/0.5%、售后和行程按 2%/1% 分别执行盲二次复核/核心抽检。两级抽样使用同一 `sample_id` SHA-256 值形成嵌套集合。三阶段允许同一真实人员执行，但复核必须使用不同 `review_session_id`，且不得声称人员独立性。
+- **原因**：原“所有样本交叉互审 + 5%/10% 抽检”在单人条件下既无法满足不同人员互审，也产生不可承受的重复劳动；确定性风险抽样能保留可审计的三级记录。
+- **影响**：未抽中样本在真实人工修正和内联自审通过后可 accepted；抽中样本必须按当前 revision 完成相应后续阶段。模型输出、自动校验和 Agent 不能代替任何人工确认。
 
 ## ADR-019：Week 5 额外人工质检总量低于 500
 
 - **日期**：2026-08-10
 - **状态**：Accepted；替代 ADR-018 中的抽样比例，其余事实边界不变。
-- **决策**：商品盲二次复核/核心抽检降至 0.2%/0.05%，售后和行程降至
-  0.5%/0.1%。继续使用同一个 `sample_id` SHA-256 选择值，核心集合嵌套于盲复核
-  集合，不允许人工换样。
-- **实算结果**：现有 80,000 个候选对应商品 112/26、售后 102/21、行程 53/7，
-  合计 321 次额外阶段操作，低于用户要求的 500 次。
-- **边界**：降低的只是重复质检次数。每条最终 accepted 样本仍须由唯一操作者真实
-  查看并确认或修正，且显式完成内联自审；不得把模型输出自动转为人工 accepted。
+- **决策**：商品盲二次复核/核心抽检降至 0.2%/0.05%，售后和行程降至 0.5%/0.1%。继续使用同一个 `sample_id` SHA-256 选择值，核心集合嵌套于盲复核集合，不允许人工换样。
+- **实算结果**：现有 80,000 个候选对应商品 112/26、售后 102/21、行程 53/7，合计 321 次额外阶段操作，低于用户要求的 500 次。
+- **边界**：降低的只是重复质检次数。每条最终 accepted 样本仍须由唯一操作者真实查看并确认或修正，且显式完成内联自审；不得把模型输出自动转为人工 accepted。
 
 ## ADR-020：Spartan 计算迁移、8B 训练基座与阿里云展示边界
 
 - **日期**：2026-08-12
 - **状态**：Accepted
-- **决策**：欠费停机的阿里云 A10 不再作为活动计算节点，且不释放实例或数据盘。
-  Week 5 剩余预标注迁移到墨尔本大学 Spartan，继续固定使用
-  `Qwen/Qwen3-VL-4B-Instruct`、现有 Prompt 与 Schema，禁止将 4B/8B 输出混写进
-  同一运行。迁移使用版本化 benchmark、确定性互斥分片、独立 run 和合并校验，
-  不续写 A10 历史 run。
-- **决策**：Week 6 QLoRA 主基座采用 `Qwen/Qwen3-VL-8B-Instruct`；售后和行程
-  优先 8B，商品保留 4B 对照并只对 8B 做小样本验证。正式训练只能在 Week 5 数据
-  版本、训练/验证切分和哈希锁定后开始；冻结 Week 3 评测集只用于参数锁定后的最终
-  评估，不参与反复选参。
-- **决策**：包月 CPU ECS `trip-api-sg` 只提供结果 API、静态报告和预计算示例，
-  不部署本地 VLM、CUDA、vLLM、训练权重或实时 LoRA 推理。
-- **身份边界**：用户于 2026-08-12 最新确认 `yzhang3504` 为本人持有并授权本项目使用的
-  Spartan 账户，因此允许 Agent 代理核验资源并提交 Trip_Project 作业。密码不得写入
-  文件、配置、命令、日志或 Git。所有项目文件必须位于新建的 Trip_Project 专属目录，
-  只允许读取和管理本项目 Slurm job ID；不得读取、修改、取消或影响账户内既有的其他
-  文件、目录、作业和进程。
-- **原因**：降低阿里云 GPU 费用并缩短计算时间，同时保持历史运行不可变、任务审计
-  清楚和第三方账户资源安全。
-- **影响**：A10 最后远端观测只能作为历史线索；当前可独立验证的本地恢复点为
-  15,166 条。若以后安全取得更完整的远端快照，必须生成新的迁移版本，不得覆盖当前
-  migration。Spartan project、quota、scratch 和预计排队时间未核验前，只能交付可
-  提交作业包，不能声称已经排队或运行。
+- **决策**：欠费停机的阿里云 A10 不再作为活动计算节点，且不释放实例或数据盘。Week 5 剩余预标注迁移到墨尔本大学 Spartan，继续固定使用 `Qwen/Qwen3-VL-4B-Instruct`、现有 Prompt 与 Schema，禁止将 4B/8B 输出混写进同一运行。迁移使用版本化 benchmark、确定性互斥分片、独立 run 和合并校验，不续写 A10 历史 run。
+- **决策**：Week 6 QLoRA 主基座采用 `Qwen/Qwen3-VL-8B-Instruct`；售后和行程优先 8B，商品保留 4B 对照并只对 8B 做小样本验证。正式训练只能在 Week 5 数据版本、训练/验证切分和哈希锁定后开始；冻结 Week 3 评测集只用于参数锁定后的最终评估，不参与反复选参。
+- **决策**：包月 CPU ECS `trip-api-sg` 只提供结果 API、静态报告和预计算示例，不部署本地 VLM、CUDA、vLLM、训练权重或实时 LoRA 推理。
+- **身份边界**：用户于 2026-08-12 最新确认 `yzhang3504` 为本人持有并授权本项目使用的 Spartan 账户，因此允许 Agent 代理核验资源并提交 Trip_Project 作业。密码不得写入文件、配置、命令、日志或 Git。所有项目文件必须位于新建的 Trip_Project 专属目录，只允许读取和管理本项目 Slurm job ID；不得读取、修改、取消或影响账户内既有的其他文件、目录、作业和进程。
+- **原因**：降低阿里云 GPU 费用并缩短计算时间，同时保持历史运行不可变、任务审计清楚和第三方账户资源安全。
+- **影响**：A10 最后远端观测只能作为历史线索；当前可独立验证的本地恢复点为 15,166 条。若以后安全取得更完整的远端快照，必须生成新的迁移版本，不得覆盖当前 migration。Spartan project、quota、scratch 和预计排队时间未核验前，只能交付可提交作业包，不能声称已经排队或运行。
 
 ## ADR-021：Spartan 项目存储与虚拟环境隔离
 
 - **日期**：2026-08-12
 - **状态**：Accepted
-- **决策**：Trip 只使用 project GPFS 下的独立版本根目录
-  `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。仓库、运行输出、
-  Hugging Face/Apptainer/pip 缓存、临时文件和 Python 环境均置于该根目录；禁止向
-  已满的 home 写入项目文件。Python 统一使用 `GCCcore/11.3.0` + `Python/3.11.3`，
-  虚拟环境固定为 `envs/trip-week5-week6-py311`，并通过 Slurm 作业安装
-  `requirements.txt` 与 `requirements-training.txt`。
-- **容量事实**：`/data/gpfs` 文件系统实测总量 467 GiB、已用 375 GiB、可用 93 GiB；
-  “500 GB”是共享 project 文件系统的标称总量，不是 Trip 独享配额。Trip 部署目录
-  在本次核验时仅 99 MiB；后续模型、容器和环境缓存增长必须继续留在独立根目录，
-  不得占用或整理同项目其他成员目录。
-- **运行边界**：Week 5 vLLM 使用固定 Apptainer 镜像；项目 venv 用于 CPU 工具、
-  校验及 Week 6 transformers/PEFT 训练入口。两者不混装。空间不足时先报告并清理
-  本项目可重建缓存或申请项目配额，不移动、删除或覆盖其他成员文件。
+- **决策**：Trip 只使用 project GPFS 下的独立版本根目录 `/data/gpfs/projects/punim2936/Trip_Project_yzhang3504/20260812a`。仓库、运行输出、Hugging Face/Apptainer/pip 缓存、临时文件和 Python 环境均置于该根目录；禁止向已满的 home 写入项目文件。Python 统一使用 `GCCcore/11.3.0` + `Python/3.11.3`，虚拟环境固定为 `envs/trip-week5-week6-py311`，并通过 Slurm 作业安装 `requirements.txt` 与 `requirements-training.txt`。
+- **容量事实**：`/data/gpfs` 文件系统实测总量 467 GiB、已用 375 GiB、可用 93 GiB；“500 GB”是共享 project 文件系统的标称总量，不是 Trip 独享配额。Trip 部署目录在本次核验时仅 99 MiB；后续模型、容器和环境缓存增长必须继续留在独立根目录，不得占用或整理同项目其他成员目录。
+- **运行边界**：Week 5 vLLM 使用固定 Apptainer 镜像；项目 venv 用于 CPU 工具、校验及 Week 6 transformers/PEFT 训练入口。两者不混装。空间不足时先报告并清理本项目可重建缓存或申请项目配额，不移动、删除或覆盖其他成员文件。
 
 ## ADR-022：Week 5 Spartan 全量自动恢复执行
 
 - **日期**：2026-08-12
 - **状态**：Accepted
-- **决策**：当前 100 条 L40S benchmark 通过身份、哈希、成功率和吞吐核验后，
-  无需再次人工批准，立即提交唯一 `gpu-l40s` array `0-3`，并行处理四个确定性互斥
-  分片。benchmark 或 shard 失败时，先取得明确根因，再自动修复本任务直接相关的
-  脚本、依赖、路径、权限、容器、缓存、超时或恢复逻辑；验证通过后自动重新排队。
-- **恢复约束**：禁止盲目原样重试。可恢复运行必须保持 run identity、配置和候选哈希
-  一致，使用 `TRIP_RESUME=1`，只重提失败或未完成的 shard index；已成功 sample_id
-  不重复请求。不得同时提交多个 GPU 分区竞争作业。
-- **不变边界**：不得修改候选池、migration manifest、冻结 Week 3/4 产物、历史失败
-  证据或人工状态。所有操作限于 Trip 专属 GPFS 和登记作业。80,000 条闭环后执行
-  merge、去重、隔离、JSONL 与哈希验证，并停止监控。
+- **决策**：当前 100 条 L40S benchmark 通过身份、哈希、成功率和吞吐核验后，无需再次人工批准，立即提交唯一 `gpu-l40s` array `0-3`，并行处理四个确定性互斥分片。benchmark 或 shard 失败时，先取得明确根因，再自动修复本任务直接相关的脚本、依赖、路径、权限、容器、缓存、超时或恢复逻辑；验证通过后自动重新排队。
+- **恢复约束**：禁止盲目原样重试。可恢复运行必须保持 run identity、配置和候选哈希一致，使用 `TRIP_RESUME=1`，只重提失败或未完成的 shard index；已成功 sample_id 不重复请求。不得同时提交多个 GPU 分区竞争作业。
+- **不变边界**：不得修改候选池、migration manifest、冻结 Week 3/4 产物、历史失败证据或人工状态。所有操作限于 Trip 专属 GPFS 和登记作业。80,000 条闭环后执行 merge、去重、隔离、JSONL 与哈希验证，并停止监控。
 
 ## ADR-023：Week 5 单人预算内抽样验收
 
 - **日期**：2026-08-14
-- **状态**：Accepted；细化 ADR-019，并以最新用户指令解决“全量人工修订”与
-  “3 小时、低于 500 次操作”的冲突。
-- **决策**：在三场景 Schema-valid 预标注中各确定性选择 100 条进行真实人工验证，
-  保留并计入已完成的商品 10、售后 8、行程 9 条。每个场景的 100 条队列固定包含
-  10 条现行 SHA-256 规则选中的盲复核候选和其中 3 条核心抽检候选。因此完整预算为
-  300 次人工修订与内联自审、30 次盲复核、9 次核心抽检。完成单轮队列后自动生成
-  10,000 条多轮对话候选，并固定抽取 100 条由本人验收；人工操作总上限为 439。
-- **边界**：其余有效预标注继续标记为 silver。自动校验、模型输出或 Agent 不得填写
-  人工身份、确认、复核、抽检或 accepted；也不得通过改名、汇总口径或“美化结果”
-  将 silver 伪装成人工数据。多轮对话允许自动生成候选，但只有本人真实检查的记录
-  才可计为人工 accepted。
-- **影响**：Week 5 工程覆盖仍按 79,936 成功与 64 最终失败验收；人工交付改为如实
-  报告 300 条单轮抽样队列和 100 条对话抽样队列的完成率、问题分布及质检证据，
-  不再声称达到原全量人工合格数量目标。
+- **状态**：Accepted；细化 ADR-019，并以最新用户指令解决“全量人工修订”与“3 小时、低于 500 次操作”的冲突。
+- **决策**：在三场景 Schema-valid 预标注中各确定性选择 100 条进行真实人工验证，保留并计入已完成的商品 10、售后 8、行程 9 条。每个场景的 100 条队列固定包含 10 条现行 SHA-256 规则选中的盲复核候选和其中 3 条核心抽检候选。因此完整预算为 300 次人工修订与内联自审、30 次盲复核、9 次核心抽检。完成单轮队列后自动生成 10,000 条多轮对话候选，并固定抽取 100 条由本人验收；人工操作总上限为 439。
+- **边界**：其余有效预标注继续标记为 silver。自动校验、模型输出或 Agent 不得填写人工身份、确认、复核、抽检或 accepted；也不得通过改名、汇总口径或“美化结果”将 silver 伪装成人工数据。多轮对话允许自动生成候选，但只有本人真实检查的记录才可计为人工 accepted。
+- **影响**：Week 5 工程覆盖仍按 79,936 成功与 64 最终失败验收；人工交付改为如实报告 300 条单轮抽样队列和 100 条对话抽样队列的完成率、问题分布及质检证据，不再声称达到原全量人工合格数量目标。
 
 ## ADR-024：Week 5 多轮对话保留原作业并独立并行分片
 
 - **日期**：2026-08-16
 - **状态**：Accepted；来自用户最新直接指令，仅适用于 Week 5 多轮对话。
-- **决策**：保持活动串行作业 `29259879` 不变；新增对话生成的 bounded range、
-  modulo shard 和有界客户端并发。每个 Slurm array task 使用独立 run ID、运行目录、
-  candidates/failures 和 vLLM 日志，禁止多个进程写同一 JSONL。分片绑定相同配置与
-  qualified sample 集合哈希，最终使用显式 merge 以源顺序去重，并验证确定性
-  10,000 ID 全集、Schema 和图片引用。
-- **原因**：活动链路 HTTP 500 为 0，但生成循环实际串行，配置中的并发未用于对话；
-  单个 24 小时 L40S 配额按实测吞吐不足以一次完成 10,000 条。
-- **影响**：ADR-022 的“不提交竞争作业”仍约束单轮预标注迁移，但不再禁止本次
-  独立输出的多轮对话分片。现有作业不取消、不修改；额外 GPU 只处理版本化分片，
-  未经 merge 完整校验的分片不能单独计为最终候选，也不授权任何 Week 6 工作。
+- **决策**：保持活动串行作业 `29259879` 不变；新增对话生成的 bounded range、modulo shard 和有界客户端并发。每个 Slurm array task 使用独立 run ID、运行目录、candidates/failures 和 vLLM 日志，禁止多个进程写同一 JSONL。分片绑定相同配置与 qualified sample 集合哈希，最终使用显式 merge 以源顺序去重，并验证确定性 10,000 ID 全集、Schema 和图片引用。
+- **原因**：活动链路 HTTP 500 为 0，但生成循环实际串行，配置中的并发未用于对话；单个 24 小时 L40S 配额按实测吞吐不足以一次完成 10,000 条。
+- **影响**：ADR-022 的“不提交竞争作业”仍约束单轮预标注迁移，但不再禁止本次独立输出的多轮对话分片。现有作业不取消、不修改；额外 GPU 只处理版本化分片，未经 merge 完整校验的分片不能单独计为最终候选，也不授权任何 Week 6 工作。
 
 ## ADR-025：Week 5 对话权威版本与人工验收闭环
 
 - **日期**：2026-08-16
 - **状态**：Accepted；记录 ADR-023/024 的实际完成结果。
-- **决策**：将 `week5_dialogues_merged_10000_20260816_522b4af` 固定为 Week 5
-  多轮对话权威候选版本。该 run 由不可变 4,000 条前缀快照与四个各 1,500 条互斥
-  分片显式合并，完整覆盖 10,000 个唯一 ID。固定人工队列的 100 条记录由本人完成
-  五项检查和最终决定，全部为 `pass`，因此仅这 100 条计为人工 accepted。
-- **证据**：候选 SHA-256 为
-  `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99`，manifest
-  SHA-256 为 `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`，
-  固定队列 SHA-256 为
-  `45c34b558456577d5eaaf9b74cf04a8766b0160ec05935a181131db66134634e`，人工验收
-  JSONL SHA-256 为
-  `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
-- **影响**：其余 9,900 条候选不获得人工身份或 accepted 状态。Week 5 至此按
-  单人预算内口径完成；Week 6 仍须在独立执行阶段核验最终 Week 5 输入并建立新的
-  不可变训练数据锁，不得把此前仅含 27 条真人修订的历史锁误称为最终锁。
+- **决策**：将 `week5_dialogues_merged_10000_20260816_522b4af` 固定为 Week 5 多轮对话权威候选版本。该 run 由不可变 4,000 条前缀快照与四个各 1,500 条互斥分片显式合并，完整覆盖 10,000 个唯一 ID。固定人工队列的 100 条记录由本人完成五项检查和最终决定，全部为 `pass`，因此仅这 100 条计为人工 accepted。
+- **证据**：候选 SHA-256 为 `7e00f326fc1b2896a6efcc5c2f6c1f67ffdb728501ba3eb9ba65efdb28265d99`，manifest SHA-256 为 `02795c8df44ca564dcd873974c5bcb6939c41bf38bee2f6c1f550d7916669556`，固定队列 SHA-256 为 `45c34b558456577d5eaaf9b74cf04a8766b0160ec05935a181131db66134634e`，人工验收 JSONL SHA-256 为 `eb3a6f436a78389e919b86d3756fc2208265bac7f4420158dc597d5bc4682e54`。
+- **影响**：其余 9,900 条候选不获得人工身份或 accepted 状态。Week 5 至此按单人预算内口径完成；Week 6 仍须在独立执行阶段核验最终 Week 5 输入并建立新的不可变训练数据锁，不得把此前仅含 27 条真人修订的历史锁误称为最终锁。
 
 ## ADR-026：Week 6 最终单轮数据锁与首个 8B pilot 门禁
 
 - **日期**：2026-08-17
 - **状态**：Accepted
-- **决策**：历史锁 `week6_week5_spartan_merge_20260814_8cbfd8d_v1` 保持只读，
-  不再作为正式训练输入。活动锁必须绑定 Week 5 最终三场景各 100 条人工修订，人工
-  权重为 1.0，silver 权重为 0.5；100 条人工验收多轮对话不自动混入本次单场景训练。
-- **决策**：锁内 OpenAI `image_url` 项统一转换为 Transformers 原生
-  `type=image/path=<project-relative-path>`，同时验证路径位于项目根目录且文件存在。
-  当前活动版本为 `week6_week5_final_human300_20260817_v4`；v2/v3 仅保留为路径与
-  processor 兼容性失败证据，不用于训练。
-- **执行门禁**：先提交唯一 `after_sales` Qwen3-VL-8B QLoRA 小样本 pilot；获得
-  4bit、LoRA 目标层、反向传播、显存、checkpoint 和 adapter 重载证据后停止并回报。
-  未经新的 Project Control 阶段批准，不自动进入三场景正式训练或 Week 3 最终评测。
-- **原因**：最终 300 条人工修订晚于旧锁；Windows 绝对 `file://` 和 OpenAI
-  `image_url` 结构均不能作为 Transformers 4.57.1 自动加载本地图片的可靠输入。
+- **决策**：历史锁 `week6_week5_spartan_merge_20260814_8cbfd8d_v1` 保持只读，不再作为正式训练输入。活动锁必须绑定 Week 5 最终三场景各 100 条人工修订，人工权重为 1.0，silver 权重为 0.5；100 条人工验收多轮对话不自动混入本次单场景训练。
+- **决策**：锁内 OpenAI `image_url` 项统一转换为 Transformers 原生 `type=image/path=<project-relative-path>`，同时验证路径位于项目根目录且文件存在。当前活动版本为 `week6_week5_final_human300_20260817_v4`；v2/v3 仅保留为路径与 processor 兼容性失败证据，不用于训练。
+- **执行门禁**：先提交唯一 `after_sales` Qwen3-VL-8B QLoRA 小样本 pilot；获得 4bit、LoRA 目标层、反向传播、显存、checkpoint 和 adapter 重载证据后停止并回报。未经新的 Project Control 阶段批准，不自动进入三场景正式训练或 Week 3 最终评测。
+- **原因**：最终 300 条人工修订晚于旧锁；Windows 绝对 `file://` 和 OpenAI `image_url` 结构均不能作为 Transformers 4.57.1 自动加载本地图片的可靠输入。
 
 ## ADR-027：Week 6 pilot 后确定性放行与三场景任务级并行
 
 - **日期**：2026-08-17
-- **状态**：Accepted；用户最新直接指令授权 pilot 成功后自动执行下一步，细化并
-  supersede ADR-026 的“pilot 后停止”条款，其他 Week 6 边界不变。
-- **决策**：保留已排队 pilot，不取消或重复提交。pilot 后由 CPU gate 确定性检查
-  step、有限 train/eval loss、显存、checkpoint、adapter-only 磁盘回载、数据锁和
-  Git 身份；仅 gate 成功时允许 Slurm `afterok` 链进入正式训练。
-- **并行**：三个场景使用独立单 GPU job、run ID、输出、checkpoint、日志和 LoRA
-  adapter 并行排队。8B NF4 可在 L40S 单卡运行，因此不做低收益的模型跨卡切分；
-  单场景失败只恢复该场景。每个 allocation 内连续完成训练、best checkpoint、adapter
-  回载和 summary，避免额外占卡。
-- **数据门禁**：正式 job 前按不可变图片清单使用 CPU array 分片校验远端文件大小和
-  SHA-256；未齐图片、磁盘余量不足或 gate 失败时依赖链关闭。该授权不包括商品 4B
-  对照、冻结 Week 3 最终评测、多轮对话训练或变更固定超参数。
+- **状态**：Accepted；用户最新直接指令授权 pilot 成功后自动执行下一步，细化并 supersede ADR-026 的“pilot 后停止”条款，其他 Week 6 边界不变。
+- **决策**：保留已排队 pilot，不取消或重复提交。pilot 后由 CPU gate 确定性检查 step、有限 train/eval loss、显存、checkpoint、adapter-only 磁盘回载、数据锁和 Git 身份；仅 gate 成功时允许 Slurm `afterok` 链进入正式训练。
+- **并行**：三个场景使用独立单 GPU job、run ID、输出、checkpoint、日志和 LoRA adapter 并行排队。8B NF4 可在 L40S 单卡运行，因此不做低收益的模型跨卡切分；单场景失败只恢复该场景。每个 allocation 内连续完成训练、best checkpoint、adapter 回载和 summary，避免额外占卡。
+- **数据门禁**：正式 job 前按不可变图片清单使用 CPU array 分片校验远端文件大小和 SHA-256；未齐图片、磁盘余量不足或 gate 失败时依赖链关闭。该授权不包括商品 4B 对照、冻结 Week 3 最终评测、多轮对话训练或变更固定超参数。
 
 ## ADR-028：Spartan Week 6 使用版本化 CUDA 12.8 训练环境
 
 - **日期**：2026-08-17
 - **状态**：Accepted
-- **决策**：失败环境 `trip-week5-week6-py311` 不原地升级；在日志与版本证据已经保留且
-  用户明确授权清理后，可删除该可重建目录释放共享 GPFS inode。新建
-  `trip-week6-py311-cu128-v1`，固定 PyTorch `2.8.0+cu128`、Transformers `4.57.1`、
-  torchvision `0.23.0+cu128`、PEFT `0.17.1`、bitsandbytes `0.47.0`、
-  accelerate `1.10.1` 和 kernels `0.11.7`。
-- **原因**：pilot `29296577` 在环境 gate 以 11 秒失败；节点驱动支持 CUDA 12.8，
-  原 venv 的 `torch 2.13.0+cu130` 要求 CUDA 13，且 bitsandbytes 0.50.0 报告缺少
-  kernels。作业没有加载模型或执行训练步，不能计为 pilot。
-- **影响**：新 venv 只安装训练专用依赖并关闭 pip 下载缓存，不安装 API/data 聚合依赖；
-  只在安装作业成功并通过 `pip check` 后重提一次 pilot；正式
-  `afterok` 链必须绑定新 pilot 和该 venv，不得绕过 CUDA 初始化 gate。
+- **决策**：失败环境 `trip-week5-week6-py311` 不原地升级；在日志与版本证据已经保留且用户明确授权清理后，可删除该可重建目录释放共享 GPFS inode。新建 `trip-week6-py311-cu128-v1`，固定 PyTorch `2.8.0+cu128`、Transformers `4.57.1`、torchvision `0.23.0+cu128`、PEFT `0.17.1`、bitsandbytes `0.47.0`、accelerate `1.10.1` 和 kernels `0.11.7`。
+- **原因**：pilot `29296577` 在环境 gate 以 11 秒失败；节点驱动支持 CUDA 12.8，原 venv 的 `torch 2.13.0+cu130` 要求 CUDA 13，且 bitsandbytes 0.50.0 报告缺少 kernels。作业没有加载模型或执行训练步，不能计为 pilot。
+- **影响**：新 venv 只安装训练专用依赖并关闭 pip 下载缓存，不安装 API/data 聚合依赖；只在安装作业成功并通过 `pip check` 后重提一次 pilot；正式 `afterok` 链必须绑定新 pilot 和该 venv，不得绕过 CUDA 初始化 gate。
 
 ## ADR-029：Week 6 行程专项以同集业务门禁裁决
 
 - **日期**：2026-08-18
 - **状态**：Accepted；用户要求 Week 6 单场景持续优化并以最佳效果为目标。
-- **决策**：保留已完成三场景 adapter 和原始数据锁不可变。行程专项先在结构修复锁的
-  固定 validation 子集上评估当前最佳 adapter；只有当前基线不足时才允许从已验证
-  adapter 继续训练，不从基座重训。
-- **裁决门禁**：基线与候选必须具有相同 evaluation input SHA-256、样本 ID SHA-256、
-  数据锁、样本数量和确定性生成参数。候选须增加全项通过样本，且 JSON/Schema、天数、
-  顺序、原约束覆盖、constraint check 和必需元素均不得回退。
-- **原因**：原行程 validation 目标的结构全通过为 `0/450`；极低 loss 只证明模型拟合
-  了这些目标，不能独立证明业务约束遵循。以确定性业务指标先评估、再决定训练，可避免
-  在错误目标上盲目追加 epoch。
-- **影响**：派生规则生成的目标统一保持 silver/0.5，不继承人工身份；冻结 Week 3
-  evaluation 不用于调参，只能在参数锁定后进行一次最终评估。
+- **决策**：保留已完成三场景 adapter 和原始数据锁不可变。行程专项先在结构修复锁的固定 validation 子集上评估当前最佳 adapter；只有当前基线不足时才允许从已验证 adapter 继续训练，不从基座重训。
+- **裁决门禁**：基线与候选必须具有相同 evaluation input SHA-256、样本 ID SHA-256、数据锁、样本数量和确定性生成参数。候选须增加全项通过样本，且 JSON/Schema、天数、顺序、原约束覆盖、constraint check 和必需元素均不得回退。
+- **原因**：原行程 validation 目标的结构全通过为 `0/450`；极低 loss 只证明模型拟合了这些目标，不能独立证明业务约束遵循。以确定性业务指标先评估、再决定训练，可避免在错误目标上盲目追加 epoch。
+- **影响**：派生规则生成的目标统一保持 silver/0.5，不继承人工身份；冻结 Week 3 evaluation 不用于调参，只能在参数锁定后进行一次最终评估。
 
 ## ADR-030：Week 6 终态后以新开发锁推进质量改进
 
 - **日期**：2026-08-19
 - **状态**：Accepted；来自用户对前沿方法审计、项目整理和后续效果提升的直接授权。
-- **决策**：Week 6 已完成的训练、adapter、门禁、冻结评测和归档保持不可变。后续质量
-  改进必须从未进入 `week3_evaluation_v2` 的来源建立新的 development/test 身份锁；
-  先比较错误切片 SFT 与 Schema 约束解码，只有偏好对通过业务正确性和视觉证据审计后，
-  才允许增加一次多模态 DPO 消融。
-- **门禁**：配置、样本 ID、五维隔离、哈希、生成参数、支持数、延迟和失败记录均须预先
-  锁定。晋级要求 JSON/Schema 不回退、预声明的主要业务指标提升且支持数不通过删除困难
-  样本下降。参数锁定后只在新的未见测试集评测一次。
-- **原因**：冻结结果证明当前瓶颈主要是商品多标签、售后严重度/关键信息和行程约束
-  泛化；继续在已消费冻结集调参或盲目增加 epoch 会造成评测泄漏，且不能由现有证据
-  推导出提升。
-- **影响**：本次论文评审与设计不代表已经获得新指标；更大模型、GRPO/RL、无验证的
-  合成推理和更多 epoch 均须由新开发集证据单独授权，不能作为默认动作。
+- **决策**：Week 6 已完成的训练、adapter、门禁、冻结评测和归档保持不可变。后续质量改进必须从未进入 `week3_evaluation_v2` 的来源建立新的 development/test 身份锁；先比较错误切片 SFT 与 Schema 约束解码，只有偏好对通过业务正确性和视觉证据审计后，才允许增加一次多模态 DPO 消融。
+- **门禁**：配置、样本 ID、五维隔离、哈希、生成参数、支持数、延迟和失败记录均须预先锁定。晋级要求 JSON/Schema 不回退、预声明的主要业务指标提升且支持数不通过删除困难样本下降。参数锁定后只在新的未见测试集评测一次。
+- **原因**：冻结结果证明当前瓶颈主要是商品多标签、售后严重度/关键信息和行程约束泛化；继续在已消费冻结集调参或盲目增加 epoch 会造成评测泄漏，且不能由现有证据推导出提升。
+- **影响**：本次论文评审与设计不代表已经获得新指标；更大模型、GRPO/RL、无验证的合成推理和更多 epoch 均须由新开发集证据单独授权，不能作为默认动作。
 
 ## ADR-031：Week 7 对话构造 v4 修正与无新人工输入自动闭环
 
 - **日期**：2026-08-22
-- **状态**：Accepted；来自用户最新直接指令，在对话缺陷修正与新 test 身份上
-  supersede ADR-030 的原 Week 7 一次性 v3 test 约束；其余 Week 6 不可变证据、
-  Week 3 v2 禁止调参和五维隔离约束保持有效。
-- **决策**：保留 v3 全部历史产物及失效结论，新建 v4 全量数据锁并修正
-  train/development/test 的 user→assistant 对齐；从 Qwen3-VL-8B-Instruct 原底座
-  按已锁 QLoRA/SFT 配置重训。development 以机器自动四维、格式和失败率门禁选
-  checkpoint，并将配置、数据锁、raw 输出和 adapter SHA-256 与选择结果绑定。
-- **一次性测试**：只有 development 自动门禁通过后才可消费 v4 corrected-dialogue
-  test 一次；同一批 24 条分别生成 multitask、Week 6 三 adapter 按场景路由和
-  zero-shot 原始输出。消费 marker 在模型加载前落盘，作业失败或指标不合格
-  也不得通过换参重跑追逐 test。
-- **人工边界**：现有 corrected development 24/24 真人评分保留为辅助证据；本 v4
-  不要求新的人工干预。Agent 可执行自动对抗判定，但这些结果必须标识为
-  machine/automatic，不得冒充 human accepted。
-- **DPO**：已执行的唯一 mDPO-style v1 因 validation 门禁失败而关闭；v4
-  不再运行 DPO，不修改或重新解释已有偏好对审计。
-- **影响**：v4 是对真实系统性构造缺陷的新身份修复，不是对 v3 test 的回溯修补。
-  新 test 结果只适用于 v4 corrected-dialogue 口径；不改写 Week 6 终态、v3 原始评测
-  或既有真人评分。
+- **状态**：Accepted；来自用户最新直接指令，在对话缺陷修正与新 test 身份上 supersede ADR-030 的原 Week 7 一次性 v3 test 约束；其余 Week 6 不可变证据、Week 3 v2 禁止调参和五维隔离约束保持有效。
+- **决策**：保留 v3 全部历史产物及失效结论，新建 v4 全量数据锁并修正 train/development/test 的 user→assistant 对齐；从 Qwen3-VL-8B-Instruct 原底座按已锁 QLoRA/SFT 配置重训。development 以机器自动四维、格式和失败率门禁选 checkpoint，并将配置、数据锁、raw 输出和 adapter SHA-256 与选择结果绑定。
+- **一次性测试**：只有 development 自动门禁通过后才可消费 v4 corrected-dialogue test 一次；同一批 24 条分别生成 multitask、Week 6 三 adapter 按场景路由和 zero-shot 原始输出。消费 marker 在模型加载前落盘，作业失败或指标不合格也不得通过换参重跑追逐 test。
+- **人工边界**：现有 corrected development 24/24 真人评分保留为辅助证据；本 v4 不要求新的人工干预。Agent 可执行自动对抗判定，但这些结果必须标识为 machine/automatic，不得冒充 human accepted。
+- **DPO**：已执行的唯一 mDPO-style v1 因 validation 门禁失败而关闭；v4 不再运行 DPO，不修改或重新解释已有偏好对审计。
+- **影响**：v4 是对真实系统性构造缺陷的新身份修复，不是对 v3 test 的回溯修补。新 test 结果只适用于 v4 corrected-dialogue 口径；不改写 Week 6 终态、v3 原始评测或既有真人评分。
 
 ## ADR-032：Week 7 fix2 使用门禁对齐评分并收敛临时分支
 
 - **日期**：2026-08-24
 - **状态**：Accepted；来自用户对持续门禁失败和额外执行分支的直接修复要求。
-- **决策**：保留 fix1 全部失败证据不可变，使用新 config/data/run identity 建立 fix2。
-  嵌套结构化结果改为叶子级准确率；自由文本视觉描述不再作为 hard gate 的逐字金标；
-  sequential protocol coverage 与 sequential semantic accuracy 分开统计。
-- **checkpoint 门禁**：训练和最终 selector 共用 hard-gate-first 目标。未通过候选按最弱
-  门禁进度排序；任何全门禁通过候选优先，再以三场景加权综合分和最早 step 选择。
-  fix1 的 0.75 阈值不因已观察结果而下调，fix2 必须使用排除 v3、首版 v4、fix1 的
-  fresh development，参数锁定后才可消费一次 fresh test。
-- **分支**：ADR-004 的长期交付分支仍仅为 `dev`、`stg`、`main`；`feature/*` 或
-  `codex/*` 是临时执行载体。内容经验证并快进 `dev` 后删除已合并临时分支，不把
-  development 自动门禁结果晋级到 `stg`，不打标签。
-- **影响**：该决策修复评分和优化目标错位，不保证模型必然通过门禁，也不把自动结果
-  解释为人工或统计显著结论。DPO 保持既有一次失败后关闭。
+- **决策**：保留 fix1 全部失败证据不可变，使用新 config/data/run identity 建立 fix2。嵌套结构化结果改为叶子级准确率；自由文本视觉描述不再作为 hard gate 的逐字金标；sequential protocol coverage 与 sequential semantic accuracy 分开统计。
+- **checkpoint 门禁**：训练和最终 selector 共用 hard-gate-first 目标。未通过候选按最弱门禁进度排序；任何全门禁通过候选优先，再以三场景加权综合分和最早 step 选择。fix1 的 0.75 阈值不因已观察结果而下调，fix2 必须使用排除 v3、首版 v4、fix1 的 fresh development，参数锁定后才可消费一次 fresh test。
+- **分支**：ADR-004 的长期交付分支仍仅为 `dev`、`stg`、`main`；`feature/*` 或 `codex/*` 是临时执行载体。内容经验证并快进 `dev` 后删除已合并临时分支，不把 development 自动门禁结果晋级到 `stg`，不打标签。
+- **影响**：该决策修复评分和优化目标错位，不保证模型必然通过门禁，也不把自动结果解释为人工或统计显著结论。DPO 保持既有一次失败后关闭。
 
 ## ADR-033：系统收敛采用新身份修复和 fail-closed 发布门禁
 
 - **日期**：2026-08-24
 - **状态**：Accepted；来自用户对两天并行修复和系统封装的直接要求。
-- **决策**：三个临时执行分支分别处理模型、运行时和检索封装，最终由单一集成分支合并。
-  历史冻结资产不改写；Week 5 v2、fresh development/test、Prompt pilot、继续 SFT 和发布包
-  使用独立身份。生产 API 关闭静默 fallback，readiness 必须同时核验模型、adapter、
-  Prompt、Schema、CLIP、Milvus 和 release identity。
-- **模型门禁**：核心三场景、DIALOGUE_BETA、失败率、延迟和支持数必须由同一 fresh
-  development 的真实运行产物裁决。只有 development 全部通过后才允许消费一次新 test；
-  未完成或未通过不能用状态文字改成 READY。
-- **发布影响**：完整代码修复和失败证据可进入 `dev`；只有模型、检索、Docker、OSS 与
-  干净 checkout 门禁全部通过才允许进入 `stg`。`main` 不在本次修改范围。
+- **决策**：三个临时执行分支分别处理模型、运行时和检索封装，最终由单一集成分支合并。历史冻结资产不改写；Week 5 v2、fresh development/test、Prompt pilot、继续 SFT 和发布包使用独立身份。生产 API 关闭静默 fallback，readiness 必须同时核验模型、adapter、Prompt、Schema、CLIP、Milvus 和 release identity。
+- **模型门禁**：核心三场景、DIALOGUE_BETA、失败率、延迟和支持数必须由同一 fresh development 的真实运行产物裁决。只有 development 全部通过后才允许消费一次新 test；未完成或未通过不能用状态文字改成 READY。
+- **发布影响**：完整代码修复和失败证据可进入 `dev`；只有模型、检索、Docker、OSS 与干净 checkout 门禁全部通过才允许进入 `stg`。`main` 不在本次修改范围。
 
 ## ADR-034：模型采用单一本地交接包，不依赖 Spartan 或 OSS 留存
 
 - **日期**：2026-08-25
-- **状态**：Accepted；导师最新口径由用户直接确认，本决策取代 ADR-033 的 OSS 留存
-  与晋级门禁，其模型、检索、Docker 和 fail-closed 质量要求保持有效。
-- **决策**：Git 只保存可复现代码、配置、测试和报告；Git 外保留唯一四层本地交接包。
-  接手者使用本地验证器核验归档、adapter、release config、final gate、真实模型 smoke
-  和 Milvus 基准。Spartan 与 OSS 不作为交付依赖，不要求保留每周全部运行数据。
-- **清理边界**：允许删除 Yelp 原始/解压数据、公开基座缓存、中间 checkpoint、周运行
-  输出和迁移临时目录。必须保留唯一交接包，不删除本地凭据，不向 Git 提交模型权重、
-  原始数据或密钥。
-- **晋级影响**：模型门禁、真实四场景 smoke、本地交接包哈希、完整测试、Compose 和
-  干净 checkout 全部通过后可进入 `stg`；`main` 仍不变。
+- **状态**：Accepted；导师最新口径由用户直接确认，本决策取代 ADR-033 的 OSS 留存与晋级门禁，其模型、检索、Docker 和 fail-closed 质量要求保持有效。
+- **决策**：Git 只保存可复现代码、配置、测试和报告；Git 外保留唯一四层本地交接包。接手者使用本地验证器核验归档、adapter、release config、final gate、真实模型 smoke 和 Milvus 基准。Spartan 与 OSS 不作为交付依赖，不要求保留每周全部运行数据。
+- **清理边界**：允许删除 Yelp 原始/解压数据、公开基座缓存、中间 checkpoint、周运行输出和迁移临时目录。必须保留唯一交接包，不删除本地凭据，不向 Git 提交模型权重、原始数据或密钥。
+- **晋级影响**：模型门禁、真实四场景 smoke、本地交接包哈希、完整测试、Compose 和干净 checkout 全部通过后可进入 `stg`；`main` 仍不变。
 
 ## Decision Template
 

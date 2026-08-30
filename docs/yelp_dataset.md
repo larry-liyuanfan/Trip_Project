@@ -13,8 +13,7 @@ The raw dataset is not committed to this repository. Keep local downloads under:
 data/yelp/raw/
 ```
 
-If the official downloads are stored as local zip files under `data/`, first extract
-the Week 1 raw inputs:
+If the official downloads are stored as local zip files under `data/`, first extract the Week 1 raw inputs:
 
 ```bash
 python scripts/extract_yelp_archives.py \

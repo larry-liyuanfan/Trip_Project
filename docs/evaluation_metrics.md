@@ -133,5 +133,4 @@ The completed v2 minimal-baseline semantic score was generated once with:
 python scripts/score_week3_evaluation.py --config configs/evaluation_week3_v2.yaml --run-id week3_v2_baseline_full_20260724_001 --semantic-coding-config configs/evaluation/baseline_semantic_coding_v1.json --score-id week3_v2_baseline_full_20260724_001__baseline_semantic_coding_v1
 ```
 
-Score directories are immutable. Re-running either command with an existing
-target directory is rejected.
+Score directories are immutable. Re-running either command with an existing target directory is rejected.

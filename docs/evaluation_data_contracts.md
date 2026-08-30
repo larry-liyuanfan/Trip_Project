@@ -127,8 +127,6 @@ python -m unittest tests.test_evaluation_manifests tests.test_evaluation_annotat
 
 The builder refuses to overwrite non-empty manifests or registry files. Annotation packets are applied only after the full batch passes validation and before an atomic manifest replacement. See `docs/week3_annotation_guidelines.md`.
 
-Week 3 intentionally provides no browser annotation UI. Human annotation uses
-exported JSONL packets and transactional CLI application so the Git deliverable
-stays within the approved non-UI scope.
+Week 3 intentionally provides no browser annotation UI. Human annotation uses exported JSONL packets and transactional CLI application so the Git deliverable stays within the approved non-UI scope.
 
 Annotation export may add deterministic, explicitly non-gold suggestions under packet-only `context.deterministic_suggestion`. These hints are derived from source metadata and rules, never from a VLM, and are removed before the submission reaches manifest validation.

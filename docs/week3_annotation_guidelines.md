@@ -4,10 +4,7 @@
 
 These rules define the human ground-truth gate for the three Week 3 evaluation sets. Candidate discovery rules, source metadata, Yelp categories/reviews, synthetic recipe fields, Prompt outputs, and model suggestions are not gold labels.
 
-One human annotator inspects the original image(s) and raw itinerary constraints
-and submits the complete scenario annotation. The mentor requirement does not
-require a second annotator; legacy review fields remain non-gating compatibility
-metadata only.
+One human annotator inspects the original image(s) and raw itinerary constraints and submits the complete scenario annotation. The mentor requirement does not require a second annotator; legacy review fields remain non-gating compatibility metadata only.
 
 Do not infer an unobservable fact. Use `unknown`, `null`, or an empty array according to the field contract. Reject unreadable, irrelevant, privacy-unsafe, or source-mismatched candidates instead of repairing them with guesses.
 
@@ -64,8 +61,7 @@ An itinerary place has value `null` when the source does not provide a defensibl
 | `text_constraints`, `hard_constraints`, `soft_constraints` | zero or more atomic constraints from the current raw constraint text; narrowly controlled exact entry is allowed when a necessary source constraint is missing from the choices |
 | `style_preferences` | zero or more of `urban`, `nature`, `history_culture`, `food`, `leisure`, `romantic`, `family`, `adventure`, `photography`, `shopping`, `nightlife`, `quiet`, `luxury`, `budget`, `slow_paced` |
 | `required_itinerary_elements` | zero or more of `daily_schedule`, `poi`, `accommodation`, `meals`, `transport`, `duration`, `budget_check`, `end_time_check`, `constraint_check` |
-Legacy review or PII metadata may remain for compatibility, but it is not part of
-the mentor-required annotation workflow and does not create a second-person gate.
+Legacy review or PII metadata may remain for compatibility, but it is not part of the mentor-required annotation workflow and does not create a second-person gate.
 
 ## Optional deterministic suggestions
 
@@ -83,35 +79,17 @@ The annotation object remains unfilled. Product suggestions cover only the route
 
 ## Synthetic after-sales evidence correction (2026-07-17)
 
-The original `week3_after_sales_evidence_v1` cards used a small default font and
-decorative high-contrast blocks that could distract from the evidence text.
-They must not be used for annotation. All 74 still-pending business-synthetic
-closure and delay samples were refreshed to
-`week3_after_sales_evidence_v2` with four deterministic document-style layouts,
-measured text bounds, non-overlapping text rows, and per-image perceptual
-separation.
+The original `week3_after_sales_evidence_v1` cards used a small default font and decorative high-contrast blocks that could distract from the evidence text. They must not be used for annotation. All 74 still-pending business-synthetic closure and delay samples were refreshed to `week3_after_sales_evidence_v2` with four deterministic document-style layouts, measured text bounds, non-overlapping text rows, and per-image perceptual separation.
 
-The correction preserved the exact evidence text and all stable sample/source
-identities. No target annotation, review, or draft was overwritten. The local
-audit and v1 backup remain under ignored `data/eval/logs/` and
-`data/eval/backups/` respectively.
+The correction preserved the exact evidence text and all stable sample/source identities. No target annotation, review, or draft was overwritten. The local audit and v1 backup remain under ignored `data/eval/logs/` and `data/eval/backups/` respectively.
 
 ## Superseded synthetic after-sales recuration (2026-07-21)
 
-An intermediate correction generated a pending project-owned v3 candidate set.
-Project Control later superseded that route and froze the existing completed
-human annotations for reuse. The active run-bound after-sales manifest is the
-hash-verified mixed-source version (`public_yelp=76`,
-`business_synthetic=74`); the pending v3 set remains only in ignored backup
-storage. No new annotation, relabeling, or review work is required.
+An intermediate correction generated a pending project-owned v3 candidate set. Project Control later superseded that route and froze the existing completed human annotations for reuse. The active run-bound after-sales manifest is the hash-verified mixed-source version (`public_yelp=76`, `business_synthetic=74`); the pending v3 set remains only in ignored backup storage. No new annotation, relabeling, or review work is required.
 
 ## Historical JSONL annotation workflow
 
-The Week 3 Git deliverable intentionally contains no browser UI. The following
-commands document the existing reusable packet mechanism; they are not a
-current Week 3 labeling requirement. Do not edit a
-full manifest directly; export a packet, inspect every registered image and raw
-constraint, then apply a complete human submission transactionally.
+The Week 3 Git deliverable intentionally contains no browser UI. The following commands document the existing reusable packet mechanism; they are not a current Week 3 labeling requirement. Do not edit a full manifest directly; export a packet, inspect every registered image and raw constraint, then apply a complete human submission transactionally.
 
 Export one suggested annotation packet per scenario:
 
@@ -136,6 +114,4 @@ python scripts/prepare_week3_evaluation.py --config configs/evaluation_week3.yam
 python scripts/validate_week3_evaluation.py --config configs/evaluation_week3.yaml
 ```
 
-Run the full baseline only after the three manifests reach the mentor-required
-sizes, required scene/category coverage, readable-file checks, and completed
-single-annotator labels.
+Run the full baseline only after the three manifests reach the mentor-required sizes, required scene/category coverage, readable-file checks, and completed single-annotator labels.
