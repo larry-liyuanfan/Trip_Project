@@ -16,6 +16,7 @@ data/samples/         可提交的轻量接口样例
 ```
 
 配置入口为 `configs/data_processing.yaml`。路径可通过配置覆盖，代码不得写入机器绝对路径。
+自动生成的处理报告默认写入 Git 忽略的 `outputs/reports/`，不写入最终交接报告目录。
 
 ## 处理流程
 
