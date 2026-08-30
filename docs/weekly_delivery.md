@@ -791,4 +791,4 @@ FastAPI 版本的内部路由对象计数。新增缺路由反例后，全量 74
 - [x] README、模型交接说明、报告索引和最终优化状态表统一到同一交付身份。
 - [x] 最终四层包已生成并通过 `verify_final_delivery.py`；runtime/adapter/retrieval/evidence SHA-256 已写入交接说明。
 - [x] 完整 unittest 948/948、runtime 隔离导入和 v12/v13 证据血缘验证通过。
-- [ ] 三长期分支推送和临时分支清理待本轮 Git 验证完成后登记。
+- [x] `dev`、`stg`、`main` 已推送到同一交付提交；Week 8 工作树、功能分支、临时整合分支和旧系统包已清理，仅保留正式交付包。
