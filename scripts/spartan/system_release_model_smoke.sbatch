@@ -27,7 +27,7 @@ export HF_HUB_DISABLE_TELEMETRY=1
 export PYTHONUNBUFFERED=1
 source "${TRIP_VENV}/bin/activate"
 
-release_config="${TRIP_RELEASE_CONFIG:-configs/releases/qwen3_vl_system_v1.json}"
+release_config="${TRIP_RELEASE_CONFIG:-configs/releases/qwen3_vl_system_final_v1.json}"
 smoke_image="${TRIP_SMOKE_IMAGE:-data/samples/images/cafe_001.jpg}"
 
 python scripts/run_week7.py \

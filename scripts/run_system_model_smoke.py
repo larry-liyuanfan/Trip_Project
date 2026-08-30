@@ -92,7 +92,7 @@ def main() -> None:
     parser.add_argument("--adapter-dir", required=True, type=Path)
     parser.add_argument(
         "--release-config",
-        default=ROOT / "configs/releases/qwen3_vl_system_v1.json",
+        default=ROOT / "configs/releases/qwen3_vl_system_final_v1.json",
         type=Path,
     )
     parser.add_argument(

@@ -288,6 +288,14 @@ Record decisions that affect architecture, reproducibility, model serving, data 
 - **清理边界**：允许删除 Yelp 原始/解压数据、公开基座缓存、中间 checkpoint、周运行输出和迁移临时目录。必须保留唯一交接包，不删除本地凭据，不向 Git 提交模型权重、原始数据或密钥。
 - **晋级影响**：模型门禁、真实四场景 smoke、本地交接包哈希、完整测试、Compose 和干净 checkout 全部通过后可进入 `stg`；`main` 仍不变。
 
+## ADR-035：Week 8 v13 组合成为正式交付版本
+
+- **日期**：2026-08-30
+- **状态**：Accepted；用户明确要求以 Week 8 后续优化最终版本正式交付，并取消 Week 7 门禁对本次晋级的限制。
+- **决策**：新增 `qwen3_vl_system_final_v1.json`，组合 v12 商品验收身份、v13 行程 v5、checkpoint-87 adapter 和当前 fail-closed runtime。v12、v13 与旧正式配置保持只读，不原地改写。
+- **证据边界**：商品验收参考仍为自动 `model_generated_silver`，human=0，价位支持为 0/N/A；正式交付不构成人工视觉准确率声明。v18 设施复查仅有 development 增益且延迟增加，不进入默认链路。
+- **分支与封装**：完成最终包哈希、隔离 runtime 导入、完整测试和文档一致性验证后，将同一提交依次推送到 `dev`、`stg`、`main`，再删除已合并临时分支，只保留三个长期分支。
+
 ## Decision Template
 
 ```markdown

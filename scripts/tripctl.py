@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.inference.release_config import resolve_release_config
 from src.inference.system_runtime import ReleaseSettings, RuntimeConfigurationError
-DEFAULT_RELEASE = ROOT / "configs/releases/qwen3_vl_system_v1.json"
+DEFAULT_RELEASE = ROOT / "configs/releases/qwen3_vl_system_final_v1.json"
 DEFAULT_SMOKE_IMAGE = ROOT / "data/samples/images/cafe_001.jpg"
 
 

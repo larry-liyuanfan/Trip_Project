@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-DEFAULT_RELEASE_CONFIG = "configs/releases/qwen3_vl_system_v1.json"
+DEFAULT_RELEASE_CONFIG = "configs/releases/qwen3_vl_system_final_v1.json"
 
 
 def resolve_release_config(root: Path, config_path=None) -> Path:

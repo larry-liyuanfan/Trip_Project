@@ -37,7 +37,7 @@ from src.inference.business_validation import BusinessValidationError, itinerary
 from src.inference.release_config import resolve_release_config
 
 
-DEFAULT_RELEASE_CONFIG = "configs/releases/qwen3_vl_system_v1.json"
+DEFAULT_RELEASE_CONFIG = "configs/releases/qwen3_vl_system_final_v1.json"
 DIALOGUE_PROMPT_VERSIONS = {
     "system_repair_dialogue_v1",
     "week8_dialogue_first_turn_v1",

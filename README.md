@@ -2,6 +2,14 @@
 
 VLM-based OTA multimodal intelligent search and travel planning system.
 
+## Final Delivery
+
+当前正式交付为 `trip-qwen3-vl-8b-week8-final-v1`，默认配置为
+`configs/releases/qwen3_vl_system_final_v1.json`。它组合 Week 8 v12 商品验收身份与
+v13 行程运行时，并使用当前 fail-closed API、CLIP/Milvus 检索和 checkpoint-87 adapter。
+接手者先阅读 `reports/final_delivery_status.md` 与 `docs/model_handoff.md`；前者明确区分
+已经完成的优化和仍待优化的视觉准确率、商品价位、延迟及检索相关性边界。
+
 This repository is not a generic chatbot demo. It is structured as an AI Search / Multimodal Search application for OTA scenarios:
 
 ```text
@@ -509,7 +517,7 @@ Spartan job `29491047` 已完成 24/24、失败 0；真实单人操作者随后�
 
 ## Unified Qwen3-VL System Runtime
 
-当前统一系统入口使用 `configs/releases/qwen3_vl_system_v1.json`，默认基座为 `Qwen/Qwen3-VL-8B-Instruct`，adapter 必须通过文件 SHA-256 核验。生产模式没有模型、Schema 或检索静默回退。
+当前统一系统入口使用 `configs/releases/qwen3_vl_system_final_v1.json`，默认基座为 `Qwen/Qwen3-VL-8B-Instruct`，adapter 必须通过文件 SHA-256 核验。生产模式没有模型、Schema 或检索静默回退。
 
 当前 release candidate 已绑定 system-repair checkpoint-87，adapter SHA-256 为 `c2fbb5c7...eaa2a`。唯一一次 120 条 fresh test 已完成，三场景 JSON/Schema 均为 1.0、请求失败率为 0，对话 Beta 综合为 0.973330；不可覆盖 final gate 为 `PASS`。
 
@@ -524,8 +532,8 @@ python scripts/tripctl.py smoke --base-url http://127.0.0.1:8000
 `validate` 返回实际文件路径及 SHA-256，缺失或损坏配置会失败。Compose 使用同一入口：
 
 ```bash
-python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_v1.json compose config --quiet
-python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_v1.json compose up -d
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_final_v1.json compose config --quiet
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_final_v1.json compose up -d
 ```
 
 该入口把解析后的绝对路径只读挂到 `/run/trip/release.json`；直接调用 Docker Compose 时，
@@ -850,3 +858,11 @@ python scripts/analyze_week8_facility_routing.py --generation-config configs/wee
 冻结结果显示：仅证据冲突触发会把facility TP 63降至60、F1 0.812903降至0.810811；
 “冲突或酒店/餐饮/零售/工业场景设施为空”触发17/60条，F1为0.826667，但只是既有development输出的
 反事实复算，mean延迟仍增加10.89%，没有新final或真实路由运行证据，因此不替代v12。
+
+## 2026-08-30 正式交付覆盖
+
+以上 Week 8 段落保留实验过程。用户已明确授权将“v13 运行配置 + v12 商品验收身份”
+作为正式交付，并取消 Week 7 门禁对本次晋级的限制。当前默认配置为
+`configs/releases/qwen3_vl_system_final_v1.json`，唯一交接包为
+`outputs/releases/trip-qwen3-vl-8b-week8-final-v1`。该决定不改变自动 silver、价位 0 支持、
+设施复查 development-only 等证据边界，最终状态以 `reports/final_delivery_status.md` 为准。

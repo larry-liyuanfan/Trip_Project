@@ -16,7 +16,7 @@ from pathlib import Path, PurePosixPath
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_RELEASE_CONFIG = ROOT / "configs/releases/qwen3_vl_system_v1.json"
+DEFAULT_RELEASE_CONFIG = ROOT / "configs/releases/qwen3_vl_system_final_v1.json"
 RUNTIME_PATHS = [
     "src/__init__.py",
     "src/api",
@@ -33,7 +33,6 @@ RUNTIME_PATHS = [
     "src/evaluation/product_semantics.py",
     "configs/evaluation/prompts",
     "configs/evaluation/schemas",
-    "configs/releases",
     "configs/retrieval",
     "configs/week8/product_observation_v1.json",
     "configs/week8/product_observation_v2.json",
@@ -121,6 +120,10 @@ def build_bundle(
             output_dir / "runtime.tar.gz",
             [
                 *((ROOT / path, Path(path)) for path in runtime_paths(release)),
+                (
+                    release_config,
+                    Path("configs/releases") / release_config.name,
+                ),
                 (release_config, Path("release/release_config.json")),
             ],
         ),

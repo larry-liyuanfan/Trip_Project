@@ -1,9 +1,10 @@
 # 项目报告索引
 
-本目录只保存导师可直接阅读的交付报告。当前会议优先阅读 `system_consolidation_repair_report.md`。导师最新口径不要求保留逐周全部原始输出、checkpoint 和大规模数据；当前 Git 外只保留一份通过 SHA-256 的本地模型交接包，其 evidence 层包含 final gate、真实 smoke 和关键摘要。实验过程与失败结论继续保留在 `docs/experiments.md`、`experiments/` 和各周报告中。
+本目录只保存导师可直接阅读的交付报告。当前优先阅读 `final_delivery_status.md`；它说明正式交付身份，以及既有优化方向中哪些已经完成、哪些仍待优化。导师最新口径不要求保留逐周全部原始输出、checkpoint 和大规模数据；Git 外只保留一份通过 SHA-256 的最终本地交接包。实验过程与失败结论继续保留在 `docs/experiments.md`、`experiments/` 和各周报告中。
 
 ## 综合报告
 
+- `final_delivery_status.md`：Week 8 正式交付配置、已完成优化、待优化边界和接手入口。
 - `system_consolidation_repair_report.md`：Week 1-7 问题实际修复、统一运行时、Milvus 实测、模型门禁和发布状态。
 - `week8_optimization_directions.md`：基于当前真实短板给导师选择的 Week 8 优化方向，不是已确定任务计划。
 - `week1_to_week5_qwen3_vl_4b_rerun_report.md`：使用单 A10 上的 `Qwen3-VL-4B-Instruct` 对 Week 1-5 进行有边界的重跑、验证与成本评估。

@@ -643,3 +643,11 @@ The format fallback may remove an optional Markdown code fence, parse JSON, and 
   输出和错误不得用于调参。未胜出的实验保留真实结果，不覆盖 v12 候选及冻结历史。
 - 整理完成后仅提交并推送当前 `feature/week8-product-understanding`，保持主工作树既有
   改动不受影响；未经明确批准不合并 `dev/stg/main`、不打标签。
+
+### 2026-08-30 最终交付授权
+
+- 用户明确指定 Week 8 后续优化组合为正式交付版本，并取消 Week 7 门禁对本次分支晋级的限制。
+- 正式配置必须版本化新增，不覆盖 Week 8 v12/v13 或历史正式配置；默认运行入口切换到新配置。
+- 最终包必须包含当前 runtime、checkpoint-87 adapter、检索资产和紧凑证据，并通过 SHA-256、隔离导入和完整单元测试。
+- 交付说明必须区分已完成优化与待优化边界；自动 silver 不得写成人工视觉准确率，价位 0 支持不得写成已解决。
+- 验证后将同一提交推送到 `dev`、`stg`、`main`，删除已合并临时分支，仅保留三个长期分支。
