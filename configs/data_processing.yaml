@@ -7,7 +7,7 @@ paths:
   processed_dir: data/yelp/processed
   logs_dir: data/yelp/logs
   validation_dir: data/yelp/validation
-  report_path: reports/yelp_multimodal_data_processing_report_part1.md
+  report_path: outputs/reports/yelp_multimodal_data_processing_report_part1.md
 output:
   format: parquet
   chunk_size: 50000

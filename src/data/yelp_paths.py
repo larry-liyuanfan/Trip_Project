@@ -14,7 +14,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "processed_dir": "data/yelp/processed",
         "logs_dir": "data/yelp/logs",
         "validation_dir": "data/yelp/validation",
-        "report_path": "reports/yelp_multimodal_data_processing_report_part1.md",
+        "report_path": "outputs/reports/yelp_multimodal_data_processing_report_part1.md",
     },
     "output": {"format": "parquet"},
     "review_filters": {"min_text_length": 20, "reject_symbol_only": True},

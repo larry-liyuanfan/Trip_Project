@@ -125,7 +125,7 @@ python scripts/manage_week3_annotations.py --scenario image_product_search expor
 python -m unittest tests.test_evaluation_manifests tests.test_evaluation_annotation_workflow -v
 ```
 
-The builder refuses to overwrite non-empty manifests or registry files. Annotation packets are applied only after the full batch passes validation and before an atomic manifest replacement. See `docs/week3_annotation_guidelines.md`.
+The builder refuses to overwrite non-empty manifests or registry files. Annotation packets are applied only after the full batch passes validation and before an atomic manifest replacement. The packet contract and transaction checks are implemented by `scripts/manage_week3_annotations.py` and covered by the annotation workflow tests.
 
 Week 3 intentionally provides no browser annotation UI. Human annotation uses exported JSONL packets and transactional CLI application so the Git deliverable stays within the approved non-UI scope.
 
