@@ -1,0 +1,53 @@
+{
+  "run_id": "week8_observation_retry_development_20260828_v4",
+  "output_root": "outputs/week8/review/week8_observation_retry_development_20260828_v4",
+  "development_manifest": "outputs/week8/product_understanding_v7/locked_data/week8_product_understanding_20260827_v7/development/image_product_search.jsonl",
+  "development_manifest_sha256": "39670e793fdbb9d26e255465c66361e3b49cbabeb41d2fc7ab5ccf3840d8cce5",
+  "development_count": 60,
+  "release_config": "configs/releases/qwen3_vl_system_week8_v7.json",
+  "profiles": {
+    "legacy_correction": "configs/week8/product_observation_scope_repair_v2.json",
+    "subject_schema_correction": "configs/week8/product_observation_schema_retry_v2.json"
+  },
+  "sources": [
+    {
+      "generation_config": "configs/week8/contract_ablation_v5.json",
+      "profiles": [
+        "observation_enhanced_base",
+        "observation_candidate_base"
+      ]
+    },
+    {
+      "generation_config": "configs/week8/contract_ablation_v6.json",
+      "profiles": [
+        "observation_enhanced_base"
+      ]
+    }
+  ],
+  "final_test_access": false,
+  "human_annotation_count": 0,
+  "selection_note": "Same complete historical development error corpus. First-stage prompt and legacy correction text unchanged. Only the single correction uses the existing decoder with a complete JSON and food/nonfood subject contract. No final data or reference targets. Food and nonfood branches share the same serialization to avoid subject-choice bias from whitespace or key order.",
+  "continue_incomplete": {
+    "output_root": "outputs/week8/review/week8_observation_retry_development_20260828_v3",
+    "config_path": "configs/week8/observation_retry_probe_v3.json",
+    "identity_sha256": "72f3e2642068e164b362f8a67287011ce689f30ba0fc93bc751480cd5d487561",
+    "prefixes": {
+      "legacy_correction": {
+        "count": 34,
+        "sha256": "0fa54df75452827edda7aca288acf043d4d520963e7b5831803eacb4552cc24a"
+      },
+      "subject_schema_correction": {
+        "count": 22,
+        "sha256": "6a05aaaaadeef1c24bdf0bd8a0cb4ac29a5be1ef88d4a81adc34d2fdeb674ce8"
+      }
+    },
+    "interruption": {
+      "job_id": "29707641",
+      "state": "TIMEOUT",
+      "elapsed": "00:12:10",
+      "batch_exit_code": "0:15",
+      "time_limit_extension": "Access/permission denied",
+      "reason": "Scheduler reclaimed the allocation at its time limit; not an intentional release."
+    }
+  }
+}

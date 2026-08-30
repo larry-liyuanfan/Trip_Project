@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import RLock
 from typing import Any, Iterable
 
 
@@ -33,6 +34,7 @@ class CLIPImageEncoder:
         self._torch: Any = None
         self._model: Any = None
         self._processor: Any = None
+        self._execution_lock = RLock()
 
     def ready(self) -> tuple[bool, str]:
         try:
@@ -43,6 +45,10 @@ class CLIPImageEncoder:
 
     def encode(self, image_paths: Iterable[str | Path]) -> list[list[float]]:
         """Encode every readable path in caller order; never skip silently."""
+        with self._execution_lock:
+            return self._encode_locked(image_paths)
+
+    def _encode_locked(self, image_paths: Iterable[str | Path]) -> list[list[float]]:
         paths = [Path(path) for path in image_paths]
         if not paths:
             raise ClipEmbeddingError("at least one image is required")
@@ -71,6 +77,10 @@ class CLIPImageEncoder:
         return vectors
 
     def _ensure_loaded(self) -> None:
+        with self._execution_lock:
+            self._ensure_loaded_locked()
+
+    def _ensure_loaded_locked(self) -> None:
         if self._model is not None:
             return
         try:
@@ -82,14 +92,15 @@ class CLIPImageEncoder:
             ) from exc
         if self.requested_device == "cuda" and not torch.cuda.is_available():
             raise ClipEmbeddingError("CLIP requested CUDA but CUDA is unavailable")
-        self.device = (
+        device = (
             "cuda" if self.requested_device == "auto" and torch.cuda.is_available()
             else "cpu" if self.requested_device == "auto"
             else self.requested_device
         )
-        self._torch = torch
-        self._model = CLIPModel.from_pretrained(self.model_id).to(self.device).eval()
-        self._processor = CLIPProcessor.from_pretrained(self.model_id)
+        model = CLIPModel.from_pretrained(self.model_id).to(device).eval()
+        processor = CLIPProcessor.from_pretrained(self.model_id)
+        # 依赖全部成功后再发布，处理器加载失败不能留下“已就绪”的半成品。
+        self._torch, self._processor, self._model, self.device = torch, processor, model, device
 
 
 def _validate_vectors(vectors: list[list[float]], *, expected_count: int) -> None:

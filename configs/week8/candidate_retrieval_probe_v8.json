@@ -1,0 +1,87 @@
+{
+  "run_id": "week8_candidate_retrieval_routing_20260829_v8",
+  "output_root": "outputs/week8/review/week8_candidate_retrieval_routing_20260829_v8",
+  "release_config": "configs/releases/qwen3_vl_system_week8_v12.json",
+  "retrieval_vectors": "outputs/week8/retrieval_source/package/clip_vectors_1000.npz",
+  "retrieval_metadata": "outputs/week8/retrieval_source/package/clip_metadata_1000.jsonl",
+  "retrieval_queries": [
+    {
+      "query_text": "restaurant",
+      "city": "Indianapolis",
+      "retrieval_mode": "keyword"
+    },
+    {
+      "query_text": "restaurant",
+      "city": "New Orleans",
+      "retrieval_mode": "keyword"
+    },
+    {
+      "query_text": "hotel",
+      "city": "Indianapolis",
+      "retrieval_mode": "hybrid"
+    },
+    {
+      "query_text": "restaurant",
+      "city": "Indianapolis",
+      "retrieval_mode": "hybrid"
+    },
+    {
+      "query_text": "",
+      "city": "Indianapolis",
+      "retrieval_mode": "embedding"
+    },
+    {
+      "query_text": "推荐奢华餐厅",
+      "price_range": "budget",
+      "city": "Indianapolis",
+      "retrieval_mode": "keyword",
+      "expected_query_status": "PARTIAL_UNSUPPORTED_CONSTRAINTS"
+    },
+    {
+      "query_text": "推荐便宜或高档餐厅",
+      "city": "Indianapolis",
+      "retrieval_mode": "keyword",
+      "expected_query_status": "PARTIAL_UNSUPPORTED_CONSTRAINTS"
+    },
+    {
+      "query_text": "推荐酒店或餐厅",
+      "city": "Indianapolis",
+      "retrieval_mode": "keyword",
+      "expected_query_status": "PARTIAL_UNSUPPORTED_CONSTRAINTS"
+    },
+    {
+      "query_text": "find cheap restaurants",
+      "city": "Indianapolis",
+      "retrieval_mode": "keyword",
+      "expected_query_status": "COMPLETED"
+    },
+    {
+      "query_text": "find hotels",
+      "city": "Indianapolis",
+      "retrieval_mode": "keyword",
+      "expected_query_status": "COMPLETED"
+    }
+  ],
+  "dialogue_cases": [
+    {
+      "text": "推荐餐厅",
+      "expected_status": "COMPLETED",
+      "require_results": true
+    },
+    {
+      "text": "推荐安静的餐厅",
+      "expected_status": "NOT_COMPLETED",
+      "require_results": true
+    },
+    {
+      "text": "推荐便宜或高档餐厅",
+      "expected_status": "NOT_COMPLETED",
+      "require_results": true
+    },
+    {
+      "text": "推荐酒店或餐厅",
+      "expected_status": "NOT_COMPLETED",
+      "require_results": false
+    }
+  ]
+}

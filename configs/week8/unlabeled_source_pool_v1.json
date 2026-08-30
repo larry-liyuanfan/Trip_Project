@@ -1,0 +1,56 @@
+{
+  "protocol": "week8_unlabeled_archive_pool_v1",
+  "dataset_version": "week8_unlabeled_archive_pool_20260829_v1",
+  "output_root": "data/yelp/week8_unlabeled_archive_pool_20260829_v1",
+  "seed": "week8-20260829-unlabeled-archive-identities-v1",
+  "maximum_candidate_images": 4000,
+  "minimum_accepted_images": 100,
+  "maximum_business_groups": 200000,
+  "labels_generated": false,
+  "human_annotation_count": 0,
+  "archive_environment_variable": "TRIP_YELP_PHOTOS_ARCHIVE",
+  "archive_size": 7447210067,
+  "archive_sha256": "53cf82f11050926dd501e57d1e456aaf8d9a6f342c29898007b5748a17ff0b42",
+  "photos": {
+    "path": "data/yelp/interim/photos.parquet",
+    "sha256": "8fd236af8ade53c688f89a1bdcdf533be0388d6d63b66d4f2d71376207481367"
+  },
+  "business": {
+    "path": "data/yelp/interim/business.parquet",
+    "sha256": "7b70bbc8ea2a545386606a533fb6cd084cb47277340cb9d8605b31d78655352d"
+  },
+  "history": {
+    "source_audit_config": "configs/week8/product_silver_source_audit_v8.json",
+    "previous_product_versions": [
+      "outputs/week8/product_understanding_v3/locked_data/week8_product_understanding_20260826_v3",
+      "outputs/week8/product_understanding_v4/locked_data/week8_product_understanding_20260826_v4",
+      "outputs/week8/product_understanding_v7/locked_data/week8_product_understanding_20260827_v7"
+    ],
+    "previous_retrieval_versions": [
+      "outputs/week8/retrieval/week8_retrieval_query_index_20260826_v1",
+      "outputs/week8/retrieval/week8_retrieval_query_index_20260827_v2",
+      "outputs/week8/retrieval/week8_retrieval_query_index_20260827_v3",
+      "outputs/week8/retrieval/week8_retrieval_latency_development_20260827_v4",
+      "outputs/week8/retrieval/week8_retrieval_latency_development_20260827_v5"
+    ],
+    "previous_training_version": "outputs/week8/product_two_stage_v1/hard_slice_data/week8_product_hard_slice_silver_20260827_v1",
+    "previous_visual_holdouts": [
+      {
+        "path": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v2",
+        "lock_sha256": "6df52dfabceb59ebb3242b29d2475e0aeac0deb7ec2d4ed91250e0018d5f0410"
+      },
+      {
+        "path": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v3",
+        "lock_sha256": "f828c9de74a38a0ef767db727cd071f4e7fd09c1905d7c62848486a111d3ce1c"
+      },
+      {
+        "path": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v4",
+        "lock_sha256": "8f3044e1362d90232d0631c7795bde62f3bc76aa4c16a778bc9c4d7fe9dfeb10"
+      },
+      {
+        "path": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v5",
+        "lock_sha256": "ddee2e4e31a55afbee3ce8f1f0bf5617a88aef9f1367f560c38e00c8fb7f5c03"
+      }
+    ]
+  }
+}

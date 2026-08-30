@@ -1,0 +1,44 @@
+{
+  "protocol": "week8_independent_visual_silver_final_v2",
+  "dataset_version": "week8_visual_holdout_20260828_v3",
+  "output_root": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v3",
+  "source_audit_config": "configs/week8/product_silver_source_audit_v8.json",
+  "sample_count": 100,
+  "seed": "week8-20260828-untouched-visual-final-v1",
+  "template_id": null,
+  "previous_product_versions": [
+    "outputs/week8/product_understanding_v3/locked_data/week8_product_understanding_20260826_v3",
+    "outputs/week8/product_understanding_v4/locked_data/week8_product_understanding_20260826_v4",
+    "outputs/week8/product_understanding_v7/locked_data/week8_product_understanding_20260827_v7"
+  ],
+  "previous_retrieval_versions": [
+    "outputs/week8/retrieval/week8_retrieval_query_index_20260826_v1",
+    "outputs/week8/retrieval/week8_retrieval_query_index_20260827_v2",
+    "outputs/week8/retrieval/week8_retrieval_query_index_20260827_v3",
+    "outputs/week8/retrieval/week8_retrieval_latency_development_20260827_v4",
+    "outputs/week8/retrieval/week8_retrieval_latency_development_20260827_v5"
+  ],
+  "previous_training_version": "outputs/week8/product_two_stage_v1/hard_slice_data/week8_product_hard_slice_silver_20260827_v1",
+  "development_comparison": "outputs/week8/review/week8_contract_comparison_20260828_v4/comparison.json",
+  "runtime_probe": "outputs/week8/review/week8_candidate_runtime_probe_20260828_v4",
+  "runtime_probe_config": "configs/week8/candidate_runtime_probe_v4.json",
+  "selected_cache_mode": "processor_cached",
+  "candidate_release": "configs/releases/qwen3_vl_system_week8_v9.json",
+  "formal_release": "configs/releases/qwen3_vl_system_v1.json",
+  "teacher_config": "configs/week8/visual_teacher_final_v1.json",
+  "teacher_observation": "configs/week8/product_observation_v1.json",
+  "candidate_observation": "configs/week8/product_observation_v3.json",
+  "label_source": "model_generated_silver",
+  "sample_weight": 0.5,
+  "human_annotation_count": 0,
+  "no_tuning_after_final": true,
+  "development_config": "configs/week8/contract_ablation_v4.json",
+  "previous_development_comparison": "outputs/week8/review/week8_contract_comparison_20260828_v3/comparison.json",
+  "previous_final": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v2",
+  "previous_visual_holdouts": [
+    {
+      "path": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v2",
+      "lock_sha256": "6df52dfabceb59ebb3242b29d2475e0aeac0deb7ec2d4ed91250e0018d5f0410"
+    }
+  ]
+}

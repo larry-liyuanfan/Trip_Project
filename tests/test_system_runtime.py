@@ -23,6 +23,7 @@ from src.inference.system_runtime import (
     ReleaseSettings,
     ScenarioService,
     TransformersPeftBackend,
+    _prepared_input_cache_eligible,
     _transformers_messages,
 )
 
@@ -97,8 +98,9 @@ class FakeVisualSearchService:
         self.results = results or []
         self.call = None
 
-    def search(self, image_path, *, top_k, filters):
-        self.call = {"image_path": image_path, "top_k": top_k, "filters": filters}
+    def search(self, image_path, *, top_k, filters, query_text="", retrieval_mode="embedding"):
+        self.call = {"image_path": image_path, "top_k": top_k, "filters": filters,
+                     "query_text": query_text, "retrieval_mode": retrieval_mode}
         return self.results
 
 
@@ -133,8 +135,201 @@ def settings(adapter_path=None, adapter_sha="0" * 64):
 
 
 class SystemRuntimeTest(unittest.TestCase):
+    def test_prepared_input_cache_rejects_mutable_remote_media(self):
+        remote = _transformers_messages(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "https://example.com/image.jpg"},
+                        }
+                    ],
+                }
+            ]
+        )
+        inline = _transformers_messages(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "data:image/jpeg;base64,AA=="},
+                        }
+                    ],
+                }
+            ]
+        )
+
+        self.assertFalse(_prepared_input_cache_eligible(remote))
+        self.assertTrue(_prepared_input_cache_eligible(inline))
+
+    def test_transformers_backend_reuses_model_device_inputs(self):
+        class Vector:
+            def __init__(self, values):
+                self.values = list(values)
+
+            def __len__(self):
+                return len(self.values)
+
+            def __getitem__(self, item):
+                selected = self.values[item]
+                return Vector(selected) if isinstance(item, slice) else selected
+
+            @property
+            def shape(self):
+                return (len(self.values),)
+
+        class Batch:
+            def __init__(self, rows):
+                self.rows = rows
+                self.transfer_calls = 0
+
+            def __iter__(self):
+                return iter(self.rows)
+
+            def to(self, _device):
+                self.transfer_calls += 1
+                return self
+
+            @property
+            def shape(self):
+                return (len(self.rows), len(self.rows[0]))
+
+        class InferenceMode:
+            def __enter__(self):
+                return None
+
+            def __exit__(self, *_args):
+                return False
+
+        class Processor:
+            tokenizer = None
+            image_processor = types.SimpleNamespace(max_pixels=1024)
+
+            def __init__(self):
+                self.calls = 0
+                self.batch = Batch([Vector([1, 2, 3])])
+
+            def apply_chat_template(self, *_args, **_kwargs):
+                self.calls += 1
+                return {"input_ids": self.batch}
+
+            def batch_decode(self, *_args, **_kwargs):
+                return ["prepared"]
+
+        processor = Processor()
+        backend = TransformersPeftBackend(settings())
+        backend.configure_prepared_input_cache(1)
+        backend._processor = processor
+        backend._model = types.SimpleNamespace(
+            parameters=lambda: iter([types.SimpleNamespace(device="cuda:0")]),
+            generate=lambda **_kwargs: [Vector([1, 2, 3, 4])],
+        )
+        backend._torch = types.SimpleNamespace(
+            inference_mode=lambda: InferenceMode()
+        )
+
+        for _ in range(2):
+            result = backend.generate_with_usage(
+                [{"role": "user", "content": "same request"}],
+                response_format=None,
+                max_new_tokens=8,
+            )
+
+        self.assertEqual(result.content, "prepared")
+        self.assertEqual(processor.calls, 1)
+        self.assertEqual(processor.batch.transfer_calls, 1)
+        self.assertEqual(backend.prepared_input_cache_snapshot()["hits"], 1)
+
+    def test_transformers_backend_reuses_bounded_processor_outputs(self):
+        class Vector:
+            def __init__(self, values):
+                self.values = list(values)
+
+            def __len__(self):
+                return len(self.values)
+
+            def __getitem__(self, item):
+                selected = self.values[item]
+                return Vector(selected) if isinstance(item, slice) else selected
+
+            @property
+            def shape(self):
+                return (len(self.values),)
+
+        class Batch:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def __iter__(self):
+                return iter(self.rows)
+
+            def to(self, _device):
+                return self
+
+            @property
+            def shape(self):
+                return (len(self.rows), len(self.rows[0]))
+
+        class InferenceMode:
+            def __enter__(self):
+                return None
+
+            def __exit__(self, *_args):
+                return False
+
+        class Processor:
+            tokenizer = None
+            image_processor = types.SimpleNamespace(max_pixels=1024)
+
+            def __init__(self):
+                self.calls = 0
+
+            def apply_chat_template(self, *_args, **_kwargs):
+                self.calls += 1
+                return {"input_ids": Batch([Vector([1, 2, 3])])}
+
+            def batch_decode(self, *_args, **_kwargs):
+                return ["cached"]
+
+        processor = Processor()
+        backend = TransformersPeftBackend(settings())
+        backend.configure_processor_cache(2)
+        backend._processor = processor
+        backend._model = types.SimpleNamespace(
+            parameters=lambda: iter([types.SimpleNamespace(device="cpu")]),
+            generate=lambda **_kwargs: [Vector([1, 2, 3, 4])],
+        )
+        backend._torch = types.SimpleNamespace(
+            inference_mode=lambda: InferenceMode()
+        )
+
+        for _ in range(2):
+            result = backend.generate_with_usage(
+                [{"role": "user", "content": "same request"}],
+                response_format=None,
+                max_new_tokens=8,
+            )
+
+        self.assertEqual(result.content, "cached")
+        self.assertEqual(processor.calls, 1)
+        self.assertEqual(
+            backend.processor_cache_snapshot(),
+            {
+                "max_entries": 2,
+                "entries": 1,
+                "hits": 1,
+                "misses": 1,
+                "hit_rate": 0.5,
+            },
+        )
+
     def test_release_uses_prompt_pilot_winners(self):
-        release = ReleaseSettings.load(root=Path.cwd())
+        # 此用例核对历史正式Prompt，不应被操作者选择的候选环境变量改写。
+        release = ReleaseSettings.load(root=Path.cwd(), config_path=Path.cwd() / "configs/releases/qwen3_vl_system_v1.json")
         expected = {
             "image_product_search": (
                 "system_repair_product_compact_v3",
@@ -280,10 +475,16 @@ class SystemRuntimeTest(unittest.TestCase):
         self.assertEqual(raised.exception.attempts[1].raw_output, "still-not-json")
 
     def test_itinerary_retry_uses_minimal_nine_key_contract(self):
+        import copy
+        valid = copy.deepcopy(ITINERARY_OUTPUT)
+        second = copy.deepcopy(valid["itinerary"][0])
+        second["day_index"] = 2
+        valid["itinerary"].append(second)
+        valid["constraint_check"] = [{"constraint": "public transport", "constraint_type": "hard", "status": "satisfied", "evidence": "Both days use public transport"}]
         backend = FakeBackend(
             [
                 "not-json",
-                json.dumps(ITINERARY_OUTPUT, ensure_ascii=False),
+                json.dumps(valid, ensure_ascii=False),
             ]
         )
         service = ScenarioService(settings(), backend)
@@ -298,20 +499,22 @@ class SystemRuntimeTest(unittest.TestCase):
 
         self.assertTrue(result.schema_valid)
         retry_text = backend.messages[1][-1]["content"]
-        self.assertIn("行程纠错时必须使用以下九键骨架", retry_text)
+        self.assertIn("行程纠错必须保留九个顶层键", retry_text)
         self.assertIn('"itinerary"', retry_text)
-        self.assertIn('"constraint_check":[]', retry_text)
+        self.assertIn('"constraint_check"', retry_text)
+        self.assertNotIn('"summary":"简短摘要"', retry_text)
         self.assertIn("不得在任何 ] 或 } 后插入自然语言", retry_text)
         correction_schema = backend.response_formats[1]["json_schema"]["schema"]
         itinerary_schema = correction_schema["properties"]["itinerary"]
-        self.assertEqual(itinerary_schema["maxItems"], 4)
+        self.assertEqual(itinerary_schema["maxItems"], 2)
+        self.assertEqual(itinerary_schema["minItems"], 2)
         self.assertEqual(
             itinerary_schema["items"]["properties"]["activities"]["maxItems"],
-            2,
+            6,
         )
         self.assertEqual(
             correction_schema["properties"]["constraint_check"]["maxItems"],
-            12,
+            24,
         )
 
     def test_readiness_verifies_adapter_file_hash(self):
@@ -433,6 +636,7 @@ class SystemRuntimeTest(unittest.TestCase):
             request = VisualSearchRequest(
                 image_urls=[str(image_path)],
                 city="Shanghai",
+                retrieval_mode="embedding",
                 top_k=3,
             )
             with patch.dict("os.environ", {"APP_ENV": "production"}, clear=True):

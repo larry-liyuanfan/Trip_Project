@@ -844,21 +844,30 @@ class EvaluationManifestTest(unittest.TestCase):
                 load_evaluation_config(config_path)
 
     def test_local_evaluation_data_and_run_artifacts_are_git_ignored(self):
-        for path in (
+        paths = (
             "data/eval/candidates/source_candidates.jsonl",
             "data/eval/images/reference.jpg",
             "data/eval/logs/sampling_log.json",
             "data/eval/manifests/image_product_search_v1.jsonl",
             "data/eval/registry/evaluation_exclusion_manifest.jsonl",
-        ):
-            with self.subTest(path=path):
-                result = subprocess.run(
-                    ["git", "check-ignore", "--quiet", path],
-                    cwd=self.PROJECT_ROOT,
-                    check=False,
-                )
-
-                self.assertEqual(result.returncode, 0, path)
+        )
+        # 只验证版本化规则；实际 data/eval 可能是指向冻结数据的符号链接。
+        # Git 不允许 check-ignore 跨链接，不能为测试移动或替换真实数据挂载。
+        with TemporaryDirectory() as tmpdir:
+            fixture = Path(tmpdir)
+            (fixture / ".gitignore").write_bytes((self.PROJECT_ROOT / ".gitignore").read_bytes())
+            subprocess.run(["git", "init", "--quiet"], cwd=fixture, check=True, capture_output=True)
+            for path in paths:
+                with self.subTest(path=path):
+                    result = subprocess.run(
+                        ["git", "check-ignore", "--verbose", path],
+                        cwd=fixture, check=False, capture_output=True, text=True,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertTrue(result.stdout.startswith(".gitignore:"), result.stdout)
+            source = subprocess.run(["git", "check-ignore", "--quiet", "src/api/app.py"],
+                                    cwd=fixture, check=False, capture_output=True)
+            self.assertEqual(source.returncode, 1, "source code must not be ignored")
 
     def test_runtime_manifest_and_registry_files_are_not_tracked(self):
         result = subprocess.run(

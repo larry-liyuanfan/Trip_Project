@@ -484,17 +484,302 @@ Weekly work is implemented and verified on `dev`, promoted unchanged to `stg` fo
 - [x] 系统收敛代码：生产模式 fail-closed、三场景/对话/视觉检索接口、严格 `/ready`、统一 Compose、release manifest 与 `tripctl`。
 - [x] Week 5 v2 候选池和 64 条修复队列实际生成；80,000 sample/source/image SHA 唯一，与冻结评测五维冲突 0；历史人工 accepted 不变。
 - [x] fresh 修复锁 1,980/168/120，五维跨 split 冲突 0，test 未消费。
-- [x] 1,000 张真实图片 CLIP/Milvus 基准完成：Recall@10=1.0，平均/P95 2.2355/2.4097 ms；当前工作树和全新 checkout 完整测试均为 482/482。
-- [ ] Week 5 64 条 Qwen3-VL 修复、Prompt pilot、继续 SFT、fresh test、四场景模型 smoke 和 OSS 下载复验尚未完成；因此只允许代码进入 `dev`，不得进入 `stg`。
-- [x] Prompt pilot 已完成：商品/售后/行程分别选择 compact/evidence/current，选择记录保持不可覆盖，未使用 fresh test 反向选 Prompt。
-- [x] Week 5 v2 64 条修复全部 Schema-valid；最终 80,000/80,000 silver 结果 SHA-256 为 `86b0a158...5926`，历史人工 accepted 统计未改变。
-- [x] continuation SFT job `29562078` `COMPLETED 0:0`，`04:48:36`；patience=2 早停并回载最佳 checkpoint-87，最终 adapter SHA-256 `c2fbb5c7...eaa2a`。
-- [x] 同一 development 集完成候选、旧 unified、zero-shot 和 Week 6 routed 对比；总体加权为 0.920725/0.750034/0.084010/0.061806。不可覆盖开发门禁为 `PASS`，失败项 0。
-- [x] 唯一一次 fresh test job `29569338` 在 A100 上 `COMPLETED 0:0`，`00:42:49`；120/120、失败率 0，三场景 JSON/Schema 1.0，对话自动综合 0.973330。
-- [x] fresh-test raw/metrics 与单次消费标记哈希一致；final gate `PASS`、失败项 0，SHA-256 `9574b05b...a77d`。发布配置已绑定 checkpoint-87 adapter。
-- [x] Compose 已增加 fail-closed `retrieval-init`，只接受 Milvus 空集合或完整 1,000 条状态；API 等待初始化成功。四层最终本地包含 12 份 evidence，全部哈希复验通过。
-- [x] 真实四场景生产模型 smoke job `29571134` 在 A100 20 GB MIG 上 `COMPLETED 0:0`；三场景首轮 Schema-valid，对话一次纠错后达到 `DIALOGUE_BETA`。
-- [x] 当前工作树和全新 checkout 完整 unittest 均为 513/513；Compose 配置、`tripctl validate/doctor`、tracked secret scan 和 `git diff --check` 通过。
-- [x] 导师确认交接不要求 Spartan 或 OSS 留存；唯一 59.9 MB 本地交接包通过四层、adapter、release config、final gate、真实 smoke 和 Milvus 基准复验，失败项 0。
-- [x] 清理 21 个 ignored 目标并释放 71,735,466,519 字节；Yelp、模型缓存、中间输出、checkpoint 和迁移目录已删除，唯一交接包和凭据均受保护。
-- [x] 新增接手文档、本地验证命令和导师可选择的 Week 8 优化方向；不将候选方向冒充已确定任务。最终完整 unittest 与全新 checkout 更新为 514/514。
+- [x] 1,000 张真实图片 CLIP/Milvus 基准完成：Recall@10=1.0，平均/P95
+  2.2355/2.4097 ms；当前工作树和全新 checkout 完整测试均为 482/482。
+- [ ] Week 5 64 条 Qwen3-VL 修复、Prompt pilot、继续 SFT、fresh test、四场景模型
+  smoke 和 OSS 下载复验尚未完成；因此只允许代码进入 `dev`，不得进入 `stg`。
+- [x] Prompt pilot 已完成：商品/售后/行程分别选择 compact/evidence/current，选择记录
+  保持不可覆盖，未使用 fresh test 反向选 Prompt。
+- [x] Week 5 v2 64 条修复全部 Schema-valid；最终 80,000/80,000 silver 结果 SHA-256
+  为 `86b0a158...5926`，历史人工 accepted 统计未改变。
+- [x] continuation SFT job `29562078` `COMPLETED 0:0`，`04:48:36`；patience=2
+  早停并回载最佳 checkpoint-87，最终 adapter SHA-256 `c2fbb5c7...eaa2a`。
+- [x] 同一 development 集完成候选、旧 unified、zero-shot 和 Week 6 routed 对比；总体
+  加权为 0.920725/0.750034/0.084010/0.061806。不可覆盖开发门禁为 `PASS`，失败项 0。
+- [x] 唯一一次 fresh test job `29569338` 在 A100 上 `COMPLETED 0:0`，`00:42:49`；
+  120/120、失败率 0，三场景 JSON/Schema 1.0，对话自动综合 0.973330。
+- [x] fresh-test raw/metrics 与单次消费标记哈希一致；final gate `PASS`、失败项 0，
+  SHA-256 `9574b05b...a77d`。发布配置已绑定 checkpoint-87 adapter。
+- [x] Compose 已增加 fail-closed `retrieval-init`，只接受 Milvus 空集合或完整 1,000 条
+  状态；API 等待初始化成功。四层最终本地包含 12 份 evidence，全部哈希复验通过。
+- [x] 真实四场景生产模型 smoke job `29571134` 在 A100 20 GB MIG 上
+  `COMPLETED 0:0`；三场景首轮 Schema-valid，对话一次纠错后达到 `DIALOGUE_BETA`。
+- [x] 当前工作树和全新 checkout 完整 unittest 均为 513/513；Compose 配置、
+  `tripctl validate/doctor`、tracked secret scan 和 `git diff --check` 通过。
+- [x] 导师确认交接不要求 Spartan 或 OSS 留存；唯一 59.9 MB 本地交接包通过四层、
+  adapter、release config、final gate、真实 smoke 和 Milvus 基准复验，失败项 0。
+- [x] 清理 21 个 ignored 目标并释放 71,735,466,519 字节；Yelp、模型缓存、中间输出、
+  checkpoint 和迁移目录已删除，唯一交接包和凭据均受保护。
+- [x] 新增接手文档、本地验证命令和导师可选择的 Week 8 优化方向；不将候选方向冒充
+  已确定任务。最终完整 unittest 与全新 checkout 更新为 514/514。
+
+## Week 8 交付（2026-08-26）
+
+- [x] 临时 feature 分支和独立 worktree；主工作树既有改动未触碰。
+- [x] 本地、Spartan、阿里云资产审计及官方 Yelp JSON/Photos 重建。
+- [x] 版本化 fresh source、拒绝清单、human/silver 身份和 source/group/image 历史隔离。
+- [x] 商品 v4 `400/60/60` 锁、错误切片统计和五维跨 split 隔离。
+- [x] 三 Prompt 同 development 比较、不可覆盖 selection 和明确失败候选。
+- [x] Prompt 门禁通过；按预注册规则跳过不必要的 continuation SFT。
+- [x] Week 8 商品最终 test 唯一消费、marker/comparison/raw/metrics 哈希证据。
+- [x] 对话首轮路由 v1/v2/v3 真实模型比较；v2 部分改善，剩余失败如实保留。
+- [x] 固定输入冷启动/P50/P95/token/s/显存/失败率与质量一致性基准。
+- [x] 检索 1,000 原图补齐、独立 query/index、development selection 和唯一 final test。
+- [x] `configs/releases/qwen3_vl_system_week8_v4.json` 合并候选身份；正式 release 未改写。
+- [x] 定向测试和完整 unittest `561/561 PASS`。
+- [x] Week 8 报告、README、weekly log、delivery 和 experiments 更新。
+- [ ] 对话仍有 `25%` 固定样本失败率；原因是模型尾部路由仍可能输出单任务附加键。
+- [ ] 商品 known-price support 为 `0`；原因是合法隔离池没有可靠可见价位证据。
+- [ ] 纯延迟优化只有 `0.24%` mean 改善；不以质量回退或量化换取更大数字。
+- [ ] 阿里云历史数据盘未能认证读取；未进行任何云资源或安全组变更。
+
+### Week 8 全自动扩展交付（2026-08-27）
+
+- [x] 将后续人工标注、人工复核和人工验收数量固定为 `0`；新增数据全部显式标记为
+  `programmatic_silver`，没有把自动标签伪装为 human gold。
+- [x] official Yelp fresh source v3：6,000 候选、1,291 validated、1,000 selected；
+  source/group/image 历史重叠 `0/0/0`，manifest SHA-256 `5c538740...a6e`。
+- [x] 商品 v7 锁 train/development/test=`400/60/60`，五维隔离 PASS；候选选择期间 test
+  保持未消费，内部 lock SHA-256 `321bea49...b0301`。
+- [x] fresh development 三 Prompt 比较完成；`week8_product_field_check_v1` 以
+  `0.836536` 对 current `0.782941` 锁定，JSON/Schema `1/1`、失败率 `0`、字段支持不变。
+- [x] 可观察证据 Schema、确定性映射、hard-slice silver lock 与 continuation SFT 实现；
+  human annotation/review/acceptance 均为 `0`，最终 test 未纳入训练或 development。
+- [x] 对话预算/天数/城市/偏好/节奏确定性更新与安全 fallback；5 条固定样本三键合规、
+  状态召回/值准确率/精确率/整状态准确率均为 `1`，纠错率和失败率均为 `0`。
+- [x] 真实 600x400 图片重复基准；选择 384 token cap，5/5 输出完全一致，mean/P95
+  `5006.81/5028.50→5000.55/5009.02 ms`。未选择 mean 变慢的图片 cap + cache 候选。
+- [x] Milvus Lite `hybrid_weighted` development selection 与唯一 final；NDCG@10
+  `0.125654→0.564459`、Recall@10 `0.018090→0.142734`，无 fallback、失败率 `0`。
+- [x] release candidate 更新为 `configs/releases/qwen3_vl_system_week8_v7.json`；正式
+  release、`dev/stg/main` 和历史冻结包未覆盖。
+- [x] 两阶段基线与 SFT 首个 10% development 实际执行；checkpoint-5 adapter-only
+  回载通过但因 composite `0.369804`、failure `0.683333` 被拒绝，未选为最终 adapter。
+- [x] v7 商品 final test 唯一消费并完成：composite `0.819003→0.857729`，JSON/Schema
+  `1/1`、失败率 `0`；comparison/marker 绑定 SHA-256 `5dc83953...f3829`。
+- [x] release v7 四场景真实 smoke job `29638236` 通过；三任务首轮 Schema-valid，
+  dialogue 无模型纠错达到 `DIALOGUE_BETA`，证据 SHA-256 `086133ec...85030`。
+- [x] 终态完整 unittest `594/594 PASS`；远端锁复验、唯一 test consumption marker、
+  release/adapter/smoke 哈希均一致；`compileall`、`git diff --check`、tracked secret
+  signature scan 和 tracked large-file scan 均为 `PASS`。
+
+### Week 8 剩余优化续行交付（2026-08-27）
+
+- [x] 新增 v8 development-only Prompt overlay；绑定 v7 development 锁、禁用 final，并在
+  test 读取前 fail-closed。
+- [x] 实测两个额外商品 Prompt；composite `0.701144/0.703235` 均低于现有
+  `0.836536`，按真实结果拒绝，最终 Prompt/adapter/release 不变。
+- [x] 自动审计未消费 official source、历史图片哈希、native caption 与 OCR；新增数据的
+  human annotation/review/acceptance 均为 `0`，没有把 metadata 价位写成视觉标签。
+- [x] 审计确认 post-hash 安全候选仅 8，确认视觉价格 tier 正支持为 0；据此不启动预期发生
+  unknown/空标签塌缩的 continuation SFT。
+- [x] 商品 prepared-input cache 完成固定输入重复基准；质量一致但 mean/P95 回退，开关
+  保持默认关闭，未改 release。
+- [x] 检索 metadata cache 改为容量 512 的 LRU；真实 Milvus Lite 质量/支持/过滤/引用/
+  失败率完全一致，稳态 P95 改善 12.55%，并记录预计算、命中、淘汰和内存成本。
+- [x] 新 Prompt、商品 cache 和检索 cache 仅使用 development-only 身份；未读取或生成新
+  final，v7 已消费 final marker 未修改。
+- [x] 续行定向 `76/76`、完整 unittest `609/609 PASS`；compileall、Slurm shell、diff、
+  tracked secret/large-file scan 与 release/adapter 哈希复验通过。
+- [ ] 商品业态/风格残余回退和视觉价位正支持仍未解决；原因是无人工条件下合法新正样本
+  不足，不虚构 gold 或模型自评正确性。
+- [ ] 检索 LRU 尚未进入正式 API/release；当前证据只锁定真实 Milvus Lite development
+  候选，生产接入仍需绑定 metadata 生命周期、预热与失效配置。
+
+### 全项目复审修复交付（2026-08-27）
+
+- [x] 更新最新复审要求；读取项目约束和历史证据，保留主工作树未提交改动。
+- [x] 新增商品引用语义审计、两阶段 Schema 可见 Prompt/映射/纠错修复与失败零分协议。
+- [x] 视觉 SFT 拒绝 metadata 代理或 known/unknown 矛盾目标；训练内存 backend 初始化修复。
+- [x] 修复 VLM/CLIP 并发加载、失败后的半初始化、HTTP 图片缓存、API 生产示例兜底问题。
+- [x] 修复对话重复修改、局部否定、部分更新、合法取消、非法数值和状态漏键评分。
+- [x] development 不读 test 标签；final 对完整 selection 及五维身份进行校验；诊断重计分
+  必须校验原输出 SHA，写入新目录，不能覆盖冻结证据。
+- [x] 完整 unittest `654/654 PASS`、新增三组定向 `45/45 PASS`；历史 release、adapter
+  与 test 保持原样。
+- [x] 两轮商品 GPU 诊断及哈希校验重计分完成；旧证据链请求失败 `17/60→0/60`，基座
+  解码消融失败 `33/60→2/60`。保留所有失败和字段支持，不将银标匹配解释为视觉准确率。
+- [x] 修正 benchmark 图片身份：原 64×64 cafe 占位图只作连通性证据；新真实照片 job
+  `29666837` 锁定 SHA/533×400 尺寸。三场景 Schema/对话契约通过，10 条对话状态
+  exact `10/10`，首轮格式 `100%`，失败 `0`，包括再次修复的取消预算和非法负天数。
+- [x] 真实照片重复延迟各 5 次：512/384 输出上限 mean `3894.280/3901.957 ms`，
+  P95 `3943.654/3926.002 ms`，输出/tokens/Schema 一致。未证明明确速度收益，未改 release。
+- [ ] 视觉能力整体提升未由现有 metadata 银标证明；固定四图反例与完整 development
+  的审计限制已明确披露，不能标记“商品理解问题全部解决”。
+- [ ] 对话一般问答/推荐完成度尚无验证；固定契约与状态更新成功不能替代这一指标。
+- [ ] 真实 smoke 的行程输出仍复述模板占位内容；Schema 合规不能作为实质行程质量通过。
+
+### c01b732 审查修复交付（2026-08-28）
+
+- [x] 九项工程缺陷修复：新银标协议、语义选优资格、实际任务分派、行程业务检查、金额
+  完整解析、轮次图片、生产查询检索、场景 422、统一 release 解析与 Compose 入口。
+- [x] 25 条新增回归和完整 679 条 unittest 通过；没有通过删除失败反例“修好”测试。
+- [x] 新 caption-only 诊断版本保留全部 60 样本，五维隔离通过；正支持 3/0/3/0 明确披露，
+  旧/新引用均禁止视觉选优，未消费 final，不虚构 gold。
+- [x] 真 Milvus Lite 与生产路由完成 5 个固定查询验证；请求条件影响结果、过滤正确、
+  无匹配返回空集。旧参考 metadata NDCG 不作为该路径的相关性提升依据。
+- [x] 真实 GPU job 29667548：商品对话执行模型；错误行程进入一次纠错，仍失败则明确
+  NOT_COMPLETED。技术 PASS/业务 FAIL 分列，原始失败证据完整保留。
+- [x] 固定实图商品重复 5 次：Schema 100%、失败 0、输出一致；MIG P50/P95
+  4684.040/4702.216 ms，每次 713/57 token。不认定跨硬件提速，未改发布参数。
+- [x] 旧模型交接包和 release/adapter 哈希复验通过，Compose 仅静态验证，未重启生产服务。
+- [ ] 商品不可见设施猜测、可靠视觉评测支持、行程实际质量仍未解决；工程拦截不是模型语义修复。
+- [ ] 检索未建模条件、独立相关性证据与 LRU 生产化、商品稳定提速仍未完成；不安排人工标注。
+
+结论继续为 PARTIAL，不晋级、不合并 dev/stg/main、不打标签。详见商品报告第 13 节。
+
+### 持续候选修复（2026-08-28，独立图像 silver）
+
+- [x] 独立图像教师 60/60，全部 model_generated_silver，人工工作 0；不发送 merchant
+  metadata、旧 target 或候选输出。商品原 development 样本与正支持不删减。
+- [x] 正式/观察 v1/观察 v2 三组各 60 条真实推理及 raw 哈希复算；观察 v2 在所有指定
+  字段不回退的条件下 composite 0.463794→0.745493，仅取得 development 候选资格。
+- [x] 商品观察协议与逐场景 adapter 开关接入真实服务；保留售后正式 adapter。
+- [x] 真实业务复审发现并保护日期、地点占位、活动截止/交通/必去禁去和虚构引用错误；
+  尚待最新探针验证，不将旧探针 PASS 沿用为当前业务通过。
+- [x] 发布运行层补齐缺失模块与配置，隔离导入与缺依赖反例通过；完整 unittest 729 条通过。
+- [ ] 最新全链路探针、真实 null 模板的最终身份、候选锁、一次 final 与最终候选结论。
+
+最新核验补充：生产探针 v3、准确 v8 release smoke、实际检索及对话分派已 PASS。v2 最终
+集已消费且因 1/100 无效教师参考记为 INVALID_REFERENCE，不能晋级；正式及候选各 100
+次推理无请求失败不等于语义验收通过。新的 development 纠错可靠性验证 60/60 有效，
+固定选优参考未变。新增否定证据、候选身份绑定及验收重放回归后，全量 743 条测试通过。
+
+### 2026-08-28 最终交付：v9 自动 silver 可晋级候选
+
+- [x] 九项工程缺陷及后续复审反例修复，商品短事实协议和准确 adapter 分派接入服务。
+- [x] 固定 development 60 条选优；新 100 条最终身份与所有历史、development 隔离，
+  human=0、silver 身份真实，前次失败 final 永久排除且原样保留。
+- [x] v9 单次最终及原始输出复算 PASS：composite 0.429365→0.736721，风格/设施 F1
+  0.318182/0.163462→0.636364/0.751220；支持 57/51/0 样本（风格/设施/价位）。
+- [x] JSON/Schema 100%/100%、失败 0/100；价位 N/A 不伪造支持。观察输出增加，平均
+  延迟 4925.687→6016.703 ms，不能称为性能提升。
+- [x] 真实商品/售后/行程/对话 smoke，2/3/5 日业务检查，实际检索/推荐闭环，24 次固定
+  图像重复基准；缓存质量不变，但收益不显著，下游行程仍可能一次纠错。
+- [x] 定向与全量 746 条 unittest、五维/图片哈希、release/adapter、准确运行层隔离导入、
+  全量交接证据校验 PASS。Compose 仅静态检查，没有部署服务。
+- [x] 新候选四层包与验收记录位于 `outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v9-rc1`。
+
+本结论只覆盖自动 silver 候选验收，不是人工标注准确率或正式发布。价位、稀疏类别/多主体
+支持、标签误差、延迟和检索未建模条件仍有限制；正式模型未替换，不合并长期分支或打标签。
+
+补充交接 review：Spartan 同包复验 PASS；校验器改为检查必需 API 端点，而非依赖不同
+FastAPI 版本的内部路由对象计数。新增缺路由反例后，全量 747/747 通过；原始 746 条
+包内日志、模型/评分锁与最终数据均保持不变。
+
+### 2026-08-28 v9 后续优化（不替换已验收候选）
+
+- [x] 新增紧凑证据协议、重复键/推断证据防护、校验幂等性及 incumbent 非回退比较。
+- [x] 原 60 条 development 四组实测及 raw 重放：v9 结果逐条复现；新紧凑 v4/v5
+  因误报、请求失败及字段回退均拒绝，原输出和支持数保留。
+- [x] 修复未应用检索条件被错误删除和英语复数业态解析；最新真实 Milvus 10 查询、
+  4 对话状态检查通过，未支持条件明确未完成，不宣称图像相关性提升。
+- [x] 定向 44/44、完整 unittest 769/769，原 v9 配置与四层归档 SHA 不变，隔离运行层导入通过。
+- [x] 等价简洁 Schema 追加 development 完成（job `29697591`，18:39）：综合分
+  0.666554、失败 2/60，相对同场 v9 0.759287、0/60 回退，拒绝替换；两组累计 420 请求。
+- [x] 完整切片、支持数、延迟/token、失败历史和复核命令见商品报告 15.4–15.6。
+- [ ] 新商品方案未取得超越 v9 的语义/稳定速度收益；价位无正支持，稀疏类别和风格/设施
+  错误仍待改善。保持 v9，不为通过而调低指标或重新消费 final。
+
+本轮没有新增人工工作、训练或最终 test；检索修复是 feature 代码及真实探针结果，未
+重新打包或发布 v9。详见商品报告第 15 节，原候选质量结论仍只对应原冻结交接包。
+
+### 2026-08-28 持续自主商品优化（执行中）
+
+- [x] 完整 60 图的风格复查实测，失败结果保留；两种全面扩展方案均不替换 v9。
+- [x] 独立版本修复 4 条 silver 风格依据，其余 56 条继承；style 支持 34 图/44 标签，
+  非风格字段与五维身份不变，human=0。v9/候选用同一修订参考重算，不横比旧参考分数。
+- [x] 实际像素上限修复与 CPU 视觉 token 验证；候选 raw 锁、独立教师范围拒绝和实际
+  配置打包/隔离导入修复。最新完整 827 条测试通过。
+- [x] 定点假设复查和有效像素上限的三组 development 对照已完成；前者无收益、后者
+  有质量下降，均拒绝。新增明确非场所证据弃权的配对作业 `29705434` 完成（13:35）。
+- [x] 同一修订参考 60 图：style F1 0.630435→0.637363、composite 0.754617→0.756926，
+  其余有支持字段不退；固定 v10 为待验候选。支持 category 39、style 34 图/44 标签、
+  facility 37 图/78 标签、price 0（N/A），silver 权重 0.5，human=0。完整测试 834 条通过。
+- [x] v10 真实商品/对话、约束行程、弃权分支、检索及三组重复延迟通过；24 次同标签且无失败。
+- [x] v10 新单次 final（GPU `29705792`，28:20）已执行并保留真实失败：Schema 99%、
+  失败 1/100，未晋级。教师 100 条有效，raw 重放一致；失败图片不替换、集合不复用。
+- [ ] 新可晋级候选尚未形成。仅使用已有 development 检查通用纠错，不用最终集调参。
+- [ ] 未取得无损加速；当前质量收益伴随约 1.4% 的 development 平均延迟增加。原 v9 不变。
+- [x] development 历史错误的有界纠错实测与 raw/输入血缘重放；新逻辑 1/34 失败，拒绝。
+- [x] 修复旧 revision 比较允许综合提升掩盖单字段回退的问题；全量 852 条测试通过。
+- [x] Schema 字段注释完整 development 已执行并因质量回退拒绝，未进入最终测试。
+
+最新补充：884 条 unittest 通过；共享格式解码器的 CPU 契约/格式检查通过，真实纠错
+诊断时限中断后仅续跑剩余 12 条，两组 34/34 且重放通过，旧结果和中断证据保留。
+新纠错均值 29.245 秒，不能宣称提速；完整 60 图保留风格收益，但补充纠错切片出现
+设施回退，统一约束不晋级。已实现仅食品矛盾触发的更小改动，真实验证与最终验收未完成。
+新解码候选的纠错原始重放及分切片语义不退已接入自动验收；冻结 v9 交接包再次通过。
+针对性方案已通过全部 34 条双组纠错及逐错误语义不退，跨主机重放一致；固定 60 图
+质量对比也已通过，选定 v11 待验；style F1 0.630435→0.637363，其他支持字段不退。
+仍待新真实业务/重复性能/单次 final 和交接包验证，此处不是新晋级结论。
+
+### 2026-08-29 v11 验收进展
+
+- [x] 准确 v11 release 的真实商品/售后/行程/对话及风格弃权、业务约束检查通过。
+- [x] 三种缓存各8次，24条 raw 重放及延迟/token复算通过；无失败/标签变化，无实质提速。
+- [x] 生产检索10查询/4对话通过；未支持条件不伪装完成。
+- [x] 新100图五维隔离、候选/数据锁及原adapter/v9/v10冻结哈希检查通过，human=0。
+- [x] 新单次final `29708885` 已完成并保留真实失败：三组无请求失败，但候选业态45/56
+  低于同场正式47/56，验收FAIL；跨主机raw复算一致。全量884/884、定向51/51通过。
+- [ ] 新的可晋级候选及交接包。v11不晋级，回到原development改进类别；final v5不复用。
+- [x] 独立主体复查及字段不变/矛盾失败/原始重放回归实现，898条完整测试通过。
+- [x] 原固定60图v15双组真实对比及跨主机重放；类别32/39→30/39，保留失败，不晋级。
+- [ ] 收窄至可见功能矛盾的v2/v16实测及后续独立验收；没有新通过候选。
+- [x] 无标签归档身份池、锁和历史隔离回归实现；全量906/906、冻结v9交接复验通过。
+- [ ] 新身份池实际提取与独立100图final。仅完成实现不能算最终商品质量通过。
+- [x] v16真实双组60图、跨主机原始重放及对v11的development revision非回退检查通过。
+- [x] 无标签池实际4000候选→1039独立可读身份，拒绝2961，所有历史含final v5排除。
+- [x] 新真实服务主体复查/风格弃权组合检查，完整910/910、原缺陷64/64回归通过。
+- [ ] v12准确配置的纠错实测、真实业务/检索/重复延迟、新100图final及交接包；未晋级。
+- [x] v12纠错34条双组、分切片语义非回退及跨主机重放；10查询/4对话生产检索通过。
+- [x] 新100图无标签身份锁及五维隔离、本地/Spartan来源依赖复验；运行层独立导入通过。
+- [x] 修正正式Prompt测试对环境默认值的依赖；v12环境完整910/910（v63），v62失败保留。
+- [ ] 真实业务/24次性能探针完成、新单次final与可晋级交接包；仍不作完整通过声明。
+- [x] v12真实业务/24次性能探针完成，原始结果独立重放通过；3条商品分支均实际执行。
+  行程对话仍有二次生成，重复延迟没有实质收益，不宣称相关问题全部消失。
+- [x] 53dd1db锁定final v6；教师100/100完成且raw/五维复验通过，无人工工作。
+- [ ] final v6三组同场模型结果、自动验收及交接包仍待完成；不以教师完成代替质量通过。
+- [x] final v6三组各100图、一次评分及独立质量验收PASS；原始/五维/配置跨主机复算一致。
+  v12最终指标与v9持平，不宣称最终再提升或实质提速；human=0，price支持0单列N/A。
+- [x] 跨平台TestClient依赖和符号链接测试fixture修复，本地全量910/910（v64）；原失败保留。
+- [ ] Spartan完整测试复跑、v12四层交接包双端验证及最终feature交付。
+- [x] Spartan完整910/910及新测试日志绑定的补充质量验收PASS；原final验收文件未覆盖。
+- [x] 新v12四层包生成、本地完整交接PASS；运行层哈希与此前预检一致，旧v9保持不变。
+
+### 2026-08-29 v12最终交付状态（此前未勾选项为对应阶段历史状态）
+
+- [x] 商品development综合0.754617→0.774020，类别32/39→34/39，支持字段不回退。
+- [x] 新100图final v6同场正式/v9/v12，三组各运行一次；正式严格提升及v9非回退均PASS。
+  v12最终指标与v9持平，price支持0/N/A，全部新增silver，human=0。
+- [x] 真实商品/对话/约束行程、生产检索10查询/4对话、24次固定输入性能与raw复验。
+- [x] 本地/Spartan完整910/910、原审查缺陷64/64、五维隔离、模型/配置/adapter身份复核。
+- [x] v12四层包双端独立导入与验收、100图/来源池/纠错证据覆盖；37项清单重建逐字节一致。
+- [x] README、实验/周记录/商品报告更新，CLI/Compose静态、diff及715文件安全/大文件检查。
+- [x] 保留主dev既有34项改动、旧v9/v10/v11与全部失败产物；仅feature交付，不合并或打标签。
+- 仍有语义误差、价位无正支持、行程对话二次纠错和无实质加速；准确原因见报告16.24。
+  完整候选通过不等于所有字段问题终结、人工视觉准确率或无条件生产可用。
+
+### 2026-08-29 持续复审交付补充
+
+- [x] v17整体证据Prompt同60图实测并按字段回退拒绝；失败恢复身份和未评分部分输出保留。
+- [x] 目标无关证据矛盾统计进入候选非回退安全检查，但不作为视觉准确率或正向选优分数。
+- [x] 同字段检索析取接入生产路由/Milvus过滤；真实11/11查询、5/5对话通过，歧义失败关闭。
+- [x] 行程v5 release-only真实复测：直接3/3不退，对话首轮0/1→1/1、尝试2→1。
+- [x] 独立设施复查固定development通过：facility F1 0.812903→0.851351，其他语义字段不退，
+  JSON/Schema 100%、失败0、证据矛盾下降；延迟增加28.28%，明确不是速度优化。
+- [x] 不读取/重跑final，不生成新人工标签，不训练或覆盖adapter；v12仍是完整商品候选，
+  v13只作为行程派生候选，设施方案只登记development改进。
+- [x] 最终本地/Spartan均941/941；v18跨主机原始重放逐字节一致，v12/v13与adapter哈希通过。
+- [x] `compileall`、CLI、Compose静态、候选包、diff、安全及大文件扫描通过；737 tracked文件
+  中>5MB和密钥特征均0，5个`.env.example`仅为占位配置；主dev原34项保持不变。
+- [x] feature末次整理提交与推送完成；未合并dev/stg/main、未打标签、未替换正式release。
+
+### 2026-08-29 最优组合选择补充
+
+- [x] 增加目标无关设施路由的可复算权衡及4项定向测试；证据冲突路由发生召回回退，
+  17/60的可观察不确定性路由虽有development增益但仍增加10.89% mean延迟、没有final，
+  因此不写入默认商品链路。
+- [x] 固化最优组合：后续联调选择v13运行配置；完整商品验收身份仍为v12四层包。
+  v18只保留development证据，正式release不替换、不合并、不打标签。
+- [x] 新增定向4/4、完整945/945；分析器跨平台源码哈希绑定、v13 CLI/运行比较和v12交接复验PASS。

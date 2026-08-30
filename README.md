@@ -21,7 +21,7 @@ The project builds a minimal but extensible OTA pipeline for:
 - image-to-structured-info extraction from travel-related images;
 - visual search over restaurants, cafes, hotels, attractions, and products;
 - multimodal travel planning from images, reviews, and user preferences;
-- reproducible vLLM serving and experiment tracking.
+- reproducible model serving and experiment tracking.
 
 ## Motivation
 
@@ -32,7 +32,7 @@ OTA users often search with vague intent and visual references: a cafe photo, a 
 ```text
 Client
   -> FastAPI business API
-  -> vLLM OpenAI-compatible VLM service
+  -> Qwen3-VL + PEFT release runtime (Transformers)
   -> Structured extraction
   -> Retrieval baseline
   -> Travel planner
@@ -57,13 +57,42 @@ tests/        unittest behavior and data-pipeline contract coverage
 
 ## Features
 
-- Dockerized API and vLLM serving layout.
-- Qwen3-VL primary model config with Qwen2.5-VL fallback.
-- DeepSeek-VL2 config for later comparison.
-- `/health`, `/v1/image-understanding`, `/v1/visual-search`, `/v1/travel-planning`.
-- Deterministic fallback responses when live vLLM is not configured.
-- Sample POI catalog and review snippets.
-- Experiment log and results CSV templates.
+- 当前正式模型为 Qwen3-VL-8B + system-repair PEFT adapter；生产任务使用 `/v1/tasks/*`。
+- `/health` 与 readiness、独立 CLIP/Milvus 图片检索、版本化 Prompt/Schema 和实验记录。
+- 生产依赖不可用时返回错误，不用固定示例冒充模型结果。对话 beta 分开记录状态更新和
+  实际任务分派；推荐、图片理解或行程未执行成功时返回明确未完成，不把确认语当作结果。
+- 旧 vLLM 端点和 Docker 配置保留；Qwen2.5/DeepSeek 配置不是当前发布模型或自动兜底。
+- 示例 POI planner `/v1/travel-planning` 仅限非生产环境；生产行程抽取使用
+  `/v1/tasks/itinerary-planning`，并不等同于完整检索推荐链路。
+
+商品效果口径：Week 8 的 caption/商家 metadata `silver` 匹配分不等于图像事实正确率。
+2026-08-27 复审确认固定 development 的 60/60 条混有非视觉 metadata，详见
+`reports/week8_product_understanding_optimization_report.md`。历史结果不覆盖，也不将这些
+target 用作新的视觉专项 SFT 真值。新增工作不要求任何人工标注、复核或验收。
+
+商品复审命令（从仓库根目录运行，输出目录必须尚不存在）：
+
+```bash
+python scripts/review_week8_product.py --audit-only --output-dir outputs/week8/review/audit_new_run
+python scripts/review_week8_product.py --output-dir outputs/week8/review/product_new_run
+python scripts/review_week8_product.py --rescore-dir outputs/week8/review/product_new_run --output-dir outputs/week8/review/rescored_new_run
+python scripts/review_week8_product.py --config configs/week8/product_review_v2.json --output-dir outputs/week8/review/decoder_new_run
+```
+
+第一条需要既有 Spartan 数据锁；第二条还需 GPU、既有模型缓存与 `TRIP_ADAPTER_DIR`。
+第三条校验原始输出哈希后重新计分，不再次推理。
+第四条是在相同 256-token 证据预算下取消解码器约束的诊断，仍执行完整 Schema 后校验。
+GPU 作业入口为
+`scripts/spartan/week8_product_review.sbatch`；修复后 10 条对话及固定图片重复基准用
+`scripts/spartan/week8_review_regression.sbatch`。两者沿用项目运行环境变量，不能与其他
+独占 GPU 任务重叠；命令不访问已消费 final，也不自动替换 release。
+
+回归脚本使用 `configs/week8/runtime_review_v3.json` 的 533×400 真实 development 图片，
+必须设置 `TRIP_SMOKE_IMAGE` 与 `TRIP_SMOKE_IMAGE_SHA256` 为该配置绑定的路径和 SHA。
+图片不匹配会在加载模型前失败。默认示例 `data/samples/images/cafe_001.jpg` 实际是
+64×64 图形占位图，只适合接口连通性检查，不能用作真实商品质量或照片延迟基准。
+历史 v3 探针中 512/384 输出上限均约 3.9 s，输出一致但仍有不可见设施猜测；该轮
+未证明提速。后续 v9 候选和本轮 development 结果见文末，不将不同配置的测量横比。
 
 ## Quick Start
 
@@ -76,6 +105,9 @@ pip install -r requirements-api.txt
 ```
 
 Run the API:
+
+仅安装 API 依赖可运行健康检查；真实模型任务还需后文的 GPU runtime、release 配置和
+adapter。生产环境即使误设 `MODEL_FALLBACK_ENABLED=true` 也不允许返回固定模型示例。
 
 ```bash
 uvicorn src.api.app:app --host 0.0.0.0 --port 8000
@@ -116,6 +148,7 @@ pip install -r requirements-llm.txt
 
 - `requirements-api.txt`: FastAPI service and smoke-test dependencies.
 - `requirements-data.txt`: Week 2 Yelp data processing dependencies only.
+- `requirements-test.txt`: 默认 API/data 依赖及全量 unittest 所需的已验证 TestClient 依赖，不安装 GPU 框架。
 - `requirements-llm.txt`: vLLM and Qwen-VL utilities for live model serving.
 - `requirements-clip.txt`: table dependencies added to the dedicated CUDA CLIP container.
 - `requirements.txt`: safe default aggregate for API + data dependencies. It intentionally does not install vLLM.
@@ -487,7 +520,20 @@ python scripts/tripctl.py serve
 python scripts/tripctl.py smoke --base-url http://127.0.0.1:8000
 ```
 
-`smoke` 会依次检查 `/health`、`/ready`、三场景任务、多轮对话和视觉检索；部署主机上的样例图片路径可通过 `--image-path` 覆盖。任一模型、Schema 或检索请求失败都会使 smoke 失败，不使用 mock 或 keyword fallback 冒充真实系统验证。
+`TRIP_RELEASE_CONFIG` 或全局参数 `--release-config` 显式选择同一配置；参数优先于环境变量。
+`validate` 返回实际文件路径及 SHA-256，缺失或损坏配置会失败。Compose 使用同一入口：
+
+```bash
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_v1.json compose config --quiet
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_v1.json compose up -d
+```
+
+该入口把解析后的绝对路径只读挂到 `/run/trip/release.json`；直接调用 Docker Compose 时，
+`TRIP_RELEASE_CONFIG` 必须为主机绝对路径，以免 Compose 与仓库根目录的相对路径基准不同。
+
+`smoke` 会依次检查 `/health`、`/ready`、三场景任务、多轮对话和视觉检索；部署主机上的
+样例图片路径可通过 `--image-path` 覆盖。任一模型、Schema 或检索请求失败都会使 smoke
+失败，不使用 mock 或 keyword fallback 冒充真实系统验证。
 
 统一 Compose 还要求将 `RETRIEVAL_HOST_DIR` 指向已解压且通过 manifest 校验的 `retrieval/` 目录。启动时一次性 `retrieval-init` 会拒绝部分入库状态，仅在集合为空时写入固定 1,000 条向量；集合已完整时幂等通过。API 必须等待该初始化成功后才能启动。
 
@@ -558,4 +604,249 @@ curl -fsSI http://127.0.0.1:8010/reports/week5_dataset_quality_report.md
 
 ## Reports
 
-The consolidated Week 1-4 report after migration to Alibaba Cloud `qwen3.7-plus` is `reports/week1_to_week4_qwen37_overall_report.md`. Use `reports/README.md` as the report index; historical process snapshots are kept separate from current conclusions.
+The consolidated Week 1-4 report after migration to Alibaba Cloud
+`qwen3.7-plus` is `reports/week1_to_week4_qwen37_overall_report.md`.
+Use `reports/README.md` as the report index; historical process snapshots are
+kept separate from current conclusions.
+
+## Week 8 全自动商品、对话、延迟与检索候选
+
+以下记录截至 `c01b732` 的 **PARTIAL / 不晋级**历史候选。当前已验证的 v9 见本节末尾
+“Week 8 v9 当前候选交接”；不要把旧候选状态作为当前结论。以下配置保留供复现历史：
+
+- 商品 fresh 实验与数据锁：`configs/week8/product_understanding_v7.json`
+- 商品可观察证据与 continuation SFT：`configs/week8/product_two_stage_v1.json`
+- 商品剩余 Prompt 的 development-only 诊断：
+  `configs/week8/product_prompt_refinement_v8_development.json`
+- 未消费商品 silver/OCR 可行性审计：`configs/week8/product_silver_source_audit_v8.json`
+- 对话/真实图片延迟基准：`configs/week8/runtime_optimization_v7.json`
+- 商品 prepared-input cache 负实验：`configs/week8/runtime_optimization_v8.json`
+- Milvus Lite 混合检索：`configs/week8/retrieval_relevance_v3.json`
+- Milvus Lite 有界 metadata LRU：`configs/week8/retrieval_latency_v5.json`
+- 合并后的 release candidate：`configs/releases/qwen3_vl_system_week8_v7.json`
+
+商品 fresh source 从官方 Yelp Photos ZIP 重建，v7 只绑定 post-hash 已完成的 v3 source
+manifest；train/development/test 按五维身份隔离。新增标签、review 和 acceptance 全部为
+`programmatic_silver`，人工计数固定为 `0`。常用验证命令：
+
+```bash
+python scripts/manage_week8_product.py \
+  --config configs/week8/product_understanding_v7.json validate-lock
+python scripts/manage_week8_product_two_stage.py \
+  --config configs/week8/product_two_stage_v1.json validate-hard-slice
+python scripts/manage_week8_retrieval.py validate-lock \
+  --lock-dir outputs/week8/retrieval/week8_retrieval_query_index_20260827_v3
+python scripts/audit_week8_product_silver_source_v8.py \
+  --config configs/week8/product_silver_source_audit_v8.json --help
+python scripts/manage_week8_retrieval.py evaluate-latency-development \
+  --config configs/week8/retrieval_latency_v5.json --help
+python -m unittest tests.test_week8_product tests.test_week8_product_fresh_sources \
+  tests.test_week8_product_two_stage tests.test_week8_product_sft \
+  tests.test_week8_product_silver_source_v8 -v
+python -m unittest tests.test_week8_runtime_optimization tests.test_week8_retrieval \
+  tests.test_processor_cache tests.test_system_runtime -v
+python -m unittest discover -s tests -v
+```
+
+完整身份、真实指标、失败尝试和未解决项见
+`reports/week8_product_understanding_optimization_report.md`。正式 release manifest 未被候选
+配置覆盖；晋级或合并不属于本分支交付。剩余优化中，两个额外商品 Prompt 和
+prepared-input cache 均经 development 实测后拒绝；检索 LRU512 在质量完全一致时将真实
+Milvus Lite 稳态 P95 从 `9.6339` 降到 `8.4247 ms`，同时记录 `1.60 s` 预计算和内存成本。
+
+### c01b732 审查后的修复入口（2026-08-28）
+
+历史检索 NDCG 使用了查询参考 metadata，不是独立图像理解证据；上述速度数据也不能
+替代相关性验收。现在排序只接收 `query_inputs.source=user/model_prediction`，生产
+`/v1/visual-search` 接通 `keyword/embedding/hybrid` 与显式城市/业态/价位条件。
+尚不能处理的“安静”等文本会列在 `unapplied_query_text`，不能声称满足全部条件。
+
+对话返回 `task_status=COMPLETED/STATE_UPDATED/NOT_COMPLETED` 和实际 `task_result`；
+状态更新成功与推荐任务完成分开。图片可放到每条 user 消息的 `image_urls`；兼容的顶层
+图片默认绑定最新 user 轮。商品仅接受一图；行程需要非空文字约束，非法请求返回 422。
+行程的天数、日序、明确约束和占位文本不合格时进行一次纠错，仍失败返回明确错误。
+
+以下命令需要现有 Spartan 项目数据/运行环境，输出目录必须为新身份；不读取最终 test 标签：
+
+```bash
+python scripts/audit_week8_labels.py --config configs/week8/audit_repair_v1.json
+python scripts/verify_week8_retrieval_routing.py --config configs/week8/audit_repair_v1.json
+python scripts/verify_week8_runtime_repairs.py --config configs/week8/audit_repair_v1.json
+python -m unittest tests.test_week8_audit_fixes -v
+```
+
+新标签协议 `caption_evidence_v2` 将商家 metadata 与 caption 标签分开，全部仍为 silver；
+旧 60 条 development 全部保留，但可靠视觉指标仍无法据此得出。缺少视觉参考或存在
+标签矛盾时，选优返回 `DIAGNOSTIC_ONLY_INVALID_REFERENCES`，不得锁定 Prompt。
+真实复测技术 smoke PASS、业务 smoke FAIL；商品仍猜测停车设施，不晋级。完整证据见商品报告第 13 节。
+
+新的契约消融仅访问 development，使用独立 Prompt 与不可覆盖的输出身份：
+
+```bash
+python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v1.json
+python -m unittest tests.test_week8_contract_ablation -v
+```
+
+此命令对比旧 adapter、新 Prompt + adapter 和新 Prompt + base；业务/语法通过不代表
+视觉准确率通过，不会写入正式 release 或消费 final。
+
+第二轮使用逐标签可见证据协议并检查实际活动中的截止时间、交通和必去/禁去地点：
+
+```bash
+python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v2.json
+python scripts/collect_week8_visual_silver.py --config configs/week8/visual_teacher_v3.json
+```
+
+教师命令需要本地配置 `MODEL_API_KEY_FILE`，可通过 `MODEL_API_BASE_URL` 指定既有兼容
+端点。它只发送 development 图片与观察协议，不发送历史标签、商家 metadata 或候选答案；
+输出保留 `model_generated_silver`，不构成人工真值或自动发布授权。
+
+完整的同口径 development 对比（仅在独立教师产物已校验时评分）：
+
+```bash
+python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v3.json
+python scripts/score_week8_visual_silver.py --config configs/week8/contract_ablation_v3.json --output outputs/week8/review/week8_contract_comparison_20260828_v3
+```
+
+`DEVELOPMENT_CANDIDATE` 仅表示固定图像银标口径下的开发候选，仍禁止据此直接晋级。
+
+实际服务支持版本化 `product_pipeline=visual_observation` 与逐场景 adapter 开关；商品
+观察结果按确定性规则映射到原商品 Schema，缺乏价位比较口径时返回 unknown。售后可保留
+正式 adapter，商品/行程/对话独立关闭 adapter，异常时恢复状态。配置哈希不匹配直接失败。
+
+已消费的 `visual_final_v2.json` 因无效参考失败，原锁定协议对应 `40a0f34`；随后仅在
+固定 development 上形成实质改进的 v9，再通过完全隔离的 `visual_final_v3.json` 单次
+最终验收。两版 final 均不能重跑。以下是本轮已执行的 development 入口，现有产物目录
+不可覆盖，不要为了获得 PASS 更换旧最终参考或反复重新抽样。
+
+```bash
+python scripts/collect_week8_teacher_reliability.py --config configs/week8/visual_teacher_v4.json
+python scripts/review_week8_contracts.py --config configs/week8/contract_ablation_v4.json
+python scripts/score_week8_visual_silver.py --config configs/week8/contract_ablation_v4.json --output outputs/week8/review/week8_contract_comparison_20260828_v4
+python scripts/compare_week8_development_revision.py --previous outputs/week8/review/week8_contract_comparison_20260828_v3/comparison.json --current outputs/week8/review/week8_contract_comparison_20260828_v4/comparison.json --output outputs/week8/review/week8_development_revision_20260828_v1.json
+```
+
+`seal` 需要已存在且通过的探针和候选 release；缺失时禁止启动最终推理。原生图片模板
+身份为 null/N/A，不人为制造模板隔离。最终结果仅用于锁定候选的验收，不能传入 development
+选择器。运行层打包后应调用 `scripts.build_release_bundle.verify_runtime_archive`，隔离导入
+API 与实际 release 配置；文件哈希正确不代表依赖完整或业务通过。
+
+### Week 8 v9 当前候选交接（2026-08-28）
+
+`trip-qwen3-vl-8b-week8-visual-silver-v9` 已完整通过自动 silver 候选验收；默认正式
+release 没有替换，也未合并长期分支或打标签。商品使用 `product_visual_observation_v3`
+与底座，售后继续使用正式 adapter。相同 100 条最终参考下 composite
+0.429365→0.736721，JSON/Schema 100%/100%、请求失败 0；价位 N/A，平均延迟增加
+22.15%。这是独立图像教师一致性，不是人工视觉准确率。
+
+四层交接包和验证记录在 `outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v9-rc1`；
+原始运行、错误切片、支持数、失败历史和剩余限制见
+`reports/week8_product_understanding_optimization_report.md` 第 14 节。以下命令只校验
+候选配置或已生成交接包，不调用模型、不重新消费 final：
+
+交接验证还会检查七个必需 API 端点是否齐全，不依赖 FastAPI 内部路由对象数量。
+
+```bash
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v9.json validate
+python -c "from pathlib import Path; from scripts.verify_week8_candidate_handoff import verify; print(verify(Path('outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v9-rc1'), 'evidence/week8_visual_holdout_20260828_v3/promotion_acceptance.json'))"
+```
+
+### v9 后续优化结果
+
+原 60 条 development 上，三个新商品紧凑证据方案均未超过同场 v9，且有请求失败，
+不替换已验收模型或重新运行 final。`configs/week8/` 下新配置
+`product_observation_v4.json`、`product_observation_v5.json`、`product_observation_v6.json`
+仅作保留失败证据的实验，不能作为发布默认值。
+
+feature 源码已修复检索冲突/歧义条件被误报完成和英语复数业态解析；真实 Milvus 的
+10 查询、4 对话状态检查通过，未支持条件仍明确未完成。此代码没有重新打包进冻结 v9。
+最新 unittest 769 条通过。各字段、支持、延迟/token、错误切片与无模型复核命令见
+`reports/week8_product_understanding_optimization_report.md` 第 15 节。
+
+继续优化已修复实际图片像素上限、越界风格证据审计及选中配置的自动打包。旧教师 4 条
+风格依据已独立版本重看，原 60 图全部保留，style 正标签 42→44；旧参考分数只作历史
+诊断，不能与新参考横比。全面风格复查、仅改写依据及低像素方案均未胜出；明确非场所
+证据弃权的定点复查在同一 60 图上取得小幅收益（composite 0.754617→0.756926），
+历史 `qwen3_vl_system_week8_v10.json` 状态仍是 candidate_evaluation；真实业务、
+检索和重复延迟已验收，但新单次 final 有 1/100 请求失败，v10 不晋级。失败集冻结，
+不替换 v9、不增加人工。完整 unittest 884 条通过；继续工作仅回到既有 development。
+有界历史纠错和字段约束 Schema 提示实测均回退，已拒绝；继续验证只在纠错时启用的
+主体关系解码约束，没有新晋级结论。
+共享格式解码的历史纠错诊断两组 34/34 且原始重放通过；新纠错较慢，时限中断单列。
+固定 60 图保留风格小幅收益，但历史错误切片的设施误报增加，统一约束版本不晋级。
+新版本仅针对食品/场所字段矛盾启用约束，其他错误沿用原纠错；34 条双组真实纠错及
+逐错误语义不退已通过，原固定 60 图完整质量对比也通过。随后选定 v11 待验，
+style F1 0.630435→0.637363，其他支持字段不退。2026-08-29准确v11真实业务、检索及
+24次固定输入性能复测与原始重放已通过。但独立100图单次final的业态准确率
+45/56低于同场正式基线47/56，v11不晋级；其余收益及完整失败结果保留，回到原development优化。
+新解码候选必须同时通过绑定原始输出的纠错切片语义检查，不能仅凭全量汇总分数晋级。
+`product_observation_subject_review_v1.json` 的固定60图实测类别32/39→30/39，已拒绝。
+后续v2收窄到可见功能事实与类别矛盾才复查，保持原风格/设施/价位。v16真实60图类别
+32/39→34/39，综合0.754617→0.774020、JSON/Schema100%、失败0；平均耗时增2.53%。
+当前 `qwen3_vl_system_week8_v12.json` 已通过自动silver候选验收，不作为正式默认配置；完整910项
+unittest通过，准确配置的真实业务/检索和24次固定输入性能已通过，raw独立复算一致；
+缓存没有实质提速。新100图final v6的正式/v9/v12综合为0.375508/0.714061/0.714061，
+质量验收及跨主机原始复算PASS；v12最终与v9持平，不能宣称最终再提升。四层交接包本地与
+Spartan均PASS，完整测试两端910/910；准确限制与当前结果见商品报告16.22—16.24。
+
+完整CPU测试使用独立依赖组，不需要安装GPU推理框架：
+
+```bash
+python -m pip install -r requirements-test.txt
+python -m unittest discover -s tests -v
+```
+
+已解压来源不足时，可从已保存的合法归档建立新无标签身份池（仅CPU数据环境）：
+
+```bash
+python scripts/build_week8_unlabeled_pool.py --config configs/week8/unlabeled_source_pool_v1.json
+```
+
+运行前通过本地环境变量 `TRIP_YELP_PHOTOS_ARCHIVE` 指向原照片ZIP；脚本核对已锁定的
+归档和表哈希，只按组/图片身份抽取最多4000张，排除全部历史（含失败final v5）。
+输出目录必须不存在，原标签不复用，不启动教师或最终评测。最终测试另行锁定100张。
+Spartan已完成4000张有界提取，1039张可用独立组身份、2961条拒绝记录，未生成标签。
+身份池及交付检查回归通过；冻结v9交接包复验仍PASS。已有池目录不可重跑覆盖。
+
+已有原始证据可无 GPU 重放（输出目录必须新建，不覆盖历史结果）：
+
+```bash
+python scripts/repair_week8_visual_reference.py --config configs/week8/visual_teacher_style_revision_v1.json --audit-only
+python scripts/score_week8_reference_revision.py --generation-config configs/week8/contract_ablation_v7.json --revision-config configs/week8/visual_teacher_style_revision_v1.json --output outputs/week8/review/local_reference_revision_replay
+```
+
+实际模型/API 调用与失败记录见商品报告第 16 节。自动 silver 不等于人工视觉准确率。
+
+当前完整候选包：`outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v12-rc1`。
+可复现输入清单为`configs/week8/candidate_handoff_v12.json`，实际重建已验证四层字节一致。
+只读检查不消费已冻结的final，也不启动模型：
+
+```bash
+python -c "from pathlib import Path; from scripts.verify_week8_candidate_handoff import verify; print(verify(Path('outputs/releases/trip-qwen3-vl-8b-week8-visual-silver-v12-rc1'), 'evidence/week8_visual_holdout_20260829_v6/promotion_acceptance.json'))"
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v12.json validate
+```
+
+持续复审后，完整商品候选仍为v12；`qwen3_vl_system_week8_v13.json`只是在相同商品配置上
+通过真实首轮行程复测的release-only派生候选。整体证据约束Prompt因风格/类别回退被拒绝。
+独立设施复查在固定development把facility F1从0.812903提高到0.851351且其他语义字段不退，
+但mean延迟增加28.28%，并且已锁定的Week 8 final不能重跑，因此尚未写入候选release。
+完整原始证据、失败身份与边界见商品报告16.25—16.27。以下命令只校验已有配置/比较文件，
+不启动模型或读取final：
+
+```bash
+python scripts/tripctl.py --release-config configs/releases/qwen3_vl_system_week8_v13.json validate
+python scripts/compare_week8_runtime_probes.py --config configs/week8/runtime_probe_comparison_v1.json
+```
+
+综合质量、证据等级和运行成本后的默认候选选择为：后续联调使用v13运行配置，商品验收身份
+仍引用v12四层包。v13与v12的商品模型、adapter模式、Prompt和观察配置相同，只增加已通过
+真实复测的行程v5；这不是重新完成商品final或替换正式release。设施复查保持development-only，
+不进入默认链路。目标无关路由的可复算权衡使用：
+
+```bash
+python scripts/analyze_week8_facility_routing.py --generation-config configs/week8/contract_ablation_v18.json --revision-config configs/week8/visual_teacher_style_revision_v1.json --output outputs/week8/review/local_facility_routing_tradeoff.json
+```
+
+冻结结果显示：仅证据冲突触发会把facility TP 63降至60、F1 0.812903降至0.810811；
+“冲突或酒店/餐饮/零售/工业场景设施为空”触发17/60条，F1为0.826667，但只是既有development输出的
+反事实复算，mean延迟仍增加10.89%，没有新final或真实路由运行证据，因此不替代v12。

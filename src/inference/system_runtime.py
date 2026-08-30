@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
+import re
 import time
 from dataclasses import dataclass
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
+from threading import RLock
 from typing import Any, Protocol
 
 import requests
@@ -27,10 +31,52 @@ from src.inference.schemas import (
     TaskRequest,
     TaskResponse,
 )
+from src.inference.processor_cache import ProcessorInputCache, processor_signature
 from src.inference.transport_utils import normalize_image_url, strip_json_fence
+from src.inference.business_validation import BusinessValidationError, itinerary_business_errors, requested_days, itinerary_request_contract
+from src.inference.release_config import resolve_release_config
 
 
 DEFAULT_RELEASE_CONFIG = "configs/releases/qwen3_vl_system_v1.json"
+DIALOGUE_PROMPT_VERSIONS = {
+    "system_repair_dialogue_v1",
+    "week8_dialogue_first_turn_v1",
+    "week8_dialogue_first_turn_v2",
+    "week8_dialogue_first_turn_v3",
+    "week8_dialogue_deterministic_v4",
+}
+DIALOGUE_EXECUTION_MODES = {
+    "model_generated_contract",
+    "deterministic_contract_v1",
+}
+_BUDGET_UPDATE_RE = re.compile(
+    r"(?P<cancel>取消预算(?:限制|上限)?)|"
+    r"预算(?:改成|调整为|设为|改为|换成)?\s*"
+    r"(?P<value>[-负]?[0-9][0-9A-Za-z.,+\-~～至到]*)\s*(?P<unit>万|千|元)?"
+)
+_DAYS_UPDATE_RE = re.compile(
+    r"(?:行程|天数|安排)?(?:改成|调整为|设为|改为|延长到|缩短到)\s*"
+    r"(?P<value>[-负]?(?:\d+(?:\.\d+)?|[一二两三四五六七八九十]+))\s*天"
+)
+_CITY_UPDATE_RE = re.compile(
+    r"(?:城市|目的地)(?:改成|调整为|设为|改为|换成)\s*"
+    r"(?P<value>[\u4e00-\u9fffA-Za-z .-]{2,32}?)(?=[，。；,;]|$)"
+)
+_PREFERENCE_UPDATE_RE = re.compile(
+    r"偏好(?:改成|调整为|设为|改为|换成)\s*"
+    r"(?P<value>[^，。；,;]{1,48})"
+)
+_PACE_UPDATE_RE = re.compile(
+    r"(?:安排|行程|节奏)(?:改得|调整得|改成|调整为|设为|改为)?\s*"
+    r"(?:更)?(?P<value>松弛|轻松|悠闲|放松|紧凑|充实|快节奏)(?:一些|一点)?"
+)
+_POSITIVE_UPDATE_CUE_RE = re.compile(
+    r"改成|调整为|设为|改为|换成|延长到|缩短到|增加|删除|取消|改得"
+)
+_NEGATED_POSITIVE_UPDATE_RE = re.compile(
+    r"(?:不要|别|无需|不需要)[^，。；,;!?！？\n]{0,8}"
+    r"(?:改成|调整为|设为|改为|换成|延长到|缩短到|增加|删除|取消|改得)"
+)
 
 
 class RuntimeConfigurationError(RuntimeError):
@@ -78,6 +124,17 @@ class ReleaseSettings:
     max_new_tokens: int
     max_new_tokens_by_scenario: dict[str, int]
     max_schema_retries: int
+    dialogue_prompt_version: str = "system_repair_dialogue_v1"
+    dialogue_max_new_tokens: int = 512
+    dialogue_execution_mode: str = "model_generated_contract"
+    dialogue_semantic_fallback_enabled: bool = False
+    processor_cache_max_entries: int = 0
+    prepared_input_cache_max_entries: int = 0
+    visual_max_pixels: int | None = None
+    schema_constrained_retry: bool = True
+    itinerary_structured_request: bool = False
+    adapter_disabled_scenarios: tuple[str, ...] = ()
+    product_observation: dict[str, Any] | None = None
 
     @classmethod
     def load(
@@ -86,15 +143,10 @@ class ReleaseSettings:
         config_path: Path | None = None,
     ) -> "ReleaseSettings":
         project_root = (root or Path(__file__).resolve().parents[2]).resolve()
-        selected_path = config_path or Path(
-            os.getenv("TRIP_RELEASE_CONFIG", DEFAULT_RELEASE_CONFIG)
-        )
-        if not selected_path.is_absolute():
-            selected_path = project_root / selected_path
-        if not selected_path.is_file():
-            raise RuntimeConfigurationError(
-                f"release config does not exist: {selected_path}"
-            )
+        try:
+            selected_path = resolve_release_config(project_root, config_path)
+        except ValueError as exc:
+            raise RuntimeConfigurationError(str(exc)) from exc
         try:
             payload = json.loads(selected_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -104,6 +156,7 @@ class ReleaseSettings:
 
         model = payload.get("model", {})
         generation = payload.get("generation", {})
+        dialogue = payload.get("dialogue", {})
         adapter_env = model.get("adapter_path_env")
         adapter_value = os.getenv(str(adapter_env), "") if adapter_env else ""
         adapter_path = Path(adapter_value).resolve() if adapter_value else None
@@ -125,6 +178,33 @@ class ReleaseSettings:
                 default=max_new_tokens,
             ),
             max_schema_retries=int(generation.get("max_schema_retries", 1)),
+            dialogue_prompt_version=(
+                _required_text(dialogue, "prompt_version")
+                if dialogue
+                else "system_repair_dialogue_v1"
+            ),
+            dialogue_max_new_tokens=int(dialogue.get("max_new_tokens", 512)),
+            dialogue_execution_mode=str(
+                dialogue.get("execution_mode", "model_generated_contract")
+            ),
+            dialogue_semantic_fallback_enabled=dialogue.get(
+                "semantic_fallback_enabled", False
+            ),
+            processor_cache_max_entries=int(
+                generation.get("processor_cache_max_entries", 0)
+            ),
+            prepared_input_cache_max_entries=int(
+                generation.get("prepared_input_cache_max_entries", 0)
+            ),
+            visual_max_pixels=(
+                int(generation["visual_max_pixels"])
+                if generation.get("visual_max_pixels") is not None
+                else None
+            ),
+            schema_constrained_retry=generation.get("schema_constrained_retry", True),
+            itinerary_structured_request=generation.get("itinerary_structured_request", False),
+            adapter_disabled_scenarios=_disabled_adapter_scenarios(model),
+            product_observation=_load_release_observation(project_root, payload),
         )
         if settings.backend_name not in {"transformers-peft", "openai-compatible"}:
             raise RuntimeConfigurationError(
@@ -132,6 +212,49 @@ class ReleaseSettings:
             )
         if settings.max_schema_retries != 1:
             raise RuntimeConfigurationError("release must allow exactly one Schema retry")
+        if not isinstance(settings.schema_constrained_retry, bool):
+            raise RuntimeConfigurationError("schema_constrained_retry must be boolean")
+        if not isinstance(settings.itinerary_structured_request, bool):
+            raise RuntimeConfigurationError("itinerary_structured_request must be boolean")
+        if (settings.adapter_disabled_scenarios or settings.product_observation) and settings.backend_name != "transformers-peft":
+            raise RuntimeConfigurationError("scenario adapter routing and observation require transformers-peft")
+        if settings.product_observation and settings.prompt_versions["image_product_search"] != settings.product_observation["protocol"]:
+            raise RuntimeConfigurationError("product prompt identity differs from observation protocol")
+        if settings.dialogue_prompt_version not in DIALOGUE_PROMPT_VERSIONS:
+            raise RuntimeConfigurationError(
+                "unsupported dialogue prompt version: "
+                f"{settings.dialogue_prompt_version}"
+            )
+        if settings.dialogue_max_new_tokens <= 0:
+            raise RuntimeConfigurationError("dialogue max_new_tokens must be positive")
+        if settings.dialogue_execution_mode not in DIALOGUE_EXECUTION_MODES:
+            raise RuntimeConfigurationError(
+                "unsupported dialogue execution mode: "
+                f"{settings.dialogue_execution_mode}"
+            )
+        if not isinstance(settings.dialogue_semantic_fallback_enabled, bool):
+            raise RuntimeConfigurationError(
+                "dialogue semantic_fallback_enabled must be boolean"
+            )
+        if settings.processor_cache_max_entries < 0:
+            raise RuntimeConfigurationError(
+                "generation processor_cache_max_entries cannot be negative"
+            )
+        if settings.prepared_input_cache_max_entries < 0:
+            raise RuntimeConfigurationError(
+                "generation prepared_input_cache_max_entries cannot be negative"
+            )
+        if settings.visual_max_pixels is not None and settings.visual_max_pixels <= 0:
+            raise RuntimeConfigurationError(
+                "generation visual_max_pixels must be positive"
+            )
+        if (
+            settings.dialogue_prompt_version == "week8_dialogue_deterministic_v4"
+            and settings.dialogue_execution_mode != "deterministic_contract_v1"
+        ):
+            raise RuntimeConfigurationError(
+                "week8 dialogue v4 requires deterministic_contract_v1"
+            )
         return settings
 
     def validate_adapter(self) -> tuple[bool, str]:
@@ -217,6 +340,29 @@ class OpenAICompatibleBackend:
         return content
 
 
+def _disabled_adapter_scenarios(model):
+    disabled = model.get("adapter_disabled_scenarios", [])
+    if (not isinstance(disabled, list) or any(not isinstance(value, str) or value not in {"image_product_search", "after_sales", "itinerary_planning", "dialogue"} for value in disabled)
+            or len(set(disabled)) != len(disabled)):
+        raise RuntimeConfigurationError("invalid adapter_disabled_scenarios")
+    return tuple(disabled)
+
+
+def _load_release_observation(root, payload):
+    pipeline = payload.get("product_pipeline")
+    if pipeline is None:
+        return None
+    try:
+        from src.inference.product_observation import load_observation_config
+        if not isinstance(pipeline, dict) or pipeline.get("mode") != "visual_observation":
+            raise ValueError("unsupported product pipeline")
+        path = (root / pipeline["config"]).resolve()
+        path.relative_to(root.resolve())
+        return load_observation_config(path, pipeline["config_canonical_sha256"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise RuntimeConfigurationError(f"invalid product pipeline: {exc}") from exc
+
+
 class TransformersPeftBackend:
     """Lazy local Qwen3-VL loader using NF4 and the selected PEFT adapter."""
 
@@ -225,11 +371,60 @@ class TransformersPeftBackend:
         self._model: Any = None
         self._processor: Any = None
         self._torch: Any = None
+        self._execution_lock = RLock()
+        self._processor_cache = ProcessorInputCache(
+            settings.processor_cache_max_entries
+        )
+        self._prepared_input_cache = ProcessorInputCache(
+            settings.prepared_input_cache_max_entries
+        )
+
+    @classmethod
+    def from_loaded(cls, model: Any, processor: Any, torch_module: Any) -> TransformersPeftBackend:
+        """Reuse training weights with the complete inference state initialized."""
+        backend = cls.__new__(cls)
+        backend.settings = None
+        backend._model, backend._processor, backend._torch = model, processor, torch_module
+        backend._execution_lock = RLock()
+        backend._processor_cache = ProcessorInputCache()
+        backend._prepared_input_cache = ProcessorInputCache()
+        return backend
+
+    def configure_processor_cache(self, max_entries: int) -> None:
+        """Reset and resize the bounded CPU preprocessing cache."""
+
+        self._processor_cache.clear(max_entries=max_entries)
+
+    def processor_cache_snapshot(self) -> dict[str, int | float | None]:
+        """Return cache observability without exposing cached tensors."""
+
+        return self._processor_cache.snapshot()
+
+    def configure_prepared_input_cache(self, max_entries: int) -> None:
+        """Reset and resize the bounded model-device input cache."""
+
+        self._prepared_input_cache.clear(max_entries=max_entries)
+
+    def prepared_input_cache_snapshot(self) -> dict[str, int | float | None]:
+        """Return prepared-cache observability without exposing device tensors."""
+
+        return self._prepared_input_cache.snapshot()
+
+    @contextmanager
+    def adapter_mode(self, enabled: bool):
+        """按请求临时关闭 adapter，持锁直到生成结束并在异常时恢复。"""
+        with self._execution_lock:
+            self._ensure_loaded()
+            with (nullcontext() if enabled else self._model.disable_adapter()):
+                yield
 
     def ready(self) -> tuple[bool, str]:
-        valid, reason = self.settings.validate_adapter()
-        if not valid:
-            return valid, reason
+        if self.settings is not None:
+            valid, reason = self.settings.validate_adapter()
+            if not valid:
+                return valid, reason
+        elif any(value is None for value in (self._model, self._processor, self._torch)):
+            return False, "in-memory backend is incomplete"
         try:
             self._ensure_loaded()
         except Exception as exc:
@@ -258,22 +453,62 @@ class TransformersPeftBackend:
     ) -> GenerationResult:
         """Generate once and retain measured input/output token counts."""
 
+        # 同一模型的动态视觉位置状态及首次加载不可跨请求并发修改。
+        with self._execution_lock:
+            return self._generate_with_usage_locked(
+                messages, response_format=response_format, max_new_tokens=max_new_tokens
+            )
+
+    def _generate_with_usage_locked(
+        self, messages: list[dict[str, Any]], *,
+        response_format: dict[str, Any] | None, max_new_tokens: int,
+    ) -> GenerationResult:
+
         self._ensure_loaded()
         try:
             normalized = _transformers_messages(messages)
-            inputs = self._processor.apply_chat_template(
+            cache_eligible = _prepared_input_cache_eligible(normalized)
+            cache_key = ProcessorInputCache.key(
                 normalized,
-                tokenize=True,
-                add_generation_prompt=True,
-                return_dict=True,
-                return_tensors="pt",
-                truncation=False,
+                processor_signature(self._processor),
             )
-            device = next(self._model.parameters()).device
-            inputs = {
-                key: value.to(device) if hasattr(value, "to") else value
-                for key, value in inputs.items()
-            }
+            device: Any = None
+            prepared_key: str | None = None
+            inputs: dict[str, Any] | None = None
+            if (
+                self._prepared_input_cache.max_entries
+                and cache_eligible
+            ):
+                device = next(self._model.parameters()).device
+                prepared_key = ProcessorInputCache.key(
+                    normalized,
+                    {
+                        **processor_signature(self._processor),
+                        "model_input_device": str(device),
+                    },
+                )
+                inputs = self._prepared_input_cache.get(prepared_key)
+            if inputs is None:
+                inputs = self._processor_cache.get(cache_key) if cache_eligible else None
+                if inputs is None:
+                    inputs = self._processor.apply_chat_template(
+                        normalized,
+                        tokenize=True,
+                        add_generation_prompt=True,
+                        return_dict=True,
+                        return_tensors="pt",
+                        truncation=False,
+                    )
+                    if cache_eligible:
+                        self._processor_cache.put(cache_key, inputs)
+                if device is None:
+                    device = next(self._model.parameters()).device
+                inputs = {
+                    key: value.to(device) if hasattr(value, "to") else value
+                    for key, value in inputs.items()
+                }
+                if prepared_key is not None:
+                    self._prepared_input_cache.put(prepared_key, inputs)
             generation_constraints: dict[str, Any] = {}
             if response_format and response_format.get("type") == "json_schema":
                 try:
@@ -296,10 +531,18 @@ class TransformersPeftBackend:
                     raise RuntimeConfigurationError(
                         "processor does not expose a tokenizer for constrained decoding"
                     )
+                constraint_protocol = response_format.get("constraint_protocol")
+                if constraint_protocol is not None:
+                    from src.inference.observation_constraints import PROTOCOLS, build_observation_constraint_parser
+                    if constraint_protocol not in PROTOCOLS:
+                        raise RuntimeConfigurationError("unsupported decoder constraint protocol")
+                    parser = build_observation_constraint_parser(schema, protocol=constraint_protocol)
+                else:
+                    parser = JsonSchemaParser(schema)
                 generation_constraints["prefix_allowed_tokens_fn"] = (
                     build_transformers_prefix_allowed_tokens_fn(
                         tokenizer,
-                        JsonSchemaParser(schema),
+                        parser,
                     )
                 )
             with self._torch.inference_mode():
@@ -334,6 +577,10 @@ class TransformersPeftBackend:
         )
 
     def _ensure_loaded(self) -> None:
+        with self._execution_lock:
+            self._ensure_loaded_locked()
+
+    def _ensure_loaded_locked(self) -> None:
         if self._model is not None:
             return
         valid, reason = self.settings.validate_adapter()
@@ -366,18 +613,21 @@ class TransformersPeftBackend:
             quantization_config=quantization,
             trust_remote_code=False,
         )
-        self._model = PeftModel.from_pretrained(
+        model = PeftModel.from_pretrained(
             base,
             str(self.settings.adapter_path),
             is_trainable=False,
         )
-        self._model.eval()
-        self._processor = AutoProcessor.from_pretrained(
+        model.eval()
+        processor = AutoProcessor.from_pretrained(
             self.settings.base_model,
             revision=self.settings.base_revision,
             trust_remote_code=False,
         )
-        self._torch = torch
+        from src.inference.visual_limits import configure_visual_pixel_limit
+        configure_visual_pixel_limit(processor, self.settings.visual_max_pixels)
+        # 只有完整初始化后才发布状态，processor 加载失败不会留下半就绪模型。
+        self._model, self._processor, self._torch = model, processor, torch
 
 
 class ScenarioService:
@@ -387,9 +637,53 @@ class ScenarioService:
         self,
         settings: ReleaseSettings,
         backend: ModelBackend,
+        *,
+        dialogue_prompt_version: str | None = None,
+        dialogue_max_new_tokens: int | None = None,
+        dialogue_execution_mode: str | None = None,
+        dialogue_semantic_fallback_enabled: bool | None = None,
+        retrieval_runner: Any | None = None,
     ) -> None:
         self.settings = settings
         self.backend = backend
+        self.retrieval_runner = retrieval_runner
+        self.dialogue_prompt_version = (
+            dialogue_prompt_version or settings.dialogue_prompt_version
+        )
+        self.dialogue_max_new_tokens = int(
+            dialogue_max_new_tokens or settings.dialogue_max_new_tokens
+        )
+        self.dialogue_execution_mode = (
+            dialogue_execution_mode or settings.dialogue_execution_mode
+        )
+        self.dialogue_semantic_fallback_enabled = (
+            settings.dialogue_semantic_fallback_enabled
+            if dialogue_semantic_fallback_enabled is None
+            else dialogue_semantic_fallback_enabled
+        )
+        if self.dialogue_prompt_version not in DIALOGUE_PROMPT_VERSIONS:
+            raise RuntimeConfigurationError(
+                "unsupported dialogue prompt version: "
+                f"{self.dialogue_prompt_version}"
+            )
+        if self.dialogue_max_new_tokens <= 0:
+            raise RuntimeConfigurationError("dialogue max_new_tokens must be positive")
+        if self.dialogue_execution_mode not in DIALOGUE_EXECUTION_MODES:
+            raise RuntimeConfigurationError(
+                "unsupported dialogue execution mode: "
+                f"{self.dialogue_execution_mode}"
+            )
+        if not isinstance(self.dialogue_semantic_fallback_enabled, bool):
+            raise RuntimeConfigurationError(
+                "dialogue semantic fallback flag must be boolean"
+            )
+        if (
+            self.dialogue_prompt_version == "week8_dialogue_deterministic_v4"
+            and self.dialogue_execution_mode != "deterministic_contract_v1"
+        ):
+            raise RuntimeConfigurationError(
+                "week8 dialogue deterministic prompt requires deterministic mode"
+            )
 
     def ready(self) -> dict[str, Any]:
         adapter_ready, adapter_reason = self.settings.validate_adapter()
@@ -398,6 +692,10 @@ class ScenarioService:
         for scenario, version in self.settings.schema_versions.items():
             try:
                 load_output_schema(self.settings.root, scenario, version)
+                if scenario == "image_product_search" and self.settings.product_observation:
+                    from src.inference.product_observation import observation_schema
+                    observation_schema(self.settings.product_observation)
+                    continue
                 render_standard_prompt(
                     self.settings.root,
                     scenario,
@@ -430,8 +728,23 @@ class ScenarioService:
         }
 
     def run_task(self, scenario: str, request: TaskRequest) -> TaskResponse:
+        from src.inference.schemas import SingleImageTaskRequest, ItineraryTaskRequest
+        contract = ItineraryTaskRequest if scenario == "itinerary_planning" else SingleImageTaskRequest
+        request = contract.model_validate(request.model_dump())
         prompt_version = self.settings.prompt_versions[scenario]
         schema_version = self.settings.schema_versions[scenario]
+        if scenario == "image_product_search" and self.settings.product_observation:
+            from src.inference.product_observation import generate_observation
+            with self._adapter_scope(scenario):
+                observed = generate_observation(self.backend, request.image_urls[0], self.settings.product_observation)
+            if not observed["passed"]:
+                raise ModelGenerationError("product observation failed after one correction", attempts=observed["attempts"])
+            validate_output(self.settings.root, scenario, observed["result"], schema_version)
+            return TaskResponse(scenario=scenario, result=observed["result"], schema_valid=True, business_valid=None,
+                prompt_version=prompt_version, model=self.settings.base_model,
+                adapter="none" if scenario in self.settings.adapter_disabled_scenarios else self.settings.adapter_name,
+                release_id=self.settings.release_id, attempts=observed["attempts"],
+                total_latency_ms=sum(item.latency_ms for item in observed["attempts"]))
         input_context = {
             "images": [{"path": path} for path in request.image_urls],
             "text_constraints": request.text_context,
@@ -442,59 +755,56 @@ class ScenarioService:
             input_context,
             prompt_version,
         )
-        parsed, attempts = self._generate_validated(
-            scenario=scenario,
-            schema_version=schema_version,
-            messages=rendered["messages"],
-            response_format=rendered.get("response_format"),
-        )
+        if scenario == "itinerary_planning" and self.settings.itinerary_structured_request:
+            rendered["messages"].append({"role": "user", "content":
+                "Machine-readable requirements extracted only from user text: "
+                + json.dumps(itinerary_request_contract(request.text_context), ensure_ascii=False)
+                + " Return every required check and a complete plan. No invented calendar dates. "
+                  "Use generic transport modes rather than unverified line/station numbers. "
+                  "Every scheduled activity must actually satisfy the deadline and place exclusions."})
+        with self._adapter_scope(scenario):
+            parsed, attempts = self._generate_validated(
+                scenario=scenario,
+                schema_version=schema_version,
+                messages=rendered["messages"],
+                response_format=rendered.get("response_format"),
+                business_context=request.text_context if scenario == "itinerary_planning" else None,
+            )
         return TaskResponse(
             scenario=scenario,
             result=parsed,
             schema_valid=True,
+            business_valid=True if scenario == "itinerary_planning" else None,
             prompt_version=prompt_version,
             model=self.settings.base_model,
-            adapter=self.settings.adapter_name,
+            adapter="none" if scenario in self.settings.adapter_disabled_scenarios else self.settings.adapter_name,
             release_id=self.settings.release_id,
             attempts=attempts,
             total_latency_ms=sum(item.latency_ms for item in attempts),
         )
 
+    def _adapter_scope(self, scenario):
+        enabled = scenario not in self.settings.adapter_disabled_scenarios
+        scope = getattr(self.backend, "adapter_mode", None)
+        if callable(scope):
+            return scope(enabled)
+        if not enabled:
+            raise RuntimeConfigurationError("backend cannot provide scoped adapter routing")
+        return nullcontext()
+
     def run_dialogue(self, request: DialogueRequest) -> DialogueResponse:
-        messages: list[dict[str, Any]] = [
-            {
-                "role": "system",
-                "content": (
-                    "你是专业 OTA 多模态对话助手。承接已确认状态，不编造图片或业务事实。"
-                    "仅输出 JSON：reply、state_updates、tool_calls。"
-                ),
-            }
-        ]
-        for index, turn in enumerate(request.messages):
-            content: Any = turn.content
-            if turn.role == "user" and index == 0 and request.image_urls:
-                content = [{"type": "text", "text": turn.content}]
-                content.extend(
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_url},
-                    }
-                    for image_url in request.image_urls
-                )
-            messages.append({"role": turn.role, "content": content})
-        messages.append(
-            {
-                "role": "user",
-                "content": (
-                    "当前结构化状态："
-                    + json.dumps(request.state, ensure_ascii=False, sort_keys=True)
-                ),
-            }
+        if self.dialogue_execution_mode == "deterministic_contract_v1":
+            return self._run_deterministic_dialogue(request)
+        messages = _dialogue_messages(
+            request,
+            prompt_version=self.dialogue_prompt_version,
         )
         parsed, attempts = self._generate_dialogue(messages)
+        explicit_updates, _, rejected_fields = _parse_deterministic_state_updates(request)
         state = dict(request.state)
-        state.update(parsed.state_updates)
-        return DialogueResponse(
+        state.update({key: value for key, value in parsed.state_updates.items() if key not in rejected_fields})
+        state.update(explicit_updates)
+        response = DialogueResponse(
             reply=parsed.reply,
             state=state,
             tool_calls=parsed.tool_calls,
@@ -503,6 +813,229 @@ class ScenarioService:
             release_id=self.settings.release_id,
             attempts=attempts,
             total_latency_ms=sum(item.latency_ms for item in attempts),
+            task_status="NOT_COMPLETED" if rejected_fields else "STATE_UPDATED",
+            task_error="无法完整解析状态字段：" + ", ".join(sorted(rejected_fields)) if rejected_fields else None,
+        )
+
+        return self._complete_dialogue_task(request, response)
+
+    def _run_deterministic_dialogue(
+        self,
+        request: DialogueRequest,
+    ) -> DialogueResponse:
+        """Route and assemble the public contract in code, not model output."""
+
+        updates, needs_semantic_fallback, rejected_fields = _parse_deterministic_state_updates(request)
+        attempts: list[ModelAttempt] = []
+        fallback_status = "NOT_USED"
+        if needs_semantic_fallback and self.dialogue_semantic_fallback_enabled:
+            try:
+                fallback_updates, attempts = self._generate_state_update_fallback(
+                    request
+                )
+                safe_fallback = {
+                    key: value for key, value in fallback_updates.items()
+                    if key not in rejected_fields
+                }
+                updates = {**safe_fallback, **updates}
+                fallback_status = "SUCCEEDED"
+            except ModelGenerationError as exc:
+                attempts = list(exc.attempts)
+                fallback_status = "FAILED_SAFE"
+        state = dict(request.state)
+        state.update(updates)
+        incomplete_update = bool(rejected_fields) or fallback_status == "FAILED_SAFE" or (
+            needs_semantic_fallback and not self.dialogue_semantic_fallback_enabled)
+        parsed = DialogueModelOutput(
+            reply=_deterministic_dialogue_reply(
+                request,
+                updates,
+                fallback_failed=incomplete_update,
+            ),
+            state_updates=updates,
+            tool_calls=[],
+        )
+        response = DialogueResponse(
+            reply=parsed.reply,
+            state=state,
+            tool_calls=[],
+            model=self.settings.base_model,
+            adapter=self.settings.adapter_name,
+            release_id=self.settings.release_id,
+            attempts=attempts,
+            total_latency_ms=sum(item.latency_ms for item in attempts),
+            execution_mode="DETERMINISTIC_CONTRACT",
+            semantic_fallback_status=fallback_status,
+            task_status="NOT_COMPLETED" if incomplete_update else "STATE_UPDATED",
+            task_error="未能可靠解析状态更新；无法解析的字段保留原值" if incomplete_update else None,
+        )
+        return self._complete_dialogue_task(request, response)
+
+    def _complete_dialogue_task(self, request: DialogueRequest, response: DialogueResponse) -> DialogueResponse:
+        """确认状态后执行业务请求；未执行或失败不算任务成功。"""
+        if response.task_error:
+            if response.execution_mode == "MODEL_GENERATED_CONTRACT":
+                response.reply = "未完成本轮任务：" + response.task_error
+            return response
+        users = [turn for turn in request.messages if turn.role == "user"]
+        text = users[-1].content if users else ""
+        images = list(users[-1].image_urls) if users else []
+        images.extend(image for image in request.image_urls if image not in images)
+        if not images:
+            images = next((list(turn.image_urls) for turn in reversed(users) if turn.image_urls), [])
+        task = request.task
+        if task == "auto":
+            if re.search(r"推荐|规划|制定|生成|比较|相比|什么|识别|查找|搜索|问|介绍", text):
+                if re.search(r"行程|日游|天游", text):
+                    task = "itinerary"
+                elif re.search(r"推荐|查找|搜索", text):
+                    task = "retrieval"
+                elif images and len(images) == 1 and not re.search(r"比较|相比|第[二2]张", text):
+                    task = "product"
+                else:
+                    task = "conversation"
+            elif _POSITIVE_UPDATE_CUE_RE.search(text):
+                return response
+            else:
+                task = "product" if images else "conversation"
+        if task == "state_update":
+            return response
+        unexecuted_tools = bool(response.tool_calls)
+        response.tool_calls = []
+        response.task_status = "NOT_COMPLETED"
+        try:
+            if task in {"product", "itinerary"}:
+                scenario = "image_product_search" if task == "product" else "itinerary_planning"
+                context = text
+                for key, label in (("city", "城市"), ("days", "天数"), ("budget", "预算")):
+                    value = response.state.get(key)
+                    if value is not None:
+                        context += f"；{label}：{value}" + ("天" if key == "days" else "")
+                call = {"function": scenario, "arguments": {"image_urls": images}, "status": "STARTED"}
+                response.tool_calls.append(call)
+                result = self.run_task(scenario, TaskRequest(image_urls=images, text_context=context if task == "itinerary" else None))
+                response.attempts.extend(result.attempts)
+                response.task_result = result.model_dump(exclude={"attempts"})
+                response.adapter = result.adapter
+                response.reply = json.dumps(result.result, ensure_ascii=False)
+                call["status"] = "COMPLETED"
+            elif task == "retrieval":
+                if self.retrieval_runner is None:
+                    raise ModelGenerationError("检索服务未配置，未完成推荐")
+                call = {"function": "visual_search", "arguments": {"query_text": text, "image_urls": images}, "status": "STARTED"}
+                response.tool_calls.append(call)
+                response.task_result = self.retrieval_runner(text, images, response.state)
+                if response.task_result.get("query_status", "COMPLETED") != "COMPLETED":
+                    raise ModelGenerationError("仅返回部分条件候选，未应用查询条件：" + response.task_result.get("unapplied_query_text", "unknown"))
+                response.reply = json.dumps(response.task_result, ensure_ascii=False)
+                call["status"] = "COMPLETED"
+            else:
+                # 原模型分支已经产生实际回答时不重复调用；确定性分支才需要生成。
+                if response.execution_mode == "MODEL_GENERATED_CONTRACT":
+                    answer = response.reply
+                    pending_tools = unexecuted_tools
+                else:
+                    parsed, attempts = self._generate_dialogue(_dialogue_messages(request, prompt_version="system_repair_dialogue_v1"))
+                    response.attempts.extend(attempts)
+                    response.adapter = "none" if "dialogue" in self.settings.adapter_disabled_scenarios else self.settings.adapter_name
+                    answer, pending_tools = parsed.reply, bool(parsed.tool_calls)
+                if pending_tools or re.search(r"将.*(?:处理|推荐)|简短直接回复|已承接当前|^(?:好的[，,。！! ]*)?(?:继续处理|正在处理|请稍等|收到)[。！! ]*$", answer):
+                    raise ModelGenerationError("模型未完成实际问答，或工具尚未执行")
+                response.reply = answer
+                response.task_result = {"answer": answer}
+            response.task_status = "COMPLETED"
+        except (ModelGenerationError, RuntimeConfigurationError, ValidationError, ValueError) as exc:
+            if isinstance(exc, ModelGenerationError):
+                response.attempts.extend(exc.attempts)
+            response.task_error = str(exc)
+            response.reply = "未完成本轮任务：" + str(exc)
+            if response.tool_calls:
+                response.tool_calls[-1]["status"] = "FAILED"
+        response.total_latency_ms = sum(attempt.latency_ms for attempt in response.attempts)
+        return response
+
+    def _generate_state_update_fallback(
+        self,
+        request: DialogueRequest,
+    ) -> tuple[dict[str, Any], list[ModelAttempt]]:
+        """Use the model only to extract ambiguous state changes."""
+
+        attempts: list[ModelAttempt] = []
+        active_messages = _state_update_fallback_messages(request)
+        response_format = _state_update_fallback_response_format()
+        for attempt_number in range(1, self.settings.max_schema_retries + 2):
+            started = time.perf_counter()
+            with self._adapter_scope("dialogue"):
+                raw, input_tokens, output_tokens = _generate_once(
+                    self.backend,
+                    active_messages,
+                    response_format=response_format,
+                    max_new_tokens=min(self.dialogue_max_new_tokens, 128),
+                )
+            error: str | None = None
+            updates: dict[str, Any] | None = None
+            try:
+                payload = json.loads(strip_json_fence(raw))
+                if not isinstance(payload, dict) or set(payload) != {"state_updates"}:
+                    raise ValueError(
+                        "semantic fallback must contain exactly state_updates"
+                    )
+                candidate = payload["state_updates"]
+                if not isinstance(candidate, dict) or len(candidate) > 16:
+                    raise ValueError(
+                        "semantic fallback state_updates must be a bounded object"
+                    )
+                if any(
+                    not isinstance(key, str)
+                    or not _is_finite_dialogue_value(value)
+                    for key, value in candidate.items()
+                ):
+                    raise ValueError(
+                        "semantic fallback values must be finite JSON scalars"
+                    )
+                if candidate.get("days") is not None and (
+                    type(candidate["days"]) is not int or not 1 <= candidate["days"] <= 365
+                ):
+                    raise ValueError("days must be an integer between 1 and 365")
+                if candidate.get("budget") is not None and (
+                    type(candidate["budget"]) not in (int, float)
+                    or not 0 <= candidate["budget"] <= 1_000_000_000
+                ):
+                    raise ValueError("budget must be a non-negative bounded number")
+                updates = candidate
+            except (json.JSONDecodeError, ValueError) as exc:
+                error = str(exc)
+                updates = None
+            attempts.append(
+                ModelAttempt(
+                    attempt=attempt_number,
+                    raw_output=raw,
+                    error=error,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+            )
+            if updates is not None:
+                return updates, attempts
+            if attempt_number > self.settings.max_schema_retries:
+                break
+            active_messages = [
+                *active_messages,
+                {"role": "assistant", "content": raw},
+                {
+                    "role": "user",
+                    "content": (
+                        f"上次状态抽取无效：{error}。只输出完整 JSON："
+                        '{"state_updates":{}}；值仅可为字符串、数字、布尔或 null。'
+                        "days 非空时为 1–365 的整数，budget 非空时为 0–1000000000 的数字。"
+                    ),
+                },
+            ]
+        raise ModelGenerationError(
+            "semantic state fallback failed after "
+            f"{len(attempts)} attempts: {attempts[-1].error}",
+            attempts=attempts,
         )
 
     def _generate_validated(
@@ -512,13 +1045,15 @@ class ScenarioService:
         schema_version: str,
         messages: list[dict[str, Any]],
         response_format: dict[str, Any] | None,
+        business_context: str | None = None,
     ) -> tuple[dict[str, Any], list[ModelAttempt]]:
         attempts: list[ModelAttempt] = []
         active_messages = list(messages)
         active_response_format = response_format
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
-            raw = self.backend.generate(
+            raw, input_tokens, output_tokens = _generate_once(
+                self.backend,
                 active_messages,
                 response_format=active_response_format,
                 max_new_tokens=self.settings.max_new_tokens_by_scenario[scenario],
@@ -533,7 +1068,11 @@ class ScenarioService:
                     parsed,
                     schema_version,
                 )
-            except (json.JSONDecodeError, SchemaValidationError) as exc:
+                if business_context is not None:
+                    business_errors = itinerary_business_errors(parsed, business_context)
+                    if business_errors:
+                        raise BusinessValidationError("; ".join(business_errors))
+            except (json.JSONDecodeError, SchemaValidationError, BusinessValidationError) as exc:
                 error = str(exc)
             latency_ms = (time.perf_counter() - started) * 1000
             attempts.append(
@@ -542,6 +1081,8 @@ class ScenarioService:
                     raw_output=raw,
                     error=error,
                     latency_ms=latency_ms,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                 )
             )
             if error is None and isinstance(parsed, dict):
@@ -558,9 +1099,11 @@ class ScenarioService:
                 self.settings.root,
                 scenario,
                 schema_version,
-            )
+                required_day_count=requested_days(business_context) if business_context else None,
+            ) if self.settings.schema_constrained_retry else {"type": "json_object"}
         raise ModelGenerationError(
-            f"model output failed {scenario} Schema after {len(attempts)} attempts: "
+            f"model output failed {scenario} "
+            f"{'Schema/business validation' if business_context is not None else 'Schema'} after {len(attempts)} attempts: "
             f"{attempts[-1].error}",
             attempts=attempts,
         )
@@ -571,26 +1114,59 @@ class ScenarioService:
     ) -> tuple[DialogueModelOutput, list[ModelAttempt]]:
         attempts: list[ModelAttempt] = []
         active_messages = list(messages)
-        active_response_format: dict[str, Any] = {"type": "json_object"}
+        active_response_format: dict[str, Any] = (
+            _dialogue_v3_response_format()
+            if self.dialogue_prompt_version == "week8_dialogue_first_turn_v3"
+            else {"type": "json_object"}
+        )
         for attempt_number in range(1, self.settings.max_schema_retries + 2):
             started = time.perf_counter()
-            raw = self.backend.generate(
-                active_messages,
-                response_format=active_response_format,
-                max_new_tokens=self.settings.max_new_tokens,
-            )
+            with self._adapter_scope("dialogue"):
+                raw, input_tokens, output_tokens = _generate_once(
+                    self.backend,
+                    active_messages,
+                    response_format=active_response_format,
+                    max_new_tokens=self.dialogue_max_new_tokens,
+                )
             error: str | None = None
             parsed: DialogueModelOutput | None = None
             try:
-                parsed = DialogueModelOutput.model_validate_json(strip_json_fence(raw))
-            except ValidationError as exc:
+                if (
+                    self.dialogue_prompt_version in {
+                        "week8_dialogue_first_turn_v2",
+                        "week8_dialogue_first_turn_v3",
+                    }
+                    and not raw.startswith("{")
+                ):
+                    raise ValueError(
+                        "week8 dialogue v2/v3 output must start with the JSON object"
+                    )
+                dialogue_payload = json.loads(strip_json_fence(raw))
+                required_keys = {"reply", "state_updates", "tool_calls"}
+                if not isinstance(dialogue_payload, dict) or set(dialogue_payload) != required_keys:
+                    actual_keys = (
+                        sorted(dialogue_payload)
+                        if isinstance(dialogue_payload, dict)
+                        else type(dialogue_payload).__name__
+                    )
+                    raise ValueError(
+                        "dialogue output must contain exactly "
+                        f"{sorted(required_keys)}; got {actual_keys}"
+                    )
+                parsed = DialogueModelOutput.model_validate(dialogue_payload)
+                if self.dialogue_prompt_version == "week8_dialogue_first_turn_v3":
+                    _validate_dialogue_v3_payload(dialogue_payload)
+            except (json.JSONDecodeError, ValidationError, ValueError) as exc:
                 error = str(exc)
+                parsed = None
             attempts.append(
                 ModelAttempt(
                     attempt=attempt_number,
                     raw_output=raw,
                     error=error,
                     latency_ms=(time.perf_counter() - started) * 1000,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                 )
             )
             if parsed is not None:
@@ -603,16 +1179,425 @@ class ScenarioService:
                 error or "",
                 scenario="dialogue",
             )
-            # Dialogue state and tool payloads intentionally allow arbitrary JSON
-            # objects. lm-format-enforcer cannot handle their boolean
-            # additionalProperties contract, so the retry remains model-level and
-            # is validated by DialogueModelOutput after generation.
-            active_response_format = {"type": "json_object"}
+            # v1/v2 保持历史自由 JSON 纠错路径；v3 的有限值 Schema 可继续约束重试。
+            active_response_format = (
+                _dialogue_v3_response_format()
+                if self.dialogue_prompt_version == "week8_dialogue_first_turn_v3"
+                else {"type": "json_object"}
+            )
         raise ModelGenerationError(
             f"dialogue output failed Schema after {len(attempts)} attempts: "
             f"{attempts[-1].error}",
             attempts=attempts,
         )
+
+
+def _generate_once(
+    backend: ModelBackend,
+    messages: list[dict[str, Any]],
+    *,
+    response_format: dict[str, Any] | None,
+    max_new_tokens: int,
+) -> tuple[str, int | None, int | None]:
+    """Use measured token counts when the backend exposes them."""
+
+    generate_with_usage = getattr(backend, "generate_with_usage", None)
+    if callable(generate_with_usage):
+        generated = generate_with_usage(
+            messages,
+            response_format=response_format,
+            max_new_tokens=max_new_tokens,
+        )
+        if isinstance(generated, GenerationResult):
+            return generated.content, generated.input_tokens, generated.output_tokens
+        raise ModelGenerationError("backend returned an invalid measured generation")
+    return (
+        backend.generate(
+            messages,
+            response_format=response_format,
+            max_new_tokens=max_new_tokens,
+        ),
+        None,
+        None,
+    )
+
+
+def _dialogue_v3_response_format() -> dict[str, Any]:
+    """Return the bounded dialogue contract accepted by LMFE's JSON parser."""
+
+    finite_value = {"type": ["string", "number", "boolean", "null"]}
+    arguments = {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": dict(finite_value),
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "reply": {"type": "string", "minLength": 1, "maxLength": 2000},
+            "state_updates": {
+                "type": "object",
+                "maxProperties": 16,
+                "additionalProperties": dict(finite_value),
+            },
+            "tool_calls": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "function": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128,
+                        },
+                        "arguments": arguments,
+                    },
+                    "required": ["function", "arguments"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["reply", "state_updates", "tool_calls"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "dialogue_week8_first_turn_v3",
+            "strict": True,
+            "schema": schema,
+        },
+    }
+
+
+def _validate_dialogue_v3_payload(payload: dict[str, Any]) -> None:
+    """Validate the same bounded value/tool subset even if a backend ignores LMFE."""
+
+    if len(payload["reply"]) > 2000:
+        raise ValueError("dialogue v3 reply exceeds maxLength")
+    state_updates = payload["state_updates"]
+    if len(state_updates) > 16:
+        raise ValueError("dialogue v3 state_updates exceeds maxProperties")
+    for key, value in state_updates.items():
+        if not isinstance(key, str) or not _is_finite_dialogue_value(value):
+            raise ValueError(
+                "dialogue v3 state_updates values must be finite JSON scalars"
+            )
+    tool_calls = payload["tool_calls"]
+    if len(tool_calls) > 4:
+        raise ValueError("dialogue v3 tool_calls exceeds maxItems")
+    for tool_call in tool_calls:
+        if not isinstance(tool_call, dict) or set(tool_call) != {
+            "function",
+            "arguments",
+        }:
+            raise ValueError(
+                "dialogue v3 tool_calls items require function and arguments"
+            )
+        function = tool_call["function"]
+        arguments = tool_call["arguments"]
+        if not isinstance(function, str) or not 1 <= len(function) <= 128:
+            raise ValueError("dialogue v3 tool function must be non-empty text")
+        if not isinstance(arguments, dict) or len(arguments) > 16:
+            raise ValueError("dialogue v3 tool arguments must be a bounded object")
+        if any(
+            not isinstance(key, str) or not _is_finite_dialogue_value(value)
+            for key, value in arguments.items()
+        ):
+            raise ValueError(
+                "dialogue v3 tool argument values must be finite JSON scalars"
+            )
+
+
+def _is_finite_dialogue_value(value: Any) -> bool:
+    if value is None or isinstance(value, (str, bool)):
+        return True
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return not isinstance(value, float) or math.isfinite(value)
+    return False
+
+
+def _deterministic_state_updates(
+    request: DialogueRequest,
+) -> tuple[dict[str, Any], bool]:
+    """Extract bounded explicit updates and flag only ambiguous change requests."""
+    updates, fallback, _ = _parse_deterministic_state_updates(request)
+    return updates, fallback
+
+
+def _parse_deterministic_state_updates(
+    request: DialogueRequest,
+) -> tuple[dict[str, Any], bool, set[str]]:
+    """Keep rejected explicit fields out of model fallback updates."""
+
+    latest_user = next(
+        (turn.content for turn in reversed(request.messages) if turn.role == "user"),
+        "",
+    )
+    if not latest_user:
+        return {}, False, set()
+    updates: dict[str, Any] = {}
+    rejected_fields: set[str] = set()
+    applied_spans = []
+
+    def latest_positive(pattern):
+        matches = [match for match in pattern.finditer(latest_user)
+                   if not _match_is_negated(latest_user, match.start())]
+        applied_spans.extend(match.span() for match in matches[:-1])
+        return matches[-1] if matches else None
+
+    budget_match = latest_positive(_BUDGET_UPDATE_RE)
+    if budget_match:
+        applied_spans.append(budget_match.span())
+        if budget_match.group("cancel"):
+            updates["budget"] = None
+        else:
+            numeric = budget_match.group("value").replace("负", "-").rstrip(",")
+            unit = budget_match.group("unit")
+            if numeric.lower().endswith("k"):
+                unit, numeric = "千", numeric[:-1]
+            valid = re.fullmatch(r"-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?", numeric)
+            if re.match(r"\s*(?:[-~～至到]|\d)", latest_user[budget_match.end():]):
+                valid = None
+            value = float(numeric.replace(",", "")) if valid else float("nan")
+            if unit in {"千", "k", "K"}:
+                value *= 1000
+            elif unit == "万":
+                value *= 10000
+            if math.isfinite(value) and 0 <= value <= 1_000_000_000:
+                updates["budget"] = int(value) if value.is_integer() else value
+            else:
+                rejected_fields.add("budget")
+
+    days_match = latest_positive(_DAYS_UPDATE_RE)
+    if days_match and not _match_is_negated(latest_user, days_match.start()):
+        applied_spans.append(days_match.span())
+        days = _parse_positive_days(days_match.group("value"))
+        if days is not None:
+            updates["days"] = days
+        else:
+            rejected_fields.add("days")
+
+    city_match = latest_positive(_CITY_UPDATE_RE)
+    if city_match and not _match_is_negated(latest_user, city_match.start()):
+        updates["city"] = city_match.group("value").strip()
+        applied_spans.append(city_match.span())
+
+    preference_match = latest_positive(_PREFERENCE_UPDATE_RE)
+    if preference_match and not _match_is_negated(
+        latest_user,
+        preference_match.start(),
+    ):
+        updates["preference"] = preference_match.group("value").strip()
+        applied_spans.append(preference_match.span())
+
+    pace_match = latest_positive(_PACE_UPDATE_RE)
+    if pace_match and not _match_is_negated(latest_user, pace_match.start()):
+        pace = pace_match.group("value")
+        updates["pace"] = (
+            "relaxed" if pace in {"松弛", "轻松", "悠闲", "放松"} else "packed"
+        )
+        applied_spans.append(pace_match.span())
+
+    remaining = list(latest_user)
+    for start, end in applied_spans:
+        remaining[start:end] = " " * (end - start)
+    unmatched = _NEGATED_POSITIVE_UPDATE_RE.sub("", "".join(remaining))
+    needs_semantic_fallback = bool(_POSITIVE_UPDATE_CUE_RE.search(unmatched))
+    return updates, needs_semantic_fallback, rejected_fields
+
+
+def _match_is_negated(text: str, start: int) -> bool:
+    prefix = re.split(r"[，。；,;!?！？\n]", text[:start])[-1][-8:]
+    return any(marker in prefix for marker in ("不要", "别", "无需", "不需要"))
+
+
+def _parse_positive_days(value: str) -> int | None:
+    if value.startswith(("-", "负")) or "." in value:
+        return None
+    if value.isdigit():
+        normalized = value.lstrip("0") or "0"
+        if len(normalized) > 3:
+            return None
+        parsed = int(normalized)
+        return parsed if 1 <= parsed <= 365 else None
+    numerals = {
+        "一": 1,
+        "二": 2,
+        "两": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+    }
+    if value == "十":
+        return 10
+    if "十" in value:
+        left, right = value.split("十", 1)
+        if (left and left not in numerals) or (right and right not in numerals):
+            return None
+        tens = numerals.get(left, 1) if left else 1
+        ones = numerals.get(right, 0) if right else 0
+        parsed = tens * 10 + ones
+    else:
+        parsed = numerals.get(value, 0)
+    return parsed if 1 <= parsed <= 365 else None
+
+
+def _deterministic_dialogue_reply(
+    request: DialogueRequest,
+    updates: dict[str, Any],
+    *,
+    fallback_failed: bool,
+) -> str:
+    if fallback_failed and not updates:
+        return "未能可靠解析新的状态变化，已保留原状态，请换一种简短说法。"
+    if updates:
+        labels = {
+            "budget": "预算",
+            "days": "天数",
+            "city": "城市",
+            "preference": "偏好",
+            "pace": "节奏",
+        }
+        changed = "、".join(labels.get(key, key) for key in sorted(updates))
+        if fallback_failed:
+            return f"已更新{changed}，其余变化未能可靠解析，未修改未确认条件。"
+        return f"已更新{changed}，其余已确认条件保持不变。"
+    if request.image_urls:
+        return "已进入对话路径并接收新图片，将承接当前状态继续处理。"
+    return "已承接当前对话状态，将按你的最新要求继续处理。"
+
+
+def _state_update_fallback_messages(
+    request: DialogueRequest,
+) -> list[dict[str, Any]]:
+    latest_user = next(
+        (turn.content for turn in reversed(request.messages) if turn.role == "user"),
+        "",
+    )
+    state_json = json.dumps(request.state, ensure_ascii=False, sort_keys=True)
+    return [
+        {
+            "role": "system",
+            "content": (
+                "只提取用户本轮明确新增或修改的 OTA 对话状态，不生成回复或工具调用。"
+                "只输出 state_updates；无法确定时输出空对象。值只能是字符串、数字、布尔或 null。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"当前状态：{state_json}\n"
+                f"本轮用户文本：{latest_user}\n"
+                '仅输出 {"state_updates":{}}。'
+            ),
+        },
+    ]
+
+
+def _state_update_fallback_response_format() -> dict[str, Any]:
+    finite_value = {"type": ["string", "number", "boolean", "null"]}
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "dialogue_state_update_fallback_v1",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "state_updates": {
+                        "type": "object",
+                        "maxProperties": 16,
+                        "additionalProperties": finite_value,
+                    }
+                },
+                "required": ["state_updates"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
+def _dialogue_messages(
+    request: DialogueRequest,
+    *,
+    prompt_version: str,
+) -> list[dict[str, Any]]:
+    """Render the versioned dialogue route without mutating caller history."""
+
+    state_json = json.dumps(request.state, ensure_ascii=False, sort_keys=True)
+    if prompt_version == "system_repair_dialogue_v1":
+        system_content = (
+            "你是专业 OTA 多模态对话助手。承接已确认状态，不编造图片或业务事实。"
+            "仅输出 JSON：reply、state_updates、tool_calls。"
+        )
+    elif prompt_version in {
+        "week8_dialogue_first_turn_v1",
+        "week8_dialogue_first_turn_v2",
+        "week8_dialogue_first_turn_v3",
+    }:
+        system_content = (
+            "你正在处理 OTA 多轮对话端点，而不是商品理解、售后抽取或行程抽取端点。"
+            "即使用户上传图片，也不得输出 business_category、scene_tags、itinerary、"
+            "evidence、confidence 等单任务结构。只输出一个 JSON 对象，且顶层必须恰好"
+            "包含 reply、state_updates、tool_calls 三个键：reply 是面向用户的简短非空回复；"
+            "state_updates 只记录本轮明确新增或修改的状态，没有变化时为 {}；tool_calls 只在"
+            "确需外部工具时填写对象数组，否则为 []。不得输出 Markdown、解释或额外顶层键。"
+            "承接已确认状态，不编造图片、历史结果或业务事实。"
+            f"当前结构化状态为：{state_json}。"
+        )
+    else:
+        raise RuntimeConfigurationError(
+            f"unsupported dialogue prompt version: {prompt_version}"
+        )
+
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": system_content}
+    ]
+    last_user = max((i for i, turn in enumerate(request.messages) if turn.role == "user"), default=-1)
+    for index, turn in enumerate(request.messages):
+        content: Any = turn.content
+        images = list(turn.image_urls)
+        if index == last_user:
+            images.extend(image for image in request.image_urls if image not in images)
+        if images:
+            content = [{"type": "text", "text": turn.content}]
+            content.extend(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_url},
+                }
+                for image_url in images
+            )
+        messages.append({"role": turn.role, "content": content})
+    if prompt_version in {
+        "week8_dialogue_first_turn_v2",
+        "week8_dialogue_first_turn_v3",
+    }:
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "路由控制：这是对话端点。下一个输出的首字符必须是 {，且只能输出"
+                    '三键骨架 {"reply":"简短直接回复","state_updates":{},"tool_calls":[]}；'
+                    "替换值即可，不得输出任务标签、Markdown 或解释。"
+                ),
+            }
+        )
+    if prompt_version == "system_repair_dialogue_v1":
+        # 保留正式历史基线的尾部状态消息，确保固定样本对比只改变候选 Prompt。
+        messages.append(
+            {
+                "role": "user",
+                "content": f"当前结构化状态：{state_json}",
+            }
+        )
+    return messages
 
 
 def build_service(root: Path | None = None) -> ScenarioService:
@@ -635,15 +1620,15 @@ def _correction_messages(
     itinerary_contract = ""
     if scenario == "itinerary_planning":
         itinerary_contract = (
-            "行程纠错时必须使用以下九键骨架，不得在任何 ] 或 } 后插入自然语言："
-            '{"style_preferences":[],"hard_constraints":[],"soft_constraints":[],'
-            '"required_itinerary_elements":["daily_schedule"],'
-            '"itinerary":[{"day_index":1,"date":null,"summary":"简短摘要",'
-            '"activities":[{"start_time":null,"end_time":null,"place_name":null,'
-            '"activity":"简短活动","transport":null,"source_evidence":[]}]}],'
-            '"constraint_check":[],"observed_evidence":[],"unknown_fields":[],'
-            '"confidence":null}。只替换骨架中的内容值，不改变键、类型或嵌套层级；'
-            "若完整多日内容可能无法闭合，先输出一个 Schema 合法的精简日程。"
+            "行程纠错必须保留九个顶层键："
+            '"style_preferences","hard_constraints","soft_constraints",'
+            '"required_itinerary_elements","itinerary","constraint_check",'
+            '"observed_evidence","unknown_fields","confidence"。'
+            "不得在任何 ] 或 } 后插入自然语言。itinerary 必须覆盖用户要求的全部天数，"
+            "day_index 从1连续递增；每天填写具体地点、活动、交通和建议时间，不能复制模板。"
+            "constraint_check 逐项记录 constraint、constraint_type、status、evidence，"
+            "evidence 必须引用实际计划，不能只自称满足要求。图片不能证明的规划地点可由"
+            "用户目的地和一般地理知识提出为建议，不假称检索或预订，不伪造实时价格。"
         )
     elif scenario == "dialogue":
         itinerary_contract = (
@@ -657,7 +1642,7 @@ def _correction_messages(
         {
             "role": "user",
             "content": (
-                "上一次输出未通过 JSON/Schema 校验。"
+                "上一次输出未通过 JSON/Schema 或业务校验。"
                 f"错误：{error}。请重新读取原输入，只输出修正后的完整 JSON；"
                 "不要续写或局部修补上一次输出，必须从第一个顶层键开始重新生成；"
                 "保留 Schema 要求的全部字段，数组严格遵守 minItems/maxItems，"
@@ -675,17 +1660,16 @@ def _json_schema_response_format(
     root: Path,
     scenario: str,
     schema_version: str,
+    *,
+    required_day_count: int | None = None,
 ) -> dict[str, Any]:
     schema = load_output_schema(root, scenario, schema_version)
     if scenario == "itinerary_planning":
         itinerary = schema["properties"]["itinerary"]
-        itinerary["maxItems"] = min(int(itinerary.get("maxItems", 4)), 4)
-        activities = itinerary["items"]["properties"]["activities"]
-        activities["maxItems"] = min(int(activities.get("maxItems", 2)), 2)
-        schema["properties"]["constraint_check"]["maxItems"] = min(
-            int(schema["properties"]["constraint_check"].get("maxItems", 12)),
-            12,
-        )
+        # 不以压缩输出为由把用户要求的五天以上行程强行截成四天。
+        if required_day_count is not None and 1 <= required_day_count <= itinerary.get("maxItems", 14):
+            itinerary["minItems"] = required_day_count
+            itinerary["maxItems"] = required_day_count
     return {
         "type": "json_schema",
         "json_schema": {
@@ -735,6 +1719,22 @@ def _transformers_messages(
                 )
             content[index] = {"type": "image", "image": url}
     return normalized
+
+
+def _prepared_input_cache_eligible(messages: list[dict[str, Any]]) -> bool:
+    """Cache only immutable inline media; remote URLs may change at the same URL."""
+
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if part.get("type") != "image":
+                continue
+            image = part.get("image")
+            if not isinstance(image, str) or not image.startswith("data:"):
+                return False
+    return True
 
 
 def _required_text(payload: dict[str, Any], field: str) -> str:

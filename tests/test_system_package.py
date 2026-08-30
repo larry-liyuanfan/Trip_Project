@@ -55,11 +55,11 @@ class SystemPackageTest(unittest.TestCase):
 
             def run_task(self, scenario, request):
                 self.tasks.append((scenario, request))
-                return Result({"scenario": scenario, "schema_valid": True})
+                return Result({"scenario": scenario, "schema_valid": True, "business_valid": True})
 
             def run_dialogue(self, request):
                 self.dialogue = request
-                return Result({"quality_tier": "DIALOGUE_BETA"})
+                return Result({"quality_tier": "DIALOGUE_BETA", "task_status": "COMPLETED"})
 
         service = Service()
         result = run_system_model_smoke.run_model_smoke(
@@ -98,9 +98,9 @@ class SystemPackageTest(unittest.TestCase):
             if url.endswith("after-sales"):
                 return Response({"scenario": "after_sales", "schema_valid": True})
             if url.endswith("itinerary-planning"):
-                return Response({"scenario": "itinerary_planning", "schema_valid": True})
+                return Response({"scenario": "itinerary_planning", "schema_valid": True, "business_valid": True})
             if url.endswith("dialogue"):
-                return Response({"quality_tier": "DIALOGUE_BETA"})
+                return Response({"quality_tier": "DIALOGUE_BETA", "task_status": "COMPLETED"})
             return Response({"retrieval_mode": "clip_milvus_hnsw_cosine", "results": []})
 
         with TemporaryDirectory() as tmpdir:
@@ -424,7 +424,7 @@ class SystemPackageTest(unittest.TestCase):
                 json.dumps({"model": {"base_model": "wrong"}, "quality": {}}),
                 encoding="utf-8",
             )
-            with patch.object(tripctl, "DEFAULT_RELEASE", release):
+            with patch.dict("os.environ", {"TRIP_RELEASE_CONFIG": str(release)}):
                 result = tripctl.validate()
 
         self.assertEqual(result["status"], "failed")

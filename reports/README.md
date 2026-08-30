@@ -25,5 +25,6 @@
 | Week 6 | `week6_qlora_quality_report.md` | 三场景 QLoRA 终态、行程业务门禁与专项优化结论 |
 | Week 6 后评审 | `week6_post_training_improvement_review.md` | 完成度判断、冻结指标短板、前沿方法映射与非污染改进门禁 |
 | Week 7 | `week7_multitask_context_report.md` | 会议版周报：核心三场景 PASS、corrected-dialogue FAIL、DPO 拒绝与证据索引 |
+| Week 8 | `week8_product_understanding_optimization_report.md` | 商品理解主任务及对话、延迟、检索并行优化的真实结果与剩余问题 |
 
 `week3_v2_recuration_status.md` 是历史过程状态，不代表当前最终结论。

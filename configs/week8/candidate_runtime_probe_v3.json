@@ -1,0 +1,23 @@
+{
+  "run_id": "week8_candidate_runtime_probe_20260828_v3",
+  "release_config": "configs/releases/qwen3_vl_week8_observation_probe_v3.json",
+  "output_root": "outputs/week8/review/week8_candidate_runtime_probe_20260828_v3",
+  "image": "outputs/week8/product_understanding_v7/locked_data/week8_product_understanding_20260827_v7/images/public/4522e1aa84ef6f0800b2b138068f56db88e8096a622ef1f842e652b9024cf6d8.jpg",
+  "image_sha256": "4522e1aa84ef6f0800b2b138068f56db88e8096a622ef1f842e652b9024cf6d8",
+  "comparison_image": "outputs/week8/product_understanding_v7/locked_data/week8_product_understanding_20260827_v7/images/public/409651563a0ebe98e1de4ace694eca633cae415a806e5c4a7409dee7139cf75c.jpg",
+  "comparison_image_sha256": "409651563a0ebe98e1de4ace694eca633cae415a806e5c4a7409dee7139cf75c",
+  "itinerary_requests": [
+    "请规划上海两日行程，使用公共交通，每天18:00前结束。",
+    "请规划北京3天行程，必须包含故宫，不去长城。",
+    "请规划杭州5天行程，使用公共交通。"
+  ],
+  "latency_repetitions_per_mode": 8,
+  "cache_modes": [
+    "uncached",
+    "processor_cached",
+    "prepared_cached"
+  ],
+  "cache_max_entries": 8,
+  "test_rows_read": false,
+  "human_annotation_count": 0
+}

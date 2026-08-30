@@ -478,7 +478,7 @@ def _caption_tags(caption: str) -> tuple[list[str], list[str]]:
 def _repair_source_richness(caption: str, description: str) -> int:
     """Prioritize auditable product slices without changing historical locks."""
     styles, facilities = _caption_tags(caption)
-    metadata_styles, metadata_facilities = _repair_business_tags(description)
+    metadata_styles, metadata_facilities = _legacy_repair_business_tags(description)
     styles = sorted(set(styles) | set(metadata_styles))
     facilities = sorted(set(facilities) | set(metadata_facilities))
     price = bool(re.search(r"RestaurantsPriceRange2\s*:\s*['\"]?([1-4])", description))
@@ -486,6 +486,12 @@ def _repair_source_richness(caption: str, description: str) -> int:
 
 
 def _repair_business_tags(description: str) -> tuple[list[str], list[str]]:
+    from src.data.product_labels import merchant_tags
+    return merchant_tags(description)
+
+
+def _legacy_repair_business_tags(description: str) -> tuple[list[str], list[str]]:
+    """Frozen Week 7/system-repair reproduction only; not new visual labels."""
     text = description.casefold()
     styles = [
         name
@@ -508,7 +514,7 @@ def _repair_business_tags(description: str) -> tuple[list[str], list[str]]:
 
 def _repair_support_flags(source: dict[str, Any]) -> dict[str, bool]:
     styles, facilities = _caption_tags(source["caption"])
-    metadata_styles, metadata_facilities = _repair_business_tags(
+    metadata_styles, metadata_facilities = _legacy_repair_business_tags(
         source["business_description"]
     )
     return {
@@ -774,7 +780,7 @@ def _product_target(source: dict[str, Any]) -> dict[str, Any]:
         }[match.group(1)]
         inferred_attributes.append("价位来自商家元数据，不作为图片直接证据")
     if repair_mode:
-        metadata_styles, metadata_facilities = _repair_business_tags(description)
+        metadata_styles, metadata_facilities = _legacy_repair_business_tags(description)
         styles = sorted(set(styles) | set(metadata_styles))
         facilities = sorted(set(facilities) | set(metadata_facilities))
         if metadata_styles or metadata_facilities:

@@ -1,0 +1,30 @@
+{
+  "run_id": "week8_style_scope_development_20260828_v1",
+  "output_root": "outputs/week8/review/week8_style_scope_development_20260828_v1",
+  "sources": {
+    "generation_identity": {
+      "path": "outputs/week8/review/week8_contract_development_20260828_v5/identity.json",
+      "sha256": "0fb3062b32c6108b484111b2837363996e1470202ded3a80c2e9b14ed589b95e"
+    },
+    "comparison": {
+      "path": "outputs/week8/review/week8_contract_comparison_20260828_v5/comparison.json",
+      "sha256": "dfcba0f0bcfdf66d208b80b0f72426a040cf7a36016591011cfee527cf128024"
+    },
+    "references": {
+      "path": "outputs/week8/review/week8_visual_teacher_development_20260828_v3/raw_outputs.jsonl",
+      "sha256": "19a5eeb588158deb991724868b8c14fd2386af7dccae3d895520b8baef9ad194"
+    },
+    "incumbent_raw": {
+      "path": "outputs/week8/review/week8_contract_development_20260828_v5/observation_base.jsonl",
+      "sha256": "96e2b6d9b9786c9bb8c00aa3c60144799fa8719e9b14fc1fe4830597fabcb4a7"
+    },
+    "formal_raw": {
+      "path": "outputs/week8/review/week8_contract_development_20260828_v5/formal_adapter.jsonl",
+      "sha256": "bed73892ad3eef22a8d7b4ca8e132231d718bec1080b761a69d450696e5c6ee0"
+    }
+  },
+  "original_observation": "configs/week8/product_observation_v3.json",
+  "scoped_observation": "configs/week8/product_observation_scope_v1.json",
+  "final_test_access": false,
+  "human_annotation_count": 0
+}

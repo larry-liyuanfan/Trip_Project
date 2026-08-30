@@ -6,21 +6,38 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
+import shutil
+import subprocess
+import sys
 import tarfile
-from pathlib import Path
+import tempfile
+from pathlib import Path, PurePosixPath
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RELEASE_CONFIG = ROOT / "configs/releases/qwen3_vl_system_v1.json"
 RUNTIME_PATHS = [
+    "src/__init__.py",
     "src/api",
     "src/inference",
     "src/retrieval",
+    "src/planning",
+    "src/data/__init__.py",
+    "src/data/yelp_paths.py",
+    "src/data/product_labels.py",
+    "src/evaluation/__init__.py",
+    "src/evaluation/scenarios.py",
     "src/evaluation/schema_validation.py",
     "src/evaluation/prompting.py",
+    "src/evaluation/product_semantics.py",
     "configs/evaluation/prompts",
     "configs/evaluation/schemas",
     "configs/releases",
+    "configs/retrieval",
+    "configs/week8/product_observation_v1.json",
+    "configs/week8/product_observation_v2.json",
+    "configs/week8/product_observation_v3.json",
     "docker/system",
     "scripts/tripctl.py",
     "scripts/load_system_retrieval.py",
@@ -28,6 +45,57 @@ RUNTIME_PATHS = [
     "requirements-training.txt",
     "requirements-milvus.txt",
 ]
+
+
+def runtime_paths(release: dict) -> list[str]:
+    """Include the actual selected observation config, not just historical versions."""
+    paths = list(RUNTIME_PATHS)
+    selected = release.get("product_pipeline", {}).get("config")
+    if selected is not None:
+        if not isinstance(selected, str):
+            raise ValueError("runtime observation config must be a repository JSON path")
+        relative = PurePosixPath(selected.replace("\\", "/"))
+        if (relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("configs",)
+                or relative.suffix != ".json"):
+            raise ValueError("runtime observation config must stay inside repository configs")
+        (ROOT / relative).resolve().relative_to(ROOT.resolve())
+        # 目录已包含目标时不重复归档；禁止通过目标配置带入密钥等非配置文件。
+        if not any(relative == PurePosixPath(path) or PurePosixPath(path) in relative.parents for path in paths):
+            paths.append(relative.as_posix())
+    return paths
+
+
+def verify_runtime_archive(archive_path: Path) -> dict:
+    """隔离导入打包后服务，不能借用源工作树掩盖缺失的运行依赖。"""
+    with tempfile.TemporaryDirectory(prefix="trip-runtime-verify-") as temporary:
+        root = Path(temporary).resolve()
+        with tarfile.open(archive_path, "r:gz") as archive:
+            for member in archive.getmembers():
+                destination = (root / member.name).resolve()
+                destination.relative_to(root)
+                if not member.isfile():
+                    raise ValueError("runtime archive may contain only regular files")
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with archive.extractfile(member) as source, destination.open("xb") as target:
+                    shutil.copyfileobj(source, target)
+        code = ("import json,sys; from pathlib import Path; root=Path.cwd(); sys.path.insert(0,str(root)); "
+                "from src.api.app import app; from src.inference.system_runtime import ReleaseSettings; "
+                "from src.retrieval.visual_search import VisualSearchService; "
+                "settings=ReleaseSettings.load(root,root/'release/release_config.json'); "
+                "paths=sorted(app.openapi()['paths']); "
+                "required={'/health','/ready','/v1/tasks/image-product-search','/v1/tasks/after-sales',"
+                "'/v1/tasks/itinerary-planning','/v1/dialogue','/v1/visual-search'}; "
+                "missing=required-set(paths)\n"
+                "if missing: raise ValueError('required business routes missing: '+','.join(sorted(missing)))\n"
+                "print(json.dumps({'status':'PASS','release_id':settings.release_id,"
+                "'route_count':len(app.routes),'registered_paths':paths,'required_business_paths_present':True,"
+                "'observation_loaded':settings.product_observation is not None}))")
+        result = subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", code], cwd=root,
+                                env=dict(os.environ, APP_ENV="production", PYTHONIOENCODING="utf-8"),
+                                capture_output=True, text=True, encoding="utf-8", timeout=60)
+        if result.returncode:
+            raise ValueError("isolated runtime import failed: " + result.stderr[-2000:])
+        return json.loads(result.stdout)
 
 
 def build_bundle(
@@ -52,7 +120,7 @@ def build_bundle(
         "runtime": _archive(
             output_dir / "runtime.tar.gz",
             [
-                *((ROOT / path, Path(path)) for path in RUNTIME_PATHS),
+                *((ROOT / path, Path(path)) for path in runtime_paths(release)),
                 (release_config, Path("release/release_config.json")),
             ],
         ),

@@ -3,6 +3,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -13,6 +14,8 @@ from src.inference.schemas import (
     DialogueRequest,
     ImageUnderstandingRequest,
     TaskRequest,
+    SingleImageTaskRequest,
+    ItineraryTaskRequest,
     TravelPlanningRequest,
     VisualSearchRequest,
 )
@@ -28,8 +31,11 @@ from src.retrieval.index_builder import load_jsonl
 from src.retrieval.clip_embeddings import CLIPImageEncoder
 from src.retrieval.milvus_vectors import OTAMilvusVectorStore, load_milvus_config
 from src.retrieval.visual_search import VisualSearchService
+from src.retrieval.query_inputs import user_query_attributes, unapplied_query_text
 
 router = APIRouter()
+_scenario_service_lock = Lock()
+_visual_search_service_lock = Lock()
 
 
 @router.get("/health")
@@ -64,24 +70,27 @@ def readiness() -> dict[str, Any]:
 @router.post("/v1/image-understanding")
 def image_understanding(request: ImageUnderstandingRequest) -> dict[str, Any]:
     """Extract structured travel signals from one or more images."""
-    response = VLLMClient().understand_images(request)
+    try:
+        response = VLLMClient().understand_images(request)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="legacy model endpoint is unavailable") from exc
     return response.model_dump()
 
 
 @router.post("/v1/tasks/image-product-search")
-def image_product_search(request: TaskRequest) -> dict[str, Any]:
+def image_product_search(request: SingleImageTaskRequest) -> dict[str, Any]:
     """Run the release-locked image product understanding contract."""
     return _run_scenario("image_product_search", request)
 
 
 @router.post("/v1/tasks/after-sales")
-def after_sales(request: TaskRequest) -> dict[str, Any]:
+def after_sales(request: SingleImageTaskRequest) -> dict[str, Any]:
     """Run the release-locked after-sales evidence contract."""
     return _run_scenario("after_sales", request)
 
 
 @router.post("/v1/tasks/itinerary-planning")
-def itinerary_planning(request: TaskRequest) -> dict[str, Any]:
+def itinerary_planning(request: ItineraryTaskRequest) -> dict[str, Any]:
     """Run the release-locked multimodal itinerary contract."""
     return _run_scenario("itinerary_planning", request)
 
@@ -103,13 +112,15 @@ def dialogue(request: DialogueRequest) -> dict[str, Any]:
 def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
     """Combine VLM-derived terms with the current hybrid retrieval baseline."""
     if os.getenv("APP_ENV", "").strip().lower() == "production":
-        if len(request.image_urls) != 1:
+        if not request.image_urls and not request.query_text.strip():
+            raise HTTPException(status_code=422, detail="search requires an image or query text")
+        if len(request.image_urls) > 1 or (request.retrieval_mode == "embedding" and not request.image_urls):
             raise HTTPException(
                 status_code=422,
-                detail="production visual search requires exactly one image",
+                detail="embedding search requires one image; keyword/hybrid accept zero or one",
             )
         try:
-            image_path = _local_image_path(request.image_urls[0])
+            image_path = _local_image_path(request.image_urls[0]) if request.image_urls else None
         except RuntimeConfigurationError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         try:
@@ -119,27 +130,39 @@ def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
                 status_code=503,
                 detail=f"visual-search dependencies are unavailable: {exc}",
             ) from exc
-        filters = {"city": request.city} if request.city else None
+        filters = {key: getattr(request, key) for key in ("city", "business_category", "price_range") if getattr(request, key)}
         try:
             results = service.search(
                 image_path,
                 top_k=request.top_k,
                 filters=filters,
+                query_text=request.query_text,
+                retrieval_mode=request.retrieval_mode,
             )
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"visual search failed: {exc}") from exc
+        query_attributes = user_query_attributes(request.query_text, filters)
+        unapplied = unapplied_query_text(request.query_text, query_attributes)
         return {
-            "retrieval_mode": "clip_milvus_hnsw_cosine",
+            "retrieval_mode": "clip_milvus_hnsw_cosine" if request.retrieval_mode == "embedding" else request.retrieval_mode,
+            "query_text": request.query_text,
+            "query_attributes": query_attributes,
+            "query_status": "PARTIAL_UNSUPPORTED_CONSTRAINTS" if unapplied else "COMPLETED",
+            "unapplied_query_text": unapplied,
+            "text_interpretation": "structured_category_price_disjunction_and_explicit_city_only",
             "embedding_model": "openai/clip-vit-base-patch32",
             "results": results,
         }
-    understanding = VLLMClient().understand_images(
-        ImageUnderstandingRequest(
-            image_urls=request.image_urls,
-            user_text=request.query_text,
-            language="zh",
+    try:
+        understanding = VLLMClient().understand_images(
+            ImageUnderstandingRequest(
+                image_urls=request.image_urls,
+                user_text=request.query_text,
+                language="zh",
+            )
         )
-    )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="legacy model endpoint is unavailable") from exc
     query_terms = " ".join(
         [
             request.query_text,
@@ -163,6 +186,11 @@ def visual_search(request: VisualSearchRequest) -> dict[str, Any]:
 @router.post("/v1/travel-planning")
 def travel_planning(request: TravelPlanningRequest) -> dict[str, Any]:
     """Retrieve candidate POIs and build a preference-aware sample itinerary."""
+    if os.getenv("APP_ENV", "").strip().lower() == "production":
+        raise HTTPException(
+            status_code=404,
+            detail="sample-catalog planner is disabled in production; use /v1/tasks/itinerary-planning",
+        )
     catalog = _load_sample_catalog()
     query = " ".join(request.reviews + request.preferences.get("interests", []))
     candidates = HybridRetriever(catalog).search(query, top_k=4) or catalog[:2]
@@ -177,15 +205,36 @@ def _load_sample_catalog() -> list[dict[str, Any]]:
     return load_jsonl(path)
 
 
-@lru_cache(maxsize=1)
 def get_scenario_service() -> ScenarioService:
     """Create one lazy process-local model service."""
-    return build_service()
+    # lru_cache 本身允许并发首次 miss 重复执行；必须在缓存查找外串行化。
+    with _scenario_service_lock:
+        return _cached_scenario_service()
 
 
 @lru_cache(maxsize=1)
+def _cached_scenario_service() -> ScenarioService:
+    service = build_service()
+    service.retrieval_runner = _run_dialogue_retrieval
+    return service
+
+
+def _run_dialogue_retrieval(text, images, state):
+    try:
+        return visual_search(VisualSearchRequest(query_text=text, image_urls=images,
+                            city=state.get("city"), retrieval_mode="hybrid"))
+    except HTTPException as exc:
+        raise ModelGenerationError(f"retrieval failed ({exc.status_code}): {exc.detail}") from exc
+
+
 def get_visual_search_service() -> VisualSearchService:
     """Build the configured CLIP/Milvus production retrieval service."""
+    with _visual_search_service_lock:
+        return _cached_visual_search_service()
+
+
+@lru_cache(maxsize=1)
+def _cached_visual_search_service() -> VisualSearchService:
     config_path = Path(
         os.getenv("MILVUS_CONFIG", "docker/system/milvus_system.yaml")
     )
@@ -218,8 +267,13 @@ def _retrieval_readiness() -> dict[str, dict[str, Any]]:
 
 
 def _run_scenario(scenario: str, request: TaskRequest) -> dict[str, Any]:
+    from pydantic import ValidationError
     try:
+        contract = ItineraryTaskRequest if scenario == "itinerary_planning" else SingleImageTaskRequest
+        request = contract.model_validate(request.model_dump())
         return get_scenario_service().run_task(scenario, request).model_dump()
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ModelGenerationError as exc:

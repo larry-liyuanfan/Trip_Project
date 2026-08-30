@@ -1,0 +1,4 @@
+scenario: image_product_search
+schema_name: image_product_search_v1.schema.json
+task_instruction: >-
+  识别图片主体及直接可见的风格和设施。business_category 为 hotel、restaurant、attraction、other 或 unknown；仅有一道菜时不能确定经营场所，主体模糊或多个不相关主体时用 unknown。style_tags 用简短英文风格标签，可多选，但不能由菜品或商家类别猜装潢。visible_facilities 只记录照片中实际出现的设施，例如确实可见的座椅、吧台、泳池、停车位等；室内照片不能据商家常见设施推断 parking、wifi、spa。不得把拍不到当成不存在。price_range 缺少明确价格标识、单位和可比较口径时为 unknown，装修档次不是价格证据。observed_evidence 写最多 5 条具体可见事实；inferred_attributes 为空数组，不输出猜测。unknown_fields 列出证据不足的字段名，confidence 只表达当前图像判断的不确定性。

@@ -1,0 +1,19 @@
+{
+  "protocol": "independent_image_model_observation_silver_v3",
+  "run_id": "week8_visual_teacher_final_20260828_v3",
+  "manifest": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v3/manifest.jsonl",
+  "model": "qwen3.7-plus",
+  "observation_config": "configs/week8/product_observation_v1.json",
+  "output_root": "outputs/week8/visual_holdout/week8_visual_holdout_20260828_v3/teacher",
+  "max_tokens": 1200,
+  "max_attempts": 4,
+  "concurrency": 2,
+  "timeout_seconds": 120,
+  "label_source": "model_generated_silver",
+  "sample_weight": 0.5,
+  "human_annotation_count": 0,
+  "final_test_access": true,
+  "system_prompt": "Image-only independent silver teacher.",
+  "task_prompt": "Use the versioned observation contract without candidate outputs or merchant metadata.",
+  "retry_protocol": "bounded_history_correction_v1"
+}

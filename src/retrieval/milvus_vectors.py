@@ -200,6 +200,12 @@ class OTAMilvusVectorStore:
             output_fields=sorted(FILTER_FIELDS),
         )
 
+    def query_metadata(self, *, filters: dict[str, Any], limit: int = 100) -> list[dict[str, Any]]:
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise MilvusVectorError("metadata candidate limit must be between 1 and 1000")
+        return self.client.query(collection_name=self.collection, filter=build_filter_expression(filters),
+                                 limit=limit, output_fields=["vector_id", *sorted(FILTER_FIELDS)])
+
     def delete(self, filters: dict[str, Any]) -> dict[str, Any]:
         """Delete entities selected only through the scalar-filter whitelist."""
         expression = build_filter_expression(filters)

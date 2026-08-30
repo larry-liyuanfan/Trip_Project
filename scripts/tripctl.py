@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -15,6 +16,9 @@ import requests
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from src.inference.release_config import resolve_release_config
+from src.inference.system_runtime import ReleaseSettings, RuntimeConfigurationError
 DEFAULT_RELEASE = ROOT / "configs/releases/qwen3_vl_system_v1.json"
 DEFAULT_SMOKE_IMAGE = ROOT / "data/samples/images/cafe_001.jpg"
 
@@ -22,11 +26,16 @@ DEFAULT_SMOKE_IMAGE = ROOT / "data/samples/images/cafe_001.jpg"
 def doctor() -> dict[str, Any]:
     """Inspect required tools and local artifacts without starting services."""
     adapter = Path(os.getenv("TRIP_ADAPTER_DIR", "")) if os.getenv("TRIP_ADAPTER_DIR") else None
+    try:
+        selected = resolve_release_config(ROOT)
+        release_check = {"ok": True, "detail": str(selected)}
+    except ValueError as exc:
+        release_check = {"ok": False, "detail": str(exc)}
     checks = {
         "python": {"ok": sys.version_info >= (3, 10), "detail": sys.version.split()[0]},
         "docker_cli": {"ok": shutil.which("docker") is not None},
         "nvidia_smi": {"ok": shutil.which("nvidia-smi") is not None},
-        "release_config": {"ok": DEFAULT_RELEASE.is_file(), "detail": str(DEFAULT_RELEASE)},
+        "release_config": release_check,
         "adapter_dir": {
             "ok": bool(adapter and (adapter / "adapter_model.safetensors").is_file()),
             "detail": str(adapter) if adapter else "TRIP_ADAPTER_DIR is unset",
@@ -39,21 +48,37 @@ def validate() -> dict[str, Any]:
     """Validate tracked release and Compose configuration without model loading."""
     errors = []
     try:
-        payload = json.loads(DEFAULT_RELEASE.read_text(encoding="utf-8"))
+        selected = resolve_release_config(ROOT)
+        ReleaseSettings.load(root=ROOT, config_path=selected)
+        payload = json.loads(selected.read_text(encoding="utf-8"))
         if payload.get("model", {}).get("base_model") != "Qwen/Qwen3-VL-8B-Instruct":
             errors.append("release base_model is not Qwen3-VL-8B-Instruct")
-        if payload.get("quality", {}).get("dialogue") != "DIALOGUE_BETA":
-            errors.append("release dialogue tier is not DIALOGUE_BETA")
-    except (OSError, json.JSONDecodeError) as exc:
+        # quality 是历史评测说明，不是运行契约；候选的确定性路由也对外返回 DIALOGUE_BETA。
+        # 运行参数的合法性由与服务共享的 ReleaseSettings.load 校验。
+    except (OSError, ValueError, RuntimeConfigurationError) as exc:
         errors.append(f"release config invalid: {exc}")
     compose = ROOT / "docker/system/docker-compose.yml"
     if not compose.is_file():
         errors.append("system Compose is missing")
-    return {"status": "ok" if not errors else "failed", "errors": errors}
+    return {"status": "ok" if not errors else "failed", "errors": errors,
+            "release_config_sha256": hashlib.sha256(selected.read_bytes()).hexdigest() if "selected" in locals() and selected.is_file() else None,
+            "release_config": str(selected) if "selected" in locals() else None}
+
+
+def compose(arguments: list[str]) -> int:
+    """将同一配置绝对路径交给 Compose，消除相对路径基准差异。"""
+    selected = resolve_release_config(ROOT)
+    ReleaseSettings.load(root=ROOT, config_path=selected)
+    environment = dict(os.environ, TRIP_RELEASE_CONFIG=str(selected))
+    return subprocess.call(["docker", "compose", "-f", str(ROOT / "docker/system/docker-compose.yml"), *arguments],
+                           cwd=ROOT, env=environment)
 
 
 def serve() -> int:
     """Replace the current process with the documented API server."""
+    selected = resolve_release_config(ROOT)
+    ReleaseSettings.load(root=ROOT, config_path=selected)
+    os.environ["TRIP_RELEASE_CONFIG"] = str(selected)
     return subprocess.call(
         [
             sys.executable,
@@ -111,6 +136,7 @@ def smoke(base_url: str, image_path: Path = DEFAULT_SMOKE_IMAGE) -> dict[str, An
             {"image_urls": [str(image_path)], "text_context": text_context},
             lambda body, expected=scenario: (
                 body.get("scenario") == expected and body.get("schema_valid") is True
+                and (expected != "itinerary_planning" or body.get("business_valid") is True)
             ),
         )
     _post_smoke(
@@ -122,7 +148,7 @@ def smoke(base_url: str, image_path: Path = DEFAULT_SMOKE_IMAGE) -> dict[str, An
             "image_urls": [str(image_path)],
             "state": {"city": "Shanghai", "days": 2},
         },
-        lambda body: body.get("quality_tier") == "DIALOGUE_BETA",
+        lambda body: body.get("quality_tier") == "DIALOGUE_BETA" and body.get("task_status") == "COMPLETED",
     )
     _post_smoke(
         results,
@@ -166,16 +192,23 @@ def _post_smoke(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--release-config", type=Path)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("doctor")
     subparsers.add_parser("validate")
     subparsers.add_parser("serve")
+    compose_parser = subparsers.add_parser("compose")
+    compose_parser.add_argument("arguments", nargs=argparse.REMAINDER)
     smoke_parser = subparsers.add_parser("smoke")
     smoke_parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     smoke_parser.add_argument("--image-path", type=Path, default=DEFAULT_SMOKE_IMAGE)
     args = parser.parse_args()
+    if args.release_config is not None:
+        os.environ["TRIP_RELEASE_CONFIG"] = str(args.release_config)
     if args.command == "serve":
         raise SystemExit(serve())
+    if args.command == "compose":
+        raise SystemExit(compose(args.arguments))
     result = (
         smoke(args.base_url, args.image_path)
         if args.command == "smoke"

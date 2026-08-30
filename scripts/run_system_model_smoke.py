@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run four real production-model scenarios without consuming evaluation data."""
+"""Run production-model smoke; the default image is only a transport fixture."""
 
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.inference.schemas import DialogueRequest, TaskRequest
+from src.evaluation.schema_validation import validate_output
+from src.inference.transport_utils import strip_json_fence
 from src.inference.system_runtime import (
     ModelGenerationError,
     ReleaseSettings,
@@ -35,15 +37,23 @@ def run_model_smoke(service: ScenarioService, image_path: Path) -> dict[str, Any
         "after_sales": None,
         "itinerary_planning": "规划上海两日行程，预算适中，偏好安静的文化体验。",
     }
-    results = {
-        scenario: service.run_task(
-            scenario,
-            TaskRequest(image_urls=[image], text_context=text_context),
-        ).model_dump()
-        for scenario, text_context in tasks.items()
-    }
-    dialogue = service.run_dialogue(
-        DialogueRequest(
+    results = {}
+    for scenario, text_context in tasks.items():
+        try:
+            results[scenario] = service.run_task(scenario, TaskRequest(image_urls=[image], text_context=text_context)).model_dump()
+        except ModelGenerationError as exc:
+            schema_valid = False
+            if exc.attempts:
+                try:
+                    payload = json.loads(strip_json_fence(exc.attempts[-1].raw_output))
+                    validate_output(service.settings.root, scenario, payload, service.settings.schema_versions[scenario])
+                    schema_valid = True
+                except (ValueError, TypeError):
+                    pass
+            results[scenario] = {"schema_valid": schema_valid, "business_valid": False,
+                                 "error": str(exc), "attempts": [item.model_dump() for item in exc.attempts]}
+    try:
+        dialogue = service.run_dialogue(DialogueRequest(
             messages=[
                 {
                     "role": "user",
@@ -52,12 +62,18 @@ def run_model_smoke(service: ScenarioService, image_path: Path) -> dict[str, Any
             ],
             image_urls=[image],
             state={"city": "Shanghai", "days": 2},
-        )
-    ).model_dump()
-    passed = all(item.get("schema_valid") is True for item in results.values())
-    passed = passed and dialogue.get("quality_tier") == "DIALOGUE_BETA"
+        )).model_dump()
+    except ModelGenerationError as exc:
+        dialogue = {"task_status": "NOT_COMPLETED", "error": str(exc),
+                    "attempts": [item.model_dump() for item in exc.attempts]}
+    technical = all(item.get("schema_valid") is True for item in results.values())
+    technical = technical and dialogue.get("quality_tier") == "DIALOGUE_BETA"
+    passed = technical and results["itinerary_planning"].get("business_valid") is True and dialogue.get("task_status") == "COMPLETED"
     return {
         "status": "PASS" if passed else "FAIL",
+        "technical_status": "PASS" if technical else "FAIL",
+        "business_status": "PASS" if passed else "FAIL",
+        "product_visual_accuracy": "NOT_ASSESSED_BY_SMOKE",
         "scenarios": results,
         "dialogue": dialogue,
     }
@@ -85,10 +101,16 @@ def main() -> None:
         type=Path,
     )
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--expected-image-sha256", help="optional immutable real-photo identity")
     args = parser.parse_args()
     output = args.output.resolve()
     if output.exists():
         raise SystemExit(f"refusing to overwrite model smoke evidence: {output}")
+    if args.expected_image_sha256 and _sha256(args.image) != args.expected_image_sha256:
+        raise SystemExit("smoke image SHA-256 mismatch")
+    from PIL import Image
+    with Image.open(args.image) as image_source:
+        image_dimensions = list(image_source.size)
     os.environ["TRIP_ADAPTER_DIR"] = str(args.adapter_dir.resolve())
     settings = ReleaseSettings.load(
         root=ROOT,
@@ -117,6 +139,8 @@ def main() -> None:
             args.adapter_dir / "adapter_model.safetensors"
         ),
         "sample_image_sha256": _sha256(args.image),
+        "sample_image_dimensions": image_dimensions,
+        "sample_image_identity_pinned": bool(args.expected_image_sha256),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("x", encoding="utf-8", newline="\n") as handle:
