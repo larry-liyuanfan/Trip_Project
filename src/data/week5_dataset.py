@@ -223,6 +223,7 @@ def _candidate_record(
     image_path: str, image_sha256: str, group_id: str, text_constraints: str | None,
     sampling_metadata: dict[str, Any], constraint_template_id: str | None = None,
 ) -> dict[str, Any]:
+    """Create a candidate with provenance and an explicitly unfinished workflow."""
     return {
         "sample_id": _sample_id(scenario, source_id, constraint_template_id or ""),
         "scenario": scenario,
@@ -256,6 +257,7 @@ def _candidate_record(
 def _check_candidate_isolation(
     candidate: dict[str, Any], exclusions: dict[str, set[str]], used_hashes: set[str]
 ) -> bool:
+    """Reject frozen-set identity collisions and duplicate image bytes."""
     provenance = candidate["provenance"]
     checks = (
         ("source_id", candidate["source_id"]),
@@ -279,6 +281,7 @@ def _public_after_sales_candidates(
     root: Path, config: dict[str, Any], exclusions: dict[str, set[str]], used_hashes: set[str],
     hash_cache: _ImageHashCache,
 ) -> list[dict[str, Any]]:
+    """Route weak public evidence into balanced, non-gold after-sales candidates."""
     import pyarrow.parquet as pq
 
     path = root / config["paths"]["weak_pairs"]
@@ -342,6 +345,7 @@ def _fill_synthetic_after_sales(
     root: Path, config: dict[str, Any], rows: list[dict[str, Any]],
     exclusions: dict[str, set[str]], used_hashes: set[str], hash_cache: _ImageHashCache,
 ) -> None:
+    """Fill missing issue strata with traceable synthetic evidence cards."""
     counts = Counter(row["sampling_metadata"]["issue_route"] for row in rows)
     image_dir = root / config["paths"]["output_dir"] / "synthetic_after_sales"
     severities = ("low", "medium", "high", "critical")
@@ -371,6 +375,7 @@ def _select_photo_rows(
     exclusions: dict[str, set[str]], used_hashes: set[str], scenario: str,
     target: int, hash_cache: _ImageHashCache,
 ) -> list[dict[str, Any]]:
+    """Select deterministic, isolated Yelp photos for one business scenario."""
     import pyarrow.parquet as pq
 
     ranked: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
@@ -495,6 +500,7 @@ def validate_candidate_record(
     root: Path, config: dict[str, Any], row: dict[str, Any],
     hash_cache: _ImageHashCache | None = None,
 ) -> None:
+    """Recheck candidate identity, image bytes, and recorded isolation claims."""
     scenario = row.get("scenario")
     if scenario not in SCENARIOS:
         raise Week5DataError("invalid candidate scenario")
@@ -578,6 +584,7 @@ def initialize_workflow_v2_sidecar(
 def validate_workflow_v2_sidecar(
     root: Path, config: dict[str, Any], scenario: str,
 ) -> dict[str, Any]:
+    """Verify sidecar records still bind byte-for-byte to the candidate manifest."""
     if scenario not in SCENARIOS:
         raise Week5DataError(f"unsupported scenario: {scenario}")
     pool_path = root / config["paths"]["output_dir"] / "pools" / f"{scenario}.jsonl"
@@ -748,6 +755,7 @@ def validate_dialogue(dialogue: dict[str, Any]) -> None:
 
 
 def validate_dialogue_v2(root: Path, dialogue: dict[str, Any]) -> None:
+    """Validate role order, image references, provenance, and review state."""
     required = {
         "schema_version", "dialogue_id", "scenario", "image_resources", "turns",
         "source_sample_ids", "generation", "human_review", "qc",
@@ -817,6 +825,7 @@ def workflow_summary(
     *,
     dialogue_run_id: str | None = None,
 ) -> dict[str, Any]:
+    """Count workflow stages without promoting model output to human acceptance."""
     output = root / config["paths"]["output_dir"]
     result: dict[str, Any] = {"scenarios": {}, "dialogues": {"candidate": 0, "human_validated": 0, "final_qualified": 0}}
     for scenario in SCENARIOS:

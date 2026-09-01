@@ -430,6 +430,7 @@ def _render_request(
     input_metadata: dict[str, Any],
     prompt_version: str,
 ) -> dict[str, Any]:
+    """Render one manifest record through the selected immutable prompt version."""
     if prompt_version == "baseline_minimal_v1":
         return render_baseline_request(root, scenario, input_metadata)
     return render_standard_prompt(
@@ -459,6 +460,7 @@ def _rendered_schema_version(rendered: dict[str, Any]) -> str:
 
 
 def _infer_dataset_version(records: list[dict[str, Any]]) -> str:
+    """Require a single dataset identity when callers omit an explicit version."""
     versions = {
         record.get("dataset_version")
         for record in records
@@ -477,6 +479,7 @@ def _build_chat_payload(
     rendered: dict[str, Any],
     runtime: dict[str, Any],
 ) -> dict[str, Any]:
+    """Translate rendered multimodal messages into the served chat contract."""
     messages = copy.deepcopy(rendered["messages"])
     for message in messages:
         content = message.get("content")
@@ -646,6 +649,7 @@ def model_request_headers() -> dict[str, str]:
 
 
 def _validate_runtime(runtime: dict[str, Any]) -> None:
+    """Fail before creating a run directory when runtime identity is incomplete."""
     if not isinstance(runtime, dict):
         raise EvaluationRunError("runtime must be a mapping")
     for field in ("model_name", "served_model_name", "live_base_url"):

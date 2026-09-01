@@ -142,6 +142,7 @@ class ReleaseSettings:
         root: Path | None = None,
         config_path: Path | None = None,
     ) -> "ReleaseSettings":
+        """Load and cross-check every runtime identity before backend creation."""
         project_root = (root or Path(__file__).resolve().parents[2]).resolve()
         try:
             selected_path = resolve_release_config(project_root, config_path)
@@ -293,6 +294,7 @@ class OpenAICompatibleBackend:
         self.timeout_seconds = int(os.getenv("MODEL_TIMEOUT_SECONDS", "180"))
 
     def ready(self) -> tuple[bool, str]:
+        """Check endpoint configuration and the locally bound adapter identity."""
         if not self.base_url:
             return False, "MODEL_API_BASE_URL is not configured"
         return self.settings.validate_adapter()
@@ -304,6 +306,7 @@ class OpenAICompatibleBackend:
         response_format: dict[str, Any] | None,
         max_new_tokens: int,
     ) -> str:
+        """Call an OpenAI-compatible endpoint without local semantic fallback."""
         ready, reason = self.ready()
         if not ready:
             raise RuntimeConfigurationError(reason)
@@ -341,6 +344,7 @@ class OpenAICompatibleBackend:
 
 
 def _disabled_adapter_scenarios(model):
+    """Validate the explicit scenarios that must run against the base model."""
     disabled = model.get("adapter_disabled_scenarios", [])
     if (not isinstance(disabled, list) or any(not isinstance(value, str) or value not in {"image_product_search", "after_sales", "itinerary_planning", "dialogue"} for value in disabled)
             or len(set(disabled)) != len(disabled)):
@@ -349,6 +353,7 @@ def _disabled_adapter_scenarios(model):
 
 
 def _load_release_observation(root, payload):
+    """Load the hash-bound product observation config inside the project root."""
     pipeline = payload.get("product_pipeline")
     if pipeline is None:
         return None
@@ -419,6 +424,7 @@ class TransformersPeftBackend:
                 yield
 
     def ready(self) -> tuple[bool, str]:
+        """Verify artifacts and complete lazy model loading before publishing ready."""
         if self.settings is not None:
             valid, reason = self.settings.validate_adapter()
             if not valid:
@@ -438,6 +444,7 @@ class TransformersPeftBackend:
         response_format: dict[str, Any] | None,
         max_new_tokens: int,
     ) -> str:
+        """Generate text through the token-accounting path used by all scenarios."""
         return self.generate_with_usage(
             messages,
             response_format=response_format,
@@ -463,6 +470,7 @@ class TransformersPeftBackend:
         self, messages: list[dict[str, Any]], *,
         response_format: dict[str, Any] | None, max_new_tokens: int,
     ) -> GenerationResult:
+        """Prepare cached multimodal inputs and run one serialized generation."""
 
         self._ensure_loaded()
         try:
@@ -581,6 +589,7 @@ class TransformersPeftBackend:
             self._ensure_loaded_locked()
 
     def _ensure_loaded_locked(self) -> None:
+        """Atomically initialize processor, quantized base model, and PEFT adapter."""
         if self._model is not None:
             return
         valid, reason = self.settings.validate_adapter()
@@ -644,6 +653,7 @@ class ScenarioService:
         dialogue_semantic_fallback_enabled: bool | None = None,
         retrieval_runner: Any | None = None,
     ) -> None:
+        """Bind one validated release to a backend and optional retrieval runner."""
         self.settings = settings
         self.backend = backend
         self.retrieval_runner = retrieval_runner
@@ -686,6 +696,7 @@ class ScenarioService:
             )
 
     def ready(self) -> dict[str, Any]:
+        """Return component-level readiness without converting failures to success."""
         adapter_ready, adapter_reason = self.settings.validate_adapter()
         backend_ready, backend_reason = self.backend.ready()
         schema_errors = []
@@ -728,6 +739,7 @@ class ScenarioService:
         }
 
     def run_task(self, scenario: str, request: TaskRequest) -> TaskResponse:
+        """Run one release scenario and apply its Schema and business contract."""
         from src.inference.schemas import SingleImageTaskRequest, ItineraryTaskRequest
         contract = ItineraryTaskRequest if scenario == "itinerary_planning" else SingleImageTaskRequest
         request = contract.model_validate(request.model_dump())
@@ -793,6 +805,7 @@ class ScenarioService:
         return nullcontext()
 
     def run_dialogue(self, request: DialogueRequest) -> DialogueResponse:
+        """Update dialogue state, dispatch any task, and retain partial failures."""
         if self.dialogue_execution_mode == "deterministic_contract_v1":
             return self._run_deterministic_dialogue(request)
         messages = _dialogue_messages(
@@ -1047,6 +1060,7 @@ class ScenarioService:
         response_format: dict[str, Any] | None,
         business_context: str | None = None,
     ) -> tuple[dict[str, Any], list[ModelAttempt]]:
+        """Generate structured output with at most the release-approved retry count."""
         attempts: list[ModelAttempt] = []
         active_messages = list(messages)
         active_response_format = response_format
@@ -1112,6 +1126,7 @@ class ScenarioService:
         self,
         messages: list[dict[str, Any]],
     ) -> tuple[DialogueModelOutput, list[ModelAttempt]]:
+        """Generate and validate the model-authored portion of a dialogue turn."""
         attempts: list[ModelAttempt] = []
         active_messages = list(messages)
         active_response_format: dict[str, Any] = (
@@ -1311,6 +1326,7 @@ def _validate_dialogue_v3_payload(payload: dict[str, Any]) -> None:
 
 
 def _is_finite_dialogue_value(value: Any) -> bool:
+    """Limit dialogue state and tool arguments to finite JSON scalar values."""
     if value is None or isinstance(value, (str, bool)):
         return True
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -1409,11 +1425,13 @@ def _parse_deterministic_state_updates(
 
 
 def _match_is_negated(text: str, start: int) -> bool:
+    """Detect short clause-local negation before an otherwise positive update cue."""
     prefix = re.split(r"[，。；,;!?！？\n]", text[:start])[-1][-8:]
     return any(marker in prefix for marker in ("不要", "别", "无需", "不需要"))
 
 
 def _parse_positive_days(value: str) -> int | None:
+    """Parse explicit trip duration tokens without accepting ranges or decimals."""
     if value.startswith(("-", "负")) or "." in value:
         return None
     if value.isdigit():
@@ -1454,6 +1472,7 @@ def _deterministic_dialogue_reply(
     *,
     fallback_failed: bool,
 ) -> str:
+    """Acknowledge state changes without claiming that a business task ran."""
     if fallback_failed and not updates:
         return "未能可靠解析新的状态变化，已保留原状态，请换一种简短说法。"
     if updates:
@@ -1476,6 +1495,7 @@ def _deterministic_dialogue_reply(
 def _state_update_fallback_messages(
     request: DialogueRequest,
 ) -> list[dict[str, Any]]:
+    """Ask the model only for state extraction when deterministic parsing is ambiguous."""
     latest_user = next(
         (turn.content for turn in reversed(request.messages) if turn.role == "user"),
         "",
@@ -1501,6 +1521,7 @@ def _state_update_fallback_messages(
 
 
 def _state_update_fallback_response_format() -> dict[str, Any]:
+    """Constrain fallback state extraction to a bounded scalar-only object."""
     finite_value = {"type": ["string", "number", "boolean", "null"]}
     return {
         "type": "json_schema",
@@ -1617,6 +1638,7 @@ def _correction_messages(
     *,
     scenario: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Build one bounded correction turn without copying gold labels into context."""
     itinerary_contract = ""
     if scenario == "itinerary_planning":
         itinerary_contract = (
@@ -1663,6 +1685,7 @@ def _json_schema_response_format(
     *,
     required_day_count: int | None = None,
 ) -> dict[str, Any]:
+    """Build the strict backend response format from the tracked scenario Schema."""
     schema = load_output_schema(root, scenario, schema_version)
     if scenario == "itinerary_planning":
         itinerary = schema["properties"]["itinerary"]
@@ -1681,6 +1704,7 @@ def _json_schema_response_format(
 
 
 def _normalize_message_images(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize image URLs on a deep copy so the caller's request stays immutable."""
     normalized = json.loads(json.dumps(messages, ensure_ascii=False))
     for message in normalized:
         content = message.get("content")
@@ -1769,6 +1793,7 @@ def _scenario_token_limits(
     *,
     default: int,
 ) -> dict[str, int]:
+    """Resolve positive per-scenario limits with an explicit release-wide default."""
     scenarios = {"image_product_search", "after_sales", "itinerary_planning"}
     value = generation.get("max_new_tokens_by_scenario")
     if value is None:

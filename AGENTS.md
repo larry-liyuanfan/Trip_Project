@@ -5,10 +5,9 @@
 This file applies to the whole repository. Direct user instructions take precedence. A nested
 `AGENTS.md` may add rules only for its subtree.
 
-The repository is in handoff mode. Do not recreate weekly plans, weekly reports, chat prompts,
-meeting transcripts, approval workflows, or future-week roadmaps. Historical process documents
-remain available in Git history; the current tree should stay focused on runnable code and the
-final release.
+The repository is in handoff mode. Do not recreate chat prompts, meeting transcripts, approval
+workflows, or future-week roadmaps. Preserve accepted development evidence according to the
+checked-out branch instead of forcing every branch to have the same tree.
 
 Read these files before changing the project:
 
@@ -44,7 +43,7 @@ success, or independent business retrieval relevance unless new evidence explici
 - `scripts/`: command-line entry points and operational tools.
 - `tests/`: `unittest` coverage.
 - `docs/`: current technical references and handoff instructions.
-- `reports/`: final status and project summary only.
+- `reports/`: branch-specific delivery and development evidence described below.
 
 Keep route handlers thin and business logic in the matching `src/` package. Use Pydantic models at
 API boundaries. Prefer configuration and structured parsers over hard-coded values or ad hoc text
@@ -71,9 +70,13 @@ model, or Milvus checks accurately.
 ## Data and security
 
 Do not commit secrets, `.env` files, model weights, adapters, model caches, raw Yelp data, generated
-datasets, vector databases, or run outputs. Preserve source counts, rejection reasons, hashes, and
-data identities when processing datasets. Never fabricate labels, metrics, model outputs, or human
-review decisions.
+datasets, or vector databases. Preserve source counts, rejection reasons, hashes, and data identities
+when processing datasets. Never fabricate labels, metrics, model outputs, or human review decisions.
+
+`dev` may track small, reviewed JSON evidence when it is directly referenced by a checked-in report
+and is necessary to explain a technical tradeoff. Such evidence must contain no image bytes, personal
+data, credentials, private endpoints, or model assets. Do not promote development-only run evidence
+to `stg` or `main` without an explicit delivery decision.
 
 The Git-external final package is stored at
 `outputs/releases/trip-qwen3-vl-8b-week8-final-v1`. It is the only model handoff directory that
@@ -81,9 +84,12 @@ should remain locally. Verify its manifest before use.
 
 ## Git branches
 
-- `dev`: active development and integration.
-- `stg`: verified stable candidate; promote from `dev` only after tests and package checks pass.
-- `main`: final submission branch; promote from `stg` only for an approved delivery.
+- `dev`: active development and integration. Retain detailed reports, bad cases, accepted tradeoff
+  evidence, and selected experiment records needed to continue development.
+- `stg`: verified stable candidate. Retain one consolidated report per completed week plus final
+  release documentation; omit raw development outputs.
+- `main`: final submission branch. Retain runnable code, current technical references, project
+  summary, and final delivery status only.
 
 Develop on `dev` or a short-lived `feature/*` branch. Do not commit directly to `main`. Keep commits
 coherent, do not stage unrelated changes, and remove merged temporary branches and worktrees.

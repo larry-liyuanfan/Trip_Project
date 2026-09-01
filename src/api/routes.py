@@ -214,12 +214,14 @@ def get_scenario_service() -> ScenarioService:
 
 @lru_cache(maxsize=1)
 def _cached_scenario_service() -> ScenarioService:
+    """Build the release-bound model service once after the outer lock is held."""
     service = build_service()
     service.retrieval_runner = _run_dialogue_retrieval
     return service
 
 
 def _run_dialogue_retrieval(text, images, state):
+    """Adapt dialogue state to visual search and preserve retrieval failures."""
     try:
         return visual_search(VisualSearchRequest(query_text=text, image_urls=images,
                             city=state.get("city"), retrieval_mode="hybrid"))
@@ -235,6 +237,7 @@ def get_visual_search_service() -> VisualSearchService:
 
 @lru_cache(maxsize=1)
 def _cached_visual_search_service() -> VisualSearchService:
+    """Construct the process-local CLIP and Milvus clients from environment config."""
     config_path = Path(
         os.getenv("MILVUS_CONFIG", "docker/system/milvus_system.yaml")
     )
@@ -247,6 +250,7 @@ def _cached_visual_search_service() -> VisualSearchService:
 
 
 def _retrieval_readiness() -> dict[str, dict[str, Any]]:
+    """Report CLIP and Milvus readiness separately for actionable diagnostics."""
     try:
         service = get_visual_search_service()
     except Exception as exc:
@@ -267,6 +271,7 @@ def _retrieval_readiness() -> dict[str, dict[str, Any]]:
 
 
 def _run_scenario(scenario: str, request: TaskRequest) -> dict[str, Any]:
+    """Revalidate the scenario-specific boundary and map domain failures to HTTP."""
     from pydantic import ValidationError
     try:
         contract = ItineraryTaskRequest if scenario == "itinerary_planning" else SingleImageTaskRequest
@@ -281,6 +286,7 @@ def _run_scenario(scenario: str, request: TaskRequest) -> dict[str, Any]:
 
 
 def _env_flag(name: str, *, default: bool) -> bool:
+    """Parse an opt-in environment flag using the accepted deployment spellings."""
     value = os.getenv(name)
     if value is None:
         return default
@@ -288,6 +294,7 @@ def _env_flag(name: str, *, default: bool) -> bool:
 
 
 def _local_image_path(value: str) -> Path:
+    """Resolve mounted local images while rejecting remote fetches in production."""
     if value.startswith("file://"):
         parsed = urlparse(value)
         path_text = unquote(parsed.path)

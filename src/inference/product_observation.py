@@ -18,6 +18,7 @@ def canonical_config_sha256(config):
 
 
 def load_observation_config(path: Path, expected_sha256: str):
+    """Load the selected observation protocol only when its canonical hash matches."""
     config = json.loads(path.read_text(encoding="utf-8"))
     if canonical_config_sha256(config) != expected_sha256:
         raise ValueError("product observation config hash mismatch")
@@ -57,6 +58,7 @@ def load_observation_config(path: Path, expected_sha256: str):
 
 
 def observation_schema(config):
+    """Build the intermediate visible-facts Schema from versioned cue lists."""
     def cues(values):
         if config["protocol"] == "product_visual_observation_v4":
             # label -> fact 去掉重复键名，不删除正标签或缩减事实支持。
@@ -78,6 +80,7 @@ def observation_schema(config):
 
 
 def validate_observation(value, config):
+    """Reject malformed visible facts before they reach business-label mapping."""
     _validate_instance(observation_schema(config), value, path="$")
     original = value
     compact = config["protocol"] == "product_visual_observation_v4"
@@ -131,6 +134,7 @@ def negated_label_fact(label, fact):
 
 
 def map_observation(value, config):
+    """Map supported visible cues conservatively without inventing labels."""
     value = _canonical_observation(validate_observation(value, config), config)
     category = config["subject_categories"][value["subject_kind"]]
     from src.inference.product_style_scope import venue_style_evidence
@@ -231,6 +235,7 @@ def observation_correction_messages(messages, raw, error, config):
 
 
 def generate_observation(backend, image, config):
+    """Generate visible facts, allow one bounded correction, then map labels."""
     validate_correction_protocol(config)
     if config.get("facility_refinement") is not None:
         from src.inference.product_facility_refinement import generate_facility_refined_observation

@@ -22,6 +22,7 @@ SCENARIOS = ("image_product_search", "after_sales", "itinerary_planning")
 
 
 def load_training_config(path: Path) -> dict[str, Any]:
+    """Load the locked QLoRA recipe and reject silent hyperparameter drift."""
     config = json.loads(path.read_text(encoding="utf-8"))
     if config.get("schema_version") != "week6_qwen3_vl_qlora_v1":
         raise Week6TrainingError("unsupported Week 6 training config")
@@ -152,6 +153,7 @@ class IndexedMessageDataset:
 
 
 def validate_training_row(row: dict[str, Any], *, scenario: str | None = None) -> None:
+    """Enforce dataset locks and cap silver-label influence before training."""
     required = {"sample_id", "scenario", "messages", "label_source", "sample_weight", "dataset_lock"}
     missing = sorted(required - set(row))
     if missing:
@@ -205,6 +207,7 @@ def _normalize_processor_messages(
 
 
 def environment_report(*, require_cuda: bool = True) -> dict[str, Any]:
+    """Report exact training dependency and CUDA readiness without fallback."""
     minimums = {
         "torch": "2.6.0",
         "torchvision": "0.23.0",
@@ -280,6 +283,7 @@ def environment_report(*, require_cuda: bool = True) -> dict[str, Any]:
 
 
 def resolve_lora_targets(model: Any, config: dict[str, Any]) -> list[str]:
+    """Resolve only configured language and visual projection LoRA targets."""
     names = {name for name, _ in model.named_modules()}
     lora = config["lora"]
     targets: list[str] = []
@@ -306,6 +310,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def _trainable_parameter_report(model: Any) -> dict[str, Any]:
+    """Prove that the base model is frozen and only LoRA parameters can update."""
     trainable_names: list[str] = []
     trainable = 0
     total = 0

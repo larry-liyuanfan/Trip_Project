@@ -70,6 +70,7 @@ class OTAMilvusVectorStore:
         client: Any | None = None,
         sdk: Any | None = None,
     ) -> None:
+        """Bind the fixed collection contract to an injected or live Milvus client."""
         self.config = config
         self.collection = config["collection"]["name"]
         self.dimension = config["collection"]["vector_dimension"]
@@ -235,6 +236,7 @@ class OTAMilvusVectorStore:
         return rows[0]["count(*)"]
 
     def _validate_entity(self, entity: dict[str, Any]) -> dict[str, Any]:
+        """Enforce vector dimensions and scalar types before any Milvus write."""
         if not isinstance(entity, dict):
             raise MilvusVectorError("entity must be a mapping")
         missing = sorted(REQUIRED_ENTITY_FIELDS - entity.keys())
