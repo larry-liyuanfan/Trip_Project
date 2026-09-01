@@ -1,0 +1,6 @@
+scenario: image_product_search
+schema_name: image_product_search_v1.schema.json
+format_skeleton: >-
+  {"business_category":"unknown","style_tags":[],"visible_facilities":[],"price_range":"unknown","observed_evidence":[],"inferred_attributes":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  先找主主体，再逐项核对业态、风格、设施和价位。业态只在酒店客房或前台、景点展品或地标、餐饮菜品或菜单或用餐区等区分性证据存在时选择 hotel、attraction 或 restaurant；否则为 unknown。风格仅从 casual、classy、cozy、historic、modern、romantic、rustic、trendy、upscale、vintage 中选择，设施仅输出图片中可定位的对象。没有可读价格与整体档位证据时 price_range 固定为 unknown。unknown_fields 必须与输出一致：值为 unknown 的字段必须加入；空的 style_tags 或 visible_facilities 必须加入对应字段；有候选值但证据仍间接时也加入该字段。不得为提高完整度而猜测。

@@ -93,3 +93,7 @@ should remain locally. Verify its manifest before use.
 
 Develop on `dev` or a short-lived `feature/*` branch. Do not commit directly to `main`. Keep commits
 coherent, do not stage unrelated changes, and remove merged temporary branches and worktrees.
+
+Development-evidence commits are intentionally `dev`-only. Promote validated code changes to `stg`
+and `main` as selected commits; do not merge an evidence-only commit just to move branch pointers.
+Run the target branch's verification commands after each promotion.

@@ -1,0 +1,101 @@
+{
+  "schema_version": "week8_product_continuation_sft_v1",
+  "product_config_path": "configs/week8/product_understanding_v1.json",
+  "model": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b"
+  },
+  "continuation": {
+    "adapter_path_env": "TRIP_INITIAL_ADAPTER_DIR",
+    "adapter_model_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a",
+    "expected_checkpoint": "checkpoint-87",
+    "overwrite_initial_adapter": false
+  },
+  "lora": {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.08,
+    "bias": "none",
+    "language_target_suffixes": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj"
+    ],
+    "visual_projection_candidates": [
+      "visual_projection",
+      "visual.merger.linear_fc1",
+      "visual.merger.linear_fc2"
+    ],
+    "expected_target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "visual.merger.linear_fc1",
+      "visual.merger.linear_fc2"
+    ],
+    "save_adapter_only": true
+  },
+  "quantization": {
+    "load_in_4bit": true,
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": true,
+    "bnb_4bit_compute_dtype": "bfloat16"
+  },
+  "training": {
+    "optimizer": "adamw_torch",
+    "learning_rate": 1e-05,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.03,
+    "max_grad_norm": 1.0,
+    "per_device_train_batch_size": 1,
+    "per_device_eval_batch_size": 1,
+    "gradient_accumulation_steps": 8,
+    "gradient_checkpointing": true,
+    "bf16": true,
+    "attn_implementation": "sdpa",
+    "epochs": 1,
+    "max_length": 8192,
+    "logging_steps": 5,
+    "evaluation_fraction_steps": 0.1,
+    "early_stopping_patience": 3,
+    "save_total_limit": 12,
+    "load_best_model_at_end": true,
+    "metric_for_best_model": "eval_product_composite",
+    "greater_is_better": true,
+    "maximum_silver_sample_weight": 0.5
+  },
+  "development": {
+    "prompt_role": "visual_evidence_guard",
+    "prompt_version": "week8_product_evidence_guard_v1",
+    "max_new_tokens": 384,
+    "max_schema_retries": 1,
+    "selection_metric": "product_composite",
+    "required_slice_groups": {
+      "style": [
+        "style_multilabel",
+        "style_single_label",
+        "style_should_be_empty"
+      ],
+      "facility": [
+        "facility_visible",
+        "facility_should_be_empty"
+      ],
+      "price": [
+        "price_without_visual_evidence"
+      ],
+      "unknown": [
+        "should_use_unknown"
+      ],
+      "multiple_or_ambiguous_subject": [
+        "multiple_or_ambiguous_subject"
+      ]
+    }
+  },
+  "experiment_identity": {
+    "run_id": "week8_product_continuation_sft_20260826_v1",
+    "candidate_selection_id": "week8_product_continuation_selection_20260826_v1"
+  }
+}
