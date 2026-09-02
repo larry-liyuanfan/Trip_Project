@@ -16,3 +16,7 @@ Week 8 商品报告引用的设施路由权衡原始证据位于
 
 配套测试、脚本、配置的保留范围和无法随 Git 交接的产物见 `docs/development_history.md`。
 
+搜索算法证据增强见 `reviews/search_algorithm_evidence_enhancement_report.md`。该报告严格拆分
+历史 168 条 development 重算、本任务新 Commons 弱池、ANN-vs-exact 和端到端性能；新弱池
+不是人工金标，也不参与正式发布晋级。
+

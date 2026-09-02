@@ -1,0 +1,31 @@
+{
+  "schema_version": "relevance_source_snapshot_v1",
+  "git_base_sha": "5456f477c80e54a0764051206898fccd48db6237",
+  "implementation_commit_sha": "4cb78787974214d20f8c6d0bbb4dffcd84376d36",
+  "materialization": "git_archive_of_implementation_commit",
+  "files": [
+    {"path": "configs/evaluation/evidence_enhancement_v1.json", "sha256": "bd83f69b6714d624316ac82a49fe4463a282b66ad37c0492d4479f2375fa6130"},
+    {"path": "configs/evaluation/evidence_enhancement/query_asset_source_registry_v1.jsonl", "sha256": "6082595f3ee853a34f32a654d88f41bca69be6e258ff6645132e25580b6af370"},
+    {"path": "configs/evaluation/evidence_enhancement/query_manifest_v1.jsonl", "sha256": "980f4771273ce6650840b88a4f266e006cd681e86f5bfa9bf7b92db8b2969a06"},
+    {"path": "configs/evaluation/evidence_enhancement/search_annotations_weak_v1.jsonl", "sha256": "3a727a09750a437401643edfad3d88b27fedb17845d35aefb8b1c8d8bd793083"},
+    {"path": "configs/evaluation/evidence_enhancement/vlm_manifest_weak_v1.jsonl", "sha256": "91ceb3054d355dc0fc8071438e0079ed17d29d63b870df0128115c198c55034c"},
+    {"path": "configs/evaluation/evidence_enhancement/vlm_manifest_weak_v2.jsonl", "sha256": "664b11d300415f22023fb800d556bb623adb35687e7116f9c82d2bb508af7aaf"},
+    {"path": "scripts/audit_system_repair_development.py", "sha256": "9545022bf000fea8563dc9383c1c1bb6fb3e4e97238055f71158fde08b06f1dd"},
+    {"path": "scripts/run_end_to_end_relevance_benchmark.py", "sha256": "30f40d8b80c643b4d15d6ed2acfcca48d7407e37f8ea833997f8b9c5b025ac8a"},
+    {"path": "scripts/run_relevance_evidence.py", "sha256": "084bdcd0076ec97e73d6587397d10b82a763c7ede3c8448e10fc875593e86bf6"},
+    {"path": "scripts/run_vlm_semantic_evidence.py", "sha256": "126667de7cfd3c95055080ccb71da3fc688c444053d0bea0e8cc204858b59e14"},
+    {"path": "scripts/verify_relevance_source_snapshot.py", "sha256": "e18096f0e76c0356efab3dfef745a619b8e524111926e11dde42b5152029666b"},
+    {"path": "scripts/spartan/relevance_eval_env_v1.sbatch", "sha256": "29372b2756c67a422520d39b7e0caa7977c7f0f1a979dcc937877bb72ac5b7b9"},
+    {"path": "scripts/spartan/relevance_eval_historical_audit_v1.sbatch", "sha256": "993f00f782a13a4d93b4775fb1d4dfbccce2a359742f6deed32bf705d9f81d22"},
+    {"path": "scripts/spartan/relevance_eval_performance_v1.sbatch", "sha256": "e3500f3b4163872001cde6ed563e59e33baa71850383d9d2b0d008039b8526ad"},
+    {"path": "scripts/spartan/relevance_eval_search_v1.sbatch", "sha256": "916122f52b6a6c193bd7abf1003b532617dd6ed9dfca6d55aa8bb58c388f8fc0"},
+    {"path": "scripts/spartan/relevance_eval_vlm_v1.sbatch", "sha256": "b3ff53ed7a53af6db6e7b7ab3ba9e9971ba7ced40cc81c4c49dddcf429a10456"},
+    {"path": "src/__init__.py", "sha256": "c23e4ec24456337a1a86f2b82562068c5e8d32d77e19ef20398a669068dbe82b"},
+    {"path": "src/evaluation/__init__.py", "sha256": "64d8fcf8d4285119dcfaab319007be4623cd43a67c31a22e8977a6db0693d73c"},
+    {"path": "src/evaluation/relevance_evidence.py", "sha256": "cc6683f5ff0a7697e44a8e02b28c81aea64133334f907d4b0538de32ce120b11"},
+    {"path": "src/retrieval/__init__.py", "sha256": "5e9c6d477ddeac3c5a1a6b9a70a66f64b3ff029f959a04c6e22f6be5c7193eec"},
+    {"path": "src/retrieval/milvus_vectors.py", "sha256": "b62c426aeb2a1261e672ae8ebb026d2eb829f5da3523337bf5acfeb2d52eefb2"},
+    {"path": "src/data/__init__.py", "sha256": "cca9200309ffff8ae8841a89ee7688600ada96d3ec5fcfdbf1b90a6d71404f64"},
+    {"path": "src/data/yelp_paths.py", "sha256": "63a9e322e933ddf5940b93a7c40eda27afa90979f77d4c7132543d675849f957"}
+  ]
+}

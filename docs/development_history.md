@@ -33,3 +33,18 @@
 2. 复查 Week 8 商品权衡时读取商品专项报告、设施路由 JSON 和对应恢复测试。
 3. 复现实验时显式指定历史配置，不修改或覆盖正式 release config。
 4. 新代码提交可选择性晋级到 `stg/main`；本目录及 development-only 证据留在 `dev`。
+
+## 搜索与系统证据增强
+
+后续 `dev` 恢复了本任务所需的 Spartan 脚本，但它们只面向 Iris 项目内的隔离项目空间，
+不重新启用已删除的通用云端依赖。新增资产包括：
+
+- `configs/evaluation/evidence_enhancement_v1.json` 与两个独立弱池 manifest；
+- `src/evaluation/relevance_evidence.py` 的失败关闭评分；
+- 搜索、VLM、历史 development 审计和端到端性能脚本；
+- `scripts/spartan/relevance_eval_*_v1.sbatch` 的显式项目根/环境/缓存约束；
+- `experiments/search_evidence_enhancement_v1.json` 的小型机器证据。
+
+历史 168 条 system-repair development 只读重算不产生新的选择资格；本任务新 Commons 池
+与历史 identity 分离且为 weak/synthetic，因此同样不用于正式晋级。Fresh Test 120 保持一次
+消费；Iris 上已保存的 raw 只做 source-bound 离线错误审计，不运行模型，也不用于本任务调参。

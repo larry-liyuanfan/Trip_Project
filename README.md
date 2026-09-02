@@ -75,6 +75,18 @@ experiments/  保留的机器可读历史证据
 
 `dev` 中可复现的历史实验入口和清理边界见 `docs/development_history.md`。
 
+### Development-only 证据增强
+
+`dev` 另提供搜索业务相关性、VLM/SFT 角色对比和端到端分阶段性能协议：
+
+- 协议：`docs/evidence_enhancement.md`
+- 配置：`configs/evaluation/evidence_enhancement_v1.json`
+- 报告：`reports/development/reviews/search_algorithm_evidence_enhancement_report.md`
+
+该轨道不修改正式 v1。历史 Milvus `Recall@10=1.0` 只表示 ANN 对精确余弦 Top10 的保真度，
+P95 `2.4097 ms` 只表示 vector query；新 Commons 查询池目前为弱标注，不能宣称人工业务
+相关性。历史 Fresh Test 120 不重跑、不调参。
+
 ## 环境
 
 创建基础环境：
@@ -180,6 +192,7 @@ git diff --check
 - 商品最终参考为模型生成 silver，不是人工视觉金标。
 - 商品价位没有有效正支持，相关指标保持 `N/A/PENDING`。
 - Recall 工程基准不等于人工业务相关性。
+- 新 Commons 搜索/VLM 池为 weak/synthetic development 诊断，不参与正式发布晋级。
 
 数据、评测与检索契约见 `docs/data_pipeline.md`、`docs/evaluation.md` 和
 `docs/retrieval.md`；当前不可变决策见 `docs/architecture_decisions.md`。

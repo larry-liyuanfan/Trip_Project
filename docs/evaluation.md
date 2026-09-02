@@ -41,3 +41,10 @@ python scripts/score_week3_evaluation.py --config configs/evaluation_week3_v2.ya
 所有指标必须同时报告支持数。最简 baseline 的自然语言词法评分与严格结构化评分是不同
 轨道，不得直接把差值归因于 Prompt。商品当前参考为模型生成 silver，不能声明人工视觉
 准确率；价位正支持不足时保持 `N/A/PENDING`。
+
+## Development 搜索与系统证据增强
+
+独立搜索查询、弱/人工标注边界、三角色 VLM one-factor 比较及分阶段端到端性能协议见
+`docs/evidence_enhancement.md`。该协议把 ANN-vs-exact、业务语义、VLM 语义和性能分成四条
+证据轨道，禁止使用历史 Recall 或 2.41 ms 向量查询替代业务相关性或端到端结论。相关配置、
+机器证据和报告只在 `dev` 保留，不改变正式 v1 release 或已消费测试的身份。
