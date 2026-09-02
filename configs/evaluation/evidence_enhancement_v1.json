@@ -1,0 +1,98 @@
+{
+  "schema_version": "evidence_enhancement_v1",
+  "evidence_class": "development_only_not_formal_release",
+  "formal_release_read_only": {
+    "release_id": "trip-qwen3-vl-8b-week8-final-v1",
+    "release_manifest_sha256": "636b6005196ccb96e67a82e2720ce263b79e55573860e5b7cd7709985166b672",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "retrieval_members": {
+      "metadata": "retrieval/clip_metadata_1000.jsonl",
+      "vectors": "retrieval/clip_vectors_1000.npz",
+      "historical_benchmark": "retrieval/milvus_benchmark_1000.json"
+    },
+    "adapter_archive_sha256": "f74c078738fa0229574114986c58040bbc280e11ba4ec06558c9a488c2de619d",
+    "current_adapter_model_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a"
+  },
+  "search": {
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "query_manifest": "configs/evaluation/evidence_enhancement/query_manifest_v1.jsonl",
+    "query_asset_source_registry": "configs/evaluation/evidence_enhancement/query_asset_source_registry_v1.jsonl",
+    "weak_annotations": "configs/evaluation/evidence_enhancement/search_annotations_weak_v1.jsonl",
+    "methods": [
+      "clip_exact",
+      "clip_milvus",
+      "structured_filter_clip",
+      "lightweight_rerank"
+    ],
+    "supported_filters": ["city", "business_category", "price_range"],
+    "unsupported_filters": ["facility"],
+    "candidate_pool": 50,
+    "top_k": 10,
+    "relevance_grade_threshold": 2,
+    "no_result_similarity_threshold": 0.20,
+    "milvus": {
+      "index_type": "HNSW",
+      "metric_type": "COSINE",
+      "M": 16,
+      "efConstruction": 128,
+      "ef": 64
+    }
+  },
+  "vlm": {
+    "weak_manifest": "configs/evaluation/evidence_enhancement/vlm_manifest_weak_v2.jsonl",
+    "rejected_manifest": {
+      "path": "configs/evaluation/evidence_enhancement/vlm_manifest_weak_v1.jsonl",
+      "status": "REJECTED_MISSING_ASSET_BYTE_BINDING"
+    },
+    "fresh_test_120_policy": "consumed_never_rerun_or_tune",
+    "comparison_factor": "adapter_only",
+    "fixed": ["base_model", "base_revision", "prompt", "generation_config", "data_lock"],
+    "primary_roles": {
+      "zero_shot": {"adapter": null},
+      "old_unified_adapter": {
+        "asset_role": "week7_unified_adapter",
+        "lineage": "week7_multitask_context_v4_fix2_checkpoint_226",
+        "adapter_model_sha256": "ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee",
+        "must_not_substitute": "week6_image_product_single_task"
+      },
+      "current_system_repair_checkpoint_87": {
+        "lineage": "week7_checkpoint_226_continuation_checkpoint_87",
+        "adapter_model_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a"
+      }
+    },
+    "diagnostic_roles": {
+      "week6_image_product_single_task": "optional_historical_diagnostic_only"
+    },
+    "metrics": [
+      "field_precision_recall_f1",
+      "exact_match",
+      "unsupported_hallucination_rate",
+      "first_attempt_json_compliance",
+      "correction_trigger_rate",
+      "dialogue_context_recall",
+      "dialogue_state_value_accuracy",
+      "dialogue_task_key_accuracy",
+      "dialogue_value_accuracy",
+      "dialogue_first_turn_routing_accuracy"
+    ]
+  },
+  "performance": {
+    "warmup_repetitions": 3,
+    "cold_repetitions": 1,
+    "steady_repetitions": 30,
+    "required_stages": ["clip_encode_ms", "milvus_ms", "rerank_ms", "vlm_ms", "end_to_end_ms"],
+    "fixed_gates": {
+      "max_steady_end_to_end_p95_ms": 12000,
+      "max_failure_rate": 0.02,
+      "max_peak_vram_mib": 8192,
+      "max_candidate_to_baseline_p95_ratio": 1.25,
+      "min_steady_repetitions": 30,
+      "min_cold_repetitions": 1
+    }
+  },
+  "historical_claim_boundaries": {
+    "Recall@10=1.0": "ann_vs_exact_only_not_business_relevance",
+    "p95=2.409699955ms": "milvus_vector_query_only_not_end_to_end",
+    "overall_accuracy=0.780639": "reported_aggregate_raw_sample_outputs_not_in_local_handoff"
+  }
+}
