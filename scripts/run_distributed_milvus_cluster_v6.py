@@ -188,20 +188,17 @@ def run_cluster(args: argparse.Namespace) -> None:
             secret_env,
             access_key=access_key,
             secret_key=secret_key,
-            config_dir=local_root / "minio-config",
         )
         processes.append(
             start_step(
                 control,
-                [
-                    str(minio),
-                    "server",
-                    str(local_root / "minio-data"),
-                    "--address",
-                    f":{port_base + 1}",
-                    "--console-address",
-                    f":{port_base + 2}",
-                ],
+                build_minio_server_command(
+                    minio,
+                    data_dir=local_root / "minio-data",
+                    certs_dir=local_root / "minio-certs",
+                    address=f":{port_base + 1}",
+                    console_address=f":{port_base + 2}",
+                ),
                 minio_log,
                 cpus=2,
                 env=minio_env,
@@ -493,10 +490,7 @@ def build_minio_environment(
     *,
     access_key: str,
     secret_key: str,
-    config_dir: Path,
 ) -> dict[str, str]:
-    if not config_dir.is_absolute():
-        raise ValueError("MinIO config directory must be absolute")
     env = base_env.copy()
     env.update(
         {
@@ -504,10 +498,32 @@ def build_minio_environment(
             "MINIO_SECRET_KEY": secret_key,
             "MINIO_ROOT_USER": access_key,
             "MINIO_ROOT_PASSWORD": secret_key,
-            "MINIO_CONFIG_DIR": str(config_dir),
         }
     )
     return env
+
+
+def build_minio_server_command(
+    binary: Path,
+    *,
+    data_dir: Path,
+    certs_dir: Path,
+    address: str,
+    console_address: str,
+) -> list[str]:
+    if not data_dir.is_absolute() or not certs_dir.is_absolute():
+        raise ValueError("MinIO data and certificate directories must be absolute")
+    return [
+        str(binary),
+        "--certs-dir",
+        str(certs_dir),
+        "server",
+        str(data_dir),
+        "--address",
+        address,
+        "--console-address",
+        console_address,
+    ]
 
 
 def run_step(node: str, command: list[str], *, cpus: int, env: dict[str, str] | None = None) -> None:

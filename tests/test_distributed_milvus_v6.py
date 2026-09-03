@@ -9,6 +9,7 @@ from unittest import mock
 from scripts.prepare_distributed_milvus_runtime_v6 import configure_milvus_text
 from scripts.run_distributed_milvus_cluster_v6 import (
     build_minio_environment,
+    build_minio_server_command,
     candidate_port_bases,
     find_local_port_base,
     prepare_node,
@@ -141,19 +142,29 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported Milvus placement"):
             serve_milvus(Path("/tmp/runtime"), "invalid", 28013)
 
-    def test_minio_uses_job_local_config_without_replacing_home(self) -> None:
+    def test_minio_credentials_do_not_replace_home(self) -> None:
         base_env = {"HOME": "/home/yzhang3504", "EXISTING": "value"}
-        config_dir = Path.cwd() / "trip-minio-config"
         env = build_minio_environment(
             base_env,
             access_key="trip0123456789abcd",
             secret_key="s" * 40,
-            config_dir=config_dir,
         )
         self.assertEqual(env["HOME"], base_env["HOME"])
-        self.assertEqual(env["MINIO_CONFIG_DIR"], str(config_dir))
         self.assertEqual(env["MINIO_ROOT_USER"], "trip0123456789abcd")
-        self.assertNotIn("MINIO_CONFIG_DIR", base_env)
+        self.assertNotIn("MINIO_CONFIG_DIR", env)
+
+    def test_minio_command_sets_job_local_certs_before_server_subcommand(self) -> None:
+        data_dir = Path.cwd() / "minio-data"
+        certs_dir = Path.cwd() / "minio-certs"
+        command = build_minio_server_command(
+            Path("minio"),
+            data_dir=data_dir,
+            certs_dir=certs_dir,
+            address=":28001",
+            console_address=":28002",
+        )
+        self.assertEqual(command[:4], ["minio", "--certs-dir", str(certs_dir), "server"])
+        self.assertEqual(command[4], str(data_dir))
 
     def test_candidate_port_blocks_are_deterministic_bounded_and_non_overlapping(self) -> None:
         candidates = candidate_port_bases("30004341")

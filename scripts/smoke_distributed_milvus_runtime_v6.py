@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.prepare_distributed_milvus_runtime_v6 import prepare_runtime
 from scripts.run_distributed_milvus_cluster_v6 import (
     build_minio_environment,
+    build_minio_server_command,
     file_sha256,
     find_local_port_base,
     load_json,
@@ -124,15 +125,16 @@ def run_smoke(args: argparse.Namespace) -> None:
             secret_env,
             access_key=access_key,
             secret_key=secret_key,
-            config_dir=local_root / "minio-config",
         )
         processes.append(
             start_local(
-                [
-                    str(minio), "server", str(local_root / "minio-data"),
-                    "--address", f":{port_base + 1}",
-                    "--console-address", f":{port_base + 2}",
-                ],
+                build_minio_server_command(
+                    minio,
+                    data_dir=local_root / "minio-data",
+                    certs_dir=local_root / "minio-certs",
+                    address=f":{port_base + 1}",
+                    console_address=f":{port_base + 2}",
+                ),
                 logs / "minio.log",
                 minio_env,
             )
