@@ -1,0 +1,31 @@
+{
+  "schema_version": "relevance_source_snapshot_v1",
+  "git_base_sha": "8dc76966d9fce069851b939a2cb06c1c5b307181",
+  "implementation_commit_sha": "485f706eeddf86455998a409df45a7c49520aac2",
+  "files": [
+    {"path": "configs/evaluation/automated_evidence_v2.json", "sha256": "5c5b8e87ee27c3a32c0ae9208a32020c10eac54840cedc336677382eb5043999"},
+    {"path": "configs/evaluation/evidence_enhancement/automated_pool_lock_v2.json", "sha256": "1494f14b14d10a16b96b711c42ef7da4c8a5fafeb3f9677911bd8b6204432fe5"},
+    {"path": "configs/evaluation/evidence_enhancement/query_manifest_v1.jsonl", "sha256": "1b98c0a9d3096905ef6f0989e2cd5c1272c720aaefc7db84becdc44ceb1a0e68"},
+    {"path": "scripts/audit_retrieval_query_leakage_v2.py", "sha256": "a8e7d29540bd2f3f43568651fd9d1abb90400fcb8b25112da09fe97a71164359"},
+    {"path": "scripts/build_automated_evidence_pool_v2.py", "sha256": "9a134177137ca5a50dba14a989b0b59304cc3c794e3d0171e37775edf1aae385"},
+    {"path": "scripts/run_performance_profile_v2.py", "sha256": "bee711a90e0c90961230b7d464d532f92b00b23e13724ac66b4618e8951c5151"},
+    {"path": "scripts/run_relevance_evidence.py", "sha256": "46b9b0835616e4b4177615afa6cd9ad4d9eb0c7801df0406a61337a06e3d36a0"},
+    {"path": "scripts/run_search_relevance_v2.py", "sha256": "14023e17394b2e17d0e227f6ebf82f15226b34507974a39163bde4a1c14045cd"},
+    {"path": "scripts/run_vlm_semantic_evidence.py", "sha256": "86fa7750b0924f3a1a1a707bb02b29fa1d1bf5f9c9e3b8ab70813b669f2fab09"},
+    {"path": "scripts/score_performance_matrix_v2.py", "sha256": "996507a97e4f51b57fb6d79fac3f25f36f395e229a0d84967b88de6b043fb35a"},
+    {"path": "scripts/score_vlm_weak_v3.py", "sha256": "9bace5042d820c8096b9ed69ebfdad6b9864b9e6f72bead5c8c76a0717941789"},
+    {"path": "scripts/verify_relevance_source_snapshot.py", "sha256": "ba60a7c4aa35172734ca059c3056720a71b6e2521462363c2cf2d4b4c04e2682"},
+    {"path": "scripts/spartan/relevance_eval_performance_profile_v2.sbatch", "sha256": "b51cce57308a9d6d1a11f5bf331aee14caddf23bcfdef10f50c804788aa9e324"},
+    {"path": "scripts/spartan/relevance_eval_pool_leakage_v2.sbatch", "sha256": "0cadc9726e18024f20803617923b6413dcc48a1bcff190a385fc54e7adaa80f1"},
+    {"path": "scripts/spartan/relevance_eval_search_v2.sbatch", "sha256": "356cbd1e302687c4e4951ac5d7264bb2b1bac3212266523ae69cbb9910746090"},
+    {"path": "scripts/spartan/relevance_eval_vlm_v3.sbatch", "sha256": "73ce3fd0a22303dec2e411bb61f3968b6a70d9332c48a3ec6680e3f62e095954"},
+    {"path": "src/__init__.py", "sha256": "a785c407668106f3554639196e2543e16ad401a03d234193a85518d740c8fd13"},
+    {"path": "src/data/__init__.py", "sha256": "de58b5dc3a25eb787842083ee96274f060dfb43d3fda1bb5b80d6e9112b486e6"},
+    {"path": "src/data/yelp_paths.py", "sha256": "17cfdd96c5edd41c37c32d6b347b448c88d4377de0def993728773ff221060d0"},
+    {"path": "src/evaluation/__init__.py", "sha256": "a9e08ec161d21d2f1bd3fbe4474970a8a92636eeb821dc71e0cb6b25439bace2"},
+    {"path": "src/evaluation/evidence_v2.py", "sha256": "bb5035041d09cf9c421db9a751d05d25f82bad0682f7e54fd79073347dbdada1"},
+    {"path": "src/evaluation/relevance_evidence.py", "sha256": "387843da0a5581f0ee6fefafbe420a75cdcf109a755a1041e21f5e1e82b16b44"},
+    {"path": "src/retrieval/__init__.py", "sha256": "1737bd673e5b2c6165646123fbffe1952a7fe977465bc76bbe5342d8c9024acf"},
+    {"path": "src/retrieval/milvus_vectors.py", "sha256": "b26bd7dc5a1519fc17525c36549c61b15d99a65ef8dfd616deb7f890673ef13b"}
+  ]
+}
