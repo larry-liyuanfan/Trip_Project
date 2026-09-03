@@ -341,7 +341,7 @@ steady 的每个阶段均以 30 条分别计算 P50/P95。
 该结果只适用于一个固定、短输出的 hotel-search probe，不是通用生产 SLA。历史 168 条上
 checkpoint-87 平均延迟反而是旧 unified 的 1.112 倍，说明延迟强烈依赖输出长度和任务分布。
 
-## 0.780639 审计与未完成项
+## 0.780639 审计与 v1 历史缺口的当前状态
 
 正式本地 evidence 包没有对应 120 行 raw/metrics，所以本地 handoff 的初始状态确实是
 `EVIDENCE_GAP_RAW_SAMPLE_OUTPUTS_NOT_IN_LOCAL_HANDOFF`。随后只读、限域检查 Iris 的
@@ -375,24 +375,28 @@ sample_id 与 dataset 完全一致。原 metrics 的商品 composite 为 `0.7806
 support=0，状态为 `NOT_SCORABLE_NO_PRESERVED_MULTI_SUBJECT_LABEL`。本审计不从普通图片或
 模型输出反推多主体真值。
 
-未完成项：
+以下项目是 v1 结束时的缺口；自动化 v2 补齐情况与仍存边界如下：
 
-- 人工相关性双人标注与仲裁尚未执行，human support=0；
-- 索引原图 SHA 不在正式 retrieval 包，字节级 collision audit 未运行；
-- new VLM v2 的 known-price support=0、多主体 support=0，历史 Fresh Test 也没有可评分的
-  多主体冲突标签；
-- no-result 阈值没有可用于晋级的人工 development calibration；
-- 当前性能只有单一短 probe，不覆盖生产请求分布或并发。
+- **仍未完成**：人工相关性双人标注与仲裁，human support 仍为 0；
+- **已自动化补齐**：通过 Git 外 formal overlay 对 1000/1000 索引原图原位哈希，完成查询图与
+  索引图的 byte/source collision audit；正式 retrieval 压缩包本身仍不包含原图；
+- **已补齐但仍是 weak/synthetic**：weak v3 的 known-price 与 multi-subject 每角色 support
+  均为 4，不能替代人工视觉真值；历史 Fresh Test 仍没有可评分的多主体冲突标签；
+- **部分补齐**：用 16 条 synthetic calibration 预选 no-result 阈值，再一次性消费 16 条
+  holdout；因 no-result slice 只有 4/8 正确且没有人工标签，不能用于正式晋级；
+- **部分补齐**：性能已扩展到 231/32、327/64、615/128 三组实际 input/output token，
+  concurrency=2/4 和 distributed Milvus + HTTP 服务仍为 `NOT_RUN`，不支持生产 SLA。
 
 ## 决策与可复现入口
 
-机器证据位于 `experiments/search_evidence_enhancement_v1.json`。固定配置为
-`configs/evaluation/evidence_enhancement_v1.json`；协议与运行命令见
+当前机器证据位于 `experiments/search_evidence_enhancement_v2.json`；v1 文件只保留为历史
+开发证据。自动化固定配置为 `configs/evaluation/automated_evidence_v2.json`，预运行数据锁为
+`configs/evaluation/evidence_enhancement/automated_pool_lock_v2.json`；协议与运行命令见
 `docs/evidence_enhancement.md`。
 
-最终决策：结构化过滤形成正向弱证据；checkpoint-87 性能门禁通过；新 VLM 联合质量门禁
-失败且标签等级不足以晋级。因此不修改正式 release、Prompt、adapter、阈值或 Fresh Test
-状态。
+最终决策：hard-filter 路径形成正向 weak/synthetic 排序与过滤证据，但 no-result gate 失败；
+checkpoint-87 的固定长度组件延迟门禁通过，weak v3 质量门禁失败，所以 joint gate 失败且不能
+晋级。因此不修改正式 release、Prompt、adapter、阈值或 Fresh Test 状态。
 
 ## 验证
 
@@ -407,11 +411,12 @@ support=0，状态为 `NOT_SCORABLE_NO_PRESERVED_MULTI_SUBJECT_LABEL`。本审�
 
 ## 简历候选表述
 
-只有在同时保留 development/weak 标签限定时，建议使用以下两条：
+只有在同时保留 development/weak/synthetic 标签限定时，建议使用以下两条：
 
-1. 构建独立视觉搜索评测与失败关闭评分框架，在 10 条 Commons 弱标注查询上比较 exact
-   CLIP、Milvus、结构化过滤和轻量重排；结构化过滤将 MRR@10 从 0.40 提至 0.65，并把过滤
-   正确率从 50% 提至 100%，同时将 ANN Recall 与业务相关性严格分轨。
-2. 在 Spartan A100 20GB MIG 上实现 CLIP→Milvus→重排→Qwen3-VL 的分阶段基准；固定
-   30 次稳态下 checkpoint-87 端到端 P95 为 4.12 秒、相对旧 unified 为 0.865 倍，并通过
-   数据锁、adapter SHA 和联合质量门禁阻止“只快不准”的候选晋级。
+1. 构建 calibration/一次性 holdout 分离的多模态搜索评测，并对 1000 张索引图完成字节级
+   泄漏审计；在 16 条 synthetic holdout 上，hard-filter 将 MRR@10 从 0.50 提至 1.00、
+   nDCG@10 从 0.9073 提至 1.00、过滤正确率从 25% 提至 100%，同时以 no-result gate 失败
+   保留负实验边界。
+2. 在 Spartan A100 20GB MIG 上建立 CLIP→Milvus Lite→重排→Qwen3-VL 的固定实际 token
+   分阶段基准；checkpoint-87 在 32/64/128 输出档的稳态 P95 为 2.59/4.93/9.65 秒，并以
+   quality+latency 联合门槛阻止语义质量未达标的 Adapter 晋级。
