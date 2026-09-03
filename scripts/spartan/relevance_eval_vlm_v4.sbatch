@@ -2,8 +2,8 @@
 #SBATCH --job-name=trip-rel-vlm-v4
 #SBATCH --account=punim2936
 #SBATCH --partition=gpu-l40s
-#SBATCH --qos=gpu_l40s
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --qos=publicgpu
+#SBATCH --gres=gpu:L40S:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=01:30:00
