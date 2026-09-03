@@ -87,8 +87,33 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         }
         _validate_external_cluster_identity(identity, {"milvus_server": expected_server})
         identity["nodes"] = ["node-a"]
-        with self.assertRaisesRegex(ValueError, "at least two nodes"):
+        with self.assertRaisesRegex(ValueError, "exactly two unique nodes"):
             _validate_external_cluster_identity(identity, {"milvus_server": expected_server})
+
+    def test_external_identity_rejects_cross_mixed_control_and_worker_roles(self) -> None:
+        server = {
+            "version": "2.6.18",
+            "package_sha256": "a" * 64,
+            "multi_node_distributed_cluster": True,
+        }
+        identity = {
+            "schema_version": "distributed_milvus_cluster_identity_v6",
+            "status": "READY",
+            "nodes": ["node-a", "node-b"],
+            "roles": {
+                "mixcoord": "node-a",
+                "proxy": "node-b",
+                "querynode": "node-b",
+                "datanode": "node-a",
+                "streamingnode": "node-b",
+            },
+            "milvus_server": server,
+        }
+        with self.assertRaisesRegex(ValueError, "control roles"):
+            _validate_external_cluster_identity(identity, {"milvus_server": server})
+        identity["roles"]["proxy"] = "node-a"
+        with self.assertRaisesRegex(ValueError, "worker roles"):
+            _validate_external_cluster_identity(identity, {"milvus_server": server})
 
     def test_smoke_dependency_validation_is_fail_closed(self) -> None:
         config = {

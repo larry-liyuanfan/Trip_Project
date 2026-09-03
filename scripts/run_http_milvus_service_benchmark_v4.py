@@ -693,16 +693,22 @@ def _validate_external_cluster_identity(
     if identity.get("status") != "READY":
         raise ValueError("external Milvus cluster is not READY")
     nodes = identity.get("nodes")
-    if not isinstance(nodes, list) or len(set(nodes)) < 2:
-        raise ValueError("external Milvus cluster must span at least two nodes")
+    if not isinstance(nodes, list) or len(nodes) != 2 or len(set(nodes)) != 2:
+        raise ValueError("external Milvus cluster must contain exactly two unique nodes")
     roles = identity.get("roles")
     required = {"mixcoord", "proxy", "querynode", "datanode", "streamingnode"}
     if not isinstance(roles, dict) or set(roles) != required:
         raise ValueError("external Milvus identity does not contain the exact required roles")
     if not all(roles[role] in nodes for role in required):
         raise ValueError("external Milvus roles must map to declared nodes")
-    if set(roles.values()) != set(nodes):
-        raise ValueError("external Milvus role placement does not span every declared node")
+    control_node = roles["mixcoord"]
+    worker_node = roles["querynode"]
+    if roles["proxy"] != control_node:
+        raise ValueError("external Milvus control roles must share one node")
+    if any(roles[role] != worker_node for role in ("datanode", "streamingnode")):
+        raise ValueError("external Milvus worker roles must share one node")
+    if control_node == worker_node or {control_node, worker_node} != set(nodes):
+        raise ValueError("external Milvus control and worker placements must span the two nodes")
     server = identity.get("milvus_server")
     expected = performance["milvus_server"]
     if not isinstance(server, dict):
