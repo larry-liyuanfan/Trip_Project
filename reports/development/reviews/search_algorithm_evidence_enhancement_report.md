@@ -49,6 +49,19 @@ ranking support=8，ANN-vs-exact Recall@10=1.0 仍只代表近邻保真。
 | structured filter + CLIP | 0.05964 | 0.06741 | 1.00 | 1.0000 | 0.75 | 1.00 |
 | hard filter + light rerank | 0.05964 | 0.06741 | 1.00 | 1.0000 | 0.75 | 1.00 |
 
+每个切片的分母和关键指标如下；格式为 `R5/R10/MRR/nDCG/no-result/filter`。ranking support=0
+时前四项为 N/A。exact 与 Milvus 完全一致；被选 star weight=0 时 structured 与 hard-filter
+light-rerank 也完全一致，所以表内合并显示，但机器证据仍保留四个方法的总指标。
+
+| 切片 | support / ranking | exact = Milvus | structured = hard-filter rerank |
+| --- | ---: | --- | --- |
+| city_business_facility_price | 4 / 4 | .00723/.00963/.5/.9442/1/0 | .09068/.10354/1/1/1/1 |
+| filter_conflict | 4 / 4 | .00723/.00990/.5/.8704/1/0 | .02860/.03127/1/1/1/1 |
+| hard_filter_before_rerank | 12 / 8 | .00723/.00977/.5/.9073/.6667/0 | .05964/.06741/1/1/1/1 |
+| image_similar | 4 / 4 | .00723/.00963/.5/.9442/1/0 | .09068/.10354/1/1/1/1 |
+| no_result | 8 / 0 | N/A/N/A/N/A/N/A/0/.5 | N/A/N/A/N/A/N/A/.5/1 |
+| visual_similar_business_irrelevant | 4 / 0 | N/A/N/A/N/A/N/A/0/1 | N/A/N/A/N/A/N/A/0/1 |
+
 被选 star weight 为 0，所以不能声称 light rerank 产生独立收益。原 summary 错把 aggregate
 no-result 数值用于固定 gate，记录的 `PASS` 标记为
 `INVALID_SUPERSEDED_AGGREGATE_DENOMINATOR`。job `29961100` 仅离线重算冻结结果，没有再次搜索、
@@ -62,11 +75,26 @@ job `29960745/29960746/29960747` 比较 current/old/zero，只改变 adapter。�
 （商品 12、对话 6），三角色总 support=54；known-price support=4、multi-subject support=4、
 insufficient-evidence support=8。结果 canonical SHA-256 为 `fc59ff…3144`。
 
-| 角色 | category F1 | price F1 | known price exact | multi abstain | insufficient abstain | hallucination | first JSON | dialogue first route |
+| 字段 | 每角色 evaluable/unknown | zero P/R/F1；unknown abstain | 旧 unified P/R/F1；unknown abstain | checkpoint-87 P/R/F1；unknown abstain |
+| --- | ---: | --- | --- | --- |
+| business category | 12 / 0 | .6667/.6667/.6667；N/A | .75/.75/.75；N/A | .6667/.6667/.6667；N/A |
+| price range | 4 / 8 | .25/.25/.25；1.00 | 0/0/0；1.00 | 0/0/0；1.00 |
+| style tags | 4 / 8 | 0/0/0；1.00 | 0/0/0；1.00 | 0/0/0；0 |
+| visible facilities | 4 / 8 | 0/0/0；1.00 | 0/0/0；1.00 | 0/0/0；0.125 |
+
+| 角色 | supported exact | unknown opportunity / abstain | known price exact | multi abstain | insufficient abstain | hallucination | first JSON / correction | dialogue route |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| zero-shot | 0.6667 | 0.25 | 0.25 | 1.00 | 1.00 | 0 | 1.0000 | 1.0000 |
-| 旧 unified | 0.7500 | 0 | 0 | 1.00 | 1.00 | 0 | 1.0000 | 1.0000 |
-| checkpoint-87 | 0.6667 | 0 | 0 | 0 | 0 | 0.625 | 0.7778 | 0.3333 |
+| zero-shot | .6667 | 24 / 1.00 | .25 | 1.00 | 1.00 | 0 | 1.0000 / 0 | 1.0000 |
+| 旧 unified | .6667 | 24 / 1.00 | 0 | 1.00 | 1.00 | 0 | 1.0000 / 0 | 1.0000 |
+| checkpoint-87 | .6667 | 24 / .375 | 0 | 0 | 0 | .625 | .7778 / .2222 | .3333 |
+
+对话分母每角色 n=6：
+
+| 角色 | context recall | state/value | task key | task value | first-turn route |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| zero-shot | 0 | .3333 | 0 | .6667 | 1.0000 |
+| 旧 unified | 0 | .1667 | 0 | .3333 | 1.0000 |
+| checkpoint-87 | 0 | 0 | 0 | 0 | .3333 |
 
 checkpoint-87 只有商品/对话最小 support 检查通过；价位、多主体、证据不足、幻觉、首次 JSON
 与全部对话指标均未通过固定 gate。VLM 联合质量结论为 `FAIL`，不允许晋级。
@@ -83,6 +111,17 @@ adapter × 3 profile。每格为一个独立进程、1 条真实 process cold、
 | short_32 | 231 / 32 | 2,600.51 ms | 2,590.26 ms | 0.9961 | 6,884.70 MiB | PASS |
 | medium_64 | 327 / 64 | 5,003.46 ms | 4,925.37 ms | 0.9844 | 6,904.36 MiB | PASS |
 | long_128 | 615 / 128 | 9,349.75 ms | 9,646.08 ms | 1.0317 | 6,968.59 MiB | PASS |
+
+| profile | old cold startup / e2e；steady QPS | current cold startup / e2e；steady QPS |
+| --- | --- | --- |
+| short_32 | 53,683.27 / 57,038.11 ms；.3861 | 29,959.98 / 32,888.75 ms；.3878 |
+| medium_64 | 53,699.31 / 59,426.10 ms；.2003 | 29,902.69 / 35,216.84 ms；.2039 |
+| long_128 | 30,034.63 / 39,813.40 ms；.1074 | 29,888.02 / 39,804.71 ms；.1045 |
+
+完整矩阵位于 `experiments/search_evidence_enhancement_v2.json` 的
+`performance_v2.measured_cells`：每格保留 cold startup/e2e、steady CLIP/Milvus/rerank/VLM/
+e2e 的 P50/P95、throughput、failure rate、VRAM、raw SHA 和 job ID。上表只做紧凑展示；cold
+每格仅 n=1，且并发提交造成的共享节点启动差异不能解释为 adapter 性能差异。
 
 三个 current 绝对 P95 都低于预锁定 15/22/35 秒门槛，三个相对比也低于 1.25，组件延迟 gate
 为 `PASS`。但 quality gate 为 `FAIL`，所以 joint quality+latency gate 为 `FAIL`。matrix 文件
