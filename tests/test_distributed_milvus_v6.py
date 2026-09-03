@@ -153,18 +153,23 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         self.assertEqual(env["MINIO_ROOT_USER"], "trip0123456789abcd")
         self.assertNotIn("MINIO_CONFIG_DIR", env)
 
-    def test_minio_command_sets_job_local_certs_before_server_subcommand(self) -> None:
+    def test_minio_command_sets_job_local_config_and_certs_before_server(self) -> None:
         data_dir = Path.cwd() / "minio-data"
+        config_dir = Path.cwd() / "minio-config"
         certs_dir = Path.cwd() / "minio-certs"
         command = build_minio_server_command(
             Path("minio"),
             data_dir=data_dir,
+            config_dir=config_dir,
             certs_dir=certs_dir,
             address=":28001",
             console_address=":28002",
         )
-        self.assertEqual(command[:4], ["minio", "--certs-dir", str(certs_dir), "server"])
-        self.assertEqual(command[4], str(data_dir))
+        self.assertEqual(
+            command[:6],
+            ["minio", "--config-dir", str(config_dir), "--certs-dir", str(certs_dir), "server"],
+        )
+        self.assertEqual(command[6], str(data_dir))
 
     def test_candidate_port_blocks_are_deterministic_bounded_and_non_overlapping(self) -> None:
         candidates = candidate_port_bases("30004341")

@@ -195,6 +195,7 @@ def run_cluster(args: argparse.Namespace) -> None:
                 build_minio_server_command(
                     minio,
                     data_dir=local_root / "minio-data",
+                    config_dir=local_root / "minio-config",
                     certs_dir=local_root / "minio-certs",
                     address=f":{port_base + 1}",
                     console_address=f":{port_base + 2}",
@@ -507,14 +508,17 @@ def build_minio_server_command(
     binary: Path,
     *,
     data_dir: Path,
+    config_dir: Path,
     certs_dir: Path,
     address: str,
     console_address: str,
 ) -> list[str]:
-    if not data_dir.is_absolute() or not certs_dir.is_absolute():
-        raise ValueError("MinIO data and certificate directories must be absolute")
+    if not all(path.is_absolute() for path in (data_dir, config_dir, certs_dir)):
+        raise ValueError("MinIO data, config, and certificate directories must be absolute")
     return [
         str(binary),
+        "--config-dir",
+        str(config_dir),
         "--certs-dir",
         str(certs_dir),
         "server",

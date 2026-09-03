@@ -131,6 +131,7 @@ def run_smoke(args: argparse.Namespace) -> None:
                 build_minio_server_command(
                     minio,
                     data_dir=local_root / "minio-data",
+                    config_dir=local_root / "minio-config",
                     certs_dir=local_root / "minio-certs",
                     address=f":{port_base + 1}",
                     console_address=f":{port_base + 2}",
