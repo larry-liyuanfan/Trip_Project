@@ -5,7 +5,7 @@
 #SBATCH --qos=publicgpu
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:A100:1
 #SBATCH --mem=64G
 #SBATCH --time=00:30:00

@@ -226,7 +226,7 @@ def run_cluster(args: argparse.Namespace) -> None:
                         placement,
                     ],
                     log,
-                    cpus=6,
+                    cpus=4,
                     env=secret_env,
                 )
             )
