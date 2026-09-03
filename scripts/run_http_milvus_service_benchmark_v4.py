@@ -99,12 +99,16 @@ def run_benchmark(args: argparse.Namespace) -> None:
         config["formal_release_read_only"]["retrieval_archive_sha256"],
         "formal retrieval archive",
     )
+    baseline_role = str(performance.get("baseline_role", "current_system_repair_checkpoint_87"))
+    candidate_role = str(performance.get("candidate_role", "targeted_exploration_adapter_v4"))
+    if baseline_role == candidate_role:
+        raise ValueError("performance baseline and candidate roles must differ")
     adapters = {
-        "current_system_repair_checkpoint_87": (
+        baseline_role: (
             args.baseline_adapter,
             args.baseline_adapter_sha256,
         ),
-        "targeted_exploration_adapter_v4": (
+        candidate_role: (
             args.candidate_adapter,
             args.candidate_adapter_sha256,
         ),
@@ -185,7 +189,7 @@ def run_benchmark(args: argparse.Namespace) -> None:
 
         gates = _performance_gates(role_summaries, performance)
         report = {
-            "schema_version": "http_milvus_service_benchmark_v4",
+            "schema_version": f"http_milvus_service_benchmark_{config.get('cycle_id', 'v4')}",
             "status": "COMPLETED" if gates["status"] == "PASS" else "NEGATIVE_EXPERIMENT_GATE_FAILED",
             "evidence_class": config["evidence_class"],
             "gate_class": config["gate_class"],
@@ -356,7 +360,9 @@ def serve_http(args: argparse.Namespace) -> None:
 
 
 def _load_locked_training_request(config: dict[str, Any], bundle_dir: Path) -> dict[str, Any]:
-    expected_lock = _load_json(Path(config["pool"]["committed_lock"]))
+    expected_lock = _load_json(Path(
+        config["performance"].get("request_pool_lock", config["pool"]["committed_lock"])
+    ))
     actual_lock = _load_json(bundle_dir / "bundle_lock.json")
     if actual_lock != expected_lock:
         raise ValueError("generated bundle lock differs from committed lock")
@@ -519,8 +525,10 @@ def _summarize_role(rows: list[dict[str, Any]], concurrency_levels: list[int]) -
 
 
 def _performance_gates(role_summaries: dict[str, Any], performance: dict[str, Any]) -> dict[str, Any]:
-    baseline = role_summaries["current_system_repair_checkpoint_87"]["steady"]["1"]
-    candidate = role_summaries["targeted_exploration_adapter_v4"]["steady"]["1"]
+    baseline_role = str(performance.get("baseline_role", "current_system_repair_checkpoint_87"))
+    candidate_role = str(performance.get("candidate_role", "targeted_exploration_adapter_v4"))
+    baseline = role_summaries[baseline_role]["steady"]["1"]
+    candidate = role_summaries[candidate_role]["steady"]["1"]
     baseline_p95 = baseline["stage_latency_ms"].get("http_e2e_ms", {}).get("p95")
     candidate_p95 = candidate["stage_latency_ms"].get("http_e2e_ms", {}).get("p95")
     ratio = candidate_p95 / baseline_p95 if baseline_p95 and candidate_p95 is not None else None
@@ -549,6 +557,8 @@ def _performance_gates(role_summaries: dict[str, Any], performance: dict[str, An
             "maximum_ratio": performance["candidate_to_checkpoint_87_concurrency_1_p95_ratio_max"],
         },
         "quality_gate": "SEPARATE_DEVELOPMENT_SELECTION_RECORD_REQUIRED_FOR_PROMOTION",
+        "baseline_role": baseline_role,
+        "candidate_role": candidate_role,
     }
 
 

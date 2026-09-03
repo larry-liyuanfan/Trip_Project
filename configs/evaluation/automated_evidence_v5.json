@@ -1,0 +1,97 @@
+{
+  "schema_version": "automated_evidence_v5_context_focus_exploration",
+  "cycle_id": "v5",
+  "evidence_class": "development_and_final_synthetic_only_not_human_ground_truth",
+  "gate_class": "exploration_only_not_release_or_production_gate",
+  "fresh_test_policy": "existing_120_sample_fresh_test_never_read_never_run_never_tune",
+  "formal_release_read_only": {
+    "release_id": "trip-qwen3-vl-8b-week8-final-v1",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "expected_index_support": 1000
+  },
+  "pool": {
+    "committed_lock": "configs/evaluation/evidence_enhancement/context_focus_pool_lock_v5.json",
+    "generator": "scripts/build_context_focus_pool_v5.py",
+    "splits": ["training", "development", "final"],
+    "final_policy": "exclusive_marker_before_first_manifest_open"
+  },
+  "search": {
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "milvus": {
+      "index_type": "HNSW",
+      "metric_type": "COSINE",
+      "M": 16,
+      "efConstruction": 128,
+      "ef": 64
+    }
+  },
+  "vlm": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "comparison_factor": "context_focused_training_data_only_on_exact_shared_v5_development_lock",
+    "development_roles": [
+      "targeted_exploration_adapter_v4",
+      "context_focus_adapter_v5"
+    ],
+    "candidate_variant": "context_focus_adapter_v5",
+    "baseline_variant": "targeted_exploration_adapter_v4",
+    "exploration_gates": {
+      "min_product_support": 24,
+      "min_dialogue_support": 24,
+      "min_field_f1": 0.45,
+      "max_unsupported_hallucination_rate": 0.35,
+      "min_unknown_abstention_accuracy": 0.65,
+      "min_first_attempt_json_compliance": 0.8,
+      "min_multi_subject_abstention_accuracy": 0.5,
+      "min_dialogue_metric": 0.6,
+      "min_context_recall_improvement": 0.1,
+      "max_other_dialogue_regression": 0.1
+    }
+  },
+  "training": {
+    "run_id": "trip_context_focus_sft_v5",
+    "initial_adapter_role": "targeted_exploration_adapter_v4",
+    "initial_adapter_model_sha256": "529026d7e704bb3e2e7761a641df765f88b69f071dd970e339497aa2af108c77",
+    "optimizer": "adamw_torch",
+    "learning_rate": 0.00005,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.03,
+    "max_grad_norm": 1.0,
+    "gradient_accumulation_steps": 16,
+    "epochs": 1,
+    "max_length": 8192,
+    "logging_steps": 1,
+    "attn_implementation": "sdpa",
+    "seed": 20260903,
+    "only_primary_factor_changed_from_v4_cycle": "context_focused_synthetic_training_data_composition_and_support"
+  },
+  "performance": {
+    "service_transport": "HTTP_FastAPI_Uvicorn",
+    "milvus_transport": "external_Milvus_server_not_Lite",
+    "milvus_server": {
+      "version": "2.6.18",
+      "package": "milvus_2.6.18-1_amd64.rpm",
+      "package_sha256": "3686f38c672dd73e6b99c0bb7829984439256724793a44d7cfd9c6fc0181a447",
+      "deployment_mode": "single_node_standalone_with_embedded_etcd_local_storage",
+      "multi_node_distributed_cluster": false
+    },
+    "request_pool_lock": "configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json",
+    "baseline_role": "targeted_exploration_adapter_v4",
+    "candidate_role": "context_focus_adapter_v5",
+    "fixed_input": {
+      "split": "training",
+      "query_id": "v4_tra_search_01",
+      "development_or_final_consumed": false
+    },
+    "concurrency": [1, 2, 4],
+    "cold_repetitions": 1,
+    "warmup_repetitions": 2,
+    "steady_repetitions": 8,
+    "vlm_max_new_tokens": 32,
+    "failure_rate_max": 0.02,
+    "candidate_to_checkpoint_87_concurrency_1_p95_ratio_max": 1.25,
+    "quality_gate_source": "v5_development_only_selection_record",
+    "production_sla_supported": false
+  }
+}

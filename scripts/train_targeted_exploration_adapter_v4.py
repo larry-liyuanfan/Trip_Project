@@ -37,7 +37,7 @@ def main() -> None:
         raise ValueError("generated bundle lock differs from committed lock")
     adapter_file = args.initial_adapter / "adapter_model.safetensors"
     if file_sha256(adapter_file) != config["training"]["initial_adapter_model_sha256"]:
-        raise ValueError("checkpoint-87 initial adapter SHA-256 mismatch")
+        raise ValueError("initial adapter SHA-256 mismatch")
     training_manifest = args.bundle_dir / "vlm_training_manifest.jsonl"
     if file_sha256(training_manifest) != expected_lock["vlm"]["training"]["manifest_file_sha256"]:
         raise ValueError("training manifest SHA-256 mismatch")
@@ -54,8 +54,9 @@ def main() -> None:
     if readiness["status"] != "ok":
         raise RuntimeError(f"training environment is not ready: {readiness['status']}")
     args.output_dir.mkdir(parents=True, exist_ok=False)
+    cycle_id = str(config.get("cycle_id", "v4"))
     identity = {
-        "schema_version": "targeted_exploration_training_identity_v4",
+        "schema_version": f"targeted_exploration_training_identity_{cycle_id}",
         "run_id": config["training"]["run_id"],
         "git_commit": _implementation_commit(args.implementation_commit),
         "config_sha256": file_sha256(args.config),
@@ -193,7 +194,7 @@ def _train(
     if not saved_adapter.is_file() or str(saved_config.base_model_name_or_path) != config["vlm"]["base_model"]:
         raise RuntimeError("saved targeted adapter failed reload validation")
     return {
-        "schema_version": "targeted_exploration_training_summary_v4",
+        "schema_version": f"targeted_exploration_training_summary_{config.get('cycle_id', 'v4')}",
         "status": "COMPLETED",
         **identity,
         "training_support": len(rows),

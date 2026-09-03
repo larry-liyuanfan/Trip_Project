@@ -1,0 +1,58 @@
+{
+  "asset_registry_canonical_sha256": "e921d2b42cbb8ffdae33f3931d50efd95fa38bd3e5f63dc78dd6bca91f5f7e05",
+  "asset_registry_support": 192,
+  "evidence_class": "deterministic_synthetic_programmatic_exploration_only",
+  "generator_version": "trip_context_focus_pool_v5",
+  "human_annotation_support": 0,
+  "image_encoding": "binary_ppm_p6_rgb_384x256",
+  "isolation": {
+    "overlaps": {
+      "development_vs_final": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      },
+      "training_vs_development": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      },
+      "training_vs_final": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      }
+    },
+    "status": "PASS"
+  },
+  "primary_factor": "context_focused_training_data_composition_and_support",
+  "prompt_change_from_v4": false,
+  "schema_version": "context_focus_pool_lock_v5",
+  "split_identity_policy": "source_id_image_sha256_sample_id_and_dialogue_text_sha256_disjoint",
+  "vlm": {
+    "development": {
+      "dialogue_support": 24,
+      "manifest_canonical_sha256": "80df9e48fe2af4d5b27aee2bf67dccac9bb6811b6813f0028b64e4848cc027f4",
+      "manifest_file_sha256": "d8fdc73e46699a3e9a50ecb90c9010edad4caf562f9a67ff92d97c2146ad652e",
+      "product_support": 24,
+      "sample_support": 48
+    },
+    "final": {
+      "dialogue_support": 24,
+      "manifest_canonical_sha256": "33a5dab5582a3855710a4b3e4efaba663f56ba44a0b4b2acf7f4acdb134d6959",
+      "manifest_file_sha256": "11eacff02cbda85c01279b0d5fb8e2d369ec866ebd1b07283b7e97ebc02d3e50",
+      "product_support": 24,
+      "sample_support": 48
+    },
+    "training": {
+      "dialogue_support": 384,
+      "manifest_canonical_sha256": "dfa2a3e85d3f9503686c30ce0af9901ed8d3662213131029338676f592f9fe58",
+      "manifest_file_sha256": "3a040e8f8079cc428e9bc208f96c126c715dc79fef8c0db28a3c2d76773e9d62",
+      "product_support": 144,
+      "sample_support": 528
+    }
+  }
+}

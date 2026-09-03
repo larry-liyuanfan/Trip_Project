@@ -53,6 +53,21 @@ class ServiceBenchmarkV4Tests(unittest.TestCase):
         )
         self.assertEqual(gate["status"], "FAIL")
 
+    def test_performance_gate_accepts_configured_role_names(self) -> None:
+        roles = {
+            "v4": {"steady": {"1": {"failure_rate": 0.0, "stage_latency_ms": {"http_e2e_ms": {"p95": 100.0}}}}},
+            "v5": {"steady": {"1": {"failure_rate": 0.0, "stage_latency_ms": {"http_e2e_ms": {"p95": 110.0}}}}},
+        }
+        gate = _performance_gates(roles, {
+            "baseline_role": "v4",
+            "candidate_role": "v5",
+            "failure_rate_max": 0.02,
+            "candidate_to_checkpoint_87_concurrency_1_p95_ratio_max": 1.25,
+        })
+        self.assertEqual(gate["status"], "PASS")
+        self.assertEqual(gate["baseline_role"], "v4")
+        self.assertEqual(gate["candidate_role"], "v5")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -65,7 +65,7 @@ def main() -> None:
         if selection.get("candidate_variant") != args.role:
             raise ValueError("final role differs from the development-selected candidate")
         marker = {
-            "schema_version": "vlm_semantic_v4_final_consumption",
+            "schema_version": f"vlm_semantic_{config.get('cycle_id', 'v4')}_final_consumption",
             "selection_file_sha256": file_sha256(args.selection_record),
             "committed_final_lock": expected_lock["vlm"]["final"],
             "role": args.role,
@@ -149,7 +149,7 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     _write_jsonl(args.output, output_rows)
     summary = {
-        "schema_version": "vlm_semantic_role_evidence_v4",
+        "schema_version": f"vlm_semantic_role_evidence_{config.get('cycle_id', 'v4')}",
         "status": "COMPLETED",
         "split": args.split,
         "role": args.role,
