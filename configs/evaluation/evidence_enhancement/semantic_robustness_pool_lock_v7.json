@@ -1,0 +1,97 @@
+{
+  "asset_registry_canonical_sha256": "c5c3aa080d979d868d4d0c599a91ee5bca0ef55851d97c98571259d2fc27b6a7",
+  "asset_registry_support": 304,
+  "evidence_class": "deterministic_synthetic_programmatic_development_only",
+  "final_policy": "not_defined_not_generated_not_opened",
+  "generator_version": "trip_semantic_robustness_pool_v7",
+  "human_annotation_support": 0,
+  "image_encoding": "binary_ppm_p6_rgb_384x256",
+  "isolation": {
+    "status": "PASS",
+    "training_vs_development": {
+      "dialogue_text_sha256": [],
+      "image_sha256": [],
+      "sample_id": [],
+      "source_id": []
+    }
+  },
+  "primary_factor": "robustness_training_data_only",
+  "prior_v5_bundle_lock_sha256": "5069c65079804a378a0cafc4df54da2343c75c06bcb27b301e1fe7947e376742",
+  "prior_v5_training_isolation": {
+    "compared_prior_row_support": 528,
+    "overlaps": {
+      "development": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      },
+      "training": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      }
+    },
+    "status": "PASS"
+  },
+  "prompt_fixed_within_comparison": true,
+  "schema_version": "semantic_robustness_pool_lock_v7",
+  "split_identity_policy": "source_id_image_sha256_sample_id_and_dialogue_text_sha256_disjoint",
+  "splits": [
+    "training",
+    "development"
+  ],
+  "vlm": {
+    "development": {
+      "dialogue_support": 48,
+      "manifest_canonical_sha256": "da54e4a638c46b790e41773bdda2d980dca3b2fcfff89cf98be2ce8fda97eb2d",
+      "manifest_file_sha256": "12873679fd26dca29821480e66c21784bd3d77afdfcb6a6f5afc30be7f8e9282",
+      "product_support": 48,
+      "sample_support": 96,
+      "slice_support": {
+        "business_category": 16,
+        "conflicting_price_evidence": 8,
+        "context_recall": 48,
+        "dialogue_state": 48,
+        "facility": 16,
+        "first_turn_routing": 48,
+        "insufficient_visual_evidence": 16,
+        "known_visible_price": 16,
+        "multi_label": 16,
+        "multi_subject_conflict": 8,
+        "negated_evidence": 8,
+        "price_unknown": 32,
+        "style": 16,
+        "task_key_value": 48,
+        "unknown_suppression": 32,
+        "v7_robustness": 96
+      }
+    },
+    "training": {
+      "dialogue_support": 256,
+      "manifest_canonical_sha256": "be39874128c30cf56f224172d894400049f6db828676090009358eac25b4b630",
+      "manifest_file_sha256": "688d0ec2e9884a0741b86bf4e554c5495d7dd008ae04ccf91f33d801092367be",
+      "product_support": 256,
+      "sample_support": 512,
+      "slice_support": {
+        "business_category": 96,
+        "conflicting_price_evidence": 40,
+        "context_recall": 256,
+        "dialogue_state": 256,
+        "facility": 96,
+        "first_turn_routing": 256,
+        "insufficient_visual_evidence": 80,
+        "known_visible_price": 96,
+        "multi_label": 96,
+        "multi_subject_conflict": 40,
+        "negated_evidence": 40,
+        "price_unknown": 160,
+        "style": 96,
+        "task_key_value": 256,
+        "unknown_suppression": 160,
+        "v7_robustness": 512
+      }
+    }
+  }
+}

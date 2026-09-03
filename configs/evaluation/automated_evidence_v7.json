@@ -1,0 +1,102 @@
+{
+  "schema_version": "automated_evidence_v7_semantic_robustness_development",
+  "cycle_id": "v7",
+  "evidence_class": "development_only_synthetic_not_human_ground_truth",
+  "gate_class": "development_only_exploration_not_release_or_production_gate",
+  "fresh_test_policy": "existing_120_sample_fresh_test_never_read_never_run_never_tune",
+  "formal_release_read_only": {
+    "release_id": "trip-qwen3-vl-8b-week8-final-v1",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "expected_index_support": 1000
+  },
+  "pool": {
+    "committed_lock": "configs/evaluation/evidence_enhancement/semantic_robustness_pool_lock_v7.json",
+    "generator": "scripts/build_semantic_robustness_pool_v7.py",
+    "splits": ["training", "development"],
+    "final_policy": "not_defined_not_generated_not_opened"
+  },
+  "search": {
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "milvus": {
+      "index_type": "HNSW",
+      "metric_type": "COSINE",
+      "M": 16,
+      "efConstruction": 128,
+      "ef": 64
+    }
+  },
+  "vlm": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "comparison_factor": "robustness_training_data_only_on_exact_shared_v7_development_lock",
+    "development_roles": ["context_focus_adapter_v5", "semantic_robustness_adapter_v7"],
+    "baseline_variant": "context_focus_adapter_v5",
+    "candidate_variant": "semantic_robustness_adapter_v7",
+    "exploration_gates": {
+      "min_product_support": 48,
+      "min_dialogue_support": 48,
+      "min_field_f1": 0.65,
+      "max_unsupported_hallucination_rate": 0.20,
+      "min_unknown_abstention_accuracy": 0.80,
+      "min_first_attempt_json_compliance": 0.90,
+      "min_multi_subject_abstention_accuracy": 0.75,
+      "min_insufficient_evidence_abstention_accuracy": 0.75,
+      "min_dialogue_metric": 0.75,
+      "max_per_metric_regression": 0.05
+    },
+    "selection_objective": {
+      "field_f1_mean_weight": 0.35,
+      "unknown_abstention_weight": 0.15,
+      "dialogue_mean_weight": 0.30,
+      "first_json_weight": 0.10,
+      "supported_exact_match_weight": 0.10,
+      "min_improvement_over_baseline": 0.01
+    }
+  },
+  "training": {
+    "run_id": "trip_semantic_robustness_sft_v7",
+    "initial_adapter_role": "context_focus_adapter_v5",
+    "initial_adapter_model_sha256": "b8a1ce69bbce2be99d02a7445a7aaa1fe36a954c42fb1404e26b2244f825cac4",
+    "optimizer": "adamw_torch",
+    "learning_rate": 0.00005,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.03,
+    "max_grad_norm": 1.0,
+    "gradient_accumulation_steps": 16,
+    "epochs": 1,
+    "max_length": 8192,
+    "logging_steps": 1,
+    "attn_implementation": "sdpa",
+    "seed": 20260904,
+    "only_primary_factor_changed_from_v5_cycle": "robustness_training_data_composition_and_support"
+  },
+  "performance": {
+    "service_transport": "HTTP_FastAPI_Uvicorn",
+    "milvus_transport": "external_Milvus_server_not_Lite",
+    "milvus_server": {
+      "version": "2.6.18",
+      "package": "milvus_2.6.18-1_amd64.rpm",
+      "package_sha256": "3686f38c672dd73e6b99c0bb7829984439256724793a44d7cfd9c6fc0181a447",
+      "deployment_mode": "single_node_standalone_with_embedded_etcd_local_storage",
+      "multi_node_distributed_cluster": false
+    },
+    "request_pool_lock": "configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json",
+    "baseline_role": "context_focus_adapter_v5",
+    "candidate_role": "semantic_robustness_adapter_v7",
+    "fixed_input": {
+      "split": "training",
+      "query_id": "v4_tra_search_01",
+      "development_or_final_consumed": false
+    },
+    "concurrency": [1, 2, 4],
+    "cold_repetitions": 1,
+    "warmup_repetitions": 2,
+    "steady_repetitions": 8,
+    "vlm_max_new_tokens": 32,
+    "failure_rate_max": 0.02,
+    "candidate_to_checkpoint_87_concurrency_1_p95_ratio_max": 1.25,
+    "quality_gate_source": "v7_development_only_selection_record",
+    "production_sla_supported": false
+  }
+}
