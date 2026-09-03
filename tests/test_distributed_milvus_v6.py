@@ -7,7 +7,11 @@ from pathlib import Path
 from unittest import mock
 
 from scripts.prepare_distributed_milvus_runtime_v6 import configure_milvus_text
-from scripts.run_distributed_milvus_cluster_v6 import prepare_node, serve_milvus
+from scripts.run_distributed_milvus_cluster_v6 import (
+    build_minio_environment,
+    prepare_node,
+    serve_milvus,
+)
 from scripts.run_http_milvus_service_benchmark_v4 import _validate_external_cluster_identity
 from scripts.smoke_distributed_milvus_runtime_v6 import validate_dependencies
 
@@ -134,6 +138,20 @@ class DistributedMilvusV6Tests(unittest.TestCase):
             prepare_node(**common, placement="invalid")
         with self.assertRaisesRegex(ValueError, "unsupported Milvus placement"):
             serve_milvus(Path("/tmp/runtime"), "invalid", 28013)
+
+    def test_minio_uses_job_local_config_without_replacing_home(self) -> None:
+        base_env = {"HOME": "/home/yzhang3504", "EXISTING": "value"}
+        config_dir = Path.cwd() / "trip-minio-config"
+        env = build_minio_environment(
+            base_env,
+            access_key="trip0123456789abcd",
+            secret_key="s" * 40,
+            config_dir=config_dir,
+        )
+        self.assertEqual(env["HOME"], base_env["HOME"])
+        self.assertEqual(env["MINIO_CONFIG_DIR"], str(config_dir))
+        self.assertEqual(env["MINIO_ROOT_USER"], "trip0123456789abcd")
+        self.assertNotIn("MINIO_CONFIG_DIR", base_env)
 
 
 if __name__ == "__main__":

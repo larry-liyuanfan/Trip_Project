@@ -194,14 +194,11 @@ def run_cluster(args: argparse.Namespace) -> None:
                 env=secret_env,
             )
         )
-        minio_env = secret_env.copy()
-        minio_env.update(
-            {
-                "MINIO_ACCESS_KEY": access_key,
-                "MINIO_SECRET_KEY": secret_key,
-                "MINIO_ROOT_USER": access_key,
-                "MINIO_ROOT_PASSWORD": secret_key,
-            }
+        minio_env = build_minio_environment(
+            secret_env,
+            access_key=access_key,
+            secret_key=secret_key,
+            config_dir=local_root / "minio-config",
         )
         processes.append(
             start_step(
@@ -450,6 +447,28 @@ def serve_milvus(runtime_dir: Path, placement: str, metrics_port: int) -> None:
     else:
         raise ValueError(f"unsupported Milvus placement: {placement}")
     os.execve(str(binary), command, env)
+
+
+def build_minio_environment(
+    base_env: dict[str, str],
+    *,
+    access_key: str,
+    secret_key: str,
+    config_dir: Path,
+) -> dict[str, str]:
+    if not config_dir.is_absolute():
+        raise ValueError("MinIO config directory must be absolute")
+    env = base_env.copy()
+    env.update(
+        {
+            "MINIO_ACCESS_KEY": access_key,
+            "MINIO_SECRET_KEY": secret_key,
+            "MINIO_ROOT_USER": access_key,
+            "MINIO_ROOT_PASSWORD": secret_key,
+            "MINIO_CONFIG_DIR": str(config_dir),
+        }
+    )
+    return env
 
 
 def run_step(node: str, command: list[str], *, cpus: int, env: dict[str, str] | None = None) -> None:
