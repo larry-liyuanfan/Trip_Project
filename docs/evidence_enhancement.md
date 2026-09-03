@@ -4,6 +4,55 @@
 `trip-qwen3-vl-8b-week8-final-v1`，也不重新消费已锁定的 Fresh Test 120。所有新输出必须
 写入不存在的目标文件；正式四层包只读，归档或成员哈希不匹配时立即失败。
 
+## v4 与 v5 已完成证据
+
+v4 使用 `configs/evaluation/automated_evidence_v4.json` 和三向锁
+`configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json`。搜索与 VLM 的
+training/development/final 均要求 source ID、image SHA 及 query/sample ID 两两零重叠；
+final 在 development gate 通过后先写 exclusive marker，再第一次读取。该轮全部
+标签是 deterministic synthetic，human support=0，不用于正式 release 晋级。
+
+v4 搜索固定比较 exact CLIP、CLIP+Milvus、结构化硬过滤+CLIP、硬过滤+
+轻量重排和带业态 guard 的候选。它将 ANN-vs-exact Recall@10 另列为实现
+保真，业务指标另报 Recall@K、MRR@10、nDCG@10、no-result slice、filter
+correctness 和各类别分母。最终 synthetic 一次性集 n=24（ranking=12、
+no-result=12、hard-filter=16）上，业态 guard 候选的 MRR@10、nDCG@10、
+no-result accuracy 和 filter correctness 均为 1.0；ANN-vs-exact Recall@10=0.9917。
+这些数字只是 synthetic 规则标签结果。
+
+v4 VLM 在同一新 development 锁上比较 zero-shot、旧 unified adapter、checkpoint-87
+和 targeted adapter，每角色 n=36（商品 24、对话 12）。targeted adapter 的业态/
+风格/设施/价位 F1 分别为 1.0/1.0/1.0/0.6667，unknown abstention=1.0、
+unsupported hallucination=0、first-attempt JSON=1.0；但 context recall=0.4167，低于
+预锁 0.6，因此 v4 VLM final 保持未消费。
+
+v4 服务性能使用真实 loopback HTTP FastAPI/Uvicorn、外部单节点 Milvus 2.6.18
+standalone 和一张 L40S，顺序比较 checkpoint-87 与 targeted adapter。每角色 1 次
+cold、2 次 warmup，并发 1/2/4 各 8 个 batch，steady 分母每角色 56 请求。
+候选 c=1 HTTP P95=1210.95 ms，基线=558.54 ms，比值 2.168>1.25，故保留为
+负实验。Milvus 查询约 2.5 ms 只是阶段耗时，不是 HTTP 端到端延迟；
+该部署也不是 multi-node distributed Milvus。
+
+v5 上下文专项在任何运行前固定于
+`configs/evaluation/automated_evidence_v5.json` 和
+`configs/evaluation/evidence_enhancement/context_focus_pool_lock_v5.json`。它从 v4 adapter 继续
+训练，保持基座 revision、Prompt、优化器、学习率、epoch 和 seed 不变，只改变
+主要因素“上下文专项 synthetic 训练数据组成与支持数”。新锁为 training
+528（商品 144、对话 384）、development/final 各 48（商品 24、对话 24）；
+source、image、sample 及 dialogue-text SHA 三向零重叠。开发门槛包含 context
+recall 至少 0.6 且相对 v4 提升至少 0.1，其他对话指标回退不超过 0.1。
+只有开发质量通过，才会在同一硬件上运行 v4→v5 真 HTTP/Milvus 延迟对比；
+只有质量和 c=1 HTTP P95 比值≤1.25 同时通过，才允许消费 v5 final。
+
+实际 job `29998754` 严格按以上顺序完成。development（每角色 n=48）上 v5 的 context
+recall 从 v4 的 7/24 提升至 24/24，state、task key/value 与 first route 也均为 24/24；
+价位 F1 从 9/12 提升至 12/12，unknown abstention=36/36、unsupported hallucination=0/36。
+同一 A100 80GB 上，真实 HTTP + 外部单节点 Milvus 的 c=1 steady P95 为 v4
+1046.03 ms、v5 1030.30 ms，比值=.985；c=1/2/4 共 56 steady 请求/角色，失败率均为 0。
+两个门均通过后，v5 final 只消费一次；n=48 的协议指标全部通过。完整分母、阶段延迟、
+硬件和产物 SHA 见 `experiments/context_focus_evidence_v5.json`。全部质量标签仍是 synthetic，
+human support=0；结果不代表人工视觉准确率、真实用户业务相关性、分布式 Milvus 或生产 SLA。
+
 ## 自动化 v2 / weak v3 预运行锁
 
 第二轮自动化证据使用 `configs/evaluation/automated_evidence_v2.json` 和

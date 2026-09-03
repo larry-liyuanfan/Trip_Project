@@ -194,9 +194,9 @@ def _train(
     if not saved_adapter.is_file() or str(saved_config.base_model_name_or_path) != config["vlm"]["base_model"]:
         raise RuntimeError("saved targeted adapter failed reload validation")
     return {
+        **identity,
         "schema_version": f"targeted_exploration_training_summary_{config.get('cycle_id', 'v4')}",
         "status": "COMPLETED",
-        **identity,
         "training_support": len(rows),
         "product_support": sum(row["scenario"] == "product" for row in rows),
         "dialogue_support": sum(row["scenario"] == "dialogue" for row in rows),

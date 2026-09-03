@@ -10,3 +10,9 @@
 阶段性选择和指标不得覆盖当前 release 配置；需要重现实验时再结合 `experiments/` 中的
 机器可读身份与 Git 提交读取。
 
+当前 `dev` 搜索算法证据入口为
+`development/reviews/search_algorithm_evidence_enhancement_report.md`；对应最新机器证据为
+`../experiments/search_algorithm_evidence_v4.json` 与
+`../experiments/context_focus_evidence_v5.json`。二者均为 synthetic/weak 开发证据，
+human support=0，不覆盖正式 release 或冻结 Fresh Test。
+

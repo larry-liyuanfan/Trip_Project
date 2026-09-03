@@ -84,14 +84,27 @@ experiments/  保留的机器可读历史证据
 - 自动化 v2 配置与预运行锁：`configs/evaluation/automated_evidence_v2.json`、
   `configs/evaluation/evidence_enhancement/automated_pool_lock_v2.json`
 - 自动化 v2 机器证据：`experiments/search_evidence_enhancement_v2.json`
+- v4 预锁配置、三向数据锁与机器证据：
+  `configs/evaluation/automated_evidence_v4.json`、
+  `configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json`、
+  `experiments/search_algorithm_evidence_v4.json`
+- v5 上下文专项配置、数据锁与机器证据：`configs/evaluation/automated_evidence_v5.json`、
+  `configs/evaluation/evidence_enhancement/context_focus_pool_lock_v5.json`、
+  `experiments/context_focus_evidence_v5.json`
 - 报告：`reports/development/reviews/search_algorithm_evidence_enhancement_report.md`
 
 该轨道不修改正式 v1。历史 Milvus `Recall@10=1.0` 只表示 ANN 对精确余弦 Top10 的保真度，
 P95 `2.4097 ms` 只表示 vector query；新 Commons 查询池目前为弱标注，不能宣称人工业务
 相关性。历史 Fresh Test 120 不重跑、不调参。
 自动化 v2 另将 1000 张 formal index source image 逐字节注册，使用互不重叠的 synthetic
-calibration/一次性 holdout，并把 Milvus Lite 组件性能与未运行的分布式/HTTP 服务性能严格分开；
-这些结果仍不是人工真值或生产 SLA。
+calibration/一次性 holdout。v4 进一步在三向隔离 synthetic 集上完成搜索最终
+门槛，并实际运行 concurrency=1/2/4 的 loopback HTTP + 外部单节点 Milvus 2.6.18
+standalone 服务基准。该性能实验因候选/基线 c=1 HTTP P95 比值 2.168 超过
+1.25 而保留为负实验；它不是 multi-node distributed Milvus 或生产 SLA。搜索和 VLM
+质量仍是 synthetic/weak，human support=0。后续 v5 只改变上下文专项训练数据组成，
+在新 development 上将 context recall 从 7/24 提至 24/24，并以同一 A100 上 c=1 HTTP
+P95 比值 .985 通过延迟门后一次性消费 synthetic final；final n=48 全部协议指标通过。
+该结果不修改正式 release，也不能包装成人工视觉或真实业务相关性。
 
 ## 环境
 

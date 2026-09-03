@@ -1,13 +1,160 @@
 # 搜索算法、VLM/SFT 与端到端证据增强报告
 
-日期：2026-09-03 结论：自动化 v2 / weak v3 为 `COMPLETED_DEVELOPMENT_DIAGNOSTIC`；正式
-release 不变；修正后的搜索 gate `FAIL`、VLM 质量 gate `FAIL`、固定长度组件延迟 gate `PASS`，
-质量与延迟联合 gate `FAIL_NOT_ELIGIBLE_WEAK_OR_SYNTHETIC_EVIDENCE`。
+日期：2026-09-03。当前结论：v4 synthetic 搜索 development/final gate 通过；v4 VLM
+因对话 context recall 未达 0.6、且相对 checkpoint-87 的真实 HTTP 延迟比为 2.168 而保留
+为负实验。随后预注册的 v5 上下文专项在新 development 上通过质量门和相对 v4 的延迟门，
+并只消费一次独立 synthetic final。正式 release 不变、Fresh Test 120 未读取/未重跑，
+human support=0。后文 v2/v3/v1 均为历史证据，不得覆盖本节。
+
+## v4 当前最新结果
+
+机器可读摘要为 `experiments/search_algorithm_evidence_v4.json`（文件 SHA-256
+`49d4716b5d68fdfa33c1e245fc633c4d5ba7a95a6432d06a50f76ca23940c295`）。搜索绑定实现提交
+`3c6beecae5c555372ad2585eedee0fd0efe9cde7`，source snapshot
+`b66e91562f66cc13ff01aaff8be78f1747169bb65eba13843688372363d12010`；训练提交
+`938c8fd3abc9cc3a530f76e4dd82c26816156f89`，候选后续评测绑定
+`5af48aee5aa3df3f8d79b9f6543c82f8c524f8b2`。所有作业在运行前验证 source manifest
+及逐文件 SHA。
+
+### 搜索语义相关性
+
+training/development/final 各 24 条 synthetic 查询，source ID、image SHA 和 query ID
+三向零重叠。最终集只在开发门槛通过后消费一次。其分母为 query=24、
+ranking=12、no-result=12、hard-filter=16。
+
+| 方法 | Recall@5 | Recall@10 | MRR@10 | nDCG@10 | no-result slice | filter correctness |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| CLIP exact | .00598 | .00855 | .625 | .8435 | 0 | .3333 |
+| CLIP + Milvus | .00598 | .00855 | .625 | .8435 | 0 | .3333 |
+| structured filter + CLIP | .06998 | .07945 | 1.0 | 1.0 | .3333 | 1.0 |
+| hard filter + light rerank | .06998 | .07945 | 1.0 | 1.0 | .3333 | 1.0 |
+| hard filter + CLIP business guard | .06998 | .07945 | 1.0 | 1.0 | 1.0 | 1.0 |
+
+选择参数只在 development 的 14 个预定组合中比较，得到 business-guard threshold=0、
+star weight=0。因此不宣称 star-rating rerank 有独立收益；实际收益来自硬过滤和
+business guard。最终 ANN-vs-exact Recall@10=0.9917（development=1.0）只代表 HNSW
+返回集与精确余弦 Top10 的一致性，不代表业务相关性。由于正式检索归档未保存
+索引原图 SHA，query-vs-index 字节碰撞仍为 `NOT_RUN_MISSING_INDEX_IMAGE_SHA`。
+
+### VLM/SFT 语义与训练
+
+新 development 同锁比较 zero-shot、旧 unified checkpoint-226、当前 checkpoint-87 和 v4
+targeted adapter，每角色 n=36（商品 24、对话 12），唯一比较因素为 adapter。v4 训练
+仅读 288 条 training（商品 192、对话 96），1 epoch/18 step，训练 67.13 s，
+loss=.17585，峰值 allocated/reserved 显存约 10.30/12.66 GiB，得到 adapter SHA
+`529026d7e704bb3e2e7761a641df765f88b69f071dd970e339497aa2af108c77`。
+
+| 角色 | category/style/facility/price F1 | exact | unknown abstain | hallucination | first JSON / correction |
+| --- | --- | ---: | ---: | ---: | ---: |
+| zero-shot | 1/1/1/.25 | .625 | 1.0 | 0 | 1.0 / 0 |
+| 旧 unified | .7917/.9091/1/.3333 | .500 | 1.0 | 0 | 1.0 / 0 |
+| checkpoint-87 | .625/.6667/.6667/.3333 | .4583 | .3333 | .6667 | .8889 / .1111 |
+| v4 targeted | 1/1/1/.6667 | .8333 | 1.0 | 0 | 1.0 / 0 |
+
+| 角色（对话 n=12） | context | state | task key | task value | first route |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| zero-shot | 0 | .3333 | 0 | .75 | 1.0 |
+| 旧 unified | .0833 | 0 | 0 | .25 | 1.0 |
+| checkpoint-87 | 0 | 0 | 0 | .25 | .6667 |
+| v4 targeted | .4167 | 1.0 | .8333 | 1.0 | 1.0 |
+
+v4 targeted 选择目标从 checkpoint-87 的 .4477 提高到 .9167，但 context=.4167<.6，
+预锁门槛整体 `FAIL`。原始错误显示了合并原子事实、漏业态、加字段前缀和误将当轮
+新值塞入历史上下文四类问题。本轮不降低事后门槛，v4 VLM final 未打开。
+
+### 真实 HTTP + 外部 Milvus 端到端性能
+
+job `29996972` 在同一 L40S 上顺序比较 checkpoint-87 和 v4 targeted；每角色
+1 cold、2 warmup，c=1/2/4 各 8 batch，steady 总分母 56，失败率均为 0。运行使用
+FastAPI/Uvicorn loopback HTTP 和独立 Milvus 2.6.18 standalone 进程，插入并加载
+1000 条正式向量。Milvus cold startup=1845.50 ms，collection build/load=8359.16 ms。
+
+| 角色 | c | HTTP P50/P95 ms | queue P50 ms | throughput req/s | peak VRAM MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| checkpoint-87 | 1 | 555.72/558.54 | .0007 | 1.800 | 6864.3 |
+| checkpoint-87 | 2 | 828.96/1105.41 | 271.18 | 1.811 | 6872.4 |
+| checkpoint-87 | 4 | 1384.36/2214.97 | 826.14 | 1.805 | 6888.7 |
+| v4 targeted | 1 | 1206.56/1210.95 | .0007 | .829 | 6864.3 |
+| v4 targeted | 2 | 1806.97/2426.84 | 597.97 | .829 | 6872.4 |
+| v4 targeted | 4 | 3016.81/4827.35 | 1801.64 | .829 | 6888.7 |
+
+v4 targeted 的 c=1 HTTP P95/基线比值为 2.168，超过 1.25，性能 gate `FAIL`。
+其 c=1 稳态分阶段 P50 为 CLIP 4.44 ms、Milvus 2.54 ms、rerank .021 ms、VLM
+1194.97 ms、HTTP 1206.56 ms。这正是为什么 2.41 ms 向量查询绝不能写成整个
+多模态搜索服务延迟。单节点 standalone 不是 multi-node distributed Milvus，本结果
+也不支持生产 SLA。
+
+## v5 上下文专项（已完成）
+
+v5 以 v4 targeted adapter 为固定基线，保持基座、Prompt、训练超参和 seed 不变，
+只改变上下文专项 synthetic 训练数据组成/支持数。新锁为 training 528（product=144、
+dialogue=384）、development/final 各 48（product=24、dialogue=24），source/image/
+sample/dialogue-text SHA 三向零重叠。开发 context 必须≥0.6 且相对 v4 提升≥0.1，
+其他对话指标不得回退超过 .1；随后的同硬件 c=1 HTTP P95 比值必须≤1.25。
+只有两个门槛同时通过才消费 v5 final，不根据 v4 已见开发结果降门槛。机器证据为
+`experiments/context_focus_evidence_v5.json`（文件 SHA-256
+`24ef6b1e581dc3730f629adc3a77b6f09e5581d6777fee20d030800a1ae8c397`），实现提交为
+`15fe56eb871e731df98e11b8207a08583dce84a4`，source snapshot 为
+`802cc2e3e9466bcd6f55e709c010a52f98b64edfa18907c1c8d5af4ac325fa5e`。
+
+### v5 训练与新 development
+
+Iris job `29998754` 使用一张 A100 80GB PCIe。v5 从 v4 adapter 继续训练 528 条
+synthetic training 样本，1 epoch/33 step，loss=.03446、runtime=187.26 s、
+2.82 samples/s；峰值 allocated/reserved 显存约 10.29/12.66 GiB。adapter SHA 为
+`b8a1ce69bbce2be99d02a7445a7aaa1fe36a954c42fb1404e26b2244f825cac4`。首次 job
+`29998410` 在基座加载阶段失败且未打开 development/final，保留为工程失败，不产生科学结论。
+成功 run 的不可变 `run_summary` 存在 schema 名被 identity 字段覆盖的元数据缺陷；指标键和
+SHA 完整保留，writer 已修正，历史产物不回写。
+
+v4 与 v5 在同一新 development 锁上各评 48 条（商品 24、对话 24），只改变上下文专项
+训练数据组成与支持数：
+
+| 角色 | category/style/facility/price P=R=F1 | exact | unknown | hallucination | first JSON / correction |
+| --- | --- | ---: | ---: | ---: | ---: |
+| v4 baseline | .9583/1/1/.75 | .875 | 1.0（36/36） | 0/36 | 1.0 / 0 |
+| v5 candidate | .9583/1/1/1 | .9583 | 1.0（36/36） | 0/36 | 1.0 / 0 |
+
+| 角色（对话 n=24） | context | state | task key | task value | first route |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| v4 baseline | .2917 | .625 | .2083 | .500 | 1.0 |
+| v5 candidate | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
+
+context 从 7/24 提升到 24/24，超过预锁的绝对 0.6 与相对 +0.1 门槛；其他门槛也全部
+通过。该开发结果只证明确定性 synthetic 协议拟合改善，不是人工视觉或真实用户相关性。
+
+### v5 真实 HTTP 延迟门与一次性 final
+
+同一 job、同一 A100、同一 training 请求顺序比较 v4/v5；使用真实 loopback
+FastAPI/Uvicorn、外部 Milvus 2.6.18 single-node standalone、1000 个可见向量。Milvus
+cold startup=1936.34 ms，collection build/load=8216.36 ms；每角色 1 cold、2 warmup，
+c=1/2/4 各 8 batch，steady 分母 8/16/32（合计 56），失败均为 0。
+
+| 角色 | c | HTTP P50/P95 ms | queue P50 ms | throughput req/s | peak VRAM MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| v4 baseline | 1 | 1024.10/1046.03 | .0008 | .973 | 6864.3 |
+| v4 baseline | 2 | 1528.97/2045.82 | 501.54 | .982 | 6872.4 |
+| v4 baseline | 4 | 2534.31/4076.09 | 1520.77 | .985 | 6888.7 |
+| v5 candidate | 1 | 1025.40/1030.30 | .0008 | .976 | 6864.3 |
+| v5 candidate | 2 | 1527.60/2052.88 | 504.95 | .979 | 6872.4 |
+| v5 candidate | 4 | 2528.99/4097.31 | 1517.80 | .985 | 6888.7 |
+
+v5/v4 的 c=1 HTTP P95 比值=.985≤1.25，性能门通过。v5 c=1 分阶段 P50 为 CLIP
+7.00 ms、Milvus 3.21 ms、rerank .029 ms、VLM 1009.82 ms、HTTP 1025.40 ms；
+模型服务 cold startup=36.04 s，首次请求 HTTP=1.596 s。质量与性能门均通过后，程序写入
+exclusive marker 并首次读取 v5 final。final n=48（商品 24、对话 24）上四字段 P/R/F1、
+exact、unknown abstention（36/36）、全部五项对话指标和首轮 JSON 均为 1.0，unsupported
+hallucination 与 correction trigger 均为 0。final raw canonical SHA 为
+`ceb1f4e991050ce96c0c695749ed503965adfc5477c7d235f202a63d1c4b9ca1`。
+
+这组满分只能标作 `synthetic exploration`：没有人工标注，不修改正式 adapter/release，
+也没有读取冻结 Fresh Test。服务是单节点 standalone Milvus，不是 multi-node distributed
+集群，不支持生产 SLA。
 
 ## 自动化 v2 / weak v3 最终补充
 
-这是本报告的当前结论；后文 v1 保留为历史开发证据，不能覆盖本节。机器可读汇总为
-`experiments/search_evidence_enhancement_v2.json`。本轮没有读取或重跑 Fresh Test，没有人工
+以下为历史 v2/v3 结果，不能覆盖前述 v4/v5 当前结论；后文 v1 同样只保留为历史开发证据。
+机器可读汇总为 `experiments/search_evidence_enhancement_v2.json`。该轮没有读取或重跑 Fresh Test，没有人工
 标注或仲裁，human support=0；所有搜索和 VLM 质量数字均为 synthetic/weak development
 evidence，不能宣称人工业务相关性、人工视觉准确率或正式晋级资格。
 
@@ -127,8 +274,9 @@ e2e 的 P50/P95、throughput、failure rate、VRAM、raw SHA 和 job ID。上表
 为 `PASS`。但 quality gate 为 `FAIL`，所以 joint quality+latency gate 为 `FAIL`。matrix 文件
 SHA-256 为 `e0dcf9…c2bc`，36 条 measured row 的 canonical SHA-256 为 `2dfd45…caf3`。
 
-concurrency=2/4 的单模型 Milvus Lite 单元因未声明线程安全而 `NOT_RUN`；concurrency=1/2/4
-的 distributed Milvus + HTTP 服务因没有隔离、安全的服务端点而 `NOT_RUN`。因此这里只能说明
+该 v2 轮 concurrency=2/4 的单模型 Milvus Lite 单元因未声明线程安全而 `NOT_RUN`；
+concurrency=1/2/4 的 distributed Milvus + HTTP 服务因没有隔离、安全的服务端点而 `NOT_RUN`。
+后续 v4/v5 已补真实 HTTP + 外部单节点 Milvus 的 c=1/2/4，但 multi-node distributed 仍未运行。因此这里的 v2 结果只能说明
 单进程组件性能，不是生产服务吞吐或 SLA。
 
 早期 job `29960754–29960759` 虽完成，但三个 profile 实际都为相同输入/输出长度，统一标记
@@ -375,48 +523,52 @@ sample_id 与 dataset 完全一致。原 metrics 的商品 composite 为 `0.7806
 support=0，状态为 `NOT_SCORABLE_NO_PRESERVED_MULTI_SUBJECT_LABEL`。本审计不从普通图片或
 模型输出反推多主体真值。
 
-以下项目是 v1 结束时的缺口；自动化 v2 补齐情况与仍存边界如下：
+以下为截至 v5 的补齐情况与仍存边界；v2 的旧失败状态仅是历史负实验：
 
 - **仍未完成**：人工相关性双人标注与仲裁，human support 仍为 0；
 - **已自动化补齐**：通过 Git 外 formal overlay 对 1000/1000 索引原图原位哈希，完成查询图与
   索引图的 byte/source collision audit；正式 retrieval 压缩包本身仍不包含原图；
-- **已补齐但仍是 weak/synthetic**：weak v3 的 known-price 与 multi-subject 每角色 support
-  均为 4，不能替代人工视觉真值；历史 Fresh Test 仍没有可评分的多主体冲突标签；
-- **部分补齐**：用 16 条 synthetic calibration 预选 no-result 阈值，再一次性消费 16 条
-  holdout；因 no-result slice 只有 4/8 正确且没有人工标签，不能用于正式晋级；
-- **部分补齐**：性能已扩展到 231/32、327/64、615/128 三组实际 input/output token，
-  concurrency=2/4 和 distributed Milvus + HTTP 服务仍为 `NOT_RUN`，不支持生产 SLA。
+- **已补齐但仍是 weak/synthetic**：v4/v5 对价位、unknown、多主体、证据不足与对话状态提供
+  新开发/最终分母；不能替代人工视觉真值，历史 Fresh Test 仍没有可评分的多主体冲突标签；
+- **synthetic 已补齐**：v4 在三向隔离的 24 条一次性 final 上通过 no-result 与 hard-filter
+  门槛；v2 的 no-result 4/8 失败继续作为负实验，两者都不能用于正式人工相关性晋级；
+- **部分补齐**：已完成真实 loopback HTTP、外部单节点 Milvus 及 concurrency=1/2/4 基准；
+  multi-node distributed Milvus 仍为 `NOT_RUN`，不支持生产 SLA；
+- **保持冻结**：没有新的未消费人工/真实用户最终集；Fresh Test 120 未读取、未调参、未重跑。
 
 ## 决策与可复现入口
 
-当前机器证据位于 `experiments/search_evidence_enhancement_v2.json`；v1 文件只保留为历史
-开发证据。自动化固定配置为 `configs/evaluation/automated_evidence_v2.json`，预运行数据锁为
-`configs/evaluation/evidence_enhancement/automated_pool_lock_v2.json`；协议与运行命令见
-`docs/evidence_enhancement.md`。
+当前机器证据以 `experiments/search_algorithm_evidence_v4.json` 和
+`experiments/context_focus_evidence_v5.json` 为最新入口；v1/v2 文件只保留为历史开发证据。
+固定配置和预运行数据锁分别位于 `configs/evaluation/automated_evidence_v4.json`、
+`configs/evaluation/automated_evidence_v5.json` 与 `configs/evaluation/evidence_enhancement/`；
+协议与运行命令见 `docs/evidence_enhancement.md`。
 
-最终决策：hard-filter 路径形成正向 weak/synthetic 排序与过滤证据，但 no-result gate 失败；
-checkpoint-87 的固定长度组件延迟门禁通过，weak v3 质量门禁失败，所以 joint gate 失败且不能
-晋级。因此不修改正式 release、Prompt、adapter、阈值或 Fresh Test 状态。
+最终决策：v4 hard-filter + business guard 在新 synthetic final 上形成正向排序、过滤与
+no-result 证据；v5 上下文专项依次通过新 development 质量门和同机 HTTP 延迟门，再一次性
+通过 synthetic final。v4 context/延迟失败和 v2 no-result 失败均保留为负实验。由于没有人工
+标签或真实用户最终集，且分布式服务未测，仍不修改正式 release、Prompt、adapter、阈值或
+Fresh Test 状态。
 
 ## 验证
 
-- `python -m unittest discover -s tests -v`：936 项通过，2 项既有跳过；
+- `python -m unittest discover -s tests -v`：948 项通过，2 项既有跳过；
 - `python scripts/tripctl.py validate`：`status=ok`；
 - 正式 Git 外 release 的 `scripts/verify_final_delivery.py`：`PASS`，包内记录 948 项测试；
 - `docker compose ... config --quiet`：通过；
 - 本地独立查询池、来源 registry、正式 retrieval/release 哈希核验：`PASS`；
 - VLM weak v3 对冻结 raw 重评分：score SHA-256 保持 `b039c5…7458`；
-- 固定长度 performance scorer：实际 input/output 矩阵验证通过，latency gate `PASS`、joint gate `FAIL`；
+- v5 job `29998754`：source 验证、训练、development、真实 HTTP/Milvus c=1/2/4、一次性 final 完成；
+- 固定长度 performance scorer：历史实际 input/output 矩阵验证通过，v2 joint gate `FAIL`；
 - `git diff --check`：通过。
 
 ## 简历候选表述
 
 只有在同时保留 development/weak/synthetic 标签限定时，建议使用以下两条：
 
-1. 构建 calibration/一次性 holdout 分离的多模态搜索评测，并对 1000 张索引图完成字节级
-   泄漏审计；在 16 条 synthetic holdout 上，hard-filter 将 MRR@10 从 0.50 提至 1.00、
-   nDCG@10 从 0.9073 提至 1.00、过滤正确率从 25% 提至 100%，同时以 no-result gate 失败
-   保留负实验边界。
-2. 在 Spartan A100 20GB MIG 上建立 CLIP→Milvus Lite→重排→Qwen3-VL 的固定实际 token
-   分阶段基准；checkpoint-87 在 32/64/128 输出档的稳态 P95 为 2.59/4.93/9.65 秒，并以
-   quality+latency 联合门槛阻止语义质量未达标的 Adapter 晋级。
+1. 构建 training/development/final 三向隔离的 synthetic 多模态搜索评测，在一次性 final
+   24 条（ranking=12、no-result=12）上将 CLIP 的 MRR@10/nDCG@10/filter correctness
+   从 .625/.8435/.333 提至 1.0/1.0/1.0，并将 ANN-vs-exact Recall@10=.9917 单列为检索保真。
+2. 在 Spartan A100 80GB 上完成上下文专项 LoRA 的单因素训练与质量/延迟串行门控：新
+   synthetic development 的 context recall 从 7/24 提至 24/24；真实 HTTP + 外部单节点
+   Milvus 的 c=1 P95 为 1.030 s（相对 v4=.985），c=1/2/4 共 56 稳态请求/角色零失败。
