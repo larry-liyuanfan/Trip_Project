@@ -1,0 +1,78 @@
+{
+  "schema_version": "automated_evidence_v6_distributed_service_exploration",
+  "cycle_id": "v6",
+  "evidence_class": "performance_only_on_locked_synthetic_training_request_not_human_ground_truth",
+  "gate_class": "exploration_only_not_release_or_production_gate",
+  "fresh_test_policy": "existing_120_sample_fresh_test_never_read_never_run_never_tune",
+  "formal_release_read_only": {
+    "release_id": "trip-qwen3-vl-8b-week8-final-v1",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "expected_index_support": 1000
+  },
+  "pool": {
+    "committed_lock": "configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json",
+    "generator": "scripts/build_exploration_pool_v4.py",
+    "splits": ["training"],
+    "final_policy": "development_and_final_forbidden_in_performance_process"
+  },
+  "search": {
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "milvus": {
+      "index_type": "HNSW",
+      "metric_type": "COSINE",
+      "M": 16,
+      "efConstruction": 128,
+      "ef": 64
+    }
+  },
+  "vlm": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "baseline_variant": "targeted_exploration_adapter_v4",
+    "candidate_variant": "context_focus_adapter_v5"
+  },
+  "performance": {
+    "service_transport": "HTTP_FastAPI_Uvicorn",
+    "milvus_transport": "external_multi_node_distributed_Milvus_not_Lite",
+    "milvus_server": {
+      "version": "2.6.18",
+      "package": "milvus_2.6.18-1_amd64.rpm",
+      "package_sha256": "3686f38c672dd73e6b99c0bb7829984439256724793a44d7cfd9c6fc0181a447",
+      "deployment_mode": "bare_metal_two_node_mixture_roles_external_etcd_minio_woodpecker",
+      "multi_node_distributed_cluster": true,
+      "minimum_node_support": 2,
+      "required_roles": ["mixcoord", "proxy", "querynode", "datanode", "streamingnode"]
+    },
+    "dependencies": {
+      "etcd": {
+        "version": "3.5.25",
+        "archive": "etcd-v3.5.25-linux-amd64.tar.gz",
+        "sha256": "168af82b59772e1811a9af7b358d42f5c6df44e0d9767afb006ecf12c4bbd607",
+        "binary_sha256": "55a03a3704794fc0e54d7756456c139e315a426ca161e023a517672f189ce141"
+      },
+      "minio": {
+        "version": "RELEASE.2024-12-18T13-15-44Z",
+        "binary": "minio.RELEASE.2024-12-18T13-15-44Z",
+        "sha256": "88182336ab5793488f2caad54846056b330f0dcb5c488b60d52434beeebae3ca"
+      },
+      "message_queue": "woodpecker_with_minio_storage"
+    },
+    "request_pool_lock": "configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json",
+    "baseline_role": "targeted_exploration_adapter_v4",
+    "candidate_role": "context_focus_adapter_v5",
+    "fixed_input": {
+      "split": "training",
+      "query_id": "v4_tra_search_01",
+      "development_or_final_consumed": false
+    },
+    "concurrency": [1, 2, 4],
+    "cold_repetitions": 1,
+    "warmup_repetitions": 2,
+    "steady_repetitions": 8,
+    "vlm_max_new_tokens": 32,
+    "failure_rate_max": 0.02,
+    "candidate_to_checkpoint_87_concurrency_1_p95_ratio_max": 1.25,
+    "quality_gate_source": "v5_development_selection_sha256_301c510b3b54238589ada585f487ad67d313425e55a185cff74364d5833c53f9",
+    "production_sla_supported": false
+  }
+}

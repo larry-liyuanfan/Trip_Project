@@ -1,4 +1,4 @@
-"""Benchmark a real HTTP pipeline backed by an external Milvus standalone server.
+"""Benchmark a real HTTP pipeline backed by an external Milvus server.
 
 The benchmark reads one locked training query only. Development, final, and the frozen
 120-sample Fresh Test are outside this process. It compares adapters sequentially in
@@ -67,6 +67,8 @@ def main() -> None:
     run.add_argument("--candidate-adapter", type=Path, required=True)
     run.add_argument("--candidate-adapter-sha256", required=True)
     run.add_argument("--source-snapshot-sha256", required=True)
+    run.add_argument("--external-milvus-uri")
+    run.add_argument("--external-milvus-identity", type=Path)
     run.add_argument("--output", type=Path, required=True)
     run.add_argument("--raw-output", type=Path, required=True)
 
@@ -93,6 +95,12 @@ def run_benchmark(args: argparse.Namespace) -> None:
             raise FileExistsError(f"refusing to overwrite benchmark evidence: {path}")
     config = _load_json(args.config)
     performance = config["performance"]
+    if bool(args.external_milvus_uri) != bool(args.external_milvus_identity):
+        raise ValueError("external Milvus URI and identity must be provided together")
+    external_identity = None
+    if args.external_milvus_identity:
+        external_identity = _load_json(args.external_milvus_identity)
+        _validate_external_cluster_identity(external_identity, performance)
     _verify_file(args.milvus_rpm, performance["milvus_server"]["package_sha256"], "Milvus RPM")
     _verify_file(
         args.retrieval_archive,
@@ -130,12 +138,25 @@ def run_benchmark(args: argparse.Namespace) -> None:
     raw_rows: list[dict[str, Any]] = []
     role_summaries: dict[str, Any] = {}
     try:
-        milvus_runtime = _prepare_milvus_runtime(args.milvus_rpm, job_root, port_base)
-        milvus_startup_started = time.perf_counter()
-        milvus_process = _start_milvus(milvus_runtime)
-        milvus_uri = f"http://127.0.0.1:{milvus_port}"
-        _wait_for_milvus(milvus_uri, milvus_process, timeout_seconds=180)
-        milvus_startup_ms = (time.perf_counter() - milvus_startup_started) * 1000
+        if external_identity is None:
+            milvus_runtime = _prepare_milvus_runtime(args.milvus_rpm, job_root, port_base)
+            milvus_startup_started = time.perf_counter()
+            milvus_process = _start_milvus(milvus_runtime)
+            milvus_uri = f"http://127.0.0.1:{milvus_port}"
+            _wait_for_milvus(milvus_uri, milvus_process, timeout_seconds=180)
+            milvus_startup_ms = (time.perf_counter() - milvus_startup_started) * 1000
+            milvus_scope = "external_server_process_single_node_standalone_not_Milvus_Lite"
+            distributed_scope: str | bool = "NOT_RUN_MULTI_NODE_CLUSTER"
+            server_identity = performance["milvus_server"]
+            external_identity_sha256 = None
+        else:
+            milvus_uri = str(args.external_milvus_uri)
+            _wait_for_milvus(milvus_uri, None, timeout_seconds=30)
+            milvus_startup_ms = float(external_identity["startup_cold_ms"])
+            milvus_scope = "external_multi_node_distributed_Milvus_cluster"
+            distributed_scope = True
+            server_identity = external_identity["milvus_server"]
+            external_identity_sha256 = file_sha256(args.external_milvus_identity)
         store_config = _store_config(config, milvus_uri)
         index_build_started = time.perf_counter()
         store = _populate_external_milvus(store_config, archive)
@@ -195,8 +216,8 @@ def run_benchmark(args: argparse.Namespace) -> None:
             "gate_class": config["gate_class"],
             "scope": {
                 "http": "real_loopback_HTTP_FastAPI_Uvicorn",
-                "milvus": "external_server_process_single_node_standalone_not_Milvus_Lite",
-                "distributed_cluster": "NOT_RUN_MULTI_NODE_CLUSTER",
+                "milvus": milvus_scope,
+                "distributed_cluster": distributed_scope,
                 "production_sla_supported": False,
                 "fresh_test_used": False,
                 "development_or_final_consumed": False,
@@ -217,7 +238,8 @@ def run_benchmark(args: argparse.Namespace) -> None:
                 "base_model": config["vlm"]["base_model"],
                 "base_revision": config["vlm"]["base_revision"],
                 "clip_model": config["search"]["embedding_model"],
-                "milvus_server": performance["milvus_server"],
+                "milvus_server": server_identity,
+                "external_cluster_identity_file_sha256": external_identity_sha256,
                 "milvus_rpm_sha256": file_sha256(args.milvus_rpm),
                 "retrieval_archive_sha256": file_sha256(args.retrieval_archive),
                 "milvus_service_startup_cold_ms": milvus_startup_ms,
@@ -639,13 +661,17 @@ def _start_milvus(runtime: dict[str, Path | int]) -> subprocess.Popen[str]:
     return process
 
 
-def _wait_for_milvus(uri: str, process: subprocess.Popen[str], timeout_seconds: int) -> None:
+def _wait_for_milvus(
+    uri: str,
+    process: subprocess.Popen[str] | None,
+    timeout_seconds: int,
+) -> None:
     from pymilvus import MilvusClient
 
     deadline = time.monotonic() + timeout_seconds
     error = "not attempted"
     while time.monotonic() < deadline:
-        if process.poll() is not None:
+        if process is not None and process.poll() is not None:
             raise RuntimeError(f"Milvus exited before readiness with code {process.returncode}")
         try:
             client = MilvusClient(uri=uri, timeout=5)
@@ -656,6 +682,37 @@ def _wait_for_milvus(uri: str, process: subprocess.Popen[str], timeout_seconds: 
             error = str(exc)
             time.sleep(1)
     raise TimeoutError(f"Milvus did not become ready: {error}")
+
+
+def _validate_external_cluster_identity(
+    identity: dict[str, Any],
+    performance: dict[str, Any],
+) -> None:
+    if identity.get("schema_version") != "distributed_milvus_cluster_identity_v6":
+        raise ValueError("external Milvus identity has the wrong schema")
+    if identity.get("status") != "READY":
+        raise ValueError("external Milvus cluster is not READY")
+    nodes = identity.get("nodes")
+    if not isinstance(nodes, list) or len(set(nodes)) < 2:
+        raise ValueError("external Milvus cluster must span at least two nodes")
+    roles = identity.get("roles")
+    required = {"mixcoord", "proxy", "querynode", "datanode", "streamingnode"}
+    if not isinstance(roles, dict) or set(roles) != required:
+        raise ValueError("external Milvus identity does not contain the exact required roles")
+    if not all(roles[role] in nodes for role in required):
+        raise ValueError("external Milvus roles must map to declared nodes")
+    if set(roles.values()) != set(nodes):
+        raise ValueError("external Milvus role placement does not span every declared node")
+    server = identity.get("milvus_server")
+    expected = performance["milvus_server"]
+    if not isinstance(server, dict):
+        raise ValueError("external Milvus server identity is missing")
+    if server.get("version") != expected.get("version"):
+        raise ValueError("external Milvus version differs from the fixed configuration")
+    if server.get("package_sha256") != expected.get("package_sha256"):
+        raise ValueError("external Milvus package SHA differs from the fixed configuration")
+    if server.get("multi_node_distributed_cluster") is not True:
+        raise ValueError("external Milvus identity is not multi-node distributed")
 
 
 def _populate_external_milvus(config: dict[str, Any], archive: dict[str, Any]) -> OTAMilvusVectorStore:
