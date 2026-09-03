@@ -19,6 +19,7 @@ set -euo pipefail
 : "${TRIP_OUTPUT_FILE:?}"
 : "${TRIP_SOURCE_MANIFEST:?}"
 : "${TRIP_SOURCE_SNAPSHOT_SHA256:?}"
+: "${TRIP_IMPLEMENTATION_COMMIT_SHA:?}"
 for path in "${TRIP_PROJECT_ROOT}" "${TRIP_VENV}" "${TRIP_CACHE_ROOT}" "${TRIP_POOL_DIR}" \
   "${TRIP_OUTPUT_FILE}" "${TRIP_SOURCE_MANIFEST}"; do
   case "${path}" in "${TRIP_SPARTAN_BASE}"/*) ;; *) echo "path escapes project root: ${path}" >&2; exit 2;; esac
@@ -32,11 +33,13 @@ export XDG_CACHE_HOME="${TRIP_CACHE_ROOT}/xdg"
 export TMPDIR="${TRIP_CACHE_ROOT}/tmp"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
+export PYTHONDONTWRITEBYTECODE=1
 cd "${TRIP_PROJECT_ROOT}"
 "${TRIP_VENV}/bin/python" scripts/verify_relevance_source_snapshot.py \
   --project-root "${TRIP_PROJECT_ROOT}" \
   --manifest "${TRIP_SOURCE_MANIFEST}" \
-  --expected-snapshot-sha256 "${TRIP_SOURCE_SNAPSHOT_SHA256}"
+  --expected-snapshot-sha256 "${TRIP_SOURCE_SNAPSHOT_SHA256}" \
+  --expected-implementation-commit "${TRIP_IMPLEMENTATION_COMMIT_SHA}"
 command=(
   "${TRIP_VENV}/bin/python" scripts/run_vlm_semantic_evidence_v4.py
   --config configs/evaluation/automated_evidence_v4.json

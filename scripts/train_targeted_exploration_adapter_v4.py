@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -24,6 +23,7 @@ def main() -> None:
     parser.add_argument("--bundle-dir", type=Path, required=True)
     parser.add_argument("--initial-adapter", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--implementation-commit", required=True)
     parser.add_argument("--confirm-training-lock", action="store_true")
     args = parser.parse_args()
     if not args.confirm_training_lock:
@@ -57,7 +57,7 @@ def main() -> None:
     identity = {
         "schema_version": "targeted_exploration_training_identity_v4",
         "run_id": config["training"]["run_id"],
-        "git_commit": _git_commit(),
+        "git_commit": _implementation_commit(args.implementation_commit),
         "config_sha256": file_sha256(args.config),
         "pool_lock_sha256": canonical_json_sha256(actual_lock),
         "training_manifest_sha256": file_sha256(training_manifest),
@@ -229,11 +229,11 @@ def _train(
     }
 
 
-def _git_commit() -> str:
-    return subprocess.run(
-        ["git", "rev-parse", "HEAD"], check=True, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    ).stdout.strip()
+def _implementation_commit(value: str) -> str:
+    normalized = value.strip().lower()
+    if len(normalized) != 40 or any(character not in "0123456789abcdef" for character in normalized):
+        raise ValueError("implementation commit must be a full 40-character Git SHA")
+    return normalized
 
 
 def _write_json(path: Path, value: Any) -> None:

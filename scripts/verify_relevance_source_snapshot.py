@@ -31,6 +31,7 @@ def validate_snapshot(
     project_root: Path,
     manifest_path: Path,
     expected_snapshot_sha256: str,
+    expected_implementation_commit: str | None = None,
 ) -> dict[str, Any]:
     project_root = project_root.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -39,6 +40,11 @@ def validate_snapshot(
     actual_snapshot_sha256 = canonical_sha256(manifest)
     if actual_snapshot_sha256 != expected_snapshot_sha256:
         raise ValueError("source snapshot manifest SHA-256 mismatch")
+    if (
+        expected_implementation_commit is not None
+        and manifest.get("implementation_commit_sha") != expected_implementation_commit
+    ):
+        raise ValueError("source snapshot implementation commit mismatch")
     files = manifest.get("files")
     if not isinstance(files, list) or not files:
         raise ValueError("source snapshot must bind at least one file")
@@ -70,11 +76,13 @@ def main() -> None:
     parser.add_argument("--project-root", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--expected-snapshot-sha256", required=True)
+    parser.add_argument("--expected-implementation-commit")
     args = parser.parse_args()
     report = validate_snapshot(
         args.project_root,
         args.manifest,
         args.expected_snapshot_sha256,
+        args.expected_implementation_commit,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
 

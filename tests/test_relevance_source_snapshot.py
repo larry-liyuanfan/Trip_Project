@@ -25,8 +25,10 @@ class RelevanceSourceSnapshotTests(unittest.TestCase):
             manifest_path = root / "source_snapshot.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             expected = canonical_sha256(manifest)
-            report = validate_snapshot(root, manifest_path, expected)
+            report = validate_snapshot(root, manifest_path, expected, "implementation")
             self.assertEqual(report["status"], "PASS")
+            with self.assertRaisesRegex(ValueError, "implementation commit mismatch"):
+                validate_snapshot(root, manifest_path, expected, "other")
             source.write_text("print('changed')\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "file SHA-256 mismatch"):
                 validate_snapshot(root, manifest_path, expected)

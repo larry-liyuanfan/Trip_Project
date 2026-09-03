@@ -24,6 +24,7 @@ set -euo pipefail
 : "${TRIP_RAW_OUTPUT_FILE:?}"
 : "${TRIP_SOURCE_MANIFEST:?}"
 : "${TRIP_SOURCE_SNAPSHOT_SHA256:?}"
+: "${TRIP_IMPLEMENTATION_COMMIT_SHA:?}"
 for path in "${TRIP_PROJECT_ROOT}" "${TRIP_VENV}" "${TRIP_CACHE_ROOT}" "${TRIP_POOL_DIR}" \
   "${TRIP_RETRIEVAL_ARCHIVE}" "${TRIP_MILVUS_RPM}" "${TRIP_BASELINE_ADAPTER}" \
   "${TRIP_CANDIDATE_ADAPTER}" "${TRIP_OUTPUT_FILE}" "${TRIP_RAW_OUTPUT_FILE}" \
@@ -41,12 +42,14 @@ TRIP_JOB_LOCAL_ROOT="${JOBFS:-/tmp}"
 export TMPDIR="${TRIP_JOB_LOCAL_ROOT}/trip-${USER}-${SLURM_JOB_ID}-tmp"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
+export PYTHONDONTWRITEBYTECODE=1
 mkdir -p "${TMPDIR}"
 cd "${TRIP_PROJECT_ROOT}"
 "${TRIP_VENV}/bin/python" scripts/verify_relevance_source_snapshot.py \
   --project-root "${TRIP_PROJECT_ROOT}" \
   --manifest "${TRIP_SOURCE_MANIFEST}" \
-  --expected-snapshot-sha256 "${TRIP_SOURCE_SNAPSHOT_SHA256}"
+  --expected-snapshot-sha256 "${TRIP_SOURCE_SNAPSHOT_SHA256}" \
+  --expected-implementation-commit "${TRIP_IMPLEMENTATION_COMMIT_SHA}"
 "${TRIP_VENV}/bin/python" scripts/run_http_milvus_service_benchmark_v4.py run \
   --config configs/evaluation/automated_evidence_v4.json \
   --bundle-dir "${TRIP_POOL_DIR}" \
