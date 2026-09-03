@@ -74,25 +74,42 @@ def apply_search_v2_gates(
     methods = report.get("methods", {})
     candidate = methods.get("hard_filter_light_rerank", {})
     structured = methods.get("structured_filter_clip", {})
+    candidate_slices = candidate.get("slices", {})
+    structured_slices = structured.get("slices", {})
+    no_result_slice = candidate_slices.get("no_result", {})
+    hard_filter_slice = candidate_slices.get("hard_filter_before_rerank", {})
+    structured_hard_filter_slice = structured_slices.get("hard_filter_before_rerank", {})
     checks = {
         "minimum_query_support": int(candidate.get("support", 0))
         >= int(gates["min_query_support"]),
         "zero_failures": float(candidate.get("failure_rate", 1.0))
         <= float(gates["max_failure_rate"]),
-        "no_result_accuracy": _number(candidate.get("no_result_accuracy"))
+        "no_result_accuracy": _number(no_result_slice.get("no_result_accuracy"))
         >= float(gates["min_no_result_accuracy"]),
-        "filter_correctness": _number(candidate.get("filter_correctness"))
+        "filter_correctness": _number(hard_filter_slice.get("filter_correctness"))
         >= float(gates["min_filter_correctness"]),
-        "ndcg_at_10": _number(candidate.get("ndcg_at_10"))
+        "ndcg_at_10": _number(hard_filter_slice.get("ndcg_at_10"))
         >= float(gates["min_ndcg_at_10"]),
         "ann_fidelity": _number(ann_fidelity.get("value"))
         >= float(gates["min_ann_recall_at_10"]),
-        "structured_filter_ndcg_non_regression": _number(candidate.get("ndcg_at_10"))
+        "structured_filter_ndcg_non_regression": _number(hard_filter_slice.get("ndcg_at_10"))
         + float(gates["max_ndcg_regression_vs_structured"])
-        >= _number(structured.get("ndcg_at_10")),
+        >= _number(structured_hard_filter_slice.get("ndcg_at_10")),
     }
     return {
         "thresholds": gates,
+        "denominators": {
+            "all_query_support": candidate.get("support"),
+            "no_result_slice_support": no_result_slice.get("support"),
+            "hard_filter_slice_support": hard_filter_slice.get("support"),
+            "hard_filter_slice_ranking_support": hard_filter_slice.get("ranking_support"),
+        },
+        "observed": {
+            "no_result_slice_accuracy": no_result_slice.get("no_result_accuracy"),
+            "hard_filter_slice_filter_correctness": hard_filter_slice.get("filter_correctness"),
+            "hard_filter_slice_ndcg_at_10": hard_filter_slice.get("ndcg_at_10"),
+            "structured_hard_filter_slice_ndcg_at_10": structured_hard_filter_slice.get("ndcg_at_10"),
+        },
         "checks": checks,
         "status": "PASS" if all(checks.values()) else "FAIL",
     }

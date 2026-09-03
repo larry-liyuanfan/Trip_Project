@@ -7,6 +7,7 @@ from scripts.audit_retrieval_query_leakage_v2 import audit
 from scripts.build_automated_evidence_pool_v2 import build_pool
 from scripts.run_search_relevance_v2 import load_holdout_after_marker
 from src.evaluation.evidence_v2 import (
+    apply_search_v2_gates,
     score_vlm_v3_comparison,
     select_calibration_configuration,
     summarize_performance_matrix,
@@ -121,6 +122,38 @@ class LeakageAuditV2Tests(unittest.TestCase):
                 1,
             )
         self.assertEqual(report["collision_check"]["status"], "FAIL")
+
+
+class SearchGateV2Tests(unittest.TestCase):
+    def test_no_result_gate_uses_slice_denominator_not_aggregate(self):
+        candidate = {
+            "support": 16,
+            "failure_rate": 0.0,
+            "no_result_accuracy": 0.75,
+            "filter_correctness": 1.0,
+            "ndcg_at_10": 1.0,
+            "slices": {
+                "no_result": {"support": 8, "ranking_support": 0, "no_result_accuracy": 0.5, "filter_correctness": 1.0, "ndcg_at_10": None},
+                "hard_filter_before_rerank": {"support": 12, "ranking_support": 8, "no_result_accuracy": 1.0, "filter_correctness": 1.0, "ndcg_at_10": 1.0},
+            },
+        }
+        report = {"methods": {
+            "hard_filter_light_rerank": candidate,
+            "structured_filter_clip": {"slices": {"hard_filter_before_rerank": {"ndcg_at_10": 1.0}}},
+        }}
+        gates = apply_search_v2_gates(report, {"value": 1.0}, {
+            "min_query_support": 16,
+            "max_failure_rate": 0.0,
+            "min_no_result_accuracy": 0.75,
+            "min_filter_correctness": 0.95,
+            "min_ndcg_at_10": 0.3,
+            "min_ann_recall_at_10": 0.95,
+            "max_ndcg_regression_vs_structured": 0.05,
+        })
+        self.assertEqual(report["methods"]["hard_filter_light_rerank"]["no_result_accuracy"], 0.75)
+        self.assertEqual(gates["denominators"]["no_result_slice_support"], 8)
+        self.assertFalse(gates["checks"]["no_result_accuracy"])
+        self.assertEqual(gates["status"], "FAIL")
 
 
 class VlmAndPerformanceV2Tests(unittest.TestCase):
