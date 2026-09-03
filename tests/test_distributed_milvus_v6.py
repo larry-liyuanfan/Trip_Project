@@ -15,6 +15,7 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         template = "\n".join(
             [
                 "localhost:2379",
+                "    embed: true # Whether to enable embedded Etcd (an in-process EtcdServer).",
                 "  address: localhost:9000",
                 "  port: 9000 # Port of MinIO or S3 service.",
                 "  accessKeyID: " + "minio" + "admin",
@@ -46,6 +47,8 @@ class DistributedMilvusV6Tests(unittest.TestCase):
             output_dir=Path("/tmp/trip-distributed-milvus-1/runtime"),
         )
         self.assertIn("node-a:28000", configured)
+        self.assertIn("embed: false", configured)
+        self.assertNotIn("embed: true", configured)
         self.assertIn("node-a:28001", configured)
         self.assertIn("storageType: remote", configured)
         self.assertIn("type: woodpecker", configured)

@@ -109,6 +109,9 @@ def configure_milvus_text(
     local_data = output_dir / "data"
     replacements = {
         "localhost:2379": f"{control_node}:{port_base}",
+        "    embed: true # Whether to enable embedded Etcd (an in-process EtcdServer).": (
+            "    embed: false # Distributed v6 uses the external job-local etcd service."
+        ),
         "  address: localhost:9000": f"  address: {control_node}:{port_base + 1}",
         "  port: 9000 # Port of MinIO or S3 service.": (
             f"  port: {port_base + 1} # Port of MinIO or S3 service."
