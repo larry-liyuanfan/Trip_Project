@@ -4,6 +4,45 @@
 `trip-qwen3-vl-8b-week8-final-v1`，也不重新消费已锁定的 Fresh Test 120。所有新输出必须
 写入不存在的目标文件；正式四层包只读，归档或成员哈希不匹配时立即失败。
 
+## 自动化 v2 / weak v3 预运行锁
+
+第二轮自动化证据使用 `configs/evaluation/automated_evidence_v2.json` 和
+`configs/evaluation/evidence_enhancement/automated_pool_lock_v2.json`。实现从
+`03c23b4f0597d2f2fef073951fd7670e0cb51c87` 开始；修正后的搜索 gate 绑定 `77dd052`，最终
+固定长度性能运行绑定实现提交 `85eb519ef074065f26ca9d3d3c184fc03e363719`。每一阶段都先从
+对应提交生成并逐文件验证 source snapshot；任何结果均不得回写阈值、切分或数据锁。该轮
+明确排除人工标注/仲裁，human support 固定为 0。
+
+`scripts/build_automated_evidence_pool_v2.py` 以确定性 PPM 字节生成 32 条搜索查询（calibration
+与 holdout 各 16 条）和 18 条 VLM 样例（12 商品、6 对话）。两个搜索 split 的 source ID、
+image SHA、query ID 必须完全不重叠；生成后分别核对 query/annotation/file canonical SHA。
+holdout 只在 calibration 选出 no-result 阈值和轻量 star-rating 权重后写入 exclusive consumption
+marker，并只执行一次。v1 的 10 条 Commons 查询只作为历史开发证据，不参与 v2 选择。
+
+搜索 v2 固定比较 exact CLIP、Milvus、结构化过滤、hard-filter-before-light-rerank。calibration
+网格和选择目标在配置中预先固定；holdout 报 Recall/MRR/nDCG、no-result、filter、失败率与
+切片分母，负结果照常保留。Milvus 运行形态是本地文件 Milvus Lite，不代表分布式服务。
+
+VLM weak v3 的三角色仍只允许 adapter 变化，新增可见数值价位、等显著多主体冲突、证据不足
+和对话状态样例。价位映射规则、Prompt、generation config、图片字节与 manifest 均在运行前
+锁定。它是 synthetic/weak development probe，不能替代 Fresh Test 或人工视觉真值。
+
+性能矩阵按 `short_32`、`medium_64`、`long_128` 三个固定 profile 分别启动独立进程；输出通过
+相同的 `min_new_tokens=max_new_tokens` 强制为 32/64/128 token，输入通过预锁定 padding 形成三个
+不同的实际 token 长度。矩阵记录真实 process cold（含模型/索引 startup）和 warmup 后 steady
+的分阶段 P50/P95/min/max、VRAM、QPS、失败率与实际 input/output token 数。当前隔离环境没有
+standalone Milvus、vLLM、FastAPI 或 Uvicorn，因此只运行 concurrency=1 的 transformers +
+Milvus Lite component pipeline；concurrency=2/4 及 distributed Milvus/HTTP 单元必须为
+`NOT_RUN`，不得形成生产 SLA 声明。早期仅改变 `max_new_tokens`、但实际都提前停止在相同长度的
+六个作业标记为 `SUPERSEDED_IDENTICAL_REALIZED_LENGTHS`，不计入最终矩阵。
+
+泄漏审计由 `scripts/audit_retrieval_query_leakage_v2.py` 完成：按 formal metadata 的 image ID 和
+source path 对封闭 1000 图 overlay 原位哈希，只输出不含图片字节的 registry；再将可用的
+`project/repo` 副本作为重叠交叉核验。正式 overlay 的 1000/1000 原图全部原位哈希后，主碰撞
+结论才可为 `PASS_COMPLETE_NO_QUERY_INDEX_COLLISION`；副本覆盖不足单独记录
+`UNKNOWN_INCOMPLETE`，它只是交叉核验边界，不降低完整 overlay 主分母。已覆盖部分一旦字节
+不一致则整体失败。
+
 ## 四条互不替代的证据轨道
 
 | 轨道 | 能证明什么 | 不能证明什么 |

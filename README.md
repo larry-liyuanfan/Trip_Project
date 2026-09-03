@@ -80,12 +80,18 @@ experiments/  保留的机器可读历史证据
 `dev` 另提供搜索业务相关性、VLM/SFT 角色对比和端到端分阶段性能协议：
 
 - 协议：`docs/evidence_enhancement.md`
-- 配置：`configs/evaluation/evidence_enhancement_v1.json`
+- v1 配置：`configs/evaluation/evidence_enhancement_v1.json`
+- 自动化 v2 配置与预运行锁：`configs/evaluation/automated_evidence_v2.json`、
+  `configs/evaluation/evidence_enhancement/automated_pool_lock_v2.json`
+- 自动化 v2 机器证据：`experiments/search_evidence_enhancement_v2.json`
 - 报告：`reports/development/reviews/search_algorithm_evidence_enhancement_report.md`
 
 该轨道不修改正式 v1。历史 Milvus `Recall@10=1.0` 只表示 ANN 对精确余弦 Top10 的保真度，
 P95 `2.4097 ms` 只表示 vector query；新 Commons 查询池目前为弱标注，不能宣称人工业务
 相关性。历史 Fresh Test 120 不重跑、不调参。
+自动化 v2 另将 1000 张 formal index source image 逐字节注册，使用互不重叠的 synthetic
+calibration/一次性 holdout，并把 Milvus Lite 组件性能与未运行的分布式/HTTP 服务性能严格分开；
+这些结果仍不是人工真值或生产 SLA。
 
 ## 环境
 

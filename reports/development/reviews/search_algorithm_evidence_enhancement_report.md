@@ -1,9 +1,107 @@
 # 搜索算法、VLM/SFT 与端到端证据增强报告
 
-日期：2026-09-03 结论：`COMPLETED_DEVELOPMENT_DIAGNOSTIC`；正式 release 不变；性能门禁
-`PASS`，质量与延迟联合门禁 `FAIL_NOT_ELIGIBLE_WEAK_LABEL`。
+日期：2026-09-03 结论：自动化 v2 / weak v3 为 `COMPLETED_DEVELOPMENT_DIAGNOSTIC`；正式
+release 不变；修正后的搜索 gate `FAIL`、VLM 质量 gate `FAIL`、固定长度组件延迟 gate `PASS`，
+质量与延迟联合 gate `FAIL_NOT_ELIGIBLE_WEAK_OR_SYNTHETIC_EVIDENCE`。
 
-## 结论先行
+## 自动化 v2 / weak v3 最终补充
+
+这是本报告的当前结论；后文 v1 保留为历史开发证据，不能覆盖本节。机器可读汇总为
+`experiments/search_evidence_enhancement_v2.json`。本轮没有读取或重跑 Fresh Test，没有人工
+标注或仲裁，human support=0；所有搜索和 VLM 质量数字均为 synthetic/weak development
+evidence，不能宣称人工业务相关性、人工视觉准确率或正式晋级资格。
+
+### Source、数据和作业边界
+
+搜索/VLM/泄漏运行绑定实现提交 `485f706eeddf86455998a409df45a7c49520aac2`，source snapshot
+canonical SHA-256 为 `347464ca7f0bdb3bad21b0ac10c8045f56b9e62e15fcb90602f808b13741506e`；
+修正搜索分母的离线 gate 作业绑定 `77dd052`，snapshot 为
+`e91a8ca74c5c830715661a196efdc48f633c6560e4fb2e9d5575f83f17e66f54`；最终固定长度性能
+绑定 `85eb519ef074065f26ca9d3d3c184fc03e363719`，snapshot 为
+`1666a6ef31d4f8af428823359cfabab56ceee89f1bf988f0c667e840758e02a7`。三者都在作业内逐文件
+验证，不接受事后替换 source。
+
+预运行锁包含 44 个确定性图像资产：搜索 calibration/holdout 各 16 条，VLM 商品 12 条；
+另有 6 条不带图片的 synthetic 对话。搜索两 split 的 query ID、source ID、image SHA 均为
+0 重叠。配置 SHA-256 为 `fc6982…f4a3`，pool lock SHA-256 为 `1494f1…2fe5`。
+
+### 1000 图字节注册和泄漏审计
+
+source-bound job `29960516` 对 formal overlay 的 1000/1000 source image 原位计算 SHA-256；
+metadata、唯一 image ID、唯一 source path 和已哈希字节分母均为 1000。54 张查询图（历史 v1
+10、calibration 16、holdout 16、VLM 商品 12）与索引图的 byte collision 和 source-identity
+collision 均为 0，主结论为 `PASS_COMPLETE_NO_QUERY_INDEX_COLLISION`。
+
+索引内部只有 976 个唯一 byte SHA，发现 19 个重复字节组、24 个别名；这只是索引内部重复，
+不是 query leakage。`project/repo` 比较副本仅覆盖 339/1000，已覆盖部分 mismatch=0，因此该
+辅助交叉核验单独标记 `UNKNOWN_INCOMPLETE`，不替代完整 overlay 主分母。registry 未包含图片
+字节；file/canonical SHA-256 分别为 `f93929…fc09` / `ebd77f…e50d`。
+
+### 搜索 calibration、一次性 holdout 与修正 gate
+
+job `29960700` 只用 16 条 calibration 选择 `no_result_similarity_threshold=0.12`、
+`star_rating_weight=0.0`，随后只消费一次 16 条 holdout。历史 v1 查询没有参与选择。holdout
+ranking support=8，ANN-vs-exact Recall@10=1.0 仍只代表近邻保真。
+
+| 方法 | Recall@5 | Recall@10 | MRR@10 | nDCG@10 | aggregate no-result | filter correctness |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| exact CLIP / Milvus | 0.00723 | 0.00977 | 0.50 | 0.9073 | 0.50 | 0.25 |
+| structured filter + CLIP | 0.05964 | 0.06741 | 1.00 | 1.0000 | 0.75 | 1.00 |
+| hard filter + light rerank | 0.05964 | 0.06741 | 1.00 | 1.0000 | 0.75 | 1.00 |
+
+被选 star weight 为 0，所以不能声称 light rerank 产生独立收益。原 summary 错把 aggregate
+no-result 数值用于固定 gate，记录的 `PASS` 标记为
+`INVALID_SUPERSEDED_AGGREGATE_DENOMINATOR`。job `29961100` 仅离线重算冻结结果，没有再次搜索、
+运行模型或消费 holdout：真正 no-result slice support=8、accuracy=0.50，低于门槛 0.75；
+hard-filter slice support=12（ranking=8），filter correctness/nDCG 均为 1.0。修正后的最终搜索
+gate 为 `FAIL`，选择参数保持不变。
+
+### VLM weak v3 三角色比较
+
+job `29960745/29960746/29960747` 比较 current/old/zero，只改变 adapter。每角色 support=18
+（商品 12、对话 6），三角色总 support=54；known-price support=4、multi-subject support=4、
+insufficient-evidence support=8。结果 canonical SHA-256 为 `fc59ff…3144`。
+
+| 角色 | category F1 | price F1 | known price exact | multi abstain | insufficient abstain | hallucination | first JSON | dialogue first route |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| zero-shot | 0.6667 | 0.25 | 0.25 | 1.00 | 1.00 | 0 | 1.0000 | 1.0000 |
+| 旧 unified | 0.7500 | 0 | 0 | 1.00 | 1.00 | 0 | 1.0000 | 1.0000 |
+| checkpoint-87 | 0.6667 | 0 | 0 | 0 | 0 | 0.625 | 0.7778 | 0.3333 |
+
+checkpoint-87 只有商品/对话最小 support 检查通过；价位、多主体、证据不足、幻觉、首次 JSON
+与全部对话指标均未通过固定 gate。VLM 联合质量结论为 `FAIL`，不允许晋级。
+
+### 真实固定输入/输出长度组件性能
+
+job `29961579–29961584` 在同一 `NVIDIA A100 80GB PCIe MIG 1g.20gb` 规格上完成旧/当前
+adapter × 3 profile。每格为一个独立进程、1 条真实 process cold、1 次 warmup、5 条 steady；
+失败率均为 0。实际输入 231/327/615 token 互不相同，实际输出由
+`min_new_tokens=max_new_tokens` 强制为 32/64/128，不再用最大上限冒充实际长度。
+
+| profile | 实际 input/output | 旧 P95 | current P95 | current/old | current peak VRAM | gate |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| short_32 | 231 / 32 | 2,600.51 ms | 2,590.26 ms | 0.9961 | 6,884.70 MiB | PASS |
+| medium_64 | 327 / 64 | 5,003.46 ms | 4,925.37 ms | 0.9844 | 6,904.36 MiB | PASS |
+| long_128 | 615 / 128 | 9,349.75 ms | 9,646.08 ms | 1.0317 | 6,968.59 MiB | PASS |
+
+三个 current 绝对 P95 都低于预锁定 15/22/35 秒门槛，三个相对比也低于 1.25，组件延迟 gate
+为 `PASS`。但 quality gate 为 `FAIL`，所以 joint quality+latency gate 为 `FAIL`。matrix 文件
+SHA-256 为 `e0dcf9…c2bc`，36 条 measured row 的 canonical SHA-256 为 `2dfd45…caf3`。
+
+concurrency=2/4 的单模型 Milvus Lite 单元因未声明线程安全而 `NOT_RUN`；concurrency=1/2/4
+的 distributed Milvus + HTTP 服务因没有隔离、安全的服务端点而 `NOT_RUN`。因此这里只能说明
+单进程组件性能，不是生产服务吞吐或 SLA。
+
+早期 job `29960754–29960759` 虽完成，但三个 profile 实际都为相同输入/输出长度，统一标记
+`SUPERSEDED_IDENTICAL_REALIZED_LENGTHS`；10GB probe `29960861` 被取消，均不进入最终矩阵。
+
+### v2 决策
+
+硬过滤在该 synthetic holdout 上提高 filter correctness 和 nDCG，但 no-result 真正切片未过门；
+checkpoint-87 未过 weak v3 质量门；固定长度组件延迟过门但没有生产 SLA 资格。最终不修改正式
+release、adapter、Prompt、阈值或 Fresh Test 状态。
+
+## v1 结论先行（历史）
 
 本任务建立了可运行、失败关闭的四轨证据：ANN-vs-exact、独立查询业务语义、VLM/SFT
 one-factor 语义和端到端性能。最重要的结论不是“所有指标都变好”，而是找到了可以成立和
@@ -259,11 +357,13 @@ support=0，状态为 `NOT_SCORABLE_NO_PRESERVED_MULTI_SUBJECT_LABEL`。本审�
 
 ## 验证
 
-- `python -m unittest discover -s tests -v`：926 项通过，2 项既有跳过；
+- `python -m unittest discover -s tests -v`：936 项通过，2 项既有跳过；
 - `python scripts/tripctl.py validate`：`status=ok`；
 - 正式 Git 外 release 的 `scripts/verify_final_delivery.py`：`PASS`，包内记录 948 项测试；
 - `docker compose ... config --quiet`：通过；
 - 本地独立查询池、来源 registry、正式 retrieval/release 哈希核验：`PASS`；
+- VLM weak v3 对冻结 raw 重评分：score SHA-256 保持 `b039c5…7458`；
+- 固定长度 performance scorer：实际 input/output 矩阵验证通过，latency gate `PASS`、joint gate `FAIL`；
 - `git diff --check`：通过。
 
 ## 简历候选表述
