@@ -45,7 +45,6 @@ def prepare_runtime(
     access_key: str,
     secret_key: str,
     component_port_base: int | None = None,
-    metrics_port: int | None = None,
 ) -> dict[str, object]:
     if output_dir.exists():
         raise FileExistsError(f"distributed Milvus runtime already exists: {output_dir}")
@@ -58,8 +57,6 @@ def prepare_runtime(
     component_port_base = component_port_base if component_port_base is not None else port_base
     if not 20000 <= component_port_base <= 50000 or component_port_base + 20 > 65535:
         raise ValueError("component port base is outside the permitted job-local range")
-    if metrics_port is not None and not 20000 <= metrics_port <= 65535:
-        raise ValueError("metrics port is outside the permitted job-local range")
     if len(access_key) < 16 or len(secret_key) < 32:
         raise ValueError("job-local MinIO credentials do not meet the minimum length")
     if access_key.lower() == DEFAULT_MINIO_CREDENTIAL or secret_key.lower() == DEFAULT_MINIO_CREDENTIAL:
@@ -90,7 +87,6 @@ def prepare_runtime(
         secret_key=secret_key,
         output_dir=output_dir,
         component_port_base=component_port_base,
-        metrics_port=metrics_port,
     )
     config_path.write_text(text, encoding="utf-8")
     config_path.chmod(0o600)
@@ -99,7 +95,6 @@ def prepare_runtime(
         "control_node": control_node,
         "port_base": port_base,
         "component_port_base": component_port_base,
-        "metrics_port": metrics_port if metrics_port is not None else 9091,
         "rpm_sha256": expected_rpm_sha256,
         "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
         "credentials_written_only_to_job_local_config": True,
@@ -117,7 +112,6 @@ def configure_milvus_text(
     secret_key: str,
     output_dir: Path,
     component_port_base: int | None = None,
-    metrics_port: int | None = None,
 ) -> str:
     component_port_base = component_port_base if component_port_base is not None else port_base
     local_data = output_dir / "data"
@@ -150,8 +144,6 @@ def configure_milvus_text(
         "  minSegmentSizeToEnableIndex: 1024": "  minSegmentSizeToEnableIndex: 0",
         "    enabled: true # Whether to enable the http server": "    enabled: false # Whether to enable the http server",
     }
-    if metrics_port is not None:
-        replacements["common:\n"] = f"common:\n  MetricsPort: {metrics_port}\n"
     for old, new in replacements.items():
         count = text.count(old)
         if count != 1:

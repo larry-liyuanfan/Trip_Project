@@ -57,16 +57,19 @@ def main() -> None:
     prepare.add_argument("--control-node", required=True)
     prepare.add_argument("--port-base", type=int, required=True)
     prepare.add_argument("--expected-rpm-sha256", required=True)
+    prepare.add_argument("--node-placement", choices=("control", "worker"), required=True)
 
     ports = subparsers.add_parser("check-ports")
     ports.add_argument("--port-base", type=int, required=True)
+    ports.add_argument("--include-worker", action="store_true")
 
     serve = subparsers.add_parser("serve-milvus")
     serve.add_argument("--runtime-dir", type=Path, required=True)
-    serve.add_argument("--placement", choices=("control", "worker"), required=True)
+    serve.add_argument("--placement", choices=("control", "query-streaming", "data"), required=True)
+    serve.add_argument("--metrics-port", type=int, required=True)
     args = parser.parse_args()
     if args.command == "prepare-node":
-        prepare_runtime(
+        prepare_node(
             rpm=args.rpm,
             output_dir=args.output_dir,
             control_node=args.control_node,
@@ -74,11 +77,12 @@ def main() -> None:
             expected_rpm_sha256=args.expected_rpm_sha256,
             access_key=os.environ.get("TRIP_MINIO_ACCESS_KEY", ""),
             secret_key=os.environ.get("TRIP_MINIO_SECRET_KEY", ""),
+            placement=args.node_placement,
         )
     elif args.command == "check-ports":
-        check_ports(args.port_base)
+        check_ports(args.port_base, include_worker=args.include_worker)
     elif args.command == "serve-milvus":
-        serve_milvus(args.runtime_dir, args.placement)
+        serve_milvus(args.runtime_dir, args.placement, args.metrics_port)
     else:
         run_cluster(args)
 
@@ -116,9 +120,19 @@ def run_cluster(args: argparse.Namespace) -> None:
     success = False
     try:
         for node in nodes:
+            placement = "control" if node == control else "worker"
+            port_command = [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "check-ports",
+                "--port-base",
+                str(port_base),
+            ]
+            if placement == "worker":
+                port_command.append("--include-worker")
             run_step(
                 node,
-                [sys.executable, str(Path(__file__).resolve()), "check-ports", "--port-base", str(port_base)],
+                port_command,
                 cpus=1,
             )
             run_step(
@@ -130,21 +144,23 @@ def run_cluster(args: argparse.Namespace) -> None:
                     "--rpm",
                     str(args.milvus_rpm),
                     "--output-dir",
-                    str(local_root / "runtime"),
+                    str(local_root),
                     "--control-node",
                     control,
                     "--port-base",
                     str(port_base),
                     "--expected-rpm-sha256",
                     performance["milvus_server"]["package_sha256"],
+                    "--node-placement",
+                    placement,
                 ],
                 cpus=1,
                 env=secret_env,
             )
 
         dependencies = performance["dependencies"]
-        etcd = args.dependency_dir / "etcd-v3.5.25-linux-amd64" / "etcd"
-        minio = args.dependency_dir / "minio.RELEASE.2024-12-18T13-15-44Z"
+        etcd = args.dependency_dir / dependencies["etcd"]["archive"].replace(".tar.gz", "") / "etcd"
+        minio = args.dependency_dir / dependencies["minio"]["binary"]
         etcd_log = logs / "etcd.log"
         minio_log = logs / "minio.log"
         processes.append(
@@ -208,10 +224,12 @@ def run_cluster(args: argparse.Namespace) -> None:
         wait_http(f"http://{control}:{port_base + 1}/minio/health/live", processes, 60)
 
         control_log = logs / "milvus-control.log"
-        worker_log = logs / "milvus-worker.log"
-        for node, placement, log in (
-            (control, "control", control_log),
-            (worker, "worker", worker_log),
+        query_streaming_log = logs / "milvus-query-streaming.log"
+        data_log = logs / "milvus-data.log"
+        for node, placement, runtime_name, metrics_port, log, cpus in (
+            (control, "control", "runtime-control", port_base + 13, control_log, 3),
+            (worker, "query-streaming", "runtime-query-streaming", port_base + 13, query_streaming_log, 2),
+            (worker, "data", "runtime-data", port_base + 33, data_log, 2),
         ):
             processes.append(
                 start_step(
@@ -221,19 +239,22 @@ def run_cluster(args: argparse.Namespace) -> None:
                         str(Path(__file__).resolve()),
                         "serve-milvus",
                         "--runtime-dir",
-                        str(local_root / "runtime"),
+                        str(local_root / runtime_name),
                         "--placement",
                         placement,
+                        "--metrics-port",
+                        str(metrics_port),
                     ],
                     log,
-                    cpus=4,
+                    cpus=cpus,
                     env=secret_env,
                 )
             )
         proxy_uri = f"http://{control}:{port_base + 4}"
         wait_for_cluster(proxy_uri, processes, 240)
         wait_for_text(control_log, ["mixcoord", "proxy"], processes, 30)
-        wait_for_text(worker_log, ["querynode", "datanode", "streamingnode"], processes, 30)
+        wait_for_text(query_streaming_log, ["querynode", "streamingnode"], processes, 30)
+        wait_for_text(data_log, ["datanode"], processes, 30)
         startup_ms = (time.perf_counter() - startup_started) * 1000
 
         identity = {
@@ -357,8 +378,43 @@ def validate_inputs(args: argparse.Namespace, config: dict[str, Any]) -> None:
             raise ValueError(f"{label} SHA-256 mismatch")
 
 
-def check_ports(port_base: int) -> None:
-    ports = list(range(port_base, port_base + 13))
+def prepare_node(
+    *,
+    rpm: Path,
+    output_dir: Path,
+    control_node: str,
+    port_base: int,
+    expected_rpm_sha256: str,
+    access_key: str,
+    secret_key: str,
+    placement: str,
+) -> None:
+    if placement == "control":
+        runtimes = (("runtime-control", port_base),)
+    elif placement == "worker":
+        runtimes = (
+            ("runtime-query-streaming", port_base),
+            ("runtime-data", port_base + 20),
+        )
+    else:
+        raise ValueError(f"unsupported node placement: {placement}")
+    for runtime_name, component_port_base in runtimes:
+        prepare_runtime(
+            rpm=rpm,
+            output_dir=output_dir / runtime_name,
+            control_node=control_node,
+            port_base=port_base,
+            expected_rpm_sha256=expected_rpm_sha256,
+            access_key=access_key,
+            secret_key=secret_key,
+            component_port_base=component_port_base,
+        )
+
+
+def check_ports(port_base: int, *, include_worker: bool = False) -> None:
+    ports = list(range(port_base, port_base + 14))
+    if include_worker:
+        ports.extend(range(port_base + 20, port_base + 34))
     sockets = []
     try:
         for port in ports:
@@ -370,22 +426,29 @@ def check_ports(port_base: int) -> None:
             current.close()
 
 
-def serve_milvus(runtime_dir: Path, placement: str) -> None:
+def serve_milvus(runtime_dir: Path, placement: str, metrics_port: int) -> None:
+    if not 20000 <= metrics_port <= 65535:
+        raise ValueError("metrics port is outside the permitted job-local range")
     binary = runtime_dir / "usr" / "bin" / "milvus"
     env = os.environ.copy()
     env["MILVUSCONF"] = str(runtime_dir / "etc" / "milvus" / "configs")
     env["LD_LIBRARY_PATH"] = str(runtime_dir / "usr" / "lib" / "milvus")
     env["DEPLOY_MODE"] = "CLUSTER"
+    env["METRICS_PORT"] = str(metrics_port)
     if placement == "control":
         command = [
             str(binary), "run", "mixture", "-rootcoord=true", "-querycoord=true",
             "-datacoord=true", "-proxy=true", "-alias=trip-control",
         ]
-    else:
+    elif placement == "query-streaming":
         command = [
-            str(binary), "run", "mixture", "-querynode=true", "-datanode=true",
-            "-streamingnode=true", "-alias=trip-worker",
+            str(binary), "run", "mixture", "-querynode=true", "-streamingnode=true",
+            "-alias=trip-query-streaming",
         ]
+    elif placement == "data":
+        command = [str(binary), "run", "mixture", "-datanode=true", "-alias=trip-data"]
+    else:
+        raise ValueError(f"unsupported Milvus placement: {placement}")
     os.execve(str(binary), command, env)
 
 

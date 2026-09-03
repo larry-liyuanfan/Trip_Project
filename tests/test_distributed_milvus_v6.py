@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts.prepare_distributed_milvus_runtime_v6 import configure_milvus_text
+from scripts.run_distributed_milvus_cluster_v6 import prepare_node, serve_milvus
 from scripts.run_http_milvus_service_benchmark_v4 import _validate_external_cluster_identity
 from scripts.smoke_distributed_milvus_runtime_v6 import validate_dependencies
 
@@ -35,7 +37,6 @@ class DistributedMilvusV6Tests(unittest.TestCase):
                 "  port: 22222 # TCP port of streamingNode",
                 "  minSegmentSizeToEnableIndex: 1024",
                 "    enabled: true # Whether to enable the http server",
-                "common:",
                 "",
             ]
         )
@@ -47,14 +48,12 @@ class DistributedMilvusV6Tests(unittest.TestCase):
             secret_key="s" * 40,
             output_dir=Path("/tmp/trip-distributed-milvus-1/runtime"),
             component_port_base=28100,
-            metrics_port=28200,
         )
         self.assertIn("node-a:28000", configured)
         self.assertIn("embed: false", configured)
         self.assertNotIn("embed: true", configured)
         self.assertIn("node-a:28001", configured)
         self.assertIn("port: 28104 # TCP port of proxy", configured)
-        self.assertIn("MetricsPort: 28200", configured)
         self.assertIn("storageType: remote", configured)
         self.assertIn("type: woodpecker", configured)
         self.assertNotIn("minio" + "admin", configured)
@@ -97,6 +96,44 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         args = type("Args", (), {})()
         with self.assertRaisesRegex(ValueError, "locked distributed"):
             validate_dependencies(args, config)
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.prepare_runtime")
+    def test_worker_preparation_creates_separate_query_streaming_and_data_runtimes(
+        self,
+        prepare_runtime: mock.Mock,
+    ) -> None:
+        output_dir = Path("/tmp/trip-distributed-milvus-test")
+        prepare_node(
+            rpm=Path("milvus.rpm"),
+            output_dir=output_dir,
+            control_node="node-a",
+            port_base=28000,
+            expected_rpm_sha256="a" * 64,
+            access_key="trip0123456789abcd",
+            secret_key="s" * 40,
+            placement="worker",
+        )
+        self.assertEqual(prepare_runtime.call_count, 2)
+        calls = prepare_runtime.call_args_list
+        self.assertEqual(calls[0].kwargs["output_dir"], output_dir / "runtime-query-streaming")
+        self.assertEqual(calls[0].kwargs["component_port_base"], 28000)
+        self.assertEqual(calls[1].kwargs["output_dir"], output_dir / "runtime-data")
+        self.assertEqual(calls[1].kwargs["component_port_base"], 28020)
+
+    def test_unknown_placements_are_rejected(self) -> None:
+        common = {
+            "rpm": Path("milvus.rpm"),
+            "output_dir": Path("/tmp/trip-distributed-milvus-test"),
+            "control_node": "node-a",
+            "port_base": 28000,
+            "expected_rpm_sha256": "a" * 64,
+            "access_key": "trip0123456789abcd",
+            "secret_key": "s" * 40,
+        }
+        with self.assertRaisesRegex(ValueError, "unsupported node placement"):
+            prepare_node(**common, placement="invalid")
+        with self.assertRaisesRegex(ValueError, "unsupported Milvus placement"):
+            serve_milvus(Path("/tmp/runtime"), "invalid", 28013)
 
 
 if __name__ == "__main__":

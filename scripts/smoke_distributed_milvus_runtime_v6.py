@@ -68,9 +68,11 @@ def run_smoke(args: argparse.Namespace) -> None:
     started = time.perf_counter()
     passed = False
     try:
-        worker_port_base = port_base + 20
+        query_streaming_port_base = port_base + 20
+        data_port_base = port_base + 40
         check_ports(port_base)
-        check_ports(worker_port_base)
+        check_ports(query_streaming_port_base)
+        check_ports(data_port_base)
         prepare_runtime(
             rpm=args.milvus_rpm,
             output_dir=local_root / "runtime-control",
@@ -80,18 +82,26 @@ def run_smoke(args: argparse.Namespace) -> None:
             access_key=access_key,
             secret_key=secret_key,
             component_port_base=port_base,
-            metrics_port=port_base + 13,
         )
         prepare_runtime(
             rpm=args.milvus_rpm,
-            output_dir=local_root / "runtime-worker",
+            output_dir=local_root / "runtime-query-streaming",
             control_node=node,
             port_base=port_base,
             expected_rpm_sha256=config["performance"]["milvus_server"]["package_sha256"],
             access_key=access_key,
             secret_key=secret_key,
-            component_port_base=worker_port_base,
-            metrics_port=worker_port_base + 13,
+            component_port_base=query_streaming_port_base,
+        )
+        prepare_runtime(
+            rpm=args.milvus_rpm,
+            output_dir=local_root / "runtime-data",
+            control_node=node,
+            port_base=port_base,
+            expected_rpm_sha256=config["performance"]["milvus_server"]["package_sha256"],
+            access_key=access_key,
+            secret_key=secret_key,
+            component_port_base=data_port_base,
         )
         dependencies = config["performance"]["dependencies"]
         etcd = args.dependency_dir / dependencies["etcd"]["archive"].replace(".tar.gz", "") / "etcd"
@@ -134,7 +144,11 @@ def run_smoke(args: argparse.Namespace) -> None:
         )
         wait_tcp(node, port_base, processes, 60)
         wait_http(f"http://{node}:{port_base + 1}/minio/health/live", processes, 60)
-        for placement in ("control", "worker"):
+        for placement, metrics_port in (
+            ("control", port_base + 13),
+            ("query-streaming", query_streaming_port_base + 13),
+            ("data", data_port_base + 13),
+        ):
             processes.append(
                 start_local(
                     [
@@ -143,6 +157,7 @@ def run_smoke(args: argparse.Namespace) -> None:
                         "serve-milvus",
                         "--runtime-dir", str(local_root / f"runtime-{placement}"),
                         "--placement", placement,
+                        "--metrics-port", str(metrics_port),
                     ],
                     logs / f"milvus-{placement}.log",
                     secret_env,
@@ -157,8 +172,14 @@ def run_smoke(args: argparse.Namespace) -> None:
             30,
         )
         wait_for_text(
-            logs / "milvus-worker.log",
-            ["querynode", "datanode", "streamingnode"],
+            logs / "milvus-query-streaming.log",
+            ["querynode", "streamingnode"],
+            processes,
+            30,
+        )
+        wait_for_text(
+            logs / "milvus-data.log",
+            ["datanode"],
             processes,
             30,
         )
@@ -169,10 +190,11 @@ def run_smoke(args: argparse.Namespace) -> None:
             "scope": "one_node_engineering_smoke_not_distributed_performance_evidence",
             "slurm_job_id": job_id,
             "node_support": 1,
-            "process_topology": "control_mixture_plus_worker_mixture_on_one_node",
+            "process_topology": "control_plus_query_streaming_plus_data_mixtures_on_one_node",
             "roles": {
                 "control": ["mixcoord", "proxy"],
-                "worker": ["querynode", "datanode", "streamingnode"],
+                "query_streaming": ["querynode", "streamingnode"],
+                "data": ["datanode"],
             },
             "startup_and_crud_ms": (time.perf_counter() - started) * 1000,
             "operations": operation_metrics,
