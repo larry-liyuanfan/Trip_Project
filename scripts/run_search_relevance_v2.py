@@ -50,20 +50,22 @@ def main() -> None:
         raise FileExistsError(f"output directory already exists: {args.output_dir}")
     args.output_dir.mkdir(parents=True)
     config = json.loads(args.config.read_text(encoding="utf-8"))
-    _verify_bundle_lock(config, args.bundle_dir)
+    expected_pool_lock = _verify_bundle_lock(config, args.bundle_dir)
     if file_sha256(args.retrieval_archive) != config["formal_release_read_only"]["retrieval_archive_sha256"]:
         raise ValueError("formal retrieval archive SHA-256 mismatch")
 
     calibration = load_jsonl(args.bundle_dir / "search_calibration_manifest.jsonl")
     calibration_annotations = load_jsonl(args.bundle_dir / "search_calibration_annotations.jsonl")
-    holdout = load_jsonl(args.bundle_dir / "search_holdout_manifest.jsonl")
-    holdout_annotations = load_jsonl(args.bundle_dir / "search_holdout_annotations.jsonl")
+    _verify_split_lock(
+        calibration,
+        calibration_annotations,
+        args.bundle_dir / "search_calibration_manifest.jsonl",
+        args.bundle_dir / "search_calibration_annotations.jsonl",
+        expected_pool_lock["search"]["calibration"],
+    )
     validation = {
         "calibration_queries": validate_query_manifest(calibration, args.bundle_dir),
         "calibration_annotations": validate_annotation_protocol(calibration, calibration_annotations),
-        "holdout_queries": validate_query_manifest(holdout, args.bundle_dir),
-        "holdout_annotations": validate_annotation_protocol(holdout, holdout_annotations),
-        "split_isolation": validate_calibration_holdout_isolation(calibration, holdout),
     }
     archive = _read_retrieval_archive(args.retrieval_archive)
     model_bundle = _load_clip_and_store(config, archive, args.output_dir / "formal_index.milvus.db")
@@ -126,12 +128,28 @@ def main() -> None:
     marker_record = {
         "schema_version": "search_relevance_v2_holdout_consumption",
         "selection_sha256": canonical_json_sha256(selection_record),
-        "holdout_query_lock": canonical_json_sha256(holdout),
-        "holdout_annotation_lock": canonical_json_sha256(holdout_annotations),
+        "committed_holdout_lock": expected_pool_lock["search"]["holdout"],
         "slurm_job_id": os.getenv("SLURM_JOB_ID"),
-        "single_consumption_policy": "exclusive_marker_written_before_holdout_evaluation",
+        "single_consumption_policy": "exclusive_marker_written_before_first_holdout_open",
     }
-    _write_json(marker, marker_record)
+    holdout, holdout_annotations = load_holdout_after_marker(
+        calibration_succeeded=True,
+        bundle_dir=args.bundle_dir,
+        marker=marker,
+        marker_record=marker_record,
+    )
+    _verify_split_lock(
+        holdout,
+        holdout_annotations,
+        args.bundle_dir / "search_holdout_manifest.jsonl",
+        args.bundle_dir / "search_holdout_annotations.jsonl",
+        expected_pool_lock["search"]["holdout"],
+    )
+    validation.update({
+        "holdout_queries": validate_query_manifest(holdout, args.bundle_dir),
+        "holdout_annotations": validate_annotation_protocol(holdout, holdout_annotations),
+        "split_isolation": validate_calibration_holdout_isolation(calibration, holdout),
+    })
     prepared_holdout = _prepare_queries(
         holdout, holdout_annotations, args.bundle_dir, archive, model_bundle, config
     )
@@ -184,12 +202,49 @@ def main() -> None:
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
 
 
-def _verify_bundle_lock(config: dict[str, Any], bundle_dir: Path) -> None:
+def _verify_bundle_lock(config: dict[str, Any], bundle_dir: Path) -> dict[str, Any]:
     expected_path = Path(config["pool"]["committed_lock"])
     expected = json.loads(expected_path.read_text(encoding="utf-8"))
     actual = json.loads((bundle_dir / "bundle_lock.json").read_text(encoding="utf-8"))
     if actual != expected:
         raise ValueError("generated bundle lock differs from committed lock")
+    return expected
+
+
+def load_holdout_after_marker(
+    *,
+    calibration_succeeded: bool,
+    bundle_dir: Path,
+    marker: Path,
+    marker_record: dict[str, Any],
+    loader=load_jsonl,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Create the exclusive marker before the first holdout manifest or label open."""
+    if not calibration_succeeded:
+        raise RuntimeError("calibration must complete before holdout consumption")
+    _write_json(marker, marker_record)
+    return (
+        loader(bundle_dir / "search_holdout_manifest.jsonl"),
+        loader(bundle_dir / "search_holdout_annotations.jsonl"),
+    )
+
+
+def _verify_split_lock(
+    queries: list[dict[str, Any]],
+    annotations: list[dict[str, Any]],
+    query_path: Path,
+    annotation_path: Path,
+    expected: dict[str, Any],
+) -> None:
+    checks = {
+        "query_support": len(queries),
+        "query_manifest_canonical_sha256": canonical_json_sha256(queries),
+        "query_manifest_file_sha256": file_sha256(query_path),
+        "annotation_canonical_sha256": canonical_json_sha256(annotations),
+        "annotation_file_sha256": file_sha256(annotation_path),
+    }
+    if checks != expected:
+        raise ValueError(f"search split differs from committed lock: {query_path.name}")
 
 
 def _load_clip_and_store(config: dict[str, Any], archive: dict[str, Any], milvus_path: Path) -> dict[str, Any]:

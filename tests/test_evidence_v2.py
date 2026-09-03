@@ -5,6 +5,7 @@ from pathlib import Path
 
 from scripts.audit_retrieval_query_leakage_v2 import audit
 from scripts.build_automated_evidence_pool_v2 import build_pool
+from scripts.run_search_relevance_v2 import load_holdout_after_marker
 from src.evaluation.evidence_v2 import (
     score_vlm_v3_comparison,
     select_calibration_configuration,
@@ -40,6 +41,36 @@ class AutomatedPoolV2Tests(unittest.TestCase):
         selected = select_calibration_configuration(candidates)
         self.assertEqual(selected["configuration"]["star_rating_weight"], 0.0)
         self.assertEqual(selected["configuration"]["no_result_similarity_threshold"], 0.12)
+
+    def test_holdout_loader_is_not_called_when_calibration_failed(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(RuntimeError, "calibration must complete"):
+                load_holdout_after_marker(
+                    calibration_succeeded=False,
+                    bundle_dir=root,
+                    marker=root / "marker.json",
+                    marker_record={},
+                    loader=lambda path: calls.append(path),
+                )
+        self.assertEqual(calls, [])
+
+    def test_holdout_loader_is_not_called_when_exclusive_marker_fails(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "marker.json"
+            marker.write_text("already consumed", encoding="utf-8")
+            with self.assertRaises(FileExistsError):
+                load_holdout_after_marker(
+                    calibration_succeeded=True,
+                    bundle_dir=root,
+                    marker=marker,
+                    marker_record={},
+                    loader=lambda path: calls.append(path),
+                )
+        self.assertEqual(calls, [])
 
 
 class LeakageAuditV2Tests(unittest.TestCase):
