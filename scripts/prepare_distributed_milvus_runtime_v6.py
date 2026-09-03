@@ -44,6 +44,8 @@ def prepare_runtime(
     expected_rpm_sha256: str,
     access_key: str,
     secret_key: str,
+    component_port_base: int | None = None,
+    metrics_port: int | None = None,
 ) -> dict[str, object]:
     if output_dir.exists():
         raise FileExistsError(f"distributed Milvus runtime already exists: {output_dir}")
@@ -53,6 +55,11 @@ def prepare_runtime(
         raise ValueError("control node must be a non-empty hostname")
     if not 20000 <= port_base <= 50000 or port_base + 20 > 65535:
         raise ValueError("port base is outside the permitted job-local range")
+    component_port_base = component_port_base if component_port_base is not None else port_base
+    if not 20000 <= component_port_base <= 50000 or component_port_base + 20 > 65535:
+        raise ValueError("component port base is outside the permitted job-local range")
+    if metrics_port is not None and not 20000 <= metrics_port <= 65535:
+        raise ValueError("metrics port is outside the permitted job-local range")
     if len(access_key) < 16 or len(secret_key) < 32:
         raise ValueError("job-local MinIO credentials do not meet the minimum length")
     if access_key.lower() == DEFAULT_MINIO_CREDENTIAL or secret_key.lower() == DEFAULT_MINIO_CREDENTIAL:
@@ -82,6 +89,8 @@ def prepare_runtime(
         access_key=access_key,
         secret_key=secret_key,
         output_dir=output_dir,
+        component_port_base=component_port_base,
+        metrics_port=metrics_port,
     )
     config_path.write_text(text, encoding="utf-8")
     config_path.chmod(0o600)
@@ -89,6 +98,8 @@ def prepare_runtime(
         "schema_version": "distributed_milvus_runtime_v6",
         "control_node": control_node,
         "port_base": port_base,
+        "component_port_base": component_port_base,
+        "metrics_port": metrics_port if metrics_port is not None else 9091,
         "rpm_sha256": expected_rpm_sha256,
         "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
         "credentials_written_only_to_job_local_config": True,
@@ -105,7 +116,10 @@ def configure_milvus_text(
     access_key: str,
     secret_key: str,
     output_dir: Path,
+    component_port_base: int | None = None,
+    metrics_port: int | None = None,
 ) -> str:
+    component_port_base = component_port_base if component_port_base is not None else port_base
     local_data = output_dir / "data"
     replacements = {
         "localhost:2379": f"{control_node}:{port_base}",
@@ -125,17 +139,19 @@ def configure_milvus_text(
         "/var/lib/milvus/data/": f"{local_data}/",
         "/var/lib/milvus/rdb_data": str(output_dir / "rdb_data"),
         "/tmp/milvus_access": str(output_dir / "access"),
-        "  port: 22125 # TCP port of rootCoord": f"  port: {port_base + 3} # TCP port of rootCoord",
-        "  port: 19530 # TCP port of proxy": f"  port: {port_base + 4} # TCP port of proxy",
-        "  internalPort: 19529": f"  internalPort: {port_base + 5}",
-        "  port: 19531 # TCP port of queryCoord": f"  port: {port_base + 6} # TCP port of queryCoord",
-        "  port: 21123 # TCP port of queryNode": f"  port: {port_base + 7} # TCP port of queryNode",
-        "  port: 13333 # TCP port of dataCoord": f"  port: {port_base + 8} # TCP port of dataCoord",
-        "  port: 21124 # TCP port of dataNode": f"  port: {port_base + 9} # TCP port of dataNode",
-        "  port: 22222 # TCP port of streamingNode": f"  port: {port_base + 10} # TCP port of streamingNode",
+        "  port: 22125 # TCP port of rootCoord": f"  port: {component_port_base + 3} # TCP port of rootCoord",
+        "  port: 19530 # TCP port of proxy": f"  port: {component_port_base + 4} # TCP port of proxy",
+        "  internalPort: 19529": f"  internalPort: {component_port_base + 5}",
+        "  port: 19531 # TCP port of queryCoord": f"  port: {component_port_base + 6} # TCP port of queryCoord",
+        "  port: 21123 # TCP port of queryNode": f"  port: {component_port_base + 7} # TCP port of queryNode",
+        "  port: 13333 # TCP port of dataCoord": f"  port: {component_port_base + 8} # TCP port of dataCoord",
+        "  port: 21124 # TCP port of dataNode": f"  port: {component_port_base + 9} # TCP port of dataNode",
+        "  port: 22222 # TCP port of streamingNode": f"  port: {component_port_base + 10} # TCP port of streamingNode",
         "  minSegmentSizeToEnableIndex: 1024": "  minSegmentSizeToEnableIndex: 0",
         "    enabled: true # Whether to enable the http server": "    enabled: false # Whether to enable the http server",
     }
+    if metrics_port is not None:
+        replacements["common:\n"] = f"common:\n  MetricsPort: {metrics_port}\n"
     for old, new in replacements.items():
         count = text.count(old)
         if count != 1:

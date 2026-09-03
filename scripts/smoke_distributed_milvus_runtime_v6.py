@@ -68,15 +68,30 @@ def run_smoke(args: argparse.Namespace) -> None:
     started = time.perf_counter()
     passed = False
     try:
+        worker_port_base = port_base + 20
         check_ports(port_base)
+        check_ports(worker_port_base)
         prepare_runtime(
             rpm=args.milvus_rpm,
-            output_dir=local_root / "runtime",
+            output_dir=local_root / "runtime-control",
             control_node=node,
             port_base=port_base,
             expected_rpm_sha256=config["performance"]["milvus_server"]["package_sha256"],
             access_key=access_key,
             secret_key=secret_key,
+            component_port_base=port_base,
+            metrics_port=port_base + 13,
+        )
+        prepare_runtime(
+            rpm=args.milvus_rpm,
+            output_dir=local_root / "runtime-worker",
+            control_node=node,
+            port_base=port_base,
+            expected_rpm_sha256=config["performance"]["milvus_server"]["package_sha256"],
+            access_key=access_key,
+            secret_key=secret_key,
+            component_port_base=worker_port_base,
+            metrics_port=worker_port_base + 13,
         )
         dependencies = config["performance"]["dependencies"]
         etcd = args.dependency_dir / dependencies["etcd"]["archive"].replace(".tar.gz", "") / "etcd"
@@ -119,24 +134,31 @@ def run_smoke(args: argparse.Namespace) -> None:
         )
         wait_tcp(node, port_base, processes, 60)
         wait_http(f"http://{node}:{port_base + 1}/minio/health/live", processes, 60)
-        processes.append(
-            start_local(
-                [
-                    sys.executable,
-                    str(Path(__file__).resolve().with_name("run_distributed_milvus_cluster_v6.py")),
-                    "serve-milvus",
-                    "--runtime-dir", str(local_root / "runtime"),
-                    "--placement", "all",
-                ],
-                logs / "milvus-all.log",
-                secret_env,
+        for placement in ("control", "worker"):
+            processes.append(
+                start_local(
+                    [
+                        sys.executable,
+                        str(Path(__file__).resolve().with_name("run_distributed_milvus_cluster_v6.py")),
+                        "serve-milvus",
+                        "--runtime-dir", str(local_root / f"runtime-{placement}"),
+                        "--placement", placement,
+                    ],
+                    logs / f"milvus-{placement}.log",
+                    secret_env,
+                )
             )
-        )
         proxy_uri = f"http://{node}:{port_base + 4}"
         wait_for_cluster(proxy_uri, processes, 240)
         wait_for_text(
-            logs / "milvus-all.log",
-            ["rootcoord", "querycoord", "datacoord", "querynode", "datanode", "proxy", "streamingnode"],
+            logs / "milvus-control.log",
+            ["mixcoord", "proxy"],
+            processes,
+            30,
+        )
+        wait_for_text(
+            logs / "milvus-worker.log",
+            ["querynode", "datanode", "streamingnode"],
             processes,
             30,
         )
@@ -147,9 +169,11 @@ def run_smoke(args: argparse.Namespace) -> None:
             "scope": "one_node_engineering_smoke_not_distributed_performance_evidence",
             "slurm_job_id": job_id,
             "node_support": 1,
-            "roles_exercised_in_one_process": [
-                "rootcoord", "querycoord", "datacoord", "querynode", "datanode", "proxy", "streamingnode"
-            ],
+            "process_topology": "control_mixture_plus_worker_mixture_on_one_node",
+            "roles": {
+                "control": ["mixcoord", "proxy"],
+                "worker": ["querynode", "datanode", "streamingnode"],
+            },
             "startup_and_crud_ms": (time.perf_counter() - started) * 1000,
             "operations": operation_metrics,
             "milvus_server": config["performance"]["milvus_server"],

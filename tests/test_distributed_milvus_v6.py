@@ -35,6 +35,7 @@ class DistributedMilvusV6Tests(unittest.TestCase):
                 "  port: 22222 # TCP port of streamingNode",
                 "  minSegmentSizeToEnableIndex: 1024",
                 "    enabled: true # Whether to enable the http server",
+                "common:",
                 "",
             ]
         )
@@ -45,11 +46,15 @@ class DistributedMilvusV6Tests(unittest.TestCase):
             access_key="trip0123456789abcd",
             secret_key="s" * 40,
             output_dir=Path("/tmp/trip-distributed-milvus-1/runtime"),
+            component_port_base=28100,
+            metrics_port=28200,
         )
         self.assertIn("node-a:28000", configured)
         self.assertIn("embed: false", configured)
         self.assertNotIn("embed: true", configured)
         self.assertIn("node-a:28001", configured)
+        self.assertIn("port: 28104 # TCP port of proxy", configured)
+        self.assertIn("MetricsPort: 28200", configured)
         self.assertIn("storageType: remote", configured)
         self.assertIn("type: woodpecker", configured)
         self.assertNotIn("minio" + "admin", configured)
