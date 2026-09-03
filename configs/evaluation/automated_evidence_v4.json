@@ -1,0 +1,121 @@
+{
+  "schema_version": "automated_evidence_v4_exploration",
+  "evidence_class": "development_and_final_synthetic_only_not_human_ground_truth",
+  "gate_class": "exploration_only_not_release_or_production_gate",
+  "fresh_test_policy": "existing_120_sample_fresh_test_never_read_never_run_never_tune",
+  "formal_release_read_only": {
+    "release_id": "trip-qwen3-vl-8b-week8-final-v1",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "expected_index_support": 1000
+  },
+  "pool": {
+    "committed_lock": "configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json",
+    "generator": "scripts/build_exploration_pool_v4.py",
+    "splits": ["training", "development", "final"],
+    "final_policy": "exclusive_marker_before_first_manifest_or_annotation_open"
+  },
+  "search": {
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "top_k": 10,
+    "supported_filters": ["city", "business_category", "price_range"],
+    "methods": [
+      "clip_exact",
+      "clip_milvus",
+      "structured_filter_clip",
+      "hard_filter_light_rerank",
+      "hard_filter_clip_business_guard"
+    ],
+    "business_guard": {
+      "learner": "normalized_positive_minus_negative_calibration_centroids",
+      "development_threshold_grid": [-0.2, -0.1, -0.05, 0.0, 0.05, 0.1, 0.2],
+      "star_rating_weight_grid": [0.0, 0.02],
+      "selection_objective": {
+        "ndcg_at_10_weight": 0.3,
+        "no_result_accuracy_weight": 0.4,
+        "filter_correctness_weight": 0.3
+      }
+    },
+    "development_gates": {
+      "min_query_support": 24,
+      "max_failure_rate": 0.0,
+      "min_no_result_accuracy": 0.7,
+      "min_filter_correctness": 0.95,
+      "min_ndcg_at_10": 0.3,
+      "min_ann_recall_at_10": 0.95
+    },
+    "final_gates": {
+      "min_query_support": 24,
+      "max_failure_rate": 0.0,
+      "min_no_result_accuracy": 0.7,
+      "min_filter_correctness": 0.95,
+      "min_ndcg_at_10": 0.3,
+      "min_ann_recall_at_10": 0.95
+    },
+    "milvus": {
+      "index_type": "HNSW",
+      "metric_type": "COSINE",
+      "M": 16,
+      "efConstruction": 128,
+      "ef": 64
+    }
+  },
+  "vlm": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "comparison_factor": "adapter_only_on_exact_shared_development_lock",
+    "development_roles": [
+      "zero_shot",
+      "old_unified_adapter",
+      "current_system_repair_checkpoint_87",
+      "targeted_exploration_adapter_v4"
+    ],
+    "candidate_variant": "targeted_exploration_adapter_v4",
+    "baseline_variant": "current_system_repair_checkpoint_87",
+    "selection_objective": {
+      "field_f1_mean_weight": 0.35,
+      "unknown_abstention_weight": 0.2,
+      "dialogue_mean_weight": 0.25,
+      "first_json_weight": 0.1,
+      "supported_exact_match_weight": 0.1,
+      "min_improvement_over_baseline": 0.1
+    },
+    "exploration_gates": {
+      "min_product_support": 24,
+      "min_dialogue_support": 12,
+      "min_field_f1": 0.45,
+      "max_unsupported_hallucination_rate": 0.35,
+      "min_unknown_abstention_accuracy": 0.65,
+      "min_first_attempt_json_compliance": 0.8,
+      "min_multi_subject_abstention_accuracy": 0.5,
+      "min_dialogue_metric": 0.6
+    }
+  },
+  "training": {
+    "run_id": "trip_targeted_exploration_sft_v4",
+    "initial_adapter_role": "current_system_repair_checkpoint_87",
+    "initial_adapter_model_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a",
+    "optimizer": "adamw_torch",
+    "learning_rate": 0.00005,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.03,
+    "max_grad_norm": 1.0,
+    "gradient_accumulation_steps": 16,
+    "epochs": 1,
+    "max_length": 8192,
+    "logging_steps": 1,
+    "attn_implementation": "sdpa",
+    "seed": 20260903,
+    "only_primary_factor_changed_from_checkpoint_87_cycle": "targeted_synthetic_training_data"
+  },
+  "performance": {
+    "service_transport": "HTTP_FastAPI_Uvicorn",
+    "milvus_transport": "external_Milvus_server_not_Lite",
+    "concurrency": [1, 2, 4],
+    "cold_repetitions": 1,
+    "steady_repetitions": 8,
+    "failure_rate_max": 0.02,
+    "candidate_to_checkpoint_87_concurrency_1_p95_ratio_max": 1.25,
+    "production_sla_supported": false
+  }
+}
