@@ -6,6 +6,7 @@ from pathlib import Path
 from scripts.audit_retrieval_query_leakage_v2 import audit
 from scripts.build_automated_evidence_pool_v2 import build_pool
 from scripts.run_search_relevance_v2 import load_holdout_after_marker
+from scripts.score_performance_matrix_v2 import validate_realized_lengths
 from src.evaluation.evidence_v2 import (
     apply_search_v2_gates,
     score_vlm_v3_comparison,
@@ -220,6 +221,21 @@ class VlmAndPerformanceV2Tests(unittest.TestCase):
         })
         self.assertEqual(report["measured_gate_status"], "PASS")
         self.assertFalse("production_sla" in report["scope"] and report["overall_status"] == "PASS")
+
+    def test_realized_performance_lengths_must_be_distinct_and_exact(self):
+        profiles = [
+            {"profile_id": "short", "input_padding_repetitions": 0, "output_new_tokens": 32},
+            {"profile_id": "long", "input_padding_repetitions": 10, "output_new_tokens": 64},
+        ]
+        rows = [
+            {"profile_id": "short", "input_token_count": 100, "output_token_count": 32, "forced_output_length": True},
+            {"profile_id": "long", "input_token_count": 200, "output_token_count": 64, "forced_output_length": True},
+        ]
+        report = validate_realized_lengths(rows, profiles)
+        self.assertEqual(report["long"]["output_token_count"], 64)
+        rows[1]["input_token_count"] = 100
+        with self.assertRaisesRegex(ValueError, "distinct input"):
+            validate_realized_lengths(rows, profiles)
 
 
 if __name__ == "__main__":

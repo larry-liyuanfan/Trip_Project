@@ -27,6 +27,7 @@ def main() -> None:
     rows = [row for path in args.result for row in load_jsonl(path)]
     roles = ("old_unified_adapter", "current_system_repair_checkpoint_87")
     profiles = [row["profile_id"] for row in config["performance"]["profiles"]]
+    realized_lengths = validate_realized_lengths(rows, config["performance"]["profiles"])
     for role in roles:
         for profile in profiles:
             for declaration in config["performance"]["declared_not_run"]:
@@ -71,11 +72,49 @@ def main() -> None:
         "status": "PASS" if quality_pass and latency_pass else "FAIL",
     }
     matrix["production_sla_supported"] = False
+    matrix["realized_token_matrix"] = realized_lengths
     matrix["raw_measured_result_sha256"] = canonical_json_sha256(
         [row for row in rows if row.get("status") == "MEASURED"]
     )
     _write_json(args.output, matrix)
     print(json.dumps(matrix, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+def validate_realized_lengths(
+    rows: list[dict[str, Any]], profiles: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Require distinct fixed input and exact forced output supports across roles."""
+    profile_map = {row["profile_id"]: row for row in profiles}
+    realized: dict[str, Any] = {}
+    input_counts: set[int] = set()
+    output_counts: set[int] = set()
+    for profile_id, profile in profile_map.items():
+        support = [row for row in rows if row.get("profile_id") == profile_id]
+        if not support:
+            raise ValueError(f"missing measured profile: {profile_id}")
+        inputs = {int(row["input_token_count"]) for row in support}
+        outputs = {int(row["output_token_count"]) for row in support}
+        expected_output = int(profile["output_new_tokens"])
+        if len(inputs) != 1:
+            raise ValueError(f"input token count differs within profile: {profile_id}")
+        if outputs != {expected_output}:
+            raise ValueError(f"fixed output token count mismatch: {profile_id}")
+        if any(row.get("forced_output_length") is not True for row in support):
+            raise ValueError(f"profile lacks forced output evidence: {profile_id}")
+        input_count = next(iter(inputs))
+        input_counts.add(input_count)
+        output_counts.add(expected_output)
+        realized[profile_id] = {
+            "row_support": len(support),
+            "input_token_count": input_count,
+            "output_token_count": expected_output,
+            "input_padding_repetitions": profile["input_padding_repetitions"],
+        }
+    if len(input_counts) != len(profile_map):
+        raise ValueError("performance profiles did not realize distinct input token lengths")
+    if len(output_counts) != len(profile_map):
+        raise ValueError("performance profiles did not realize distinct output token lengths")
+    return realized
 
 
 def _write_json(path: Path, value: Any) -> None:

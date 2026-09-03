@@ -73,9 +73,9 @@
   "performance": {
     "scope": "component_pipeline_with_milvus_lite_not_distributed_or_http_sla",
     "profiles": [
-      {"profile_id": "short_64", "sample_id": "vlm_v3_price_01", "max_new_tokens": 64},
-      {"profile_id": "medium_128", "sample_id": "vlm_v3_multi_01", "max_new_tokens": 128},
-      {"profile_id": "long_256", "sample_id": "vlm_v3_unknown_01", "max_new_tokens": 256}
+      {"profile_id": "short_32", "sample_id": "vlm_v3_price_01", "input_padding_repetitions": 0, "output_new_tokens": 32},
+      {"profile_id": "medium_64", "sample_id": "vlm_v3_multi_01", "input_padding_repetitions": 32, "output_new_tokens": 64},
+      {"profile_id": "long_128", "sample_id": "vlm_v3_unknown_01", "input_padding_repetitions": 128, "output_new_tokens": 128}
     ],
     "warmup_repetitions": 1,
     "cold_repetitions": 1,
@@ -95,9 +95,9 @@
       "max_peak_vram_mib": 8192,
       "max_candidate_to_baseline_p95_ratio": 1.25,
       "profiles": {
-        "short_64": {"max_steady_end_to_end_p95_ms": 15000},
-        "medium_128": {"max_steady_end_to_end_p95_ms": 22000},
-        "long_256": {"max_steady_end_to_end_p95_ms": 35000}
+        "short_32": {"max_steady_end_to_end_p95_ms": 15000},
+        "medium_64": {"max_steady_end_to_end_p95_ms": 22000},
+        "long_128": {"max_steady_end_to_end_p95_ms": 35000}
       }
     }
   }

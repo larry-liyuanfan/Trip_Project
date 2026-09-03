@@ -72,13 +72,18 @@ def main() -> None:
     vlm_model, vlm_processor, torch = _load_model(args)
     startup_ms = (time.perf_counter() - startup_started) * 1000
     hardware = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
-    max_new_tokens = int(profile["max_new_tokens"])
+    output_new_tokens = int(profile["output_new_tokens"])
+    padding_repetitions = int(profile["input_padding_repetitions"])
+    performance_prompt = PRODUCT_PROMPT + (
+        "\nPerformance-only fixed input padding:" + " fixed latency context" * padding_repetitions
+    )
     image = Image.open(image_path).convert("RGB")
     rows: list[dict[str, Any]] = []
 
     cold = _run_once(
         clip_model, clip_processor, vlm_model, vlm_processor, torch,
-        store, archive["metadata"], image, str(image_path.resolve()), device, max_new_tokens,
+        store, archive["metadata"], image, str(image_path.resolve()), device,
+        output_new_tokens, performance_prompt,
     )
     cold.update(_dimensions(args, profile, hardware, "cold"))
     cold["startup_ms"] = startup_ms
@@ -88,12 +93,14 @@ def main() -> None:
     for _ in range(int(config["performance"]["warmup_repetitions"])):
         _run_once(
             clip_model, clip_processor, vlm_model, vlm_processor, torch,
-            store, archive["metadata"], image, str(image_path.resolve()), device, max_new_tokens,
+            store, archive["metadata"], image, str(image_path.resolve()), device,
+            output_new_tokens, performance_prompt,
         )
     for _ in range(int(config["performance"]["steady_repetitions"])):
         row = _run_once(
             clip_model, clip_processor, vlm_model, vlm_processor, torch,
-            store, archive["metadata"], image, str(image_path.resolve()), device, max_new_tokens,
+            store, archive["metadata"], image, str(image_path.resolve()), device,
+            output_new_tokens, performance_prompt,
         )
         row.update(_dimensions(args, profile, hardware, "steady"))
         row["startup_ms"] = 0.0
@@ -118,7 +125,8 @@ def main() -> None:
 
 def _run_once(
     clip_model, clip_processor, vlm_model, vlm_processor, torch,
-    store, metadata, image, vlm_image_path: str, device: str, max_new_tokens: int,
+    store, metadata, image, vlm_image_path: str, device: str, output_new_tokens: int,
+    performance_prompt: str,
 ) -> dict[str, Any]:
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
@@ -148,7 +156,7 @@ def _run_once(
 
     messages = [{"role": "user", "content": [
         {"type": "image", "image": vlm_image_path},
-        {"type": "text", "text": PRODUCT_PROMPT},
+        {"type": "text", "text": performance_prompt},
     ]}]
     vlm_inputs = vlm_processor.apply_chat_template(
         messages,
@@ -167,13 +175,18 @@ def _run_once(
     with torch.inference_mode():
         generated = vlm_model.generate(
             **vlm_inputs,
-            max_new_tokens=max_new_tokens,
+            min_new_tokens=output_new_tokens,
+            max_new_tokens=output_new_tokens,
             do_sample=False,
             use_cache=True,
         )
     vlm_ms = (time.perf_counter() - started) * 1000
     input_tokens = int(vlm_inputs["input_ids"].shape[-1])
     output_tokens = int(generated.shape[-1] - input_tokens)
+    if output_tokens != output_new_tokens:
+        raise RuntimeError(
+            f"fixed output length mismatch: {output_tokens} != {output_new_tokens}"
+        )
     return {
         "clip_encode_ms": clip_ms,
         "milvus_ms": milvus_ms,
@@ -196,7 +209,9 @@ def _dimensions(
         "role": args.role,
         "profile_id": profile["profile_id"],
         "sample_id": profile["sample_id"],
-        "max_new_tokens": profile["max_new_tokens"],
+        "input_padding_repetitions": profile["input_padding_repetitions"],
+        "output_new_tokens_target": profile["output_new_tokens"],
+        "forced_output_length": True,
         "phase": phase,
         "concurrency": 1,
         "transport": "component_milvus_lite",
