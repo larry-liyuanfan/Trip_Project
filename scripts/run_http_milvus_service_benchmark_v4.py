@@ -599,6 +599,7 @@ def _prepare_milvus_runtime(rpm_path: Path, job_root: Path, port_base: int) -> d
     config_path.write_text(config_text, encoding="utf-8")
     embed = embed_path.read_text(encoding="utf-8")
     embed = embed.replace("http://0.0.0.0:2379", f"http://127.0.0.1:{port_base}")
+    embed = f"data-dir: {storage / 'etcd-embed'}\n{embed}"
     embed_path.write_text(embed, encoding="utf-8")
     return {
         "binary": rootfs / "usr" / "bin" / "milvus",
@@ -621,6 +622,7 @@ def _start_milvus(runtime: dict[str, Path | int]) -> subprocess.Popen[str]:
         stderr=subprocess.STDOUT,
         text=True,
         env=env,
+        cwd=Path(runtime["log"]).parent,
         start_new_session=True,
     )
     log_handle.close()
