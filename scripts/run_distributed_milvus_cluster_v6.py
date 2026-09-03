@@ -29,6 +29,10 @@ REQUIRED_ROLES = {
     "datanode": "worker",
     "streamingnode": "worker",
 }
+PORT_BLOCK_SIZE = 14
+PORT_BLOCK_STRIDE = 64
+PORT_BASE_MIN = 24000
+PORT_BASE_MAX = 48000
 
 
 def main() -> None:
@@ -108,7 +112,7 @@ def run_cluster(args: argparse.Namespace) -> None:
     logs.mkdir()
     job_id = os.environ["SLURM_JOB_ID"]
     local_root = Path("/tmp") / f"trip-distributed-milvus-{job_id}"
-    port_base = 26000 + (int(job_id) % 400) * 20
+    port_base = select_distributed_port_base(nodes, job_id)
     access_key = "trip" + secrets.token_hex(8)
     secret_key = secrets.token_urlsafe(36)
     secret_env = os.environ.copy()
@@ -121,20 +125,6 @@ def run_cluster(args: argparse.Namespace) -> None:
     try:
         for node in nodes:
             placement = "control" if node == control else "worker"
-            port_command = [
-                sys.executable,
-                str(Path(__file__).resolve()),
-                "check-ports",
-                "--port-base",
-                str(port_base),
-            ]
-            if placement == "worker":
-                port_command.append("--include-worker")
-            run_step(
-                node,
-                port_command,
-                cpus=1,
-            )
             run_step(
                 node,
                 [
@@ -260,6 +250,7 @@ def run_cluster(args: argparse.Namespace) -> None:
             "slurm_job_id": job_id,
             "nodes": nodes,
             "roles": {role: control if placement == "control" else worker for role, placement in REQUIRED_ROLES.items()},
+            "runtime_port_base": port_base,
             "startup_cold_ms": startup_ms,
             "milvus_server": performance["milvus_server"],
             "dependencies": {
@@ -409,9 +400,20 @@ def prepare_node(
 
 
 def check_ports(port_base: int, *, include_worker: bool = False) -> None:
-    ports = list(range(port_base, port_base + 14))
-    if include_worker:
-        ports.extend(range(port_base + 20, port_base + 34))
+    offsets = (0, 20) if include_worker else (0,)
+    check_port_blocks(port_base, offsets)
+
+
+def check_port_blocks(port_base: int, offsets: tuple[int, ...]) -> None:
+    ports = [
+        port
+        for offset in offsets
+        for port in range(port_base + offset, port_base + offset + PORT_BLOCK_SIZE)
+    ]
+    if not ports or len(ports) != len(set(ports)):
+        raise ValueError("port blocks must be non-empty and non-overlapping")
+    if min(ports) < 20000 or max(ports) > 65535:
+        raise ValueError("port blocks are outside the permitted job-local range")
     sockets = []
     try:
         for port in ports:
@@ -421,6 +423,43 @@ def check_ports(port_base: int, *, include_worker: bool = False) -> None:
     finally:
         for current in sockets:
             current.close()
+
+
+def candidate_port_bases(job_id: str) -> list[int]:
+    candidates = list(range(PORT_BASE_MIN, PORT_BASE_MAX + 1, PORT_BLOCK_STRIDE))
+    rotation = int(job_id) % len(candidates)
+    return candidates[rotation:] + candidates[:rotation]
+
+
+def find_local_port_base(job_id: str, offsets: tuple[int, ...]) -> int:
+    for candidate in candidate_port_bases(job_id):
+        try:
+            check_port_blocks(candidate, offsets)
+        except OSError:
+            continue
+        return candidate
+    raise RuntimeError("no job-local Milvus port block is available")
+
+
+def select_distributed_port_base(nodes: list[str], job_id: str) -> int:
+    for candidate in candidate_port_bases(job_id):
+        available = True
+        for index, node in enumerate(nodes):
+            command = [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "check-ports",
+                "--port-base",
+                str(candidate),
+            ]
+            if index > 0:
+                command.append("--include-worker")
+            if not step_succeeds(node, command, cpus=1):
+                available = False
+                break
+        if available:
+            return candidate
+    raise RuntimeError("no Milvus port block is simultaneously available on the allocated nodes")
 
 
 def serve_milvus(runtime_dir: Path, placement: str, metrics_port: int) -> None:
@@ -473,6 +512,16 @@ def build_minio_environment(
 
 def run_step(node: str, command: list[str], *, cpus: int, env: dict[str, str] | None = None) -> None:
     subprocess.run(srun_prefix(node, cpus) + command, check=True, env=env)
+
+
+def step_succeeds(node: str, command: list[str], *, cpus: int) -> bool:
+    result = subprocess.run(
+        srun_prefix(node, cpus) + command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return result.returncode == 0
 
 
 def start_step(

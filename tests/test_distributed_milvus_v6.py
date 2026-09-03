@@ -9,6 +9,8 @@ from unittest import mock
 from scripts.prepare_distributed_milvus_runtime_v6 import configure_milvus_text
 from scripts.run_distributed_milvus_cluster_v6 import (
     build_minio_environment,
+    candidate_port_bases,
+    find_local_port_base,
     prepare_node,
     serve_milvus,
 )
@@ -152,6 +154,25 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         self.assertEqual(env["MINIO_CONFIG_DIR"], str(config_dir))
         self.assertEqual(env["MINIO_ROOT_USER"], "trip0123456789abcd")
         self.assertNotIn("MINIO_CONFIG_DIR", base_env)
+
+    def test_candidate_port_blocks_are_deterministic_bounded_and_non_overlapping(self) -> None:
+        candidates = candidate_port_bases("30004341")
+        self.assertEqual(candidates, candidate_port_bases("30004341"))
+        self.assertEqual(len(candidates), len(set(candidates)))
+        self.assertGreaterEqual(min(candidates), 24000)
+        self.assertLessEqual(max(candidates) + 53, 65535)
+        ordered = sorted(candidates)
+        self.assertTrue(
+            all(right - left >= 64 for left, right in zip(ordered, ordered[1:]))
+        )
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.check_port_blocks")
+    def test_local_port_selection_skips_a_colliding_block(self, check_blocks: mock.Mock) -> None:
+        check_blocks.side_effect = [OSError("occupied"), None]
+        candidates = candidate_port_bases("30004341")
+        selected = find_local_port_base("30004341", (0, 20, 40))
+        self.assertEqual(selected, candidates[1])
+        self.assertEqual(check_blocks.call_args_list[0].args, (candidates[0], (0, 20, 40)))
 
 
 if __name__ == "__main__":

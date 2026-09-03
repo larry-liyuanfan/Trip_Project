@@ -20,8 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.prepare_distributed_milvus_runtime_v6 import prepare_runtime
 from scripts.run_distributed_milvus_cluster_v6 import (
     build_minio_environment,
-    check_ports,
     file_sha256,
+    find_local_port_base,
     load_json,
     redact_logs,
     require_processes_alive,
@@ -58,7 +58,7 @@ def run_smoke(args: argparse.Namespace) -> None:
     node = socket.gethostname().split(".")[0]
     local_root = Path("/tmp") / f"trip-distributed-milvus-smoke-{job_id}"
     expected_local_root = Path("/tmp") / f"trip-distributed-milvus-smoke-{job_id}"
-    port_base = 36000 + (int(job_id) % 400) * 20
+    port_base = find_local_port_base(job_id, (0, 20, 40))
     access_key = "trip" + secrets.token_hex(8)
     secret_key = secrets.token_urlsafe(36)
     secret_env = os.environ.copy()
@@ -71,9 +71,6 @@ def run_smoke(args: argparse.Namespace) -> None:
     try:
         query_streaming_port_base = port_base + 20
         data_port_base = port_base + 40
-        check_ports(port_base)
-        check_ports(query_streaming_port_base)
-        check_ports(data_port_base)
         prepare_runtime(
             rpm=args.milvus_rpm,
             output_dir=local_root / "runtime-control",
@@ -189,6 +186,7 @@ def run_smoke(args: argparse.Namespace) -> None:
             "slurm_job_id": job_id,
             "node_support": 1,
             "process_topology": "control_plus_query_streaming_plus_data_mixtures_on_one_node",
+            "runtime_port_base": port_base,
             "roles": {
                 "control": ["mixcoord", "proxy"],
                 "query_streaming": ["querynode", "streamingnode"],
