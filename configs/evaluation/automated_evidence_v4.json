@@ -111,11 +111,26 @@
   "performance": {
     "service_transport": "HTTP_FastAPI_Uvicorn",
     "milvus_transport": "external_Milvus_server_not_Lite",
+    "milvus_server": {
+      "version": "2.6.18",
+      "package": "milvus_2.6.18-1_amd64.rpm",
+      "package_sha256": "3686f38c672dd73e6b99c0bb7829984439256724793a44d7cfd9c6fc0181a447",
+      "deployment_mode": "single_node_standalone_with_embedded_etcd_local_storage",
+      "multi_node_distributed_cluster": false
+    },
+    "fixed_input": {
+      "split": "training",
+      "query_id": "v4_tra_search_01",
+      "development_or_final_consumed": false
+    },
     "concurrency": [1, 2, 4],
     "cold_repetitions": 1,
+    "warmup_repetitions": 2,
     "steady_repetitions": 8,
+    "vlm_max_new_tokens": 32,
     "failure_rate_max": 0.02,
     "candidate_to_checkpoint_87_concurrency_1_p95_ratio_max": 1.25,
+    "quality_gate_source": "development_only_vlm_selection_record",
     "production_sla_supported": false
   }
 }
