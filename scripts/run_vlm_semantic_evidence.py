@@ -18,7 +18,7 @@ from src.evaluation.relevance_evidence import (
 )
 
 
-PRODUCT_PROMPT = """Analyze only directly visible evidence in the image. Return exactly one JSON object with keys business_category, style_tags, visible_facilities, price_range. business_category must be restaurant, hotel, attraction, or other. style_tags and visible_facilities must be arrays of short lowercase strings. price_range must be unknown unless a visible price proves budget, mid_range, premium, or luxury. Do not infer Wi-Fi, parking, service quality, or price from appearance."""
+PRODUCT_PROMPT = """Analyze only directly visible evidence in the image. Return exactly one JSON object with keys business_category, style_tags, visible_facilities, price_range. business_category must be restaurant, hotel, attraction, or other. If equally prominent subjects conflict, use other instead of choosing one. style_tags and visible_facilities must be arrays of short lowercase strings and must be empty when the evidence is ambiguous. price_range must be unknown unless a legible visible numeric price proves the fixed development rule: below 20 is budget, 20 through 60 is mid_range, 61 through 150 is premium, and above 150 is luxury. Do not infer Wi-Fi, parking, service quality, or price from appearance."""
 DIALOGUE_PROMPT = """Read the dialogue state case. Return exactly one JSON object with keys context_facts, state, task, value, route. context_facts must be an array of retained facts. Keep the newest explicit correction. route must be image_product_search for these cases."""
 CORRECTION_PROMPT = """The previous answer was not a strict JSON object with the required keys. Return only the corrected JSON object, without Markdown or explanation."""
 

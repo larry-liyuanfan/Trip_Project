@@ -1,0 +1,104 @@
+{
+  "schema_version": "automated_evidence_v2",
+  "evidence_class": "development_weak_and_synthetic_only_not_human_ground_truth",
+  "human_annotation_policy": "excluded_zero_support",
+  "fresh_test_policy": "never_read_never_run_never_tune",
+  "formal_release_read_only": {
+    "release_id": "trip-qwen3-vl-8b-week8-final-v1",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "metadata_member": "retrieval/clip_metadata_1000.jsonl",
+    "expected_index_support": 1000
+  },
+  "pool": {
+    "committed_lock": "configs/evaluation/evidence_enhancement/automated_pool_lock_v2.json",
+    "generator": "scripts/build_automated_evidence_pool_v2.py"
+  },
+  "search": {
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "methods": [
+      "clip_exact",
+      "clip_milvus",
+      "structured_filter_clip",
+      "hard_filter_light_rerank"
+    ],
+    "supported_filters": ["city", "business_category", "price_range"],
+    "top_k": 10,
+    "calibration_grid": {
+      "no_result_similarity_threshold": [0.12, 0.18, 0.24, 0.3],
+      "star_rating_weight": [0.0, 0.02, 0.05]
+    },
+    "calibration_objective": {
+      "hard_filter_light_rerank_ndcg_at_10_weight": 0.4,
+      "hard_filter_light_rerank_no_result_accuracy_weight": 0.3,
+      "hard_filter_light_rerank_filter_correctness_weight": 0.3,
+      "tie_break": "lower_star_weight_then_lower_threshold"
+    },
+    "holdout_gates": {
+      "min_query_support": 16,
+      "max_failure_rate": 0.0,
+      "min_no_result_accuracy": 0.75,
+      "min_filter_correctness": 0.95,
+      "min_ndcg_at_10": 0.3,
+      "min_ann_recall_at_10": 0.95,
+      "max_ndcg_regression_vs_structured": 0.05
+    },
+    "milvus": {
+      "index_type": "HNSW",
+      "metric_type": "COSINE",
+      "M": 16,
+      "efConstruction": 128,
+      "ef": 64
+    }
+  },
+  "vlm": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "comparison_factor": "adapter_only",
+    "roles": [
+      "zero_shot",
+      "old_unified_adapter",
+      "current_system_repair_checkpoint_87"
+    ],
+    "fixed_gates": {
+      "candidate_variant": "current_system_repair_checkpoint_87",
+      "min_product_support": 12,
+      "min_dialogue_support": 6,
+      "min_price_f1": 0.5,
+      "max_unsupported_hallucination_rate": 0.25,
+      "min_first_attempt_json_compliance": 0.95,
+      "min_multi_subject_abstention_accuracy": 0.5,
+      "min_dialogue_metric": 0.8
+    }
+  },
+  "performance": {
+    "scope": "component_pipeline_with_milvus_lite_not_distributed_or_http_sla",
+    "profiles": [
+      {"profile_id": "short_64", "sample_id": "vlm_v3_price_01", "max_new_tokens": 64},
+      {"profile_id": "medium_128", "sample_id": "vlm_v3_multi_01", "max_new_tokens": 128},
+      {"profile_id": "long_256", "sample_id": "vlm_v3_unknown_01", "max_new_tokens": 256}
+    ],
+    "warmup_repetitions": 1,
+    "cold_repetitions": 1,
+    "steady_repetitions": 5,
+    "measured_concurrency": [1],
+    "declared_not_run": [
+      {"concurrency": 2, "transport": "component_milvus_lite", "reason": "single_quantized_model_instance_not_declared_thread_safe"},
+      {"concurrency": 4, "transport": "component_milvus_lite", "reason": "single_quantized_model_instance_not_declared_thread_safe"},
+      {"concurrency": 1, "transport": "distributed_milvus_http", "reason": "no_isolated_safe_service_endpoint_in_scope"},
+      {"concurrency": 2, "transport": "distributed_milvus_http", "reason": "no_isolated_safe_service_endpoint_in_scope"},
+      {"concurrency": 4, "transport": "distributed_milvus_http", "reason": "no_isolated_safe_service_endpoint_in_scope"}
+    ],
+    "fixed_gates": {
+      "min_cold_repetitions": 1,
+      "min_steady_repetitions": 5,
+      "max_failure_rate": 0.02,
+      "max_peak_vram_mib": 8192,
+      "max_candidate_to_baseline_p95_ratio": 1.25,
+      "profiles": {
+        "short_64": {"max_steady_end_to_end_p95_ms": 15000},
+        "medium_128": {"max_steady_end_to_end_p95_ms": 22000},
+        "long_256": {"max_steady_end_to_end_p95_ms": 35000}
+      }
+    }
+  }
+}

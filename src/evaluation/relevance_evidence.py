@@ -98,7 +98,10 @@ def validate_query_manifest(
             raise ValueError(f"{query_id}: source object is required")
         for key in ("source_id", "page_url", "download_url", "license", "author"):
             _required_text(source, key, prefix=f"{query_id}.source")
-        if source.get("dataset_relation") != "independent_public_source_not_yelp":
+        if source.get("dataset_relation") not in {
+            "independent_public_source_not_yelp",
+            "deterministic_synthetic_not_yelp",
+        }:
             raise ValueError(f"{query_id}: source independence is not explicit")
         source_id = source["source_id"]
         source_ids.add(source_id)
@@ -144,7 +147,7 @@ def validate_query_manifest(
         "source_id_unique_count": len(source_ids),
         "required_slices": sorted(REQUIRED_QUERY_SLICES),
         "observed_slices": sorted(observed_slices),
-        "source_isolation": "PASS_INDEPENDENT_PUBLIC_SOURCE_NOT_YELP",
+        "source_isolation": "PASS_PUBLIC_OR_DETERMINISTIC_SYNTHETIC_NOT_YELP",
         "byte_level_index_query_collision_check": "NOT_RUN_MISSING_INDEX_IMAGE_SHA",
         "promotion_eligible_as_human_ground_truth": False,
         "manifest_sha256": canonical_json_sha256(records),
