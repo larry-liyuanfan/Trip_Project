@@ -135,23 +135,7 @@ def _train(
         if len(batch) != 1:
             raise ValueError("multimodal training requires batch size 1")
         row = batch[0]
-        content: list[dict[str, Any]] = []
-        prompt = str(row["prompt"])
-        if row["scenario"] == "product":
-            content.append({
-                "type": "image",
-                "image": str((args.bundle_dir / row["image_relative_path"]).resolve()),
-            })
-        else:
-            prompt = f"{prompt}\n\nCASE:\n{row['dialogue']}"
-        content.append({"type": "text", "text": prompt})
-        target = {key: value for key, value in row["gold"].items() if key != "unknown_fields"}
-        messages = [
-            {"role": "user", "content": content},
-            {"role": "assistant", "content": json.dumps(
-                target, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-            )},
-        ]
+        messages = build_training_messages(row, args.bundle_dir)
         inputs = processor.apply_chat_template(
             messages,
             tokenize=True,
@@ -227,6 +211,28 @@ def _train(
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
         **_trainable_parameter_report(model),
     }
+
+
+def build_training_messages(row: dict[str, Any], bundle_dir: Path) -> list[dict[str, Any]]:
+    """Build Qwen3-VL typed content for both sides of one training exchange."""
+    content: list[dict[str, Any]] = []
+    prompt = str(row["prompt"])
+    if row["scenario"] == "product":
+        content.append({
+            "type": "image",
+            "image": str((bundle_dir / row["image_relative_path"]).resolve()),
+        })
+    else:
+        prompt = f"{prompt}\n\nCASE:\n{row['dialogue']}"
+    content.append({"type": "text", "text": prompt})
+    target = {key: value for key, value in row["gold"].items() if key != "unknown_fields"}
+    return [
+        {"role": "user", "content": content},
+        {"role": "assistant", "content": [{
+            "type": "text",
+            "text": json.dumps(target, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        }]},
+    ]
 
 
 def _implementation_commit(value: str) -> str:
