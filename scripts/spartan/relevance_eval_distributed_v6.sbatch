@@ -37,7 +37,6 @@ done
 test ! -e "${TRIP_RUN_DIR}"
 module purge
 module load GCCcore/11.3.0 Python/3.11.3
-export HOME="${TRIP_CACHE_ROOT}/home"
 export HF_HOME="${TRIP_CACHE_ROOT}/huggingface"
 export XDG_CACHE_HOME="${TRIP_CACHE_ROOT}/xdg"
 export HF_HUB_OFFLINE=1
