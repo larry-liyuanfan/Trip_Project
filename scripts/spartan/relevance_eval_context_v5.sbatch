@@ -46,7 +46,7 @@ cd "${TRIP_PROJECT_ROOT}"
   --expected-snapshot-sha256 "${TRIP_SOURCE_SNAPSHOT_SHA256}" \
   --expected-implementation-commit "${TRIP_IMPLEMENTATION_COMMIT_SHA}"
 
-pool_dir="${TRIP_RUN_DIR}/pool"
+pool_dir="${TRIP_JOB_LOCAL_ROOT}/trip-context-v5-${SLURM_JOB_ID}-pool"
 training_dir="${TRIP_RUN_DIR}/training"
 development_dir="${TRIP_RUN_DIR}/vlm-development"
 performance_dir="${TRIP_RUN_DIR}/service"
