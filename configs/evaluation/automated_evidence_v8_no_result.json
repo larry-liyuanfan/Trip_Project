@@ -1,0 +1,49 @@
+{
+  "schema_version": "automated_evidence_v8_no_result_stress_validation",
+  "cycle_id": "v8",
+  "evidence_class": "synthetic_calibration_and_one_time_validation_not_human_ground_truth",
+  "gate_class": "synthetic_one_time_validation_not_release_or_production_gate",
+  "fresh_test_policy": "existing_120_sample_fresh_test_never_read_never_run_never_tune",
+  "formal_release_read_only": {
+    "release_id": "trip-qwen3-vl-8b-week8-final-v1",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "expected_index_support": 1000
+  },
+  "pool": {
+    "committed_lock": "configs/evaluation/evidence_enhancement/no_result_stress_pool_lock_v8.json",
+    "prior_v4_lock": "configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json",
+    "generator": "scripts/build_no_result_stress_pool_v8.py",
+    "splits": ["calibration", "validation"],
+    "validation_policy": "exclusive_marker_before_first_manifest_or_annotation_open",
+    "final_policy": "not_defined_not_generated_not_opened"
+  },
+  "search": {
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "top_k": 10,
+    "supported_filters": ["city", "business_category", "price_range"],
+    "prior_v4_business_guard": {
+      "training_source": "regenerated_v4_training_only",
+      "margin_threshold": 0.0
+    },
+    "dual_centroid_guard": {
+      "margin_threshold_grid": [-0.10, -0.05, 0.0, 0.05, 0.10],
+      "business_similarity_threshold_grid": [0.0, 0.20, 0.40, 0.60, 0.80],
+      "selection_objective": {
+        "no_result_accuracy_weight": 0.50,
+        "business_positive_acceptance_weight": 0.25,
+        "ndcg_at_10_weight": 0.25
+      }
+    },
+    "validation_gates": {
+      "min_query_support": 40,
+      "min_ranking_support": 20,
+      "min_no_result_support": 20,
+      "min_no_result_accuracy": 0.75,
+      "min_business_positive_acceptance": 0.90,
+      "min_ndcg_at_10": 0.75,
+      "min_filter_correctness": 1.0,
+      "max_failure_rate": 0.0,
+      "max_metric_regression": 0.05
+    }
+  }
+}
