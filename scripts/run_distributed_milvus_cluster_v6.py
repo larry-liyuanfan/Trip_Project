@@ -63,7 +63,7 @@ def main() -> None:
 
     serve = subparsers.add_parser("serve-milvus")
     serve.add_argument("--runtime-dir", type=Path, required=True)
-    serve.add_argument("--placement", choices=("control", "worker"), required=True)
+    serve.add_argument("--placement", choices=("control", "worker", "all"), required=True)
     args = parser.parse_args()
     if args.command == "prepare-node":
         prepare_runtime(
@@ -381,10 +381,16 @@ def serve_milvus(runtime_dir: Path, placement: str) -> None:
             str(binary), "run", "mixture", "-rootcoord=true", "-querycoord=true",
             "-datacoord=true", "-proxy=true", "-alias=trip-control",
         ]
-    else:
+    elif placement == "worker":
         command = [
             str(binary), "run", "mixture", "-querynode=true", "-datanode=true",
             "-streamingnode=true", "-alias=trip-worker",
+        ]
+    else:
+        command = [
+            str(binary), "run", "mixture", "-rootcoord=true", "-querycoord=true",
+            "-datacoord=true", "-querynode=true", "-datanode=true", "-proxy=true",
+            "-streamingnode=true", "-alias=trip-smoke",
         ]
     os.execve(str(binary), command, env)
 

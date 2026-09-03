@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts.prepare_distributed_milvus_runtime_v6 import configure_milvus_text
 from scripts.run_http_milvus_service_benchmark_v4 import _validate_external_cluster_identity
+from scripts.smoke_distributed_milvus_runtime_v6 import validate_dependencies
 
 
 class DistributedMilvusV6Tests(unittest.TestCase):
@@ -74,6 +75,20 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         identity["nodes"] = ["node-a"]
         with self.assertRaisesRegex(ValueError, "at least two nodes"):
             _validate_external_cluster_identity(identity, {"milvus_server": expected_server})
+
+    def test_smoke_dependency_validation_is_fail_closed(self) -> None:
+        config = {
+            "performance": {
+                "milvus_server": {
+                    "multi_node_distributed_cluster": False,
+                    "package_sha256": "a" * 64,
+                },
+                "dependencies": {},
+            }
+        }
+        args = type("Args", (), {})()
+        with self.assertRaisesRegex(ValueError, "locked distributed"):
+            validate_dependencies(args, config)
 
 
 if __name__ == "__main__":
