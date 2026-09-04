@@ -8,10 +8,15 @@ from src.evaluation.exploration_v4 import _mean, _number, score_vlm_exploration_
 from src.evaluation.relevance_evidence import PRODUCT_FIELDS
 
 
-def score_semantic_robustness_v7(records: list[dict[str, Any]]) -> dict[str, Any]:
+def score_semantic_robustness_v7(
+    records: list[dict[str, Any]],
+    *,
+    cycle_id: str = "v7",
+    primary_factor: str = "robustness_training_data_only",
+) -> dict[str, Any]:
     report = score_vlm_exploration_v4(records)
-    report["schema_version"] = "semantic_robustness_metrics_v7"
-    report["primary_factor"] = "robustness_training_data_only"
+    report["schema_version"] = f"semantic_robustness_metrics_{cycle_id}"
+    report["primary_factor"] = primary_factor
     return report
 
 

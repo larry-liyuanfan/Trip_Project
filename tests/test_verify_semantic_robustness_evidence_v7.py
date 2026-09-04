@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from scripts.build_semantic_robustness_pool_v7 import build_pool
+from scripts.build_semantic_robustness_pool_v9 import build_pool as build_v9_pool
 from scripts.run_http_milvus_service_benchmark_v4 import _performance_gates, _summarize_role
 from scripts.run_vlm_semantic_evidence import _dialogue_metrics
 from scripts.verify_semantic_robustness_evidence_v7 import _validate_service, verify_evidence_bundle
@@ -20,7 +21,9 @@ from src.evaluation.semantic_robustness_v7 import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "configs" / "evaluation" / "automated_evidence_v7.json"
+V9_CONFIG = ROOT / "configs" / "evaluation" / "automated_evidence_v9.json"
 V5_LOCK = ROOT / "configs" / "evaluation" / "evidence_enhancement" / "context_focus_pool_lock_v5.json"
+V7_LOCK = ROOT / "configs" / "evaluation" / "evidence_enhancement" / "semantic_robustness_pool_lock_v7.json"
 JOB_ID = "30005386"
 SOURCE_SHA = "a" * 64
 COMMIT = "b" * 40
@@ -43,6 +46,16 @@ class VerifySemanticRobustnessEvidenceV7Tests(unittest.TestCase):
             _write_jsonl(raw_path, rows)
             with self.assertRaisesRegex(ValueError, "summary mismatch"):
                 _verify(output)
+
+    def test_valid_v9_bundle_uses_cycle_specific_schemas(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output = root / "run"
+            _write_valid_bundle(output, root / "pool", V9_CONFIG)
+            report = _verify(output, V9_CONFIG)
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["schema_version"], "semantic_robustness_evidence_verification_v9")
+            self.assertEqual(report["development_raw_row_support"], 264)
 
     def test_service_verifier_covers_concurrency_two_and_four(self) -> None:
         config = json.loads(CONFIG.read_text(encoding="utf-8"))
@@ -173,10 +186,10 @@ class VerifySemanticRobustnessEvidenceV7Tests(unittest.TestCase):
             )
 
 
-def _verify(output: Path) -> dict[str, object]:
-    config = json.loads(CONFIG.read_text(encoding="utf-8"))
+def _verify(output: Path, config_path: Path = CONFIG) -> dict[str, object]:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
     return verify_evidence_bundle(
-        config_path=CONFIG,
+        config_path=config_path,
         output_dir=output,
         expected_job_id=JOB_ID,
         expected_source_snapshot_sha256=SOURCE_SHA,
@@ -185,9 +198,14 @@ def _verify(output: Path) -> dict[str, object]:
     )
 
 
-def _write_valid_bundle(output: Path, pool: Path) -> None:
-    config = json.loads(CONFIG.read_text(encoding="utf-8"))
-    lock = build_pool(pool, V5_LOCK)
+def _write_valid_bundle(output: Path, pool: Path, config_path: Path = CONFIG) -> None:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    cycle_id = config["cycle_id"]
+    lock = (
+        build_pool(pool, V5_LOCK)
+        if cycle_id == "v7"
+        else build_v9_pool(pool, V5_LOCK, V7_LOCK)
+    )
     training = output / "training"
     development = output / "vlm-development"
     service = output / "service"
@@ -195,24 +213,24 @@ def _write_valid_bundle(output: Path, pool: Path) -> None:
     adapter.mkdir(parents=True)
     development.mkdir(parents=True)
     service.mkdir(parents=True)
-    (adapter / "adapter_model.safetensors").write_bytes(b"candidate-v7")
+    (adapter / "adapter_model.safetensors").write_bytes(f"candidate-{cycle_id}".encode())
     _write_json(adapter / "adapter_config.json", {"base_model": config["vlm"]["base_model"]})
     candidate_sha = file_sha256(adapter / "adapter_model.safetensors")
     common = {
         "run_id": config["training"]["run_id"],
         "git_commit": COMMIT,
-        "config_sha256": file_sha256(CONFIG),
+        "config_sha256": file_sha256(config_path),
         "pool_lock_sha256": canonical_json_sha256(lock),
         "training_manifest_sha256": lock["vlm"]["training"]["manifest_file_sha256"],
         "initial_adapter_model_sha256": config["training"]["initial_adapter_model_sha256"],
         "development_or_final_opened": False,
     }
     _write_json(training / "run_identity.json", {
-        "schema_version": "targeted_exploration_training_identity_v7",
+        "schema_version": f"targeted_exploration_training_identity_{cycle_id}",
         **common,
     })
     _write_json(training / "run_summary.json", {
-        "schema_version": "targeted_exploration_training_summary_v7",
+        "schema_version": f"targeted_exploration_training_summary_{cycle_id}",
         **common,
         "status": "COMPLETED",
         "training_support": lock["vlm"]["training"]["sample_support"],
@@ -275,7 +293,7 @@ def _write_valid_bundle(output: Path, pool: Path) -> None:
         raw_paths.append(raw_path)
         all_rows.extend(rows)
         _write_json(raw_path.with_suffix(".summary.json"), {
-            "schema_version": "vlm_semantic_role_evidence_v7",
+            "schema_version": f"vlm_semantic_role_evidence_{cycle_id}",
             "status": "COMPLETED",
             "split": "development",
             "role": role,
@@ -294,7 +312,11 @@ def _write_valid_bundle(output: Path, pool: Path) -> None:
             "fresh_test_used": False,
             "slurm_job_id": JOB_ID,
         })
-    metrics = score_semantic_robustness_v7(all_rows)
+    metrics = score_semantic_robustness_v7(
+        all_rows,
+        cycle_id=cycle_id,
+        primary_factor=config.get("primary_factor", "robustness_training_data_only"),
+    )
     gate = apply_semantic_robustness_v7_gates(
         metrics,
         config["vlm"]["exploration_gates"],
@@ -330,7 +352,7 @@ def _write_valid_bundle(output: Path, pool: Path) -> None:
         if path.is_file()
     ]
     _write_json(output / "chain_summary.json", {
-        "schema_version": "semantic_robustness_chain_v7",
+        "schema_version": f"semantic_robustness_chain_{cycle_id}",
         "status": "COMPLETED",
         "development_gate_status": gate["status"],
         "performance_gate_status": "NOT_RUN_DEVELOPMENT_GATE_FAILED",

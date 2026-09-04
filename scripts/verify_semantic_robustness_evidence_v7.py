@@ -1,4 +1,4 @@
-"""Verify a completed v7 semantic-robustness bundle without model inference."""
+"""Verify a completed semantic-robustness bundle without model inference."""
 
 from __future__ import annotations
 
@@ -53,6 +53,9 @@ def verify_evidence_bundle(
     expected_baseline_adapter_sha256: str,
 ) -> dict[str, Any]:
     config = _load_object(config_path)
+    cycle_id = str(config.get("cycle_id", "v7"))
+    if cycle_id not in {"v7", "v9"}:
+        raise ValueError(f"unsupported semantic-robustness cycle: {cycle_id}")
     lock_path = Path(config["pool"]["committed_lock"])
     if not lock_path.is_absolute():
         lock_path = config_path.resolve().parents[2] / lock_path
@@ -85,6 +88,7 @@ def verify_evidence_bundle(
         expected_job_id,
         expected_implementation_commit,
         expected_baseline_adapter_sha256,
+        cycle_id,
     )
 
     roles = config["vlm"]["development_roles"]
@@ -99,9 +103,14 @@ def verify_evidence_bundle(
         candidate_sha,
         expected_baseline_adapter_sha256,
         expected_job_id,
+        cycle_id,
     )
     rows = [row for role in roles for row in rows_by_role[role]]
-    recomputed = score_semantic_robustness_v7(rows)
+    recomputed = score_semantic_robustness_v7(
+        rows,
+        cycle_id=cycle_id,
+        primary_factor=str(config.get("primary_factor", "robustness_training_data_only")),
+    )
     recomputed_gate = apply_semantic_robustness_v7_gates(
         recomputed,
         config["vlm"]["exploration_gates"],
@@ -109,7 +118,7 @@ def verify_evidence_bundle(
         candidate=config["vlm"]["candidate_variant"],
         baseline=config["vlm"]["baseline_variant"],
     )
-    _validate_selection(selection, recomputed, recomputed_gate, raw_paths, rows, config)
+    _validate_selection(selection, recomputed, recomputed_gate, raw_paths, rows, config, cycle_id)
 
     performance_status = "NOT_RUN_DEVELOPMENT_GATE_FAILED"
     service_files: list[Path] = []
@@ -127,6 +136,7 @@ def verify_evidence_bundle(
             expected_source_snapshot_sha256,
             expected_baseline_adapter_sha256,
             candidate_sha,
+            cycle_id,
         )
         performance_status = service_summary["fixed_gates"]["status"]
         service_files = [service_summary_path, service_raw_path]
@@ -140,6 +150,7 @@ def verify_evidence_bundle(
         recomputed_gate["status"],
         performance_status,
         candidate_sha,
+        cycle_id,
     )
     artifact_paths = [
         identity_path,
@@ -153,7 +164,7 @@ def verify_evidence_bundle(
         chain_path,
     ]
     return {
-        "schema_version": "semantic_robustness_evidence_verification_v7",
+        "schema_version": f"semantic_robustness_evidence_verification_{cycle_id}",
         "status": "PASS",
         "slurm_job_id": expected_job_id,
         "implementation_commit_sha": expected_implementation_commit,
@@ -182,6 +193,7 @@ def _validate_training(
     expected_job_id: str,
     expected_commit: str,
     expected_baseline_sha: str,
+    cycle_id: str = "v7",
 ) -> None:
     expected_common = {
         "run_id": config["training"]["run_id"],
@@ -192,16 +204,16 @@ def _validate_training(
         "initial_adapter_model_sha256": expected_baseline_sha,
         "development_or_final_opened": False,
     }
-    if identity.get("schema_version") != "targeted_exploration_training_identity_v7":
-        raise ValueError("v7 training identity schema mismatch")
+    if identity.get("schema_version") != f"targeted_exploration_training_identity_{cycle_id}":
+        raise ValueError(f"{cycle_id} training identity schema mismatch")
     for key, expected in expected_common.items():
         if identity.get(key) != expected:
-            raise ValueError(f"v7 training identity mismatch: {key}")
-    if summary.get("schema_version") != "targeted_exploration_training_summary_v7":
-        raise ValueError("v7 training summary schema mismatch")
+            raise ValueError(f"{cycle_id} training identity mismatch: {key}")
+    if summary.get("schema_version") != f"targeted_exploration_training_summary_{cycle_id}":
+        raise ValueError(f"{cycle_id} training summary schema mismatch")
     for key, expected in expected_common.items():
         if summary.get(key) != expected:
-            raise ValueError(f"v7 training summary mismatch: {key}")
+            raise ValueError(f"{cycle_id} training summary mismatch: {key}")
     training_lock = lock["vlm"]["training"]
     expected_support = {
         "training_support": training_lock["sample_support"],
@@ -210,18 +222,18 @@ def _validate_training(
     }
     for key, expected in expected_support.items():
         if summary.get(key) != expected:
-            raise ValueError(f"v7 training support mismatch: {key}")
+            raise ValueError(f"{cycle_id} training support mismatch: {key}")
     if summary.get("status") != "COMPLETED" or summary.get("adapter_only") is not True:
-        raise ValueError("v7 training did not complete as adapter-only SFT")
+        raise ValueError(f"{cycle_id} training did not complete as adapter-only SFT")
     if str(summary.get("slurm_job_id")) != str(expected_job_id):
-        raise ValueError("v7 training Slurm job mismatch")
+        raise ValueError(f"{cycle_id} training Slurm job mismatch")
     if summary.get("adapter_model_sha256") != candidate_sha:
-        raise ValueError("v7 candidate adapter SHA mismatch")
+        raise ValueError(f"{cycle_id} candidate adapter SHA mismatch")
     if summary.get("adapter_config_sha256") != file_sha256(adapter_config_path):
-        raise ValueError("v7 adapter config SHA mismatch")
+        raise ValueError(f"{cycle_id} adapter config SHA mismatch")
     for key in ("global_step", "duration_seconds", "peak_gpu_memory_allocated_bytes"):
         if not _positive_number(summary.get(key)):
-            raise ValueError(f"v7 training lacks positive {key}")
+            raise ValueError(f"{cycle_id} training lacks positive {key}")
 
 
 def _validate_development_rows(
@@ -232,6 +244,7 @@ def _validate_development_rows(
     candidate_sha: str,
     baseline_sha: str,
     expected_job_id: str,
+    cycle_id: str = "v7",
 ) -> None:
     development = lock["vlm"]["development"]
     expected_adapter = {
@@ -249,7 +262,7 @@ def _validate_development_rows(
         if expected_samples is None:
             expected_samples = samples
         elif samples != expected_samples:
-            raise ValueError("v7 roles do not use the exact same development samples")
+            raise ValueError(f"{cycle_id} roles do not use the exact same development samples")
         if sum(row.get("scenario") == "product" for row in rows) != development["product_support"]:
             raise ValueError(f"{role} product support mismatch")
         if sum(row.get("scenario") == "dialogue" for row in rows) != development["dialogue_support"]:
@@ -277,7 +290,9 @@ def _validate_development_rows(
                 raise ValueError(f"{role} lacks correction outcome")
             if not _positive_number(row.get("latency_ms")) or not _nonnegative_number(row.get("peak_vram_mib")):
                 raise ValueError(f"{role} runtime evidence is invalid")
-        _validate_role_summary(_load_object(summary_path), rows, role, development, expected_job_id)
+        _validate_role_summary(
+            _load_object(summary_path), rows, role, development, expected_job_id, cycle_id
+        )
 
 
 def _validate_role_summary(
@@ -286,9 +301,10 @@ def _validate_role_summary(
     role: str,
     development: dict[str, Any],
     expected_job_id: str,
+    cycle_id: str = "v7",
 ) -> None:
     expected = {
-        "schema_version": "vlm_semantic_role_evidence_v7",
+        "schema_version": f"vlm_semantic_role_evidence_{cycle_id}",
         "status": "COMPLETED",
         "split": "development",
         "role": role,
@@ -322,10 +338,11 @@ def _validate_selection(
     raw_paths: list[Path],
     rows: list[dict[str, Any]],
     config: dict[str, Any],
+    cycle_id: str = "v7",
 ) -> None:
     for key, value in recomputed.items():
         if canonical_json_sha256(selection.get(key)) != canonical_json_sha256(value):
-            raise ValueError(f"v7 selection metrics differ from raw rows: {key}")
+            raise ValueError(f"{cycle_id} selection metrics differ from raw rows: {key}")
     expected = {
         "status": "COMPLETED",
         "split": "development",
@@ -344,7 +361,7 @@ def _validate_selection(
     }
     for key, value in expected.items():
         if selection.get(key) != value:
-            raise ValueError(f"v7 selection mismatch: {key}")
+            raise ValueError(f"{cycle_id} selection mismatch: {key}")
 
 
 def _validate_service(
@@ -356,10 +373,11 @@ def _validate_service(
     expected_source_sha: str,
     baseline_sha: str,
     candidate_sha: str,
+    cycle_id: str = "v7",
 ) -> None:
     performance = config["performance"]
-    if summary.get("schema_version") != "http_milvus_service_benchmark_v7":
-        raise ValueError("v7 service schema mismatch")
+    if summary.get("schema_version") != f"http_milvus_service_benchmark_{cycle_id}":
+        raise ValueError(f"{cycle_id} service schema mismatch")
     if summary.get("scope") != {
         "http": "real_loopback_HTTP_FastAPI_Uvicorn",
         "milvus": "external_server_process_single_node_standalone_not_Milvus_Lite",
@@ -368,11 +386,11 @@ def _validate_service(
         "fresh_test_used": False,
         "development_or_final_consumed": False,
     }:
-        raise ValueError("v7 service scope mismatch")
+        raise ValueError(f"{cycle_id} service scope mismatch")
     concurrency = [int(value) for value in performance["concurrency"]]
     expected_steady = sum(concurrency) * int(performance["steady_repetitions"])
     if len(rows) != 2 * expected_steady:
-        raise ValueError("v7 service raw support mismatch")
+        raise ValueError(f"{cycle_id} service raw support mismatch")
     expected_denominators = {
         "cold_requests_per_role": int(performance["cold_repetitions"]),
         "warmup_requests_per_role": int(performance["warmup_repetitions"]),
@@ -380,12 +398,12 @@ def _validate_service(
         "steady_requests_per_role": expected_steady,
     }
     if summary.get("denominators") != expected_denominators:
-        raise ValueError("v7 service denominators mismatch")
+        raise ValueError(f"{cycle_id} service denominators mismatch")
     fixed = summary.get("fixed_input", {})
     if fixed.get("split") != "training" or fixed.get("query_id") != performance["fixed_input"]["query_id"]:
-        raise ValueError("v7 service input is not the fixed training query")
+        raise ValueError(f"{cycle_id} service input is not the fixed training query")
     if fixed.get("label_provenance") != "synthetic_training_query_for_performance_only":
-        raise ValueError("v7 service input provenance mismatch")
+        raise ValueError(f"{cycle_id} service input provenance mismatch")
     configuration = summary.get("configuration", {})
     expected_configuration = {
         "config_sha256": file_sha256(config_path),
@@ -400,36 +418,36 @@ def _validate_service(
     }
     for key, value in expected_configuration.items():
         if configuration.get(key) != value:
-            raise ValueError(f"v7 service configuration mismatch: {key}")
+            raise ValueError(f"{cycle_id} service configuration mismatch: {key}")
     for key in ("milvus_service_startup_cold_ms", "milvus_collection_build_and_load_ms"):
         if not _positive_number(configuration.get(key)):
-            raise ValueError(f"v7 service lacks positive {key}")
+            raise ValueError(f"{cycle_id} service lacks positive {key}")
     collection = configuration.get("milvus_collection", {})
     if collection.get("visible_entities") != config["formal_release_read_only"]["expected_index_support"]:
-        raise ValueError("v7 service Milvus entity support mismatch")
+        raise ValueError(f"{cycle_id} service Milvus entity support mismatch")
     if not collection.get("index_names"):
-        raise ValueError("v7 service Milvus index identity is missing")
+        raise ValueError(f"{cycle_id} service Milvus index identity is missing")
     roles = summary.get("roles", {})
     expected_hashes = {
         performance["baseline_role"]: baseline_sha,
         performance["candidate_role"]: candidate_sha,
     }
     if set(roles) != set(expected_hashes):
-        raise ValueError("v7 service roles mismatch")
+        raise ValueError(f"{cycle_id} service roles mismatch")
     observed: set[tuple[Any, ...]] = set()
     for row in rows:
         key = (row.get("role"), row.get("concurrency"), row.get("batch"), row.get("request_index"))
         if key in observed:
-            raise ValueError("duplicate v7 service request identity")
+            raise ValueError(f"duplicate {cycle_id} service request identity")
         observed.add(key)
         if row.get("role") not in roles or row.get("phase") != "steady" or row.get("concurrency") not in concurrency:
-            raise ValueError("v7 service row outside fixed scope")
+            raise ValueError(f"{cycle_id} service row outside fixed scope")
         if not isinstance(row.get("success"), bool) or not _positive_number(row.get("group_wall_seconds")):
-            raise ValueError("invalid v7 service outcome")
+            raise ValueError(f"invalid {cycle_id} service outcome")
         if row["success"]:
             for stage in STAGES:
                 if not _nonnegative_number(row.get(stage)):
-                    raise ValueError(f"v7 service row lacks {stage}")
+                    raise ValueError(f"{cycle_id} service row lacks {stage}")
     for role, adapter_sha in expected_hashes.items():
         role_rows = [row for row in rows if row["role"] == role]
         expected_identities = {
@@ -443,34 +461,34 @@ def _validate_service(
             for row in role_rows
         }
         if actual_identities != expected_identities:
-            raise ValueError(f"v7 service {role} request denominators mismatch")
+            raise ValueError(f"{cycle_id} service {role} request denominators mismatch")
         if roles[role].get("adapter_model_sha256") != adapter_sha:
-            raise ValueError(f"v7 service {role} adapter SHA mismatch")
+            raise ValueError(f"{cycle_id} service {role} adapter SHA mismatch")
         if not _positive_number(roles[role].get("service_startup_cold_ms")):
-            raise ValueError(f"v7 service {role} cold startup is missing")
+            raise ValueError(f"{cycle_id} service {role} cold startup is missing")
         cold = roles[role].get("first_request_cold", {})
         if cold.get("phase") != "cold" or cold.get("success") is not True:
-            raise ValueError(f"v7 service {role} first cold request failed")
+            raise ValueError(f"{cycle_id} service {role} first cold request failed")
         if roles[role].get("steady") != _summarize_role(role_rows, concurrency):
-            raise ValueError(f"v7 service {role} summary differs from raw rows")
+            raise ValueError(f"{cycle_id} service {role} summary differs from raw rows")
     gates = _performance_gates(roles, performance)
     if summary.get("fixed_gates") != gates:
-        raise ValueError("v7 service gates differ from raw rows")
+        raise ValueError(f"{cycle_id} service gates differ from raw rows")
     expected_status = "COMPLETED" if gates["status"] == "PASS" else "NEGATIVE_EXPERIMENT_GATE_FAILED"
     if summary.get("status") != expected_status:
-        raise ValueError("v7 service status differs from fixed gate")
+        raise ValueError(f"{cycle_id} service status differs from fixed gate")
     if summary.get("raw_result_sha256") != canonical_json_sha256(rows):
-        raise ValueError("v7 service raw canonical SHA mismatch")
+        raise ValueError(f"{cycle_id} service raw canonical SHA mismatch")
     unhashed = dict(summary)
     artifact_sha = unhashed.pop("artifact_sha256", None)
     if artifact_sha != canonical_json_sha256(unhashed):
-        raise ValueError("v7 service artifact canonical SHA mismatch")
+        raise ValueError(f"{cycle_id} service artifact canonical SHA mismatch")
     hardware = summary.get("hardware", {})
     if str(hardware.get("slurm_job_id")) != str(expected_job_id):
-        raise ValueError("v7 service Slurm job mismatch")
+        raise ValueError(f"{cycle_id} service Slurm job mismatch")
     for key in ("node", "platform", "python", "cpu_count", "torch", "cuda", "gpu", "gpu_count_visible"):
         if hardware.get(key) in (None, "", 0):
-            raise ValueError(f"v7 service hardware field is missing: {key}")
+            raise ValueError(f"{cycle_id} service hardware field is missing: {key}")
 
 
 def _validate_chain(
@@ -480,9 +498,10 @@ def _validate_chain(
     development_status: str,
     performance_status: str,
     candidate_sha: str,
+    cycle_id: str = "v7",
 ) -> None:
     expected = {
-        "schema_version": "semantic_robustness_chain_v7",
+        "schema_version": f"semantic_robustness_chain_{cycle_id}",
         "status": "COMPLETED",
         "development_gate_status": development_status,
         "performance_gate_status": performance_status,
@@ -492,19 +511,19 @@ def _validate_chain(
     }
     for key, value in expected.items():
         if chain.get(key) != value:
-            raise ValueError(f"v7 chain mismatch: {key}")
+            raise ValueError(f"{cycle_id} chain mismatch: {key}")
     if str(chain.get("slurm_job_id")) != str(expected_job_id):
-        raise ValueError("v7 chain Slurm job mismatch")
+        raise ValueError(f"{cycle_id} chain Slurm job mismatch")
     artifacts = chain.get("artifacts")
     if not isinstance(artifacts, list):
-        raise ValueError("v7 chain artifact list is missing")
+        raise ValueError(f"{cycle_id} chain artifact list is missing")
     recorded: dict[str, tuple[str, int]] = {}
     for item in artifacts:
         if not isinstance(item, dict) or not isinstance(item.get("path"), str):
-            raise ValueError("v7 chain artifact entry is invalid")
+            raise ValueError(f"{cycle_id} chain artifact entry is invalid")
         path = item["path"]
         if path in recorded:
-            raise ValueError("duplicate v7 chain artifact path")
+            raise ValueError(f"duplicate {cycle_id} chain artifact path")
         recorded[path] = (item.get("sha256"), item.get("size_bytes"))
     actual = {
         path.relative_to(output_dir).as_posix(): (file_sha256(path), path.stat().st_size)
@@ -512,7 +531,7 @@ def _validate_chain(
         if path.is_file() and path.name != "chain_summary.json"
     }
     if recorded != actual:
-        raise ValueError("v7 chain artifacts differ from files on disk")
+        raise ValueError(f"{cycle_id} chain artifacts differ from files on disk")
 
 
 def _load_object(path: Path) -> dict[str, Any]:

@@ -1,4 +1,4 @@
-"""Score the v5-vs-v7 comparison on the locked development-only robustness pool."""
+"""Score a locked development-only semantic-robustness comparison."""
 
 from __future__ import annotations
 
@@ -27,10 +27,15 @@ def main() -> None:
         raise FileExistsError(f"output already exists: {args.output}")
     config = json.loads(args.config.read_text(encoding="utf-8"))
     rows = [row for path in args.result for row in load_jsonl(path)]
-    report = score_semantic_robustness_v7(rows)
+    cycle_id = str(config.get("cycle_id", "v7"))
+    report = score_semantic_robustness_v7(
+        rows,
+        cycle_id=cycle_id,
+        primary_factor=str(config.get("primary_factor", "robustness_training_data_only")),
+    )
     expected_roles = set(config["vlm"]["development_roles"])
     if set(report["variants"]) != expected_roles:
-        raise ValueError("v7 development roles differ from the fixed comparison")
+        raise ValueError(f"{cycle_id} development roles differ from the fixed comparison")
     gates = apply_semantic_robustness_v7_gates(
         report,
         config["vlm"]["exploration_gates"],

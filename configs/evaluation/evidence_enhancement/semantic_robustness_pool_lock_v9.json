@@ -1,0 +1,116 @@
+{
+  "asset_registry_canonical_sha256": "e5507abb9d6d9bb55251f93491230b87680d359498480bd3dae788b3bdf6098d",
+  "asset_registry_support": 468,
+  "evidence_class": "deterministic_synthetic_programmatic_development_only",
+  "final_policy": "not_defined_not_generated_not_opened",
+  "generator_version": "trip_semantic_robustness_pool_v9",
+  "human_annotation_support": 0,
+  "image_encoding": "binary_ppm_p6_rgb_384x256",
+  "isolation": {
+    "status": "PASS",
+    "training_vs_development": {
+      "dialogue_text_sha256": [],
+      "image_sha256": [],
+      "sample_id": [],
+      "source_id": []
+    }
+  },
+  "primary_factor": "multi_subject_counterexample_training_composition_and_support_only",
+  "prior_v5_bundle_lock_sha256": "5069c65079804a378a0cafc4df54da2343c75c06bcb27b301e1fe7947e376742",
+  "prior_v5_training_isolation": {
+    "compared_prior_row_support": 528,
+    "overlaps": {
+      "development": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      },
+      "training": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      }
+    },
+    "status": "PASS"
+  },
+  "prior_v7_bundle_lock_sha256": "61378ce3e9225451653042f70f3d227182f8627d6c643daa854c3fd0fff75e79",
+  "prior_v7_training_and_development_isolation": {
+    "compared_prior_row_support": 608,
+    "overlaps": {
+      "development": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      },
+      "training": {
+        "dialogue_text_sha256": [],
+        "image_sha256": [],
+        "sample_id": [],
+        "source_id": []
+      }
+    },
+    "status": "PASS"
+  },
+  "prompt_fixed_within_comparison": true,
+  "schema_version": "semantic_robustness_pool_lock_v9",
+  "split_identity_policy": "source_id_image_sha256_sample_id_and_dialogue_text_sha256_disjoint",
+  "splits": [
+    "training",
+    "development"
+  ],
+  "vlm": {
+    "development": {
+      "dialogue_support": 48,
+      "manifest_canonical_sha256": "6dc28f6517d58c43c739cf76fc99edacf763c6295b14e7bcb05a2fb3784dbad0",
+      "manifest_file_sha256": "c9f6e8a2b81ddce447973b34dfd685be1340658ab6565e99d2cb23440dabab84",
+      "product_support": 84,
+      "sample_support": 132,
+      "slice_support": {
+        "business_category": 24,
+        "conflicting_price_evidence": 12,
+        "context_recall": 48,
+        "dialogue_state": 48,
+        "facility": 24,
+        "first_turn_routing": 48,
+        "insufficient_visual_evidence": 36,
+        "known_visible_price": 24,
+        "multi_label": 24,
+        "multi_subject_conflict": 24,
+        "negated_evidence": 12,
+        "price_unknown": 60,
+        "style": 24,
+        "task_key_value": 48,
+        "unknown_suppression": 60,
+        "v9_robustness": 132
+      }
+    },
+    "training": {
+      "dialogue_support": 256,
+      "manifest_canonical_sha256": "c186465f4e9f00ba451163c3a13865a359c10ea7bc60e8bcbde62e583c47d780",
+      "manifest_file_sha256": "81df931cd935cef38a79e9cba47d8a38e4bffecf2719d5ddce0d2d2b02b58f87",
+      "product_support": 384,
+      "sample_support": 640,
+      "slice_support": {
+        "business_category": 96,
+        "conflicting_price_evidence": 64,
+        "context_recall": 256,
+        "dialogue_state": 256,
+        "facility": 96,
+        "first_turn_routing": 256,
+        "insufficient_visual_evidence": 176,
+        "known_visible_price": 96,
+        "multi_label": 96,
+        "multi_subject_conflict": 128,
+        "negated_evidence": 48,
+        "price_unknown": 288,
+        "style": 96,
+        "task_key_value": 256,
+        "unknown_suppression": 288,
+        "v9_robustness": 640
+      }
+    }
+  }
+}
