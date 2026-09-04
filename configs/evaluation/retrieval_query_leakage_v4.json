@@ -1,0 +1,34 @@
+{
+  "schema_version": "retrieval_query_leakage_protocol_v4",
+  "evidence_class": "byte_identity_and_source_identity_audit_not_semantic_relevance",
+  "fresh_test_policy": "existing_120_sample_fresh_test_never_read_never_run",
+  "formal_release_read_only": {
+    "release_id": "trip-qwen3-vl-8b-week8-final-v1",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "metadata_member": "retrieval/clip_metadata_1000.jsonl",
+    "metadata_sha256": "7a79894fb027e2f0e6e6aa943a5af21c10c72b084f0dd866c931405debfcd42d",
+    "expected_index_support": 1000
+  },
+  "index_byte_source": {
+    "overlay_schema_version": "week8_retrieval_photo_overlay_v1",
+    "overlay_manifest_sha256": "fad8bc2bd6e6cbdb32263b1bf91871a43e53b529d098ae91b52534bcdef13d2d",
+    "image_identity_sha256": "28d7d6944f68ba32e3670d5be425eab9cd097ff6344dcc383a53b31382a5a733",
+    "expected_extracted_photo_count": 1000,
+    "official_zip_size": 7447210067
+  },
+  "query_pool": {
+    "generator": "scripts/build_exploration_pool_v4.py",
+    "committed_lock": "configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json",
+    "committed_lock_file_sha256": "d07fe2ba1d467f9093e7a73971c1b060d39e90e4212a9ef023d06731c777e2da",
+    "committed_lock_canonical_sha256": "b7f69e4247e5114cd8d19787ed6a7befd8bf3d8f0c930457b1e7698effb6acee",
+    "splits": ["training", "development", "final"],
+    "expected_query_support_per_split": 24,
+    "final_use": "identity_audit_only_on_already_consumed_synthetic_v4_final_no_scoring_or_tuning"
+  },
+  "acceptance": {
+    "required_primary_index_byte_coverage": 1.0,
+    "required_query_image_byte_coverage": 1.0,
+    "maximum_byte_collision_support": 0,
+    "maximum_source_identity_collision_support": 0
+  }
+}
