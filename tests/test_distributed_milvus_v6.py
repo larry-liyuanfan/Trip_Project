@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -13,6 +14,8 @@ from scripts.run_distributed_milvus_cluster_v6 import (
     candidate_port_bases,
     find_local_port_base,
     prepare_node,
+    probe_tcp_endpoint,
+    resolve_inter_node_ipv4,
     serve_milvus,
 )
 from scripts.run_http_milvus_service_benchmark_v4 import _validate_external_cluster_identity
@@ -34,6 +37,13 @@ class DistributedMilvusV6Tests(unittest.TestCase):
                 "/var/lib/milvus/data/",
                 "/var/lib/milvus/rdb_data",
                 "/tmp/milvus_access",
+                "  ip:  # TCP/IP address of rootCoord. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of proxy. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of queryCoord. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of queryNode. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of dataCoord. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of dataNode. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of streamingNode. If not specified, use the first unicastable address",
                 "  port: 22125 # TCP port of rootCoord",
                 "  port: 19530 # TCP port of proxy",
                 "  internalPort: 19529",
@@ -54,6 +64,7 @@ class DistributedMilvusV6Tests(unittest.TestCase):
             access_key="trip0123456789abcd",
             secret_key="s" * 40,
             output_dir=Path("/tmp/trip-distributed-milvus-1/runtime"),
+            component_ip="10.20.30.40",
             component_port_base=28100,
         )
         self.assertIn("node-a:28000", configured)
@@ -65,6 +76,8 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         self.assertIn("type: woodpecker", configured)
         self.assertNotIn("minio" + "admin", configured)
         self.assertNotIn("port: 19530", configured)
+        self.assertEqual(configured.count("ip: 10.20.30.40"), 7)
+        self.assertNotIn("first unicastable address", configured)
 
     def test_external_identity_requires_two_nodes_and_exact_roles(self) -> None:
         expected_server = {
@@ -144,6 +157,7 @@ class DistributedMilvusV6Tests(unittest.TestCase):
             access_key="trip0123456789abcd",
             secret_key="s" * 40,
             placement="worker",
+            component_ip="10.20.30.41",
         )
         self.assertEqual(prepare_runtime.call_count, 2)
         calls = prepare_runtime.call_args_list
@@ -151,6 +165,31 @@ class DistributedMilvusV6Tests(unittest.TestCase):
         self.assertEqual(calls[0].kwargs["component_port_base"], 28000)
         self.assertEqual(calls[1].kwargs["output_dir"], output_dir / "runtime-data")
         self.assertEqual(calls[1].kwargs["component_port_base"], 28020)
+        self.assertTrue(all(call.kwargs["component_ip"] == "10.20.30.41" for call in calls))
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.socket.getaddrinfo")
+    def test_inter_node_address_uses_the_single_dns_ipv4(self, getaddrinfo: mock.Mock) -> None:
+        getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.26.92.199", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.26.92.199", 0)),
+        ]
+        self.assertEqual(resolve_inter_node_ipv4("node-a"), "172.26.92.199")
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.socket.getaddrinfo")
+    def test_inter_node_address_rejects_ambiguous_or_loopback_dns(self, getaddrinfo: mock.Mock) -> None:
+        getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.2", 0)),
+        ]
+        with self.assertRaisesRegex(RuntimeError, "expected one usable DNS IPv4"):
+            resolve_inter_node_ipv4("node-a")
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.socket.create_connection")
+    def test_cross_node_probe_fails_closed(self, create_connection: mock.Mock) -> None:
+        create_connection.side_effect = OSError("unreachable")
+        with self.assertRaisesRegex(TimeoutError, "cross-node TCP endpoint"):
+            probe_tcp_endpoint("10.0.0.2", 28003, 0.01)
 
     def test_unknown_placements_are_rejected(self) -> None:
         common = {
@@ -161,6 +200,7 @@ class DistributedMilvusV6Tests(unittest.TestCase):
             "expected_rpm_sha256": "a" * 64,
             "access_key": "trip0123456789abcd",
             "secret_key": "s" * 40,
+            "component_ip": "10.20.30.40",
         }
         with self.assertRaisesRegex(ValueError, "unsupported node placement"):
             prepare_node(**common, placement="invalid")

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import subprocess
@@ -21,6 +22,7 @@ def main() -> None:
     parser.add_argument("--control-node", required=True)
     parser.add_argument("--port-base", type=int, required=True)
     parser.add_argument("--expected-rpm-sha256", required=True)
+    parser.add_argument("--component-ip", required=True)
     args = parser.parse_args()
     access_key = os.environ.get("TRIP_MINIO_ACCESS_KEY", "")
     secret_key = os.environ.get("TRIP_MINIO_SECRET_KEY", "")
@@ -32,6 +34,7 @@ def main() -> None:
         expected_rpm_sha256=args.expected_rpm_sha256,
         access_key=access_key,
         secret_key=secret_key,
+        component_ip=args.component_ip,
     )
 
 
@@ -44,6 +47,7 @@ def prepare_runtime(
     expected_rpm_sha256: str,
     access_key: str,
     secret_key: str,
+    component_ip: str,
     component_port_base: int | None = None,
 ) -> dict[str, object]:
     if output_dir.exists():
@@ -59,6 +63,13 @@ def prepare_runtime(
         raise ValueError("component port base is outside the permitted job-local range")
     if len(access_key) < 16 or len(secret_key) < 32:
         raise ValueError("job-local MinIO credentials do not meet the minimum length")
+    parsed_component_ip = ipaddress.ip_address(component_ip)
+    if parsed_component_ip.version != 4 or (
+        parsed_component_ip.is_loopback
+        or parsed_component_ip.is_link_local
+        or parsed_component_ip.is_unspecified
+    ):
+        raise ValueError("component IP must be a usable IPv4 address")
     if access_key.lower() == DEFAULT_MINIO_CREDENTIAL or secret_key.lower() == DEFAULT_MINIO_CREDENTIAL:
         raise ValueError("default MinIO credentials are forbidden")
 
@@ -86,6 +97,7 @@ def prepare_runtime(
         access_key=access_key,
         secret_key=secret_key,
         output_dir=output_dir,
+        component_ip=component_ip,
         component_port_base=component_port_base,
     )
     config_path.write_text(text, encoding="utf-8")
@@ -95,6 +107,7 @@ def prepare_runtime(
         "control_node": control_node,
         "port_base": port_base,
         "component_port_base": component_port_base,
+        "component_ip_source": "explicit_inter_node_ipv4",
         "rpm_sha256": expected_rpm_sha256,
         "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
         "credentials_written_only_to_job_local_config": True,
@@ -111,6 +124,7 @@ def configure_milvus_text(
     access_key: str,
     secret_key: str,
     output_dir: Path,
+    component_ip: str,
     component_port_base: int | None = None,
 ) -> str:
     component_port_base = component_port_base if component_port_base is not None else port_base
@@ -133,6 +147,27 @@ def configure_milvus_text(
         "/var/lib/milvus/data/": f"{local_data}/",
         "/var/lib/milvus/rdb_data": str(output_dir / "rdb_data"),
         "/tmp/milvus_access": str(output_dir / "access"),
+        "  ip:  # TCP/IP address of rootCoord. If not specified, use the first unicastable address": (
+            f"  ip: {component_ip} # Explicit inter-node IPv4 address for rootCoord"
+        ),
+        "  ip:  # TCP/IP address of proxy. If not specified, use the first unicastable address": (
+            f"  ip: {component_ip} # Explicit inter-node IPv4 address for proxy"
+        ),
+        "  ip:  # TCP/IP address of queryCoord. If not specified, use the first unicastable address": (
+            f"  ip: {component_ip} # Explicit inter-node IPv4 address for queryCoord"
+        ),
+        "  ip:  # TCP/IP address of queryNode. If not specified, use the first unicastable address": (
+            f"  ip: {component_ip} # Explicit inter-node IPv4 address for queryNode"
+        ),
+        "  ip:  # TCP/IP address of dataCoord. If not specified, use the first unicastable address": (
+            f"  ip: {component_ip} # Explicit inter-node IPv4 address for dataCoord"
+        ),
+        "  ip:  # TCP/IP address of dataNode. If not specified, use the first unicastable address": (
+            f"  ip: {component_ip} # Explicit inter-node IPv4 address for dataNode"
+        ),
+        "  ip:  # TCP/IP address of streamingNode. If not specified, use the first unicastable address": (
+            f"  ip: {component_ip} # Explicit inter-node IPv4 address for streamingNode"
+        ),
         "  port: 22125 # TCP port of rootCoord": f"  port: {component_port_base + 3} # TCP port of rootCoord",
         "  port: 19530 # TCP port of proxy": f"  port: {component_port_base + 4} # TCP port of proxy",
         "  internalPort: 19529": f"  internalPort: {component_port_base + 5}",

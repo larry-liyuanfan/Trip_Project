@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import secrets
@@ -62,6 +63,7 @@ def main() -> None:
     prepare.add_argument("--port-base", type=int, required=True)
     prepare.add_argument("--expected-rpm-sha256", required=True)
     prepare.add_argument("--node-placement", choices=("control", "worker"), required=True)
+    prepare.add_argument("--component-ip", required=True)
 
     ports = subparsers.add_parser("check-ports")
     ports.add_argument("--port-base", type=int, required=True)
@@ -71,6 +73,10 @@ def main() -> None:
     serve.add_argument("--runtime-dir", type=Path, required=True)
     serve.add_argument("--placement", choices=("control", "query-streaming", "data"), required=True)
     serve.add_argument("--metrics-port", type=int, required=True)
+    probe = subparsers.add_parser("probe-tcp")
+    probe.add_argument("--host", required=True)
+    probe.add_argument("--port", type=int, required=True)
+    probe.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args()
     if args.command == "prepare-node":
         prepare_node(
@@ -82,11 +88,14 @@ def main() -> None:
             access_key=os.environ.get("TRIP_MINIO_ACCESS_KEY", ""),
             secret_key=os.environ.get("TRIP_MINIO_SECRET_KEY", ""),
             placement=args.node_placement,
+            component_ip=args.component_ip,
         )
     elif args.command == "check-ports":
         check_ports(args.port_base, include_worker=args.include_worker)
     elif args.command == "serve-milvus":
         serve_milvus(args.runtime_dir, args.placement, args.metrics_port)
+    elif args.command == "probe-tcp":
+        probe_tcp_endpoint(args.host, args.port, args.timeout)
     else:
         run_cluster(args)
 
@@ -106,6 +115,9 @@ def run_cluster(args: argparse.Namespace) -> None:
     control, worker = nodes
     if socket.gethostname().split(".")[0] != control.split(".")[0]:
         raise RuntimeError("batch orchestrator is not running on the first allocated node")
+    node_ipv4 = {node: resolve_inter_node_ipv4(node) for node in nodes}
+    if len(set(node_ipv4.values())) != 2:
+        raise RuntimeError("allocated nodes did not resolve to distinct inter-node IPv4 addresses")
 
     args.output_dir.mkdir(parents=True)
     logs = args.output_dir / "cluster-logs"
@@ -143,6 +155,8 @@ def run_cluster(args: argparse.Namespace) -> None:
                     performance["milvus_server"]["package_sha256"],
                     "--node-placement",
                     placement,
+                    "--component-ip",
+                    node_ipv4[node],
                 ],
                 cpus=1,
                 env=secret_env,
@@ -240,6 +254,29 @@ def run_cluster(args: argparse.Namespace) -> None:
         wait_for_text(control_log, ["mixcoord", "proxy"], processes, 30)
         wait_for_text(query_streaming_log, ["querynode", "streamingnode"], processes, 30)
         wait_for_text(data_log, ["datanode"], processes, 30)
+        cross_node_probes = (
+            (worker, control, port_base + 3, "worker_to_mixcoord"),
+            (worker, control, port_base + 4, "worker_to_proxy"),
+            (control, worker, port_base + 7, "control_to_querynode"),
+            (control, worker, port_base + 10, "control_to_streamingnode"),
+            (control, worker, port_base + 29, "control_to_datanode"),
+        )
+        for source_node, target_node, port, _label in cross_node_probes:
+            run_step(
+                source_node,
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "probe-tcp",
+                    "--host",
+                    node_ipv4[target_node],
+                    "--port",
+                    str(port),
+                    "--timeout",
+                    "30",
+                ],
+                cpus=1,
+            )
         startup_ms = (time.perf_counter() - startup_started) * 1000
 
         identity = {
@@ -249,6 +286,12 @@ def run_cluster(args: argparse.Namespace) -> None:
             "nodes": nodes,
             "roles": {role: control if placement == "control" else worker for role, placement in REQUIRED_ROLES.items()},
             "runtime_port_base": port_base,
+            "network_binding": "explicit_dns_resolved_inter_node_ipv4",
+            "cross_node_connectivity": {
+                "status": "PASS",
+                "probe_count": len(cross_node_probes),
+                "roles": [label for *_rest, label in cross_node_probes],
+            },
             "startup_cold_ms": startup_ms,
             "milvus_server": performance["milvus_server"],
             "dependencies": {
@@ -374,6 +417,7 @@ def prepare_node(
     access_key: str,
     secret_key: str,
     placement: str,
+    component_ip: str,
 ) -> None:
     if placement == "control":
         runtimes = (("runtime-control", port_base),)
@@ -393,6 +437,7 @@ def prepare_node(
             expected_rpm_sha256=expected_rpm_sha256,
             access_key=access_key,
             secret_key=secret_key,
+            component_ip=component_ip,
             component_port_base=component_port_base,
         )
 
@@ -421,6 +466,40 @@ def check_port_blocks(port_base: int, offsets: tuple[int, ...]) -> None:
     finally:
         for current in sockets:
             current.close()
+
+
+def resolve_inter_node_ipv4(host: str) -> str:
+    addresses = {
+        info[4][0]
+        for info in socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+    }
+    usable = sorted(
+        address
+        for address in addresses
+        if not (
+            ipaddress.ip_address(address).is_loopback
+            or ipaddress.ip_address(address).is_link_local
+            or ipaddress.ip_address(address).is_unspecified
+        )
+    )
+    if len(usable) != 1:
+        raise RuntimeError(f"expected one usable DNS IPv4 address for {host}, got {usable}")
+    return usable[0]
+
+
+def probe_tcp_endpoint(host: str, port: int, timeout: float) -> None:
+    if not host or not 1 <= port <= 65535 or timeout <= 0:
+        raise ValueError("invalid TCP probe target")
+    deadline = time.monotonic() + timeout
+    error: OSError | None = None
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=min(1.0, timeout)):
+                return
+        except OSError as exc:
+            error = exc
+            time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
+    raise TimeoutError(f"cross-node TCP endpoint did not become reachable: {host}:{port}: {error}")
 
 
 def candidate_port_bases(job_id: str) -> list[int]:

@@ -25,6 +25,7 @@ from scripts.run_distributed_milvus_cluster_v6 import (
     find_local_port_base,
     load_json,
     redact_logs,
+    resolve_inter_node_ipv4,
     require_processes_alive,
     terminate_steps,
     wait_for_cluster,
@@ -57,6 +58,7 @@ def run_smoke(args: argparse.Namespace) -> None:
 
     job_id = os.environ["SLURM_JOB_ID"]
     node = socket.gethostname().split(".")[0]
+    node_ipv4 = resolve_inter_node_ipv4(node)
     local_root = Path("/tmp") / f"trip-distributed-milvus-smoke-{job_id}"
     expected_local_root = Path("/tmp") / f"trip-distributed-milvus-smoke-{job_id}"
     port_base = find_local_port_base(job_id, (0, 20, 40))
@@ -80,6 +82,7 @@ def run_smoke(args: argparse.Namespace) -> None:
             expected_rpm_sha256=config["performance"]["milvus_server"]["package_sha256"],
             access_key=access_key,
             secret_key=secret_key,
+            component_ip=node_ipv4,
             component_port_base=port_base,
         )
         prepare_runtime(
@@ -90,6 +93,7 @@ def run_smoke(args: argparse.Namespace) -> None:
             expected_rpm_sha256=config["performance"]["milvus_server"]["package_sha256"],
             access_key=access_key,
             secret_key=secret_key,
+            component_ip=node_ipv4,
             component_port_base=query_streaming_port_base,
         )
         prepare_runtime(
@@ -100,6 +104,7 @@ def run_smoke(args: argparse.Namespace) -> None:
             expected_rpm_sha256=config["performance"]["milvus_server"]["package_sha256"],
             access_key=access_key,
             secret_key=secret_key,
+            component_ip=node_ipv4,
             component_port_base=data_port_base,
         )
         dependencies = config["performance"]["dependencies"]
