@@ -205,6 +205,35 @@ baseline 的三个 gate 指标增益均为 0。因此正结论是“既有 v4 gu
 不得补写 ANN 指标。机器证据为 `experiments/no_result_stress_evidence_v8.json`（文件 SHA-256
 `5689fbf4a3c1e7e06171655e18479ceff75967b24edb34a7fcd1875d97b5148a`）。
 
+## v4 查询/正式索引字节隔离复核
+
+v4 搜索报告原先只能证明 synthetic query 三向隔离；由于 formal retrieval archive 不含原图，
+query-vs-index 字节碰撞记为 `NOT_RUN_MISSING_INDEX_IMAGE_SHA`。后续只读审计定位到一个与 archive
+中 `clip_metadata_1000.jsonl` SHA `7a7989…42d` 完全一致的 Git 外 Yelp overlay，并在
+Spartan CPU job `30046716` 上重新哈希索引原图 1000/1000、v4 query 72/72（training/
+development/已消费 final 各 24）。结果如下：
+
+| 检查 | 分母 | 结果 |
+| --- | ---: | ---: |
+| formal index primary byte coverage | 1000 | 1000/1000=1.0 |
+| formal index replica byte crosscheck | 1000 | 1000/1000=1.0，mismatch=0 |
+| synthetic query byte coverage | 72 | 72/72=1.0 |
+| query-vs-index byte collision | 72×1000 身份集合 | 0 |
+| query-vs-index source identity collision | 72×1000 身份集合 | 0 |
+
+固定 acceptance 全部通过，独立 verifier=`PASS`。实现提交为
+`9452ceb2b0a797a2663e1847c787b2736a18a792`，source snapshot SHA 为
+`138f43eed5b1ef9a6f895aa0a29516184d70cf637992a7039ebde4827cd5c14b`；raw registry/report/
+verification SHA 分别为 `07b8fc…d014`、`d11f1b…07d7`、`64419b…7854`。审计不读取
+annotation、ranking、阈值、模型输出或 Fresh Test，因此只支持“字节与来源身份零碰撞”，不支持
+语义相关性结论。机器摘要为 `experiments/retrieval_query_leakage_evidence_v4.json`（文件
+SHA-256 `f40076572a3e1e4e174c13af8587574f955ccfb4dd8ab69504bfcd5daa0cb75e`）。
+
+两次失败尝试均保留：`30046002` 因 Iris home 配额满导致默认 Slurm stdout 截断，仅写出
+35 bytes traceback；`30046374` 因 Windows/Spartan 的 CRLF/LF raw lock SHA 不同而 fail closed。
+两者都没有产生证据。成功修复不放宽内容锁：canonical JSON lock SHA 继续预锁，具体 raw
+字节仍由每个 source snapshot 的逐文件 SHA 绑定。
+
 ## v6 双节点 Milvus 首次运行（工程负实验）
 
 job `30004826` 固定请求两台 A100 节点、8 CPU、128 GiB 总内存，最终状态
@@ -595,13 +624,15 @@ sample_id 与 dataset 完全一致。原 metrics 的商品 composite 为 `0.7806
 support=0，状态为 `NOT_SCORABLE_NO_PRESERVED_MULTI_SUBJECT_LABEL`。本审计不从普通图片或
 模型输出反推多主体真值。
 
-以下为截至 v8 的补齐情况与仍存边界；v2 的旧失败状态仅是历史负实验：
+以下为截至 v9 预注册和 v4 byte-audit repair-2 的补齐情况与仍存边界；v2 的旧失败状态仅是历史负实验：
 
 - **仍未完成**：人工相关性双人标注与仲裁，human support 仍为 0；
-- **已自动化补齐**：通过 Git 外 formal overlay 对 1000/1000 索引原图原位哈希，完成查询图与
-  索引图的 byte/source collision audit；正式 retrieval 压缩包本身仍不包含原图；
+- **已自动化补齐**：job `30046716` 通过 Git 外 formal overlay 对 1000/1000 索引原图与
+  v4 query 72/72 原位哈希，byte/source collision 都为 0；正式 retrieval 压缩包本身仍不含原图；
 - **已补齐但仍是 weak/synthetic**：v4/v5/v7 对价位、unknown、多主体、证据不足与对话状态
   提供新分母；v7 将多主体冲突从 0/8 提至 5/8，但未过预锁 6/8 门槛，仍是负实验；
+- **已预注册未出结果**：v9 以 v7 为固定基线，在新 development 只改变多主体反例训练构成，
+  不下调门槛且不定义 final；job `30044630` 完成前不得声称提升；
 - **synthetic 已补齐**：v4 在三向隔离的 24 条一次性 final 上通过 no-result 与 hard-filter；
   v8 又在 40 条一次性 validation 上得到 17/20 no-result，但新 dual-centroid 与固定 v4 baseline
   持平；v2 的 no-result 4/8 失败继续作为历史负实验；
@@ -613,30 +644,36 @@ support=0，状态为 `NOT_SCORABLE_NO_PRESERVED_MULTI_SUBJECT_LABEL`。本审�
 ## 决策与可复现入口
 
 当前机器证据以 `experiments/search_algorithm_evidence_v4.json`、
-`experiments/context_focus_evidence_v5.json`、`experiments/semantic_robustness_evidence_v7.json`
-和 `experiments/no_result_stress_evidence_v8.json` 为最新入口；v1/v2 文件只保留为历史开发证据。
+`experiments/context_focus_evidence_v5.json`、`experiments/semantic_robustness_evidence_v7.json`、
+`experiments/no_result_stress_evidence_v8.json` 和
+`experiments/retrieval_query_leakage_evidence_v4.json` 为最新入口；v1/v2 文件只保留为历史开发证据。
 固定配置和预运行数据锁分别位于 `configs/evaluation/automated_evidence_v4.json`、
-`configs/evaluation/automated_evidence_v5.json` 与 `configs/evaluation/evidence_enhancement/`；
+`configs/evaluation/automated_evidence_v5.json`、`configs/evaluation/automated_evidence_v9.json` 与
+`configs/evaluation/evidence_enhancement/`；
 协议与运行命令见 `docs/evidence_enhancement.md`。
 
 最终决策：v4 hard-filter + business guard 在新 synthetic final 上形成正向排序、过滤与
 no-result 证据；v5 上下文专项依次通过新 development 质量门和同机 HTTP 延迟门，再一次性
 通过 synthetic final。v7 虽有显著开发改善但未过多主体门槛；v8 通过新压力门却与固定基线
 持平；两者分别记为负实验和中性实验。v4 context/延迟失败、v2 no-result 失败和 v6 首次
-分布式部署超时同样保留。由于没有人工标签或真实用户最终集，且分布式修复运行尚未形成
-有效 HTTP 分母，仍不修改正式 release、Prompt、adapter、阈值或 Fresh Test 状态。
+分布式部署超时及 byte-audit 的两次基础设施/跨平台失败同样保留。v4 query/index 字节隔离现已
+用 1000×72 完整分母补齐，但这不改变语义指标。由于没有人工标签或真实用户最终集，且
+分布式修复运行尚未形成有效 HTTP 分母，仍不修改正式 release、Prompt、adapter、阈值或
+Fresh Test 状态。
 
 ## 验证
 
-- `python -m unittest discover -s tests -v`：973 项通过，2 项既有跳过；
+- `python -m unittest discover -s tests -v`：978 项通过，2 项既有跳过；
 - `python scripts/tripctl.py validate`：`status=ok`；
-- 正式 Git 外 release 的 `scripts/verify_final_delivery.py`：`PASS`，包内记录 948 项测试；
+- 正式 Git 外 release 的历史 `scripts/verify_final_delivery.py` 记录为 `PASS`（包内 948 项测试）；
+  本 worktree 当前未挂载该外部包，故本轮复核为 `NOT_RUN_MISSING_EXTERNAL_RELEASE_PACKAGE`；
 - `docker compose ... config --quiet`：通过；
 - 本地独立查询池、来源 registry、正式 retrieval/release 哈希核验：`PASS`；
 - VLM weak v3 对冻结 raw 重评分：score SHA-256 保持 `b039c5…7458`；
 - v5 job `29998754`：source 验证、训练、development、真实 HTTP/Milvus c=1/2/4、一次性 final 完成；
 - v7 job `30005386`：source、训练、development 与独立重算完整，固定质量 gate `FAIL`；
 - v8 job `30005527`：calibration 后一次性 validation 与独立重算完整，固定压力 gate `PASS`；
+- v4 byte audit job `30046716`：索引 1000/1000、query 72/72 字节覆盖完整，零碰撞，独立 verifier `PASS`；
 - 固定长度 performance scorer：历史实际 input/output 矩阵验证通过，v2 joint gate `FAIL`；
 - `git diff --check`：通过。
 

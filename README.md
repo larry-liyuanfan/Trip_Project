@@ -95,6 +95,10 @@ experiments/  保留的机器可读历史证据
   `experiments/semantic_robustness_evidence_v7.json`
 - v8 无结果压力验证：`configs/evaluation/automated_evidence_v8_no_result.json`、
   `experiments/no_result_stress_evidence_v8.json`
+- v4 查询/正式索引字节隔离复核：`configs/evaluation/retrieval_query_leakage_v4.json`、
+  `experiments/retrieval_query_leakage_evidence_v4.json`
+- v9 多主体专项预注册（结果尚未完成）：`configs/evaluation/automated_evidence_v9.json`、
+  `configs/evaluation/evidence_enhancement/semantic_robustness_pool_lock_v9.json`
 - 报告：`reports/development/reviews/search_algorithm_evidence_enhancement_report.md`
 
 该轨道不修改正式 v1。历史 Milvus `Recall@10=1.0` 只表示 ANN 对精确余弦 Top10 的保真度，
@@ -109,6 +113,9 @@ standalone 服务基准。该性能实验因候选/基线 c=1 HTTP P95 比值 2.
 在新 development 上将 context recall 从 7/24 提至 24/24，并以同一 A100 上 c=1 HTTP
 P95 比值 .985 通过延迟门后一次性消费 synthetic final；final n=48 全部协议指标通过。
 该结果不修改正式 release，也不能包装成人工视觉或真实业务相关性。
+独立的 v4 byte audit 又将 training/development/已消费 final 各 24 张 synthetic 查询图
+逐字节与正式索引 1000/1000 原图比对：72/72 查询图和 1000/1000 索引图覆盖完整，
+query-vs-index byte/source collision 均为 0。该结果只补齐数据隔离，不是相关性指标。
 
 后续 v7 只改变语义鲁棒性 synthetic training 数据，在新 development 每角色 96 条上显著
 降低 unsupported hallucination（47/96→5/96），但多主体冲突 abstention 仅 5/8，未达到
@@ -117,6 +124,9 @@ P95 比值 .985 通过延迟门后一次性消费 synthetic final；final n=48 �
 17/20，说明既有 guard 通过新 synthetic 压力门，但新方案没有相对收益。首次两节点 Milvus
 运行因自动通告了不可跨节点路由的网卡地址而超时，没有 HTTP 请求分母；该失败不被写成服务
 性能结果。全部新增质量证据仍为 synthetic/weak，human support=0，Fresh Test 继续冻结。
+v9 已固定以 v7 Adapter 为基线，在全新 development 上只改变多主体反例训练构成；质量门槛
+不下调，结果完成前不形成任何提升结论。分布式 Milvus 网络修复和 v9 训练均在 Iris
+`yzhang3504` 的独立 Spartan 作业中等待，且 stdout/stderr 已因 home 配额满而重定向到项目盘。
 
 ## 环境
 

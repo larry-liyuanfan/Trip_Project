@@ -20,6 +20,14 @@ no-result=12、hard-filter=16）上，业态 guard 候选的 MRR@10、nDCG@10、
 no-result accuracy 和 filter correctness 均为 1.0；ANN-vs-exact Recall@10=0.9917。
 这些数字只是 synthetic 规则标签结果。
 
+v4 原报告中的 query-vs-index byte collision 曾因正式 retrieval 压缩包不含原图而记为
+`NOT_RUN_MISSING_INDEX_IMAGE_SHA`。后续只读审计使用与该 archive metadata SHA 完全一致的
+Git 外 Yelp overlay，对正式索引 1000/1000 原图及 v4 training/development/已消费 final
+各 24 张 synthetic 查询图重新哈希。job `30046716` 得到查询覆盖 72/72、索引覆盖
+1000/1000，byte collision=0、source-identity collision=0，独立 verifier=`PASS`。
+它未读取 annotation、ranking 或 Fresh Test，只把数据隔离状态从未知补成可验证 PASS；
+机器摘要见 `experiments/retrieval_query_leakage_evidence_v4.json`。
+
 v4 VLM 在同一新 development 锁上比较 zero-shot、旧 unified adapter、checkpoint-87
 和 targeted adapter，每角色 n=36（商品 24、对话 12）。targeted adapter 的业态/
 风格/设施/价位 F1 分别为 1.0/1.0/1.0/0.6667，unknown abstention=1.0、
@@ -53,7 +61,7 @@ recall 从 v4 的 7/24 提升至 24/24，state、task key/value 与 first route 
 硬件和产物 SHA 见 `experiments/context_focus_evidence_v5.json`。全部质量标签仍是 synthetic，
 human support=0；结果不代表人工视觉准确率、真实用户业务相关性、分布式 Milvus 或生产 SLA。
 
-## v6、v7 与 v8 后续证据
+## v6、v7、v8 与 v9 后续证据
 
 v7 使用 `configs/evaluation/automated_evidence_v7.json` 和独立数据锁，只改变主要因素
 “语义鲁棒性 synthetic training 数据”。training=512（商品/对话各 256）；新的 development
@@ -71,12 +79,24 @@ nDCG@10=.9 和 filter correctness=1；两者均通过预锁压力门，但新候
 因此结论是“既有 guard 获得新的 synthetic 复验，新方法为中性实验”，不是算法提升。
 该轮不测 ANN fidelity，也没有 final。机器摘要见 `experiments/no_result_stress_evidence_v8.json`。
 
+v9 在任何运行前固定于 `configs/evaluation/automated_evidence_v9.json` 和
+`configs/evaluation/evidence_enhancement/semantic_robustness_pool_lock_v9.json`。它以 v7
+Adapter SHA `a06742eb…b5b1` 为固定基线，保持 Qwen revision、Prompt、generation、optimizer、
+学习率、epoch、seed、质量阈值与 objective 不变，只增加并强化 multi-subject counterexample
+training 构成。training=640（商品 384、对话 256），全新 development=132（商品 84、对话
+48，其中 multi-subject=24）；两者互相隔离，并同时与 v5 training 528 条及 v7 training+
+development 608 条在 source/image/sample/dialogue-text 身份上零重叠。job `30044630` 尚未完成；
+只有 development 固定门通过才允许运行单机 HTTP c=1/2/4，因此当前不能写成正向结果。
+
 v6 首次双节点 A100 / distributed Milvus 作业 `30004826` 为工程负实验：两个节点及五类
 Milvus 角色均启动，但 Milvus 自动选择并通告了控制节点上一张不可跨节点路由的接口；worker
 到 mixcoord 的内部 gRPC 持续超时，`create_collection` 阻塞至 30 分钟作业时限。该 run 没有
 产生 `summary.json`、`raw.jsonl` 或任何 HTTP 请求，所以 c=1/2/4 仍是 `NOT_RUN`，不能从
 cluster identity 的 `READY` 或 61.7 秒启动观测推导性能。修复版显式使用 Slurm 主机名解析的
 IPv4，并在写入 `READY` 前执行五个双向跨节点 TCP probe；它必须写入新 run，旧失败不覆盖。
+repair-1 job `30042086` 尚未完成；在独立 verifier 产生完整 HTTP 分母前，distributed 结论仍为
+`NOT_RUN`。Iris home 配额已满，两个 pending GPU 作业的 Slurm stdout/stderr 已原地改至独立
+项目盘；该日志位置变更不改变实验参数。
 
 ## 自动化 v2 / weak v3 预运行锁
 

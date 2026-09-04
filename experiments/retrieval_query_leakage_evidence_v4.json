@@ -1,0 +1,111 @@
+{
+  "schema_version": "retrieval_query_leakage_evidence_v4",
+  "status": "PASS_COMPLETE_NO_QUERY_INDEX_COLLISION",
+  "evidence_class": "byte_identity_and_source_identity_audit_not_semantic_relevance",
+  "human_annotation_support": 0,
+  "fresh_test_used": false,
+  "query_labels_or_rankings_read": false,
+  "search_scoring_or_threshold_tuning_run": false,
+  "formal_release_changed": false,
+  "source": {
+    "branch": "codex/trip-relevance-eval",
+    "implementation_commit_sha": "9452ceb2b0a797a2663e1847c787b2736a18a792",
+    "source_snapshot_sha256": "138f43eed5b1ef9a6f895aa0a29516184d70cf637992a7039ebde4827cd5c14b",
+    "source_snapshot_file_support": 692,
+    "configuration_sha256": "69f4b392694a125f55858e67139d44ce602a397b75c926c783a3f7d1a982e7c2",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "retrieval_metadata_sha256": "7a79894fb027e2f0e6e6aa943a5af21c10c72b084f0dd866c931405debfcd42d",
+    "index_overlay_manifest_sha256": "fad8bc2bd6e6cbdb32263b1bf91871a43e53b529d098ae91b52534bcdef13d2d",
+    "index_image_identity_sha256": "28d7d6944f68ba32e3670d5be425eab9cd097ff6344dcc383a53b31382a5a733",
+    "query_pool_lock_canonical_sha256": "b7f69e4247e5114cd8d19787ed6a7befd8bf3d8f0c930457b1e7698effb6acee",
+    "query_pool_lock_file_sha256_on_spartan_snapshot": "49aa60b49f146c7b346532eca166530c4cd36710498bacf1652e71be6374d4db"
+  },
+  "runtime": {
+    "slurm_job_id": "30046716",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed_seconds": 10,
+    "node": "spartan-bm059.hpc.unimelb.edu.au",
+    "partition": "sapphire",
+    "allocated_cpu_support": 4,
+    "requested_memory_gib": 16,
+    "python": "3.11.3",
+    "platform": "Linux-5.14.0-687.31.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "gpu_support": 0
+  },
+  "denominators": {
+    "formal_index_image_support": 1000,
+    "formal_index_unique_image_id_support": 1000,
+    "formal_index_unique_source_path_support": 1000,
+    "query_image_support": 72,
+    "query_support_per_split": {
+      "training": 24,
+      "development": 24,
+      "final": 24
+    },
+    "final_scope": "identity_audit_only_on_already_consumed_synthetic_v4_final"
+  },
+  "result": {
+    "formal_index_primary_byte_coverage": {
+      "hashed_support": 1000,
+      "expected_support": 1000,
+      "coverage": 1.0,
+      "status": "PASS"
+    },
+    "formal_index_replica_crosscheck": {
+      "hashed_support": 1000,
+      "expected_support": 1000,
+      "coverage": 1.0,
+      "byte_mismatch_support": 0,
+      "status": "PASS"
+    },
+    "query_byte_coverage": {
+      "hashed_support": 72,
+      "expected_support": 72,
+      "coverage": 1.0,
+      "status": "PASS"
+    },
+    "query_vs_index_byte_collision_support": 0,
+    "query_vs_index_source_identity_collision_support": 0,
+    "fixed_acceptance_status": "PASS"
+  },
+  "fixed_acceptance": {
+    "required_primary_index_byte_coverage": 1.0,
+    "required_query_image_byte_coverage": 1.0,
+    "maximum_byte_collision_support": 0,
+    "maximum_source_identity_collision_support": 0
+  },
+  "independent_verification": {
+    "schema_version": "retrieval_query_leakage_evidence_verification_v4",
+    "status": "PASS",
+    "registry_file_sha256": "07b8fcd1791f14c3d353677e110d4b317c03f37146e574f20371b12e9a27d014",
+    "report_file_sha256": "d11f1ba8fe4c92a1893aaa456eb8da7d27eb2dbb0f987fef7d9f5a9a17bb07d7",
+    "report_artifact_canonical_sha256": "e78da286bb2c2cc4e30b66d8d5484a40351de8affa797cc414aa36cfc04e469a",
+    "verification_file_sha256": "64419b46e9d7972a3e5ce97693cdc7201f5fee696c0b6b14f36e0c82a5e57854"
+  },
+  "failed_attempts_retained": [
+    {
+      "slurm_job_id": "30046002",
+      "state": "FAILED",
+      "exit_code": "1:0",
+      "elapsed_seconds": 10,
+      "reason": "Iris home quota was full and default Slurm stdout stopped after 35 bytes",
+      "evidence_artifact_support": 0
+    },
+    {
+      "slurm_job_id": "30046374",
+      "state": "FAILED",
+      "exit_code": "1:0",
+      "elapsed_seconds": 9,
+      "reason": "raw pool-lock SHA differed across CRLF/LF materialization; canonical JSON identity remained unchanged",
+      "evidence_artifact_support": 0
+    }
+  ],
+  "fact_boundaries": [
+    "This result proves byte-level and source-identity separation only; it does not measure semantic relevance.",
+    "The 72 queries are deterministic synthetic v4 queries with 24 each in training, development, and an already-consumed final split.",
+    "No query annotation, ranking result, threshold, model output, or frozen 120-sample Fresh Test record was read by this audit.",
+    "The formal release and its 1,000-image retrieval archive were read-only.",
+    "Human relevance support remains zero."
+  ]
+}
