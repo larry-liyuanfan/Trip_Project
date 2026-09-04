@@ -57,7 +57,7 @@
   "training": {
     "run_id": "trip_multi_subject_sft_v9",
     "initial_adapter_role": "semantic_robustness_adapter_v7",
-    "initial_adapter_model_sha256": "a06742a114baf186fe24850650f11109f21cf3345fd47e22a2e471e189786f41",
+    "initial_adapter_model_sha256": "a06742ebf6344567650e3ae95e67c56116db212d07eeb5eb5c31fd6ae519b5b1",
     "optimizer": "adamw_torch",
     "learning_rate": 0.00005,
     "lr_scheduler_type": "cosine",
