@@ -1,0 +1,162 @@
+{
+  "schema_version": "distributed_milvus_http_evidence_v6",
+  "status": "COMPLETED_EXPLORATION_EVIDENCE",
+  "date": "2026-09-04",
+  "evidence_class": "performance_only_on_locked_synthetic_training_request_not_human_ground_truth",
+  "gate_class": "exploration_only_not_release_or_production_gate",
+  "human_annotation_support": 0,
+  "fresh_test_used": false,
+  "development_or_final_consumed": false,
+  "production_sla_supported": false,
+  "formal_release_changed": false,
+  "formal_release_id": "trip-qwen3-vl-8b-week8-final-v1",
+  "source": {
+    "branch": "codex/trip-relevance-eval",
+    "implementation_commit": "8d27e48b8c28470b16b5d51ca3377dd914737a6a",
+    "source_snapshot_sha256": "b76c01d8d7d40b0287cd57620b253567a324dd4e41e3115cd8f64951c301dcd8",
+    "source_manifest_file_sha256": "c9b3defa721f5380b6c2433692fdba02563ffe24582ab9ead7ff6e90bd86174c",
+    "source_file_support": 680,
+    "configuration_sha256": "e747671830a9c2db0a0e111d99ac101121fd49e692b4c560d50d8a4a11c9ea24",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b"
+  },
+  "slurm": {
+    "job_id": "30042086",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:04:50",
+    "nodes": ["spartan-gpgpu126", "spartan-gpgpu127"],
+    "allocated_cpu": 8,
+    "allocated_memory_gib": 128,
+    "allocated_gpu": {"type": "NVIDIA A100 80GB PCIe", "count": 2}
+  },
+  "cluster": {
+    "milvus_version": "2.6.18",
+    "milvus_package_sha256": "3686f38c672dd73e6b99c0bb7829984439256724793a44d7cfd9c6fc0181a447",
+    "deployment_mode": "bare_metal_two_node_three_process_roles_external_etcd_minio_woodpecker",
+    "network_binding": "explicit_dns_resolved_inter_node_ipv4",
+    "roles": {
+      "mixcoord": "spartan-gpgpu126",
+      "proxy": "spartan-gpgpu126",
+      "querynode": "spartan-gpgpu127",
+      "streamingnode": "spartan-gpgpu127",
+      "datanode": "spartan-gpgpu127"
+    },
+    "cross_node_connectivity": {
+      "status": "PASS",
+      "probe_count": 5,
+      "probes": ["worker_to_mixcoord", "worker_to_proxy", "control_to_querynode", "control_to_streamingnode", "control_to_datanode"]
+    },
+    "dependencies": {
+      "etcd": {"version": "3.5.25", "binary_sha256": "55a03a3704794fc0e54d7756456c139e315a426ca161e023a517672f189ce141"},
+      "minio": {"version": "RELEASE.2024-12-18T13-15-44Z", "binary_sha256": "88182336ab5793488f2caad54846056b330f0dcb5c488b60d52434beeebae3ca"},
+      "message_queue": "woodpecker_with_minio_storage"
+    },
+    "milvus_startup_cold_ms": 65057.04787839204,
+    "collection_build_and_load_ms": 15671.214446425438,
+    "collection": {
+      "name": "ota_business_image_vector",
+      "visible_entities": 1000,
+      "index_type": "HNSW",
+      "metric_type": "COSINE",
+      "index_details_sha256": "2dd44e080ff8ebb4056a52d7aaacc2a9d942a1545be6a924a0996af298071084"
+    }
+  },
+  "benchmark": {
+    "transport": "real_loopback_HTTP_FastAPI_Uvicorn",
+    "milvus_transport": "external_multi_node_distributed_Milvus_cluster",
+    "fixed_input": {
+      "split": "training",
+      "query_id": "v4_tra_search_01",
+      "query_sha256": "50ec3fdc2c6ec96f64c909d57c463756340837c3d84e8054a228923dad40d01a",
+      "source_record_sha256": "252908fbc07f24ccfcad097b0ff0d048e41776a1d7602a3a24d42ac1d43c1076",
+      "image_sha256": "173f8fb8b0d924fd34485ee618eb457982adb660183868e3694ce063968709cd",
+      "request_lock_sha256": "b7b5dc43c9b3ed5771044f4a53504da0972d430e74e6bcc98d8a1800b42f51b2",
+      "label_provenance": "synthetic_training_query_for_performance_only"
+    },
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "clip_model": "openai/clip-vit-base-patch32",
+    "vlm_max_new_tokens": 32,
+    "concurrency": [1, 2, 4],
+    "cold_requests_per_role": 1,
+    "warmup_requests_per_role": 2,
+    "steady_batches_per_concurrency_per_role": 8,
+    "steady_request_support_per_role": 56,
+    "steady_raw_row_support": 112,
+    "hardware_observed_by_service": {
+      "control_node": "spartan-gpgpu126.hpc.unimelb.edu.au",
+      "gpu": "NVIDIA A100 80GB PCIe",
+      "python": "3.11.3",
+      "torch": "2.8.0+cu128",
+      "cuda": "12.8"
+    }
+  },
+  "roles": {
+    "targeted_exploration_adapter_v4": {
+      "adapter_model_sha256": "529026d7e704bb3e2e7761a641df765f88b69f071dd970e339497aa2af108c77",
+      "service_startup_cold_ms": 46043.23824867606,
+      "first_request_cold": {
+        "success": true,
+        "http_e2e_ms": 3606.9140285253525,
+        "clip_encode_ms": 1309.944418258965,
+        "milvus_query_ms": 23.819132708013058,
+        "rerank_ms": 0.04825182259082794,
+        "vlm_inference_ms": 2240.9839630126953,
+        "peak_vram_mib": 8319.0791015625
+      },
+      "steady": {
+        "1": {"request_support": 8, "failure_rate": 0.0, "http_e2e_p50_ms": 1034.2449550516903, "http_e2e_p95_ms": 1039.81520421803, "clip_p50_ms": 7.226630579680204, "clip_p95_ms": 7.800856605172157, "milvus_p50_ms": 3.811460919678211, "milvus_p95_ms": 7.314122281968594, "rerank_p50_ms": 0.03132084384560585, "rerank_p95_ms": 0.035062432289123535, "vlm_p50_ms": 1017.2772365622222, "vlm_p95_ms": 1021.0337452590466, "queue_p50_ms": 0.0008647330105304718, "queue_p95_ms": 0.000998377799987793, "throughput_requests_per_second": 0.9664634324781406, "peak_vram_mib": 6864.3193359375},
+        "2": {"request_support": 16, "failure_rate": 0.0, "http_e2e_p50_ms": 1545.211702119559, "http_e2e_p95_ms": 2078.2786402851343, "clip_p50_ms": 7.150840945541859, "clip_p95_ms": 11.353802867233753, "milvus_p50_ms": 3.769153729081154, "milvus_p95_ms": 4.307941533625126, "rerank_p50_ms": 0.029295682907104492, "rerank_p95_ms": 0.0358065590262413, "vlm_p50_ms": 1008.2110022194684, "vlm_p95_ms": 1031.4077883958817, "queue_p50_ms": 506.41332287341356, "queue_p95_ms": 1043.1714672595263, "throughput_requests_per_second": 0.9725990963501665, "peak_vram_mib": 6872.4443359375},
+        "4": {"request_support": 32, "failure_rate": 0.0, "http_e2e_p50_ms": 2599.698565900326, "http_e2e_p95_ms": 4230.24676553905, "clip_p50_ms": 7.309779990464449, "clip_p95_ms": 11.31020113825798, "milvus_p50_ms": 3.849339671432972, "milvus_p95_ms": 4.0307920426130295, "rerank_p50_ms": 0.03040023148059845, "rerank_p95_ms": 0.031999312341213226, "vlm_p50_ms": 1035.0367054343224, "vlm_p95_ms": 1052.6149095967412, "queue_p50_ms": 1550.6839291192591, "queue_p95_ms": 3158.809187822044, "throughput_requests_per_second": 0.9544479602419437, "peak_vram_mib": 6888.6943359375}
+      }
+    },
+    "context_focus_adapter_v5": {
+      "adapter_model_sha256": "b8a1ce69bbce2be99d02a7445a7aaa1fe36a954c42fb1404e26b2244f825cac4",
+      "service_startup_cold_ms": 26026.031827554107,
+      "first_request_cold": {
+        "success": true,
+        "http_e2e_ms": 1562.095015309751,
+        "clip_encode_ms": 196.1812386289239,
+        "milvus_query_ms": 4.997637122869492,
+        "rerank_ms": 0.04608556628227234,
+        "vlm_inference_ms": 1348.7777672708035,
+        "peak_vram_mib": 8319.0791015625
+      },
+      "steady": {
+        "1": {"request_support": 8, "failure_rate": 0.0, "http_e2e_p50_ms": 1055.0024337135255, "http_e2e_p95_ms": 1059.7585942596197, "clip_p50_ms": 7.165239658206701, "clip_p95_ms": 8.638810366392136, "milvus_p50_ms": 3.653870429843664, "milvus_p95_ms": 3.8191666826605797, "rerank_p50_ms": 0.0312156043946743, "rerank_p95_ms": 0.036463141441345215, "vlm_p50_ms": 1038.5951716452837, "vlm_p95_ms": 1042.6813596859574, "queue_p50_ms": 0.000982079654932022, "queue_p95_ms": 0.0011753290891647339, "throughput_requests_per_second": 0.9473212024222721, "peak_vram_mib": 6864.3193359375},
+        "2": {"request_support": 16, "failure_rate": 0.0, "http_e2e_p50_ms": 1567.8172744810581, "http_e2e_p95_ms": 2099.4753492996097, "clip_p50_ms": 7.196575403213501, "clip_p95_ms": 11.523645371198654, "milvus_p50_ms": 3.619938623160124, "milvus_p95_ms": 3.8599828258156776, "rerank_p50_ms": 0.029915478080511093, "rerank_p95_ms": 0.03332085907459259, "vlm_p50_ms": 1026.309048756957, "vlm_p95_ms": 1042.4609053879976, "queue_p50_ms": 515.8925419673324, "queue_p95_ms": 1054.5344157144427, "throughput_requests_per_second": 0.9581153642066298, "peak_vram_mib": 6872.4443359375},
+        "4": {"request_support": 32, "failure_rate": 0.0, "http_e2e_p50_ms": 2599.101920146495, "http_e2e_p95_ms": 4171.657279133797, "clip_p50_ms": 7.276527117937803, "clip_p95_ms": 11.379281058907509, "milvus_p50_ms": 3.646442200988531, "milvus_p95_ms": 3.8584722205996513, "rerank_p50_ms": 0.030922237783670425, "rerank_p95_ms": 0.034477561712265015, "vlm_p50_ms": 1024.6546869166195, "vlm_p95_ms": 1041.505311615765, "queue_p50_ms": 1554.584833793342, "queue_p95_ms": 3117.6068019121885, "throughput_requests_per_second": 0.9610114793230448, "peak_vram_mib": 6888.6943359375}
+      }
+    }
+  },
+  "fixed_gates": {
+    "quality_gate_source_sha256": "301c510b3b54238589ada585f487ad67d313425e55a185cff74364d5833c53f9",
+    "candidate_to_baseline_concurrency_1_http_p95_ratio": 1.0191797445937403,
+    "maximum_ratio": 1.25,
+    "maximum_failure_rate": 0.02,
+    "observed_max_failure_rate": 0.0,
+    "status": "PASS"
+  },
+  "artifact_sha256": {
+    "summary_canonical": "8492ac2666176396520163a5c0d04252281324f403f5043133681184072caa8a",
+    "summary_file": "677160e202db914b84ecf171df3a29b1ae8bee42a199903c1da99febff8b8271",
+    "raw_file": "fac1750504d2a86d008dcd40e4e5ca26dedcbf0419d65ce6fd6732ba8a0bb43a",
+    "cluster_identity_file": "f9bf2e6516c2ebf7c3620390c9c3deec32ed9bf79e2fdc7b7b1f0351045e8953",
+    "chain_file": "e98ff5bbdf65164779ec17ebb906eb9cafa8ec197dbf7f83c7e1657471a59f3e"
+  },
+  "independent_verifier": {
+    "schema_version": "distributed_milvus_http_evidence_verification_v6",
+    "status": "PASS",
+    "node_support": 2,
+    "steady_raw_row_support": 112,
+    "fixed_gate_status": "PASS",
+    "fresh_test_used": false,
+    "development_or_final_consumed": false
+  },
+  "prior_failed_attempt": {
+    "slurm_job_id": "30004826",
+    "status": "TIMEOUT_NO_HTTP_REQUEST_DENOMINATOR",
+    "cause": "milvus_auto_advertised_an_inter_node_unroutable_interface",
+    "superseded_or_overwritten": false
+  }
+}

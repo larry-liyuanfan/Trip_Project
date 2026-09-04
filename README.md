@@ -97,8 +97,12 @@ experiments/  保留的机器可读历史证据
   `experiments/no_result_stress_evidence_v8.json`
 - v4 查询/正式索引字节隔离复核：`configs/evaluation/retrieval_query_leakage_v4.json`、
   `experiments/retrieval_query_leakage_evidence_v4.json`
-- v9 多主体专项预注册（结果尚未完成）：`configs/evaluation/automated_evidence_v9.json`、
-  `configs/evaluation/evidence_enhancement/semantic_robustness_pool_lock_v9.json`
+- v9 多主体专项负实验：`configs/evaluation/automated_evidence_v9.json`、
+  `configs/evaluation/evidence_enhancement/semantic_robustness_pool_lock_v9.json`、
+  `experiments/semantic_robustness_evidence_v9.json`
+- v6 双节点 distributed Milvus HTTP 证据：
+  `configs/evaluation/automated_evidence_v6_distributed.json`、
+  `experiments/distributed_milvus_http_evidence_v6.json`
 - 报告：`reports/development/reviews/search_algorithm_evidence_enhancement_report.md`
 
 该轨道不修改正式 v1。历史 Milvus `Recall@10=1.0` 只表示 ANN 对精确余弦 Top10 的保真度，
@@ -124,9 +128,16 @@ query-vs-index byte/source collision 均为 0。该结果只补齐数据隔离�
 17/20，说明既有 guard 通过新 synthetic 压力门，但新方案没有相对收益。首次两节点 Milvus
 运行因自动通告了不可跨节点路由的网卡地址而超时，没有 HTTP 请求分母；该失败不被写成服务
 性能结果。全部新增质量证据仍为 synthetic/weak，human support=0，Fresh Test 继续冻结。
-v9 已固定以 v7 Adapter 为基线，在全新 development 上只改变多主体反例训练构成；质量门槛
-不下调，结果完成前不形成任何提升结论。分布式 Milvus 网络修复和 v9 训练均在 Iris
-`yzhang3504` 的独立 Spartan 作业中等待，且 stdout/stderr 已因 home 配额满而重定向到项目盘。
+v9 已固定以 v7 Adapter 为基线，在全新 development 每角色 132 条上只改变多主体反例训练
+构成。候选的 objective 提升 .01327，业态/价位/设施和 hallucination 有正向变化，但 style
+F1 从 1.0 降至 .8571，回退 .1429 超过预锁 .05，故整体作为负实验；两角色在新的显式
+multi-subject slice 都是 24/24，不能声称相对提升，且串行性能阶段未运行。
+
+分布式 repair-1 job `30042086` 则在 Iris `yzhang3504` 的两个 A100 节点上完成：五个跨节点
+probe、1000 向量 collection、112 条 steady HTTP raw rows 和独立 verifier 均通过。v5/v4
+c=1 HTTP P95 比值为 1.019≤1.25；两个角色各 56 条 steady 请求、共 112 条均零失败；v5 c=1
+HTTP P50/P95 为 1055.00/1059.76 ms，其中 Milvus 查询 P50/P95 仅 3.65/3.82 ms。该结果明确
+证明阶段计时与双节点运行完整性，但固定输入仍是 synthetic training request，不能写成生产 SLA。
 
 ## 环境
 

@@ -15,9 +15,11 @@
 `../experiments/search_algorithm_evidence_v4.json` 与
 `../experiments/context_focus_evidence_v5.json`、
 `../experiments/semantic_robustness_evidence_v7.json` 和
-`../experiments/no_result_stress_evidence_v8.json`，以及只证明字节/来源隔离的
+`../experiments/semantic_robustness_evidence_v9.json`、
+`../experiments/no_result_stress_evidence_v8.json`、
+`../experiments/distributed_milvus_http_evidence_v6.json`，以及只证明字节/来源隔离的
 `../experiments/retrieval_query_leakage_evidence_v4.json`。质量证据均为 synthetic/weak，
 human support=0；v7 是门槛失败的负实验，v8 通过压力门但新候选与固定基线持平。
-v9 多主体专项已预注册但尚无结果。
+v9 同样是门槛失败的负实验；双节点 Milvus HTTP 性能证据通过固定探索门，但不支持生产 SLA。
 这些证据不覆盖正式 release 或冻结 Fresh Test。
 

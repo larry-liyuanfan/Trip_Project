@@ -1,0 +1,162 @@
+{
+  "schema_version": "semantic_robustness_evidence_v9",
+  "status": "NEGATIVE_EXPERIMENT_DEVELOPMENT_GATE_FAILED",
+  "date": "2026-09-04",
+  "evidence_class": "deterministic_synthetic_programmatic_development_only_not_human_ground_truth",
+  "gate_class": "development_only_exploration_not_release_or_production_gate",
+  "human_annotation_support": 0,
+  "fresh_test_used": false,
+  "final_defined_or_consumed": false,
+  "formal_release_changed": false,
+  "formal_release_id": "trip-qwen3-vl-8b-week8-final-v1",
+  "source": {
+    "branch": "codex/trip-relevance-eval",
+    "implementation_commit": "ee7b9cb573b292b128ab435d5e6a606844b98296",
+    "source_snapshot_sha256": "a607226b02a19bf68302aeb17dffe4c11d6d85ce4eb22edbbf452ee0240bcc20",
+    "source_manifest_file_sha256": "f0e3cb091c074fea7f7aef4650288c20eea18bcea1f389cf1c9c17ec3b831686",
+    "source_file_support": 687,
+    "configuration_sha256": "f98ec0af2ff6119991dc033e5ae4cd10ea9713102b80e47c940db21c0b369901",
+    "pool_lock_canonical_sha256": "e79b9463a079f3e057843348932058b805c2839c3528708203e5a439641f3d89",
+    "pool_lock_worktree_file_sha256": "6dcfbe2c5a58072f00be7b7cb89fc25b20c37bd842a00a089334e2bf099a5cbd",
+    "development_manifest_canonical_sha256": "6dc28f6517d58c43c739cf76fc99edacf763c6295b14e7bcb05a2fb3784dbad0",
+    "development_manifest_file_sha256": "c9f6e8a2b81ddce447973b34dfd685be1340658ab6565e99d2cb23440dabab84",
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "prompt_sha256": "e14a7b2374a0fa099dc87e657a487a0507b6c7cba87812d668d8f231439d817d",
+    "generation_config_sha256": "c8123ee8c9e909ac07e0cb6dd5b20df8d2a6f99a3e33d3039f8a9a7f695dd2df"
+  },
+  "isolation": {
+    "training_support": {"total": 640, "product": 384, "dialogue": 256},
+    "development_support_per_role": {"total": 132, "product": 84, "dialogue": 48},
+    "development_slice_support_per_role": {
+      "insufficient_visual_evidence": 36,
+      "multi_subject_conflict": 24,
+      "unknown_field_opportunities": 192
+    },
+    "training_vs_development_overlap": {
+      "source_id": 0,
+      "image_sha256": 0,
+      "sample_id": 0,
+      "dialogue_text_sha256": 0
+    },
+    "v9_vs_prior_v5_training_overlap": {
+      "compared_prior_row_support": 528,
+      "source_id": 0,
+      "image_sha256": 0,
+      "sample_id": 0,
+      "dialogue_text_sha256": 0
+    },
+    "v9_vs_prior_v7_training_and_development_overlap": {
+      "compared_prior_row_support": 608,
+      "source_id": 0,
+      "image_sha256": 0,
+      "sample_id": 0,
+      "dialogue_text_sha256": 0
+    },
+    "status": "PASS"
+  },
+  "training": {
+    "primary_factor_changed_from_v7": "multi_subject_counterexample_training_composition_and_support_only",
+    "prompt_generation_base_revision_optimizer_learning_rate_epochs_and_seed_changed": false,
+    "slurm_job_id": "30044630",
+    "slurm_state": "COMPLETED",
+    "slurm_exit_code": "0:0",
+    "slurm_elapsed": "00:09:07",
+    "hardware": {"node": "spartan-gpgpu006", "gpu": "NVIDIA L40S", "gpu_count": 1, "cpu": 8, "memory_gib": 64},
+    "initial_adapter_model_sha256": "a06742ebf6344567650e3ae95e67c56116db212d07eeb5eb5c31fd6ae519b5b1",
+    "candidate_adapter_model_sha256": "6332a2baa03d88751c022cb6efdd9dbfb21e6f88f32f31f4d9cb775a0bf38f17",
+    "adapter_config_sha256": "8679f84e2f3b47c15e2c5909747034db050a79e409c8a013bb4c1edd7dd0c60",
+    "training_manifest_file_sha256": "81df931cd935cef38a79e9cba47d8a38e4bffecf2719d5ddce0d2d2b02b58f87",
+    "support": 640,
+    "product_support": 384,
+    "dialogue_support": 256,
+    "epochs": 1,
+    "global_steps": 40,
+    "train_loss": 0.0029509679399779996,
+    "runtime_seconds": 145.76968121528625,
+    "samples_per_second": 4.411,
+    "peak_gpu_memory_allocated_bytes": 11032832512,
+    "peak_gpu_memory_reserved_bytes": 13591642112,
+    "trainable_parameters": 15622144,
+    "total_parameters": 5024110832,
+    "development_or_final_opened_during_training": false,
+    "run_summary_file_sha256": "c6020ee17e6cd87b4366459fa1f8df7a3c3ff92a6cbeb0c8cbeb5d2636d814e7"
+  },
+  "development": {
+    "shared_support_per_role": 132,
+    "product_support_per_role": 84,
+    "dialogue_support_per_role": 48,
+    "unknown_field_opportunity_support_per_role": 192,
+    "insufficient_visual_evidence_support_per_role": 36,
+    "multi_subject_conflict_support_per_role": 24,
+    "baseline_v7": {
+      "adapter_sha256": "a06742ebf6344567650e3ae95e67c56116db212d07eeb5eb5c31fd6ae519b5b1",
+      "field_metrics": {
+        "business_category": {"precision": 1.0, "recall": 0.9791666666666666, "f1": 0.9894736842105264, "tp": 47, "fp": 0, "fn": 1, "evaluable_reference_support": 48, "unknown_reference_support": 36},
+        "style_tags": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "tp": 60, "fp": 0, "fn": 0, "evaluable_reference_support": 36, "unknown_reference_support": 48},
+        "visible_facilities": {"precision": 0.9074074074074074, "recall": 0.9074074074074074, "f1": 0.9074074074074074, "tp": 49, "fp": 5, "fn": 5, "evaluable_reference_support": 36, "unknown_reference_support": 48},
+        "price_range": {"precision": 0.9130434782608695, "recall": 0.875, "f1": 0.8936170212765957, "tp": 21, "fp": 2, "fn": 3, "evaluable_reference_support": 24, "unknown_reference_support": 60}
+      },
+      "supported_field_exact_match": 0.8928571428571429,
+      "unknown_field_abstention_accuracy": 0.9895833333333334,
+      "unsupported_hallucination_rate": 0.010416666666666666,
+      "first_attempt_json_compliance": 1.0,
+      "correction_trigger_rate": 0.0,
+      "insufficient_evidence_abstention_accuracy": 1.0,
+      "multi_subject_abstention_accuracy": 1.0,
+      "dialogue": {"context_recall": 1.0, "state_value_correct": 0.875, "task_key_correct": 1.0, "value_correct": 1.0, "first_turn_routing_correct": 1.0},
+      "selection_objective": 0.9618917991639856
+    },
+    "candidate_v9": {
+      "adapter_sha256": "6332a2baa03d88751c022cb6efdd9dbfb21e6f88f32f31f4d9cb775a0bf38f17",
+      "field_metrics": {
+        "business_category": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "tp": 48, "fp": 0, "fn": 0, "evaluable_reference_support": 48, "unknown_reference_support": 36},
+        "style_tags": {"precision": 0.864406779661017, "recall": 0.85, "f1": 0.8571428571428572, "tp": 51, "fp": 8, "fn": 9, "evaluable_reference_support": 36, "unknown_reference_support": 48},
+        "visible_facilities": {"precision": 0.9814814814814815, "recall": 0.9814814814814815, "f1": 0.9814814814814815, "tp": 53, "fp": 1, "fn": 1, "evaluable_reference_support": 36, "unknown_reference_support": 48},
+        "price_range": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "tp": 24, "fp": 0, "fn": 0, "evaluable_reference_support": 24, "unknown_reference_support": 60}
+      },
+      "supported_field_exact_match": 0.8928571428571429,
+      "unknown_field_abstention_accuracy": 1.0,
+      "unsupported_hallucination_rate": 0.0,
+      "first_attempt_json_compliance": 1.0,
+      "correction_trigger_rate": 0.0,
+      "insufficient_evidence_abstention_accuracy": 1.0,
+      "multi_subject_abstention_accuracy": 1.0,
+      "dialogue": {"context_recall": 1.0, "state_value_correct": 1.0, "task_key_correct": 1.0, "value_correct": 1.0, "first_turn_routing_correct": 1.0},
+      "selection_objective": 0.9751653439153438
+    },
+    "objective_improvement": 0.013273544751358224,
+    "fixed_gate_status": "FAIL",
+    "failed_checks": ["no_material_field_regression_style_tags"],
+    "style_f1_regression": 0.1428571428571428,
+    "maximum_allowed_per_metric_regression": 0.05,
+    "positive_observations_do_not_override_failed_gate": [
+      "business_category_f1_0.9894736842_to_1.0",
+      "visible_facilities_f1_0.9074074074_to_0.9814814815",
+      "price_range_f1_0.8936170213_to_1.0",
+      "unsupported_hallucination_2_of_192_to_0_of_192",
+      "dialogue_state_value_42_of_48_to_48_of_48"
+    ],
+    "no_relative_multi_subject_gain": "both_baseline_and_candidate_are_24_of_24_on_the_new_explicit_multi_subject_slice"
+  },
+  "service_performance": {
+    "status": "NOT_RUN_DEVELOPMENT_GATE_FAILED",
+    "reason": "serial_quality_gate_failed_before_performance"
+  },
+  "artifact_sha256": {
+    "selection_file": "7ec55a6bb79b063615befe5148dc3cac20c5348244ebbc6a4bd3ce1bd3d2ee1c",
+    "raw_result_canonical": "d54faa76145ff6c80859909bfca81638600c6f988d2383a837959488a6727bb6",
+    "baseline_raw_file": "e07ea92ff3e82662a2e13a533a43e852a5b2fb69b477f602e5cd15c32badb972",
+    "candidate_raw_file": "fa89360fb8ab8cf311954969c62b1fd0e24b85899b032190c18dbac9dae83792",
+    "chain_file": "2ad63326c771d89af1f178d9588ef4a824fba1656781a8ed77a665f9791b2f6f"
+  },
+  "independent_verifier": {
+    "schema_version": "semantic_robustness_evidence_verification_v9",
+    "status": "PASS",
+    "raw_result_support": 264,
+    "development_gate_status": "FAIL",
+    "service_performance_status": "NOT_RUN_DEVELOPMENT_GATE_FAILED",
+    "fresh_test_used": false,
+    "final_defined_or_consumed": false
+  }
+}

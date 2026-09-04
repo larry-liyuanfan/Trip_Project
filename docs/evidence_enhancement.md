@@ -85,8 +85,14 @@ Adapter SHA `a06742eb…b5b1` 为固定基线，保持 Qwen revision、Prompt、
 学习率、epoch、seed、质量阈值与 objective 不变，只增加并强化 multi-subject counterexample
 training 构成。training=640（商品 384、对话 256），全新 development=132（商品 84、对话
 48，其中 multi-subject=24）；两者互相隔离，并同时与 v5 training 528 条及 v7 training+
-development 608 条在 source/image/sample/dialogue-text 身份上零重叠。job `30044630` 尚未完成；
-只有 development 固定门通过才允许运行单机 HTTP c=1/2/4，因此当前不能写成正向结果。
+development 608 条在 source/image/sample/dialogue-text 身份上零重叠。
+
+job `30044630` 已完成。候选相对 v7 baseline 的 objective 从 .96189 提至 .97517，业态 F1
+.9895→1、价位 .8936→1、设施 .9074→.9815，unsupported hallucination 2/192→0/192，
+对话 state value 42/48→48/48；但 style F1 由 1.0 降至 .8571，回退 .1429 超过预锁
+.05，固定 development gate=`FAIL`。新显式 multi-subject slice 上两角色均为 24/24，因而没有
+可归因的相对提升。程序按串行门控未运行候选单机 HTTP，也没有 final。完整分母与 SHA 见
+`experiments/semantic_robustness_evidence_v9.json`；正向观察不能覆盖整体负实验结论。
 
 v6 首次双节点 A100 / distributed Milvus 作业 `30004826` 为工程负实验：两个节点及五类
 Milvus 角色均启动，但 Milvus 自动选择并通告了控制节点上一张不可跨节点路由的接口；worker
@@ -94,9 +100,16 @@ Milvus 角色均启动，但 Milvus 自动选择并通告了控制节点上一�
 产生 `summary.json`、`raw.jsonl` 或任何 HTTP 请求，所以 c=1/2/4 仍是 `NOT_RUN`，不能从
 cluster identity 的 `READY` 或 61.7 秒启动观测推导性能。修复版显式使用 Slurm 主机名解析的
 IPv4，并在写入 `READY` 前执行五个双向跨节点 TCP probe；它必须写入新 run，旧失败不覆盖。
-repair-1 job `30042086` 尚未完成；在独立 verifier 产生完整 HTTP 分母前，distributed 结论仍为
-`NOT_RUN`。Iris home 配额已满，两个 pending GPU 作业的 Slurm stdout/stderr 已原地改至独立
-项目盘；该日志位置变更不改变实验参数。
+repair-1 job `30042086` 在两个 A100 节点上 `COMPLETED 0:0`。五个跨节点 probe 全部通过，
+Milvus 2.6.18 的 mixcoord/proxy 在 control，querynode/streamingnode/datanode 在 worker；
+cluster cold startup=65.06 s，1000 向量 collection build/load=15.67 s。固定 synthetic
+training 请求上，v4/v5 每角色 1 cold、2 warmup，c=1/2/4 各 8 batch，steady 分母每角色
+8/16/32、共 56（raw rows=112），失败率均为 0。v5/v4 c=1 HTTP P95 比值为
+1.019≤1.25，固定性能门通过。v5 c=1 steady 的 HTTP P50/P95 为 1055.00/1059.76 ms，
+CLIP 为 7.17/8.64 ms、Milvus 为 3.65/3.82 ms、rerank 为 .031/.036 ms、VLM 为
+1038.60/1042.68 ms。独立 verifier=`PASS`，机器摘要见
+`experiments/distributed_milvus_http_evidence_v6.json`。这补齐了双节点实跑与分阶段计时，
+但仍不支持生产 SLA，也不把 3.82 ms 向量阶段写成约 1.06 s 的端到端延迟。
 
 ## 自动化 v2 / weak v3 预运行锁
 
