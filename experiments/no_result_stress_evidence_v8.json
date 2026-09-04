@@ -1,0 +1,131 @@
+{
+  "schema_version": "no_result_stress_evidence_v8",
+  "status": "COMPLETED_PASSING_NEUTRAL_EXPERIMENT",
+  "date": "2026-09-04",
+  "evidence_class": "synthetic_calibration_and_one_time_validation_not_human_ground_truth",
+  "gate_class": "synthetic_one_time_validation_not_release_or_production_gate",
+  "human_annotation_support": 0,
+  "fresh_test_used": false,
+  "final_defined_or_consumed": false,
+  "formal_release_changed": false,
+  "formal_release_id": "trip-qwen3-vl-8b-week8-final-v1",
+  "source": {
+    "branch": "codex/trip-relevance-eval",
+    "implementation_commit": "2acf4018aeba3cc717edcac8d2d7836ae15fe1de",
+    "source_snapshot_sha256": "402f346e0e431e6b22247025c57be33967dd14cf1c1b1cae7fa03a85470bf5b6",
+    "source_manifest_file_sha256": "ef4911fce7231e0c6c6eb14743ef3143c94103371d366b633a5e980bf8316d52",
+    "configuration_file_sha256": "76068d3a9fc6888bf64c2d54da50d6d106f1020b5db74a49b03d793f967ecf35",
+    "pool_lock_file_sha256": "0c426c9f7f37d8abcb46d59dd029e29568832382305c3c847000896e1ec2be88",
+    "pool_lock_canonical_sha256": "297cc152adf934fae1a5f1625e38849c3aebcfa2cdf2b44675a8653d93375d24",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "embedding_model": "openai/clip-vit-base-patch32",
+    "index_support": 1000
+  },
+  "isolation": {
+    "calibration_support": 40,
+    "one_time_validation_support": 40,
+    "prior_v4_training_support_checked": 24,
+    "calibration_validation_and_prior_training_source_image_query_overlap": 0,
+    "source_isolation": "PASS_PUBLIC_OR_DETERMINISTIC_SYNTHETIC_NOT_YELP",
+    "index_query_byte_collision": "NOT_RUN_MISSING_INDEX_IMAGE_SHA",
+    "status": "PASS"
+  },
+  "execution": {
+    "slurm_job_id": "30005527",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:00:11",
+    "hardware": {"gpu": "NVIDIA L40S", "gpu_count": 1, "cpu_count": 8, "memory_gib": 48},
+    "selected_configuration": {"margin_threshold": 0.0, "business_similarity_threshold": 0.0},
+    "selection_used_validation": false,
+    "validation_consumed_once": true
+  },
+  "denominators": {
+    "validation_queries": 40,
+    "ranking_queries_for_macro_recall_mrr_ndcg": 20,
+    "no_result_queries": 20,
+    "business_positive_queries": 20,
+    "hard_filter_queries": 16,
+    "filter_conflict_queries": 8,
+    "city_business_facility_price_queries": 8,
+    "visual_similar_business_irrelevant_queries": 12
+  },
+  "validation_metrics": {
+    "dual_centroid_guard_candidate": {
+      "recall_at_5": 0.03937709412123058,
+      "recall_at_10": 0.045590922936338714,
+      "mrr_at_10": 0.7,
+      "ndcg_at_10": 0.9,
+      "overall_no_result_accuracy": {"correct": 35, "support": 40, "value": 0.875},
+      "no_result_slice_accuracy": {"correct": 17, "support": 20, "value": 0.85},
+      "business_positive_acceptance": {"correct": 18, "support": 20, "value": 0.9},
+      "filter_correctness": {"correct": 40, "support": 40, "value": 1.0},
+      "failure_rate": {"failures": 0, "support": 40, "value": 0.0}
+    },
+    "fixed_v4_margin_guard_baseline": {
+      "recall_at_5": 0.03937709412123058,
+      "recall_at_10": 0.045590922936338714,
+      "mrr_at_10": 0.7,
+      "ndcg_at_10": 0.9,
+      "overall_no_result_accuracy": {"correct": 35, "support": 40, "value": 0.875},
+      "no_result_slice_accuracy": {"correct": 17, "support": 20, "value": 0.85},
+      "business_positive_acceptance": {"correct": 18, "support": 20, "value": 0.9},
+      "filter_correctness": {"correct": 40, "support": 40, "value": 1.0},
+      "failure_rate": {"failures": 0, "support": 40, "value": 0.0}
+    },
+    "hard_filter_clip_ablation": {
+      "recall_at_5": 0.04141791044776119,
+      "recall_at_10": 0.04763173926286933,
+      "mrr_at_10": 0.8,
+      "ndcg_at_10": 1.0,
+      "overall_no_result_accuracy": {"correct": 28, "support": 40, "value": 0.7},
+      "no_result_slice_accuracy": {"correct": 8, "support": 20, "value": 0.4},
+      "business_positive_acceptance": {"correct": 20, "support": 20, "value": 1.0},
+      "filter_correctness": {"correct": 40, "support": 40, "value": 1.0},
+      "failure_rate": {"failures": 0, "support": 40, "value": 0.0}
+    },
+    "slice_metrics_for_candidate": {
+      "city_business_facility_price": {"ndcg_at_10": 1.0, "no_result_accuracy": 1.0, "support": 8},
+      "filter_conflict": {"filter_correctness": 1.0, "no_result_accuracy": 1.0, "support": 8},
+      "visual_similar_business_irrelevant": {"no_result_accuracy": 0.75, "support": 12}
+    },
+    "metric_definition": "Recall@K, MRR@10, and nDCG@10 are macro averages over 20 ranking queries; relevance grades >=2 are relevant. No-result and acceptance metrics use the explicitly listed query denominators."
+  },
+  "fixed_gate": {
+    "status": "PASS",
+    "baseline": "v4_margin_guard",
+    "candidate": "dual_centroid_guard",
+    "all_predeclared_checks_passed": true,
+    "quality_disposition": "PASSING_BUT_NEUTRAL_TO_FIXED_BASELINE",
+    "candidate_minus_baseline": {
+      "ndcg_at_10": 0.0,
+      "no_result_slice_accuracy": 0.0,
+      "business_positive_acceptance": 0.0
+    }
+  },
+  "ann_fidelity": {
+    "status": "NOT_MEASURED_NO_RESULT_CLASSIFIER_STRESS",
+    "business_relevance_metric": false
+  },
+  "artifact_sha256": {
+    "summary_file": "350f42569a98647f7aae09d0c0ec78590f64c600475097a11981f0f27f783af2",
+    "summary_canonical": "50efa66f8b2a2f9682a0d431f98d8dd00cc9ec0d6d7fd8feeff8a83af1578bed",
+    "selection_file": "dfdeec4be05c64dab947a2956e0c9dfbdc228dfa0f1110d6350c03e2cd6056db",
+    "validation_consumption_marker_file": "3f1d043e5b7421ee7fa7d75966cfc45eaf21de702bc9bc63db06316117580785",
+    "validation_results_file": "8a126fc15ba06c14cccabbe64f243d8383ba17b71ad3ee968a82899eca40edc7",
+    "validation_result_canonical": "70460800057779c60704f8d0465f0b928dc9ad7aede3459889dc5dbba4c69bfd",
+    "validation_metrics_file": "9c4f1aefe993f90aac52c85c0c6e0ac308a01d27f0db14feb2f759d60a60261c"
+  },
+  "independent_verification": {
+    "status": "PASS_ARTIFACT_INTEGRITY_AND_FIXED_GATE_RECOMPUTATION",
+    "verifier_commit": "287283e80735aab2424c255f9298212812e181bb",
+    "verifier_file_sha256": "5600acc2e2feee43b8a64ca384c6184f4ca1bb3adf08a036f48cd7dc20ca5942"
+  },
+  "fact_boundaries": [
+    "Calibration and validation labels are synthetic; human annotation support is zero.",
+    "The independent one-time validation gate passed, but the new dual-centroid candidate exactly tied the fixed v4 margin-guard baseline on the gate metrics.",
+    "The experiment validates the existing guard on a new synthetic stress set; it does not establish an algorithmic improvement or human business relevance.",
+    "ANN-vs-exact fidelity was not measured in this classifier stress run.",
+    "No final split or Fresh Test was opened, and the formal release remains unchanged."
+  ]
+}

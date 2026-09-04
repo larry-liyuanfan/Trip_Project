@@ -1,10 +1,12 @@
 # 搜索算法、VLM/SFT 与端到端证据增强报告
 
-日期：2026-09-03。当前结论：v4 synthetic 搜索 development/final gate 通过；v4 VLM
+日期：2026-09-04。当前结论：v4 synthetic 搜索 development/final gate 通过；v4 VLM
 因对话 context recall 未达 0.6、且相对 checkpoint-87 的真实 HTTP 延迟比为 2.168 而保留
 为负实验。随后预注册的 v5 上下文专项在新 development 上通过质量门和相对 v4 的延迟门，
 并只消费一次独立 synthetic final。正式 release 不变、Fresh Test 120 未读取/未重跑，
-human support=0。后文 v2/v3/v1 均为历史证据，不得覆盖本节。
+human support=0。此后 v7 鲁棒性候选因多主体门槛失败保留为负实验；v8 no-result 压力门
+通过但新方法与固定基线持平；首次双节点 Milvus 因网卡通告错误超时且没有 HTTP 分母。
+后文 v2/v3/v1 均为历史证据，不得覆盖本节。
 
 ## v4 当前最新结果
 
@@ -150,6 +152,76 @@ hallucination 与 correction trigger 均为 0。final raw canonical SHA 为
 这组满分只能标作 `synthetic exploration`：没有人工标注，不修改正式 adapter/release，
 也没有读取冻结 Fresh Test。服务是单节点 standalone Milvus，不是 multi-node distributed
 集群，不支持生产 SLA。
+
+## v7 语义鲁棒性（负实验）
+
+Iris job `30005386` 在一张 L40S、8 CPU、64 GiB 上 `COMPLETED 0:0`，耗时 6 分 56 秒。
+实现提交 `84c9b500b303e76c7338d463999a1581df94ffbb`，source snapshot 为
+`5f7797423ebd6f911625c06b0e4dae4058c60b2621bdd0221520ee18e5c02e91`。训练从 v5 adapter
+继续，保持模型 revision、Prompt 和 generation config 不变，只改变 robustness synthetic
+training 数据：512 条（商品/对话各 256）、32 step、112.36 秒；候选 adapter SHA 为
+`a06742ebf6344567650e3ae95e67c56116db212d07eeb5eb5c31fd6ae519b5b1`，峰值 allocated/
+reserved 显存为 10.27/12.66 GiB。
+
+新的 development 与 v5 development/final 不重叠；每角色 96 条（商品/对话各 48），
+unknown opportunity=96、证据不足=16、多主体冲突=8。以下 P/R/F1 分母依次为业态 32、
+风格 24、设施 24、价位 16：
+
+| 角色 | category P/R/F1 | style P/R/F1 | facility P/R/F1 | price P/R/F1 |
+| --- | --- | --- | --- | --- |
+| 固定 v5 baseline | .718/.875/.789 | .577/.750/.652 | .681/.889/.771 | .552/1/.711 |
+| v7 candidate | .914/1/.955 | .949/.925/.937 | .943/.917/.930 | .889/1/.941 |
+
+| 角色 | exact | unknown abstain | unsupported hallucination | evidence-low | multi-subject |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 固定 v5 baseline | 33/48 | 49/96 | 47/96 | 7/16 | 0/8 |
+| v7 candidate | 43/48 | 91/96 | 5/96 | 13/16 | 5/8 |
+
+两角色 first-attempt JSON 均为 96/96，correction trigger 均为 0/96。候选对话 context、
+state value、task key、task value、first route 分别为 48/48、43/48、48/48、48/48、
+48/48；固定 v5 baseline 为 42/48、18/48、30/48、46/48、48/48。选择目标由 .7311
+提升到 .9548，但预锁 multi-subject 门槛要求至少 6/8，实际只有 5/8，因此 gate=`FAIL`。
+程序按约定没有运行候选 HTTP c=1/2/4，也没有 final；正向变化不能越过失败门包装成胜出。
+独立 verifier 只确认产物/SHA/指标重算完整，不把质量 gate 改为通过。机器证据为
+`experiments/semantic_robustness_evidence_v7.json`（文件 SHA-256
+`dfcdd0633bed56fd528309ce2bb8118ca6dd4a3c1c0ce0b51c0af09a5dbba2e1`）。
+
+## v8 no-result 一次性压力验证（通过但中性）
+
+Iris job `30005527` 在一张 L40S、8 CPU、48 GiB 上 `COMPLETED 0:0`。40 条 calibration
+只用于选择阈值；写入 exclusive marker 后才读取 40 条 validation（ranking=20、no-result=20、
+business-positive=20）。两者及 v4 training 24 条在 source/image/query identity 上零重叠。
+全部标签仍为 synthetic，human support=0。
+
+| 方法（validation） | R@5 | R@10 | MRR@10 | nDCG@10 | no-result | positive accept | filter |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| hard-filter CLIP | .04142 | .04763 | .8 | 1.0 | 8/20 | 20/20 | 40/40 |
+| 固定 v4 margin guard | .03938 | .04559 | .7 | .9 | 17/20 | 18/20 | 40/40 |
+| 新 dual-centroid guard | .03938 | .04559 | .7 | .9 | 17/20 | 18/20 | 40/40 |
+
+新候选通过 no-result≥.75、positive acceptance≥.9、nDCG≥.75 等预锁门槛，但与固定 v4
+baseline 的三个 gate 指标增益均为 0。因此正结论是“既有 v4 guard 在新的一次性 synthetic
+压力集上通过”；负/中性结论是“dual-centroid 未带来改进”。该实验未测 ANN-vs-exact，
+不得补写 ANN 指标。机器证据为 `experiments/no_result_stress_evidence_v8.json`（文件 SHA-256
+`5689fbf4a3c1e7e06171655e18479ceff75967b24edb34a7fcd1875d97b5148a`）。
+
+## v6 双节点 Milvus 首次运行（工程负实验）
+
+job `30004826` 固定请求两台 A100 节点、8 CPU、128 GiB 总内存，最终状态
+`TIMEOUT 0:0`，耗时 30 分 17 秒。source snapshot
+`1f6d6aabadef3bdf209faa3682fd6c6491f3ec37c65f0ffde52a81fbe4282a9f` 已通过逐文件验证；
+etcd、MinIO、mixcoord/proxy、querynode/streamingnode、datanode 都启动并注册。
+
+失败原因不是 VLM 延迟：控制节点 Milvus 自动通告了与 Slurm 主机名不同、不可跨节点路由的
+接口地址。worker 对 mixcoord gRPC 持续 `i/o timeout`，客户端 `create_collection` 阻塞直到
+Slurm 时限取消。该 run 只有 cluster identity 和服务日志，没有 summary/raw/chain，也没有
+任何 HTTP 请求；所以 cold、c=1/2/4、吞吐、失败率均为 `NOT_RUN`，不能把 identity 中的
+61.7 秒启动观测或旧 2.41 ms vector query 写成端到端性能。
+
+旧 run 保持不可变。修复提交 `8d27e48b8c28470b16b5d51ca3377dd914737a6a` 显式绑定
+DNS-resolved inter-node IPv4，并要求 worker→mixcoord/proxy 与 control→querynode/
+streamingnode/datanode 五个 probe 全部通过后才允许写 `READY`。修复运行必须使用新的 source
+snapshot 和 run 目录；结果未完成前，分布式 HTTP 性能仍为 `NOT_RUN`。
 
 ## 自动化 v2 / weak v3 最终补充
 
@@ -523,42 +595,48 @@ sample_id 与 dataset 完全一致。原 metrics 的商品 composite 为 `0.7806
 support=0，状态为 `NOT_SCORABLE_NO_PRESERVED_MULTI_SUBJECT_LABEL`。本审计不从普通图片或
 模型输出反推多主体真值。
 
-以下为截至 v5 的补齐情况与仍存边界；v2 的旧失败状态仅是历史负实验：
+以下为截至 v8 的补齐情况与仍存边界；v2 的旧失败状态仅是历史负实验：
 
 - **仍未完成**：人工相关性双人标注与仲裁，human support 仍为 0；
 - **已自动化补齐**：通过 Git 外 formal overlay 对 1000/1000 索引原图原位哈希，完成查询图与
   索引图的 byte/source collision audit；正式 retrieval 压缩包本身仍不包含原图；
-- **已补齐但仍是 weak/synthetic**：v4/v5 对价位、unknown、多主体、证据不足与对话状态提供
-  新开发/最终分母；不能替代人工视觉真值，历史 Fresh Test 仍没有可评分的多主体冲突标签；
-- **synthetic 已补齐**：v4 在三向隔离的 24 条一次性 final 上通过 no-result 与 hard-filter
-  门槛；v2 的 no-result 4/8 失败继续作为负实验，两者都不能用于正式人工相关性晋级；
+- **已补齐但仍是 weak/synthetic**：v4/v5/v7 对价位、unknown、多主体、证据不足与对话状态
+  提供新分母；v7 将多主体冲突从 0/8 提至 5/8，但未过预锁 6/8 门槛，仍是负实验；
+- **synthetic 已补齐**：v4 在三向隔离的 24 条一次性 final 上通过 no-result 与 hard-filter；
+  v8 又在 40 条一次性 validation 上得到 17/20 no-result，但新 dual-centroid 与固定 v4 baseline
+  持平；v2 的 no-result 4/8 失败继续作为历史负实验；
 - **部分补齐**：已完成真实 loopback HTTP、外部单节点 Milvus 及 concurrency=1/2/4 基准；
-  multi-node distributed Milvus 仍为 `NOT_RUN`，不支持生产 SLA；
+  首次 multi-node distributed Milvus 因接口通告错误超时且没有 HTTP 分母，修复运行未完成前
+  仍为 `NOT_RUN`，不支持生产 SLA；
 - **保持冻结**：没有新的未消费人工/真实用户最终集；Fresh Test 120 未读取、未调参、未重跑。
 
 ## 决策与可复现入口
 
-当前机器证据以 `experiments/search_algorithm_evidence_v4.json` 和
-`experiments/context_focus_evidence_v5.json` 为最新入口；v1/v2 文件只保留为历史开发证据。
+当前机器证据以 `experiments/search_algorithm_evidence_v4.json`、
+`experiments/context_focus_evidence_v5.json`、`experiments/semantic_robustness_evidence_v7.json`
+和 `experiments/no_result_stress_evidence_v8.json` 为最新入口；v1/v2 文件只保留为历史开发证据。
 固定配置和预运行数据锁分别位于 `configs/evaluation/automated_evidence_v4.json`、
 `configs/evaluation/automated_evidence_v5.json` 与 `configs/evaluation/evidence_enhancement/`；
 协议与运行命令见 `docs/evidence_enhancement.md`。
 
 最终决策：v4 hard-filter + business guard 在新 synthetic final 上形成正向排序、过滤与
 no-result 证据；v5 上下文专项依次通过新 development 质量门和同机 HTTP 延迟门，再一次性
-通过 synthetic final。v4 context/延迟失败和 v2 no-result 失败均保留为负实验。由于没有人工
-标签或真实用户最终集，且分布式服务未测，仍不修改正式 release、Prompt、adapter、阈值或
-Fresh Test 状态。
+通过 synthetic final。v7 虽有显著开发改善但未过多主体门槛；v8 通过新压力门却与固定基线
+持平；两者分别记为负实验和中性实验。v4 context/延迟失败、v2 no-result 失败和 v6 首次
+分布式部署超时同样保留。由于没有人工标签或真实用户最终集，且分布式修复运行尚未形成
+有效 HTTP 分母，仍不修改正式 release、Prompt、adapter、阈值或 Fresh Test 状态。
 
 ## 验证
 
-- `python -m unittest discover -s tests -v`：948 项通过，2 项既有跳过；
+- `python -m unittest discover -s tests -v`：973 项通过，2 项既有跳过；
 - `python scripts/tripctl.py validate`：`status=ok`；
 - 正式 Git 外 release 的 `scripts/verify_final_delivery.py`：`PASS`，包内记录 948 项测试；
 - `docker compose ... config --quiet`：通过；
 - 本地独立查询池、来源 registry、正式 retrieval/release 哈希核验：`PASS`；
 - VLM weak v3 对冻结 raw 重评分：score SHA-256 保持 `b039c5…7458`；
 - v5 job `29998754`：source 验证、训练、development、真实 HTTP/Milvus c=1/2/4、一次性 final 完成；
+- v7 job `30005386`：source、训练、development 与独立重算完整，固定质量 gate `FAIL`；
+- v8 job `30005527`：calibration 后一次性 validation 与独立重算完整，固定压力 gate `PASS`；
 - 固定长度 performance scorer：历史实际 input/output 矩阵验证通过，v2 joint gate `FAIL`；
 - `git diff --check`：通过。
 

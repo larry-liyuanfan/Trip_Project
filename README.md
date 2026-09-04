@@ -91,6 +91,10 @@ experiments/  保留的机器可读历史证据
 - v5 上下文专项配置、数据锁与机器证据：`configs/evaluation/automated_evidence_v5.json`、
   `configs/evaluation/evidence_enhancement/context_focus_pool_lock_v5.json`、
   `experiments/context_focus_evidence_v5.json`
+- v7 语义鲁棒性负实验：`configs/evaluation/automated_evidence_v7.json`、
+  `experiments/semantic_robustness_evidence_v7.json`
+- v8 无结果压力验证：`configs/evaluation/automated_evidence_v8_no_result.json`、
+  `experiments/no_result_stress_evidence_v8.json`
 - 报告：`reports/development/reviews/search_algorithm_evidence_enhancement_report.md`
 
 该轨道不修改正式 v1。历史 Milvus `Recall@10=1.0` 只表示 ANN 对精确余弦 Top10 的保真度，
@@ -105,6 +109,14 @@ standalone 服务基准。该性能实验因候选/基线 c=1 HTTP P95 比值 2.
 在新 development 上将 context recall 从 7/24 提至 24/24，并以同一 A100 上 c=1 HTTP
 P95 比值 .985 通过延迟门后一次性消费 synthetic final；final n=48 全部协议指标通过。
 该结果不修改正式 release，也不能包装成人工视觉或真实业务相关性。
+
+后续 v7 只改变语义鲁棒性 synthetic training 数据，在新 development 每角色 96 条上显著
+降低 unsupported hallucination（47/96→5/96），但多主体冲突 abstention 仅 5/8，未达到
+预锁 6/8 门槛，因此整体保留为负实验且不运行候选服务性能。v8 使用 40 条 calibration 和
+40 条一次性 validation 检查 no-result；固定 v4 margin guard 与新 dual-centroid guard 均为
+17/20，说明既有 guard 通过新 synthetic 压力门，但新方案没有相对收益。首次两节点 Milvus
+运行因自动通告了不可跨节点路由的网卡地址而超时，没有 HTTP 请求分母；该失败不被写成服务
+性能结果。全部新增质量证据仍为 synthetic/weak，human support=0，Fresh Test 继续冻结。
 
 ## 环境
 

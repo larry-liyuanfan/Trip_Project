@@ -53,6 +53,31 @@ recall 从 v4 的 7/24 提升至 24/24，state、task key/value 与 first route 
 硬件和产物 SHA 见 `experiments/context_focus_evidence_v5.json`。全部质量标签仍是 synthetic，
 human support=0；结果不代表人工视觉准确率、真实用户业务相关性、分布式 Milvus 或生产 SLA。
 
+## v6、v7 与 v8 后续证据
+
+v7 使用 `configs/evaluation/automated_evidence_v7.json` 和独立数据锁，只改变主要因素
+“语义鲁棒性 synthetic training 数据”。training=512（商品/对话各 256）；新的 development
+每角色 96（商品/对话各 48），与 training、v5 development/final 在 source、image、sample、
+query/dialogue identity 上零重叠。候选相对固定 v5 baseline 的四字段 F1、exact、unknown、
+hallucination 和五项对话指标均改善；但 multi-subject conflict abstention 为 5/8=.625，低于
+预锁 .75，故 development gate=`FAIL`。它必须作为负实验保留；服务 c=1/2/4 按串行门控为
+`NOT_RUN_DEVELOPMENT_GATE_FAILED`，没有 final，也没有新的性能结论。机器摘要见
+`experiments/semantic_robustness_evidence_v7.json`。
+
+v8 使用与索引图分离的 40 条 synthetic calibration 和 40 条一次性 validation，并与 v4
+training 24 条做 source/image/query 三向碰撞审计。固定 v4 margin guard 与新 dual-centroid
+guard 在 validation 上得到相同的 no-result 17/20、business-positive acceptance 18/20、
+nDCG@10=.9 和 filter correctness=1；两者均通过预锁压力门，但新候选相对固定基线增益为 0，
+因此结论是“既有 guard 获得新的 synthetic 复验，新方法为中性实验”，不是算法提升。
+该轮不测 ANN fidelity，也没有 final。机器摘要见 `experiments/no_result_stress_evidence_v8.json`。
+
+v6 首次双节点 A100 / distributed Milvus 作业 `30004826` 为工程负实验：两个节点及五类
+Milvus 角色均启动，但 Milvus 自动选择并通告了控制节点上一张不可跨节点路由的接口；worker
+到 mixcoord 的内部 gRPC 持续超时，`create_collection` 阻塞至 30 分钟作业时限。该 run 没有
+产生 `summary.json`、`raw.jsonl` 或任何 HTTP 请求，所以 c=1/2/4 仍是 `NOT_RUN`，不能从
+cluster identity 的 `READY` 或 61.7 秒启动观测推导性能。修复版显式使用 Slurm 主机名解析的
+IPv4，并在写入 `READY` 前执行五个双向跨节点 TCP probe；它必须写入新 run，旧失败不覆盖。
+
 ## 自动化 v2 / weak v3 预运行锁
 
 第二轮自动化证据使用 `configs/evaluation/automated_evidence_v2.json` 和

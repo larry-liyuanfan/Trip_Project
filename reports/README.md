@@ -13,6 +13,9 @@
 当前 `dev` 搜索算法证据入口为
 `development/reviews/search_algorithm_evidence_enhancement_report.md`；对应最新机器证据为
 `../experiments/search_algorithm_evidence_v4.json` 与
-`../experiments/context_focus_evidence_v5.json`。二者均为 synthetic/weak 开发证据，
-human support=0，不覆盖正式 release 或冻结 Fresh Test。
+`../experiments/context_focus_evidence_v5.json`、
+`../experiments/semantic_robustness_evidence_v7.json` 和
+`../experiments/no_result_stress_evidence_v8.json`。它们均为 synthetic/weak 开发证据，
+human support=0；v7 是门槛失败的负实验，v8 通过压力门但新候选与固定基线持平。
+这些证据不覆盖正式 release 或冻结 Fresh Test。
 
