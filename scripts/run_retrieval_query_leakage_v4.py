@@ -177,8 +177,6 @@ def _validate_query_pool(
     pool_config = config["query_pool"]
     lock_path = _resolve_repo_path(config_path, pool_config["committed_lock"])
     lock = _load_object(lock_path)
-    if file_sha256(lock_path) != pool_config["committed_lock_file_sha256"]:
-        raise ValueError("committed v4 pool lock file SHA-256 mismatch")
     if canonical_json_sha256(lock) != pool_config["committed_lock_canonical_sha256"]:
         raise ValueError("committed v4 pool lock canonical SHA-256 mismatch")
     if _load_object(query_pool_dir / "bundle_lock.json") != lock:

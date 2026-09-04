@@ -19,7 +19,6 @@
   "query_pool": {
     "generator": "scripts/build_exploration_pool_v4.py",
     "committed_lock": "configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json",
-    "committed_lock_file_sha256": "d07fe2ba1d467f9093e7a73971c1b060d39e90e4212a9ef023d06731c777e2da",
     "committed_lock_canonical_sha256": "b7f69e4247e5114cd8d19787ed6a7befd8bf3d8f0c930457b1e7698effb6acee",
     "splits": ["training", "development", "final"],
     "expected_query_support_per_split": 24,

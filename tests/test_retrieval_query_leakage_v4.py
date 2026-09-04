@@ -26,6 +26,17 @@ JOB_ID = "12345"
 
 
 class RetrievalQueryLeakageV4Tests(unittest.TestCase):
+    def test_checked_in_protocol_binds_cross_platform_canonical_lock_contents(self) -> None:
+        protocol = json.loads(
+            (ROOT / "configs" / "evaluation" / "retrieval_query_leakage_v4.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            canonical_json_sha256(json.loads(LOCK.read_text(encoding="utf-8"))),
+            protocol["query_pool"]["committed_lock_canonical_sha256"],
+        )
+
     def test_complete_isolation_passes_and_registry_tamper_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -136,7 +147,6 @@ def _write_index_fixture(root: Path) -> tuple[Path, Path, Path]:
         },
         "query_pool": {
             "committed_lock": str(LOCK.resolve()),
-            "committed_lock_file_sha256": file_sha256(LOCK),
             "committed_lock_canonical_sha256": canonical_json_sha256(lock),
             "splits": ["training", "development", "final"],
             "expected_query_support_per_split": 24,
