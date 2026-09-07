@@ -26,7 +26,42 @@
     "independent_test": false,
     "promotion_allowed": false,
     "training_run": false,
-    "metric_results": null
+    "completed_state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:07:19",
+    "observed_node": "spartan-gpgpu007",
+    "raw_rows_verified": 336,
+    "diagnostic_gate": "FAIL",
+    "metric_results": {
+      "field_reference_support": {"business_category": 48, "style_tags": 36, "visible_facilities": 36, "price_range": 24},
+      "unknown_field_opportunity_support_per_cell": 192,
+      "v7_original_f1": {"business_category": 0.9894736842105264, "style_tags": 1.0, "visible_facilities": 0.9074074074074074, "price_range": 0.8936170212765957},
+      "v7_repaired_f1": {"business_category": 0.9894736842105264, "style_tags": 0.983050847457627, "visible_facilities": 1.0, "price_range": 0.923076923076923},
+      "v9_original_f1": {"business_category": 1.0, "style_tags": 0.8571428571428572, "visible_facilities": 0.9814814814814815, "price_range": 1.0},
+      "v9_repaired_f1": {"business_category": 1.0, "style_tags": 1.0, "visible_facilities": 1.0, "price_range": 0.9411764705882353},
+      "v9_repaired_price_counts": {"tp": 24, "fp": 3, "fn": 0, "precision": 0.8888888888888888, "recall": 1.0},
+      "v9_repaired_style_counts": {"tp": 60, "fp": 0, "fn": 0, "precision": 1.0, "recall": 1.0},
+      "v9_unsupported_hallucination_original": 0.0,
+      "v9_unsupported_hallucination_repaired": 0.015625,
+      "v9_price_regression": 0.05882352941176472,
+      "max_allowed_other_field_regression": 0.05,
+      "first_attempt_json_compliance_all_cells": 1.0,
+      "correction_trigger_rate_all_cells": 0.0,
+      "price_error_sample_ids": ["v9_dev_conflict_000", "v9_dev_conflict_004", "v9_dev_conflict_008"],
+      "price_error_description": "unknown_reference_predicted_mid_range_on_conflicting_price_cards"
+    },
+    "verification": {
+      "status": "PASS",
+      "checks": ["four_cells_each_84_unique_ids", "paired_gold_and_prompt_equal", "image_byte_sha", "manifest_canonical_sha", "adapter_sha", "shared_base_prompt_generation", "raw_file_sha", "metrics_recomputed", "fixed_diagnostic_gate_recomputed"],
+      "summary_sha256": "cec2ab6d60d38410f75fca6869dfc58f1f6819a0b6ca639804dc3f02caa63741",
+      "preregistration_sha256": "0ec0356045fd11d45214ca04d83730abc373c840f504d3b5f60ab30c103a2fd6",
+      "prompt_sha256": "01297e06d284f8ef6941e6247fb6bb893a42e90732b73b600a2488a8d9dd5d9d",
+      "generation_sha256": "c8123ee8c9e909ac07e0cb6dd5b20df8d2a6f99a3e33d3039f8a9a7f695dd2df",
+      "original_v7_raw_sha256": "aa19c7c285e061cd74a5b2bf575b4c2cb65bb7a419c8dbbc0848cc0d30ac21f6",
+      "original_v9_raw_sha256": "777c554f2a578f1614231fd8681f72c2e595eaccf3d9060c03956f4a0ece6b2f",
+      "repaired_v7_raw_sha256": "f3bda21bc836d354175df16ddc57411892b29101aca71f63ae6f27aae3eafb40",
+      "repaired_v9_raw_sha256": "b03c1a63e65426d83822273efb5f97847772bfbfba310108d62c870ef1a87d43"
+    }
   },
   "local_verification": {
     "unittest_run_support": 983,

@@ -2,6 +2,7 @@
 
 最新输入质量修复与配对诊断：`development/reviews/card_render_repair_v10.md`。
 该诊断使用已查看的 v9 development，不构成独立测试提升。
+已完成配对实跑，风格改善但价位回退导致诊断门 FAIL；完整结果与 SHA 在报告中。
 
 本目录按分支保存不同粒度的证据：
 

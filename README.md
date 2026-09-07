@@ -80,6 +80,8 @@ experiments/  保留的机器可读历史证据
 2026-09-07 补充：发现并修复 v9 合成卡片的长行截断和缺失下划线字形；
 原 v9 模型回退的归因需结合配对渲染诊断，见
 `reports/development/reviews/card_render_repair_v10.md`。正式 Git 外交付包已重新定位并验证 PASS。
+配对诊断已完成：v9 风格 F1 .8571→1.0、设施 .9815→1.0，但价位 1.0→.9412，
+超过预锁回退 .05，整体仍为负实验；该结果来自已查看的 synthetic development。
 
 `dev` 另提供搜索业务相关性、VLM/SFT 角色对比和端到端分阶段性能协议：
 
