@@ -77,6 +77,10 @@ experiments/  保留的机器可读历史证据
 
 ### Development-only 证据增强
 
+2026-09-07 补充：发现并修复 v9 合成卡片的长行截断和缺失下划线字形；
+原 v9 模型回退的归因需结合配对渲染诊断，见
+`reports/development/reviews/card_render_repair_v10.md`。正式 Git 外交付包已重新定位并验证 PASS。
+
 `dev` 另提供搜索业务相关性、VLM/SFT 角色对比和端到端分阶段性能协议：
 
 - 协议：`docs/evidence_enhancement.md`

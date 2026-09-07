@@ -1,5 +1,8 @@
 # 报告索引
 
+最新输入质量修复与配对诊断：`development/reviews/card_render_repair_v10.md`。
+该诊断使用已查看的 v9 development，不构成独立测试提升。
+
 本目录按分支保存不同粒度的证据：
 
 - `main`：`project_summary.md` 与 `final_delivery_status.md`，作为最终接手入口。
