@@ -25,3 +25,10 @@ Fresh Test 未读取或重跑。新训练需基于输入质量修复后的独立
 正式 Git 外交付包已定位到主 checkout 的 outputs/releases 目录。
 从独立 worktree 执行 verify_final_delivery.py 对该目录的只读复核为 PASS：四层 SHA、
 adapter 身份和 runtime 隔离导入均通过；948 为包内历史单元测试记录。
+
+本轮完整回归运行 983 项，OK（2 skipped）；tripctl validate、Compose 配置和 diff check
+通过。实现提交 `cebb5745bfac8377f2b1399497809b288a737b7d`；代码归档 SHA
+`e4e7be092f6d91a9a016ca15579919ce905c487d3409dbab05d8170f1561bd4a` 在 Spartan 解压前核对。
+作业 `30211170` 已提交至 Iris yzhang3504，单 L40S、8 CPU、64 GiB、最多 30 分钟；
+提交后状态 PENDING/Priority。当前模型指标未产生，不宣称模型质量恢复。
+机器记录见 `experiments/card_render_repair_v10.json`。

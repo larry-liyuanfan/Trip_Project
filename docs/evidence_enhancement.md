@@ -1,5 +1,10 @@
 # 搜索、VLM 与端到端证据增强协议
 
+2026-09-07 输入质量修复：v9 合成卡片存在长行静默截断及下划线缺字，详见
+`reports/development/reviews/card_render_repair_v10.md` 和 `experiments/card_render_repair_v10.json`。
+旧 v9 指标保留，但不能将其风格回退全部归因于训练；新配对诊断只测渲染因素，
+使用已查看的 development，不作为新的独立测试。
+
 本协议属于 `dev` 开发证据，不修改正式 release
 `trip-qwen3-vl-8b-week8-final-v1`，也不重新消费已锁定的 Fresh Test 120。所有新输出必须
 写入不存在的目标文件；正式四层包只读，归档或成员哈希不匹配时立即失败。

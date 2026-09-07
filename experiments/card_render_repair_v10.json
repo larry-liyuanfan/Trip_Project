@@ -1,0 +1,41 @@
+{
+  "schema_version": "card_render_repair_v10",
+  "date": "2026-09-07",
+  "implementation_commit": "cebb5745bfac8377f2b1399497809b288a737b7d",
+  "source_archive_sha256": "e4e7be092f6d91a9a016ca15579919ce905c487d3409dbab05d8170f1561bd4a",
+  "evidence_class": "synthetic_rendering_diagnostic_not_independent_quality_evaluation",
+  "human_annotation_support": 0,
+  "fresh_test_used": false,
+  "formal_release_changed": false,
+  "audit": {
+    "original_scope": "v9_training_and_seen_development_product_cards",
+    "legacy_character_capacity": 20,
+    "training": {"support": 384, "clipped_cards": 68, "clipped_lines": 68, "unsupported_glyph_cards": 56},
+    "development": {"support": 84, "clipped_cards": 20, "clipped_lines": 29, "unsupported_glyph_cards": 12},
+    "repaired_layout_overflow_support": 0,
+    "audit_file_sha256": "88f2a839cf968dfdf4cd8b9216107b6c7a2febd9d45db98aaf20268214011753",
+    "audit_rows_canonical_sha256": "9b51fe11a76e32d7b4b564987a6a8abbfb6df1bd4cdea72db22d8e0d78e3240d"
+  },
+  "paired_model_diagnostic": {
+    "job_id": "30211170",
+    "status_at_submission": "PENDING_PRIORITY",
+    "requested_hardware": {"gpu": "L40S", "gpu_count": 1, "cpus": 8, "memory_gib": 64, "time_limit_minutes": 30},
+    "cells": ["v7_original", "v9_original", "v7_repaired", "v9_repaired"],
+    "support_per_cell": 84,
+    "expected_raw_rows": 336,
+    "independent_test": false,
+    "promotion_allowed": false,
+    "training_run": false,
+    "metric_results": null
+  },
+  "local_verification": {
+    "unittest_run_support": 983,
+    "unittest_skipped_support": 2,
+    "unittest_status": "OK",
+    "tripctl_validate": "PASS",
+    "compose_config": "PASS",
+    "git_diff_check": "PASS",
+    "external_release_verifier": "PASS",
+    "external_release_id": "trip-qwen3-vl-8b-week8-final-v1"
+  }
+}
