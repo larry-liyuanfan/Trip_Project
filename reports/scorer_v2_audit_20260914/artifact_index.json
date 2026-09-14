@@ -1,0 +1,44 @@
+{
+  "schema_version": "search_scorer_v2_audit_artifact_index",
+  "date": "2026-09-14",
+  "branch": "codex/trip-scorer-audit-20260914",
+  "dependency_merge_commit": "7706670c484c68af53b35854487ac0587cb33c9f",
+  "scorer_commit": "315c469276a9b249f0e83523a1684d6954c864c7",
+  "historical_dependency_commit": "43bed689cbc4c3dc670c884857dc146494528afc",
+  "files": [
+    {
+      "file": "v4_final_offline_recompute_v2.json",
+      "sha256": "9b04b484e7af3cc28569eb12af1991ff25fd7ef1793c3bb32e17aa1b8cd2a006",
+      "canonical_content_sha256": "a0a8f2df6bf185fef21a00c47a1915ae415ab8476f1c5d5ae3716657fae81c41",
+      "excluded_self_hash_field": "report_content_sha256"
+    },
+    {
+      "file": "v8_validation_offline_recompute_v2.json",
+      "sha256": "ed79097d6b6c34d25f9b01532a02ad9ef102139a2850a49ce0a37413b4c7831e",
+      "canonical_content_sha256": "7c60357fd69b520bed94634b7217f6ff4f36fada72233aa588bf6a82aabe7c1f",
+      "excluded_self_hash_field": "report_content_sha256"
+    },
+    {
+      "file": "verification.json",
+      "sha256": "7b0f79332b8b060a0751eab064f050d5097c3619a85dcce7b69bb95b057cb951",
+      "canonical_content_sha256": "91d72311aa9b11969985468f3e2915e78ea521fcc0300cb0a4300dc1aedc46da",
+      "excluded_self_hash_field": "content_sha256"
+    }
+  ],
+  "v8_query_identity_restoration": {
+    "source_commit": "2acf4018aeba3cc717edcac8d2d7836ae15fe1de",
+    "generator": "scripts/build_no_result_stress_pool_v8.py",
+    "entire_regenerated_bundle_equals_original_lock": true,
+    "bundle_lock_file_sha256": "0c426c9f7f37d8abcb46d59dd029e29568832382305c3c847000896e1ec2be88",
+    "new_independent_data_claim": false
+  },
+  "nonrecomputed_records": [
+    {"record": "search_v1", "status": "NOT_RECOMPUTABLE_FROM_RETAINED_SCOPED_INPUTS", "reason": "summary retained but per-query predictions not located in bounded local and Trip remote artifact checks"},
+    {"record": "search_v2_holdout", "status": "NOT_RECOMPUTABLE_FROM_RETAINED_SCOPED_INPUTS", "reason": "holdout_results.jsonl not located in either known v2 run or current assets; summary alone cannot reconstruct rankings"},
+    {"record": "search_v4_development", "status": "NOT_RECOMPUTED", "reason": "not selected for this package without a committed historical raw prediction/metric byte-hash binding"},
+    {"record": "fresh_test_120", "status": "NOT_OPENED_NOT_RERUN", "reason": "outside this offline search scorer repair"}
+  ],
+  "boundary": "Scorer correction only. All actual rescore labels are weak/synthetic, human support=0. No new inference, threshold tuning, independent test or performance qualification.",
+  "heavy_validation_slot": "RELEASED",
+  "background_jobs_created": 0
+}

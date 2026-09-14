@@ -1,0 +1,4410 @@
+{
+  "annotation_sha256": "2f2ec40ac200dc216091d17780877d3ab28a9857e014e21d4a622aebdde286c6",
+  "case": "v4_final",
+  "comparison": {
+    "clip_exact": {
+      "comparison_boundary": "scorer correction only; overall deltas include denominator/definition changes, not model improvement",
+      "delta_new_minus_old": {
+        "failure_rate": 0.0,
+        "filter_correctness": -0.3333333333333333,
+        "mrr_at_10": 0.03125,
+        "ndcg_at_10": -0.5463308801756026,
+        "no_result_accuracy": 0.16666666666666663,
+        "no_result_rate": -0.5,
+        "recall_at_10": 0.0017451010254848215,
+        "recall_at_5": 0.0004473804447151994
+      },
+      "new_on_old_ranking_query_subset": {
+        "mrr_at_10": {
+          "query_denominator": 12,
+          "value": 0.625
+        },
+        "ndcg_at_10": {
+          "query_denominator": 12,
+          "value": 0.35581801072374697
+        },
+        "recall_at_10": {
+          "query_denominator": 12,
+          "value": 0.008554167935831048
+        },
+        "recall_at_5": {
+          "query_denominator": 12,
+          "value": 0.0059777642400243676
+        }
+      },
+      "old": {
+        "filter_denominator": 24,
+        "metrics": {
+          "failure_rate": 0.0,
+          "filter_correctness": 0.3333333333333333,
+          "mrr_at_10": 0.625,
+          "ndcg_at_10": 0.8435025435485161,
+          "no_result_accuracy": 0.5,
+          "no_result_rate": 0.5,
+          "recall_at_10": 0.008554167935831048,
+          "recall_at_5": 0.0059777642400243676
+        },
+        "no_result_rate_was_dataset_slice_ratio": true,
+        "query_denominator": 24,
+        "ranking_denominator": 12
+      },
+      "scorer_v2": {
+        "dataset_no_result_accuracy": 0.5,
+        "dataset_no_result_slice_rate": 0.5,
+        "denominators": {
+          "dataset_no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "dataset_no_result_slice_rate": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "failure_rate": {
+            "denominator": 24,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "filter_correctness": {
+            "denominator": 16,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "mrr_at_10": {
+            "denominator": 16,
+            "numerator": 10.5,
+            "value": 0.65625
+          },
+          "mrr_at_5": {
+            "denominator": 16,
+            "numerator": 10.5,
+            "value": 0.65625
+          },
+          "ndcg_at_10": {
+            "denominator": 24,
+            "numerator": 7.132119920949924,
+            "value": 0.2971716633729135
+          },
+          "ndcg_at_5": {
+            "denominator": 24,
+            "numerator": 7.2088500250165,
+            "value": 0.30036875104235417
+          },
+          "no_relevant_judgments_rate": {
+            "denominator": 24,
+            "numerator": 8,
+            "value": 0.3333333333333333
+          },
+          "no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 16,
+            "value": 0.6666666666666666
+          },
+          "no_result_rate": {
+            "denominator": 24,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "recall_at_10": {
+            "denominator": 16,
+            "numerator": 0.1647883033810539,
+            "value": 0.01029926896131587
+          },
+          "recall_at_5": {
+            "denominator": 16,
+            "numerator": 0.10280231495583307,
+            "value": 0.006425144684739567
+          },
+          "unsupported_constraint_disclosure": {
+            "denominator": 24,
+            "numerator": 24,
+            "value": 1.0
+          }
+        },
+        "failure_rate": 0.0,
+        "filter_correctness": 0.0,
+        "mrr_at_10": 0.65625,
+        "mrr_at_5": 0.65625,
+        "ndcg_at_10": 0.2971716633729135,
+        "ndcg_at_5": 0.30036875104235417,
+        "no_relevant_judgments_rate": 0.3333333333333333,
+        "no_result_accuracy": 0.6666666666666666,
+        "no_result_rate": 0.0,
+        "ranking_support": 16,
+        "recall_at_10": 0.01029926896131587,
+        "recall_at_5": 0.006425144684739567,
+        "slices": {
+          "business_guard_no_result": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "city_business_facility_price": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 5.5,
+                "value": 0.6875
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 5.5,
+                "value": 0.6875
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 3.0288435663011524,
+                "value": 0.37860544578764405
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 3.058187611075218,
+                "value": 0.3822734513844023
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.08346024977155041,
+                "value": 0.010432531221443801
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.06213828815108133,
+                "value": 0.007767286018885166
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.6875,
+            "mrr_at_5": 0.6875,
+            "ndcg_at_10": 0.37860544578764405,
+            "ndcg_at_5": 0.3822734513844023,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.010432531221443801,
+            "recall_at_5": 0.007767286018885166,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_conflict": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 2.0,
+                "value": 0.5
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 2.0,
+                "value": 0.5
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 1.2409725623838113,
+                "value": 0.3102431405959528
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 1.2578889437588705,
+                "value": 0.3144722359397176
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.019189765458422176,
+                "value": 0.004797441364605544
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.009594882729211086,
+                "value": 0.0023987206823027716
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.5,
+            "mrr_at_5": 0.5,
+            "ndcg_at_10": 0.3102431405959528,
+            "ndcg_at_5": 0.3144722359397176,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.004797441364605544,
+            "recall_at_5": 0.0023987206823027716,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_empty_no_result": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 3.0,
+                "value": 0.75
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 3.0,
+                "value": 0.75
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 2.86230379226496,
+                "value": 0.71557594806624
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 2.892773470182411,
+                "value": 0.7231933675456027
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.06213828815108133,
+                "value": 0.015534572037770332
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.031069144075540664,
+                "value": 0.007767286018885166
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.75,
+            "mrr_at_5": 0.75,
+            "ndcg_at_10": 0.71557594806624,
+            "ndcg_at_5": 0.7231933675456027,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.015534572037770332,
+            "recall_at_5": 0.007767286018885166,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "hard_filter_before_rerank": {
+            "dataset_no_result_accuracy": 0.75,
+            "dataset_no_result_slice_rate": 0.25,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 12,
+                "value": 0.75
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 16,
+                "numerator": 4,
+                "value": 0.25
+              },
+              "failure_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 16,
+                "numerator": 10.5,
+                "value": 0.65625
+              },
+              "mrr_at_5": {
+                "denominator": 16,
+                "numerator": 10.5,
+                "value": 0.65625
+              },
+              "ndcg_at_10": {
+                "denominator": 16,
+                "numerator": 7.132119920949924,
+                "value": 0.44575749505937023
+              },
+              "ndcg_at_5": {
+                "denominator": 16,
+                "numerator": 7.2088500250165,
+                "value": 0.45055312656353125
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 16,
+                "numerator": 0.1647883033810539,
+                "value": 0.01029926896131587
+              },
+              "recall_at_5": {
+                "denominator": 16,
+                "numerator": 0.10280231495583307,
+                "value": 0.006425144684739567
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.65625,
+            "mrr_at_5": 0.65625,
+            "ndcg_at_10": 0.44575749505937023,
+            "ndcg_at_5": 0.45055312656353125,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 16,
+            "recall_at_10": 0.01029926896131587,
+            "recall_at_5": 0.006425144684739567,
+            "support": 16,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "image_similar": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 5.5,
+                "value": 0.6875
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 5.5,
+                "value": 0.6875
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 3.0288435663011524,
+                "value": 0.37860544578764405
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 3.058187611075218,
+                "value": 0.3822734513844023
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.08346024977155041,
+                "value": 0.010432531221443801
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.06213828815108133,
+                "value": 0.007767286018885166
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.6875,
+            "mrr_at_5": 0.6875,
+            "ndcg_at_10": 0.37860544578764405,
+            "ndcg_at_5": 0.3822734513844023,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.010432531221443801,
+            "recall_at_5": 0.007767286018885166,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "no_result": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 3.0,
+                "value": 0.75
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 3.0,
+                "value": 0.75
+              },
+              "ndcg_at_10": {
+                "denominator": 12,
+                "numerator": 2.86230379226496,
+                "value": 0.23852531602208002
+              },
+              "ndcg_at_5": {
+                "denominator": 12,
+                "numerator": 2.892773470182411,
+                "value": 0.24106445584853423
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 12,
+                "numerator": 8,
+                "value": 0.6666666666666666
+              },
+              "no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 4,
+                "value": 0.3333333333333333
+              },
+              "no_result_rate": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.06213828815108133,
+                "value": 0.015534572037770332
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.031069144075540664,
+                "value": 0.007767286018885166
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.75,
+            "mrr_at_5": 0.75,
+            "ndcg_at_10": 0.23852531602208002,
+            "ndcg_at_5": 0.24106445584853423,
+            "no_relevant_judgments_rate": 0.6666666666666666,
+            "no_result_accuracy": 0.3333333333333333,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.015534572037770332,
+            "recall_at_5": 0.007767286018885166,
+            "support": 12,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "visual_similar_business_irrelevant": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          }
+        },
+        "support": 24,
+        "unjudged_returned_count": 0,
+        "unsupported_constraint_disclosure": 1.0
+      }
+    },
+    "clip_milvus": {
+      "comparison_boundary": "scorer correction only; overall deltas include denominator/definition changes, not model improvement",
+      "delta_new_minus_old": {
+        "failure_rate": 0.0,
+        "filter_correctness": -0.3333333333333333,
+        "mrr_at_10": 0.03125,
+        "ndcg_at_10": -0.5463308801756026,
+        "no_result_accuracy": 0.16666666666666663,
+        "no_result_rate": -0.5,
+        "recall_at_10": 0.0017451010254848215,
+        "recall_at_5": 0.0004473804447151994
+      },
+      "new_on_old_ranking_query_subset": {
+        "mrr_at_10": {
+          "query_denominator": 12,
+          "value": 0.625
+        },
+        "ndcg_at_10": {
+          "query_denominator": 12,
+          "value": 0.35581801072374697
+        },
+        "recall_at_10": {
+          "query_denominator": 12,
+          "value": 0.008554167935831048
+        },
+        "recall_at_5": {
+          "query_denominator": 12,
+          "value": 0.0059777642400243676
+        }
+      },
+      "old": {
+        "filter_denominator": 24,
+        "metrics": {
+          "failure_rate": 0.0,
+          "filter_correctness": 0.3333333333333333,
+          "mrr_at_10": 0.625,
+          "ndcg_at_10": 0.8435025435485161,
+          "no_result_accuracy": 0.5,
+          "no_result_rate": 0.5,
+          "recall_at_10": 0.008554167935831048,
+          "recall_at_5": 0.0059777642400243676
+        },
+        "no_result_rate_was_dataset_slice_ratio": true,
+        "query_denominator": 24,
+        "ranking_denominator": 12
+      },
+      "scorer_v2": {
+        "dataset_no_result_accuracy": 0.5,
+        "dataset_no_result_slice_rate": 0.5,
+        "denominators": {
+          "dataset_no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "dataset_no_result_slice_rate": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "failure_rate": {
+            "denominator": 24,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "filter_correctness": {
+            "denominator": 16,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "mrr_at_10": {
+            "denominator": 16,
+            "numerator": 10.5,
+            "value": 0.65625
+          },
+          "mrr_at_5": {
+            "denominator": 16,
+            "numerator": 10.5,
+            "value": 0.65625
+          },
+          "ndcg_at_10": {
+            "denominator": 24,
+            "numerator": 7.132119920949924,
+            "value": 0.2971716633729135
+          },
+          "ndcg_at_5": {
+            "denominator": 24,
+            "numerator": 7.2088500250165,
+            "value": 0.30036875104235417
+          },
+          "no_relevant_judgments_rate": {
+            "denominator": 24,
+            "numerator": 8,
+            "value": 0.3333333333333333
+          },
+          "no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 16,
+            "value": 0.6666666666666666
+          },
+          "no_result_rate": {
+            "denominator": 24,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "recall_at_10": {
+            "denominator": 16,
+            "numerator": 0.1647883033810539,
+            "value": 0.01029926896131587
+          },
+          "recall_at_5": {
+            "denominator": 16,
+            "numerator": 0.10280231495583307,
+            "value": 0.006425144684739567
+          },
+          "unsupported_constraint_disclosure": {
+            "denominator": 24,
+            "numerator": 24,
+            "value": 1.0
+          }
+        },
+        "failure_rate": 0.0,
+        "filter_correctness": 0.0,
+        "mrr_at_10": 0.65625,
+        "mrr_at_5": 0.65625,
+        "ndcg_at_10": 0.2971716633729135,
+        "ndcg_at_5": 0.30036875104235417,
+        "no_relevant_judgments_rate": 0.3333333333333333,
+        "no_result_accuracy": 0.6666666666666666,
+        "no_result_rate": 0.0,
+        "ranking_support": 16,
+        "recall_at_10": 0.01029926896131587,
+        "recall_at_5": 0.006425144684739567,
+        "slices": {
+          "business_guard_no_result": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "city_business_facility_price": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 5.5,
+                "value": 0.6875
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 5.5,
+                "value": 0.6875
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 3.0288435663011524,
+                "value": 0.37860544578764405
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 3.058187611075218,
+                "value": 0.3822734513844023
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.08346024977155041,
+                "value": 0.010432531221443801
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.06213828815108133,
+                "value": 0.007767286018885166
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.6875,
+            "mrr_at_5": 0.6875,
+            "ndcg_at_10": 0.37860544578764405,
+            "ndcg_at_5": 0.3822734513844023,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.010432531221443801,
+            "recall_at_5": 0.007767286018885166,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_conflict": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 2.0,
+                "value": 0.5
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 2.0,
+                "value": 0.5
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 1.2409725623838113,
+                "value": 0.3102431405959528
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 1.2578889437588705,
+                "value": 0.3144722359397176
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.019189765458422176,
+                "value": 0.004797441364605544
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.009594882729211086,
+                "value": 0.0023987206823027716
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.5,
+            "mrr_at_5": 0.5,
+            "ndcg_at_10": 0.3102431405959528,
+            "ndcg_at_5": 0.3144722359397176,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.004797441364605544,
+            "recall_at_5": 0.0023987206823027716,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_empty_no_result": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 3.0,
+                "value": 0.75
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 3.0,
+                "value": 0.75
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 2.86230379226496,
+                "value": 0.71557594806624
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 2.892773470182411,
+                "value": 0.7231933675456027
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.06213828815108133,
+                "value": 0.015534572037770332
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.031069144075540664,
+                "value": 0.007767286018885166
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.75,
+            "mrr_at_5": 0.75,
+            "ndcg_at_10": 0.71557594806624,
+            "ndcg_at_5": 0.7231933675456027,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.015534572037770332,
+            "recall_at_5": 0.007767286018885166,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "hard_filter_before_rerank": {
+            "dataset_no_result_accuracy": 0.75,
+            "dataset_no_result_slice_rate": 0.25,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 12,
+                "value": 0.75
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 16,
+                "numerator": 4,
+                "value": 0.25
+              },
+              "failure_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 16,
+                "numerator": 10.5,
+                "value": 0.65625
+              },
+              "mrr_at_5": {
+                "denominator": 16,
+                "numerator": 10.5,
+                "value": 0.65625
+              },
+              "ndcg_at_10": {
+                "denominator": 16,
+                "numerator": 7.132119920949924,
+                "value": 0.44575749505937023
+              },
+              "ndcg_at_5": {
+                "denominator": 16,
+                "numerator": 7.2088500250165,
+                "value": 0.45055312656353125
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 16,
+                "numerator": 0.1647883033810539,
+                "value": 0.01029926896131587
+              },
+              "recall_at_5": {
+                "denominator": 16,
+                "numerator": 0.10280231495583307,
+                "value": 0.006425144684739567
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.65625,
+            "mrr_at_5": 0.65625,
+            "ndcg_at_10": 0.44575749505937023,
+            "ndcg_at_5": 0.45055312656353125,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 16,
+            "recall_at_10": 0.01029926896131587,
+            "recall_at_5": 0.006425144684739567,
+            "support": 16,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "image_similar": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 5.5,
+                "value": 0.6875
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 5.5,
+                "value": 0.6875
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 3.0288435663011524,
+                "value": 0.37860544578764405
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 3.058187611075218,
+                "value": 0.3822734513844023
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.08346024977155041,
+                "value": 0.010432531221443801
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.06213828815108133,
+                "value": 0.007767286018885166
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.6875,
+            "mrr_at_5": 0.6875,
+            "ndcg_at_10": 0.37860544578764405,
+            "ndcg_at_5": 0.3822734513844023,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.010432531221443801,
+            "recall_at_5": 0.007767286018885166,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "no_result": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 3.0,
+                "value": 0.75
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 3.0,
+                "value": 0.75
+              },
+              "ndcg_at_10": {
+                "denominator": 12,
+                "numerator": 2.86230379226496,
+                "value": 0.23852531602208002
+              },
+              "ndcg_at_5": {
+                "denominator": 12,
+                "numerator": 2.892773470182411,
+                "value": 0.24106445584853423
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 12,
+                "numerator": 8,
+                "value": 0.6666666666666666
+              },
+              "no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 4,
+                "value": 0.3333333333333333
+              },
+              "no_result_rate": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.06213828815108133,
+                "value": 0.015534572037770332
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.031069144075540664,
+                "value": 0.007767286018885166
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 0.0,
+            "mrr_at_10": 0.75,
+            "mrr_at_5": 0.75,
+            "ndcg_at_10": 0.23852531602208002,
+            "ndcg_at_5": 0.24106445584853423,
+            "no_relevant_judgments_rate": 0.6666666666666666,
+            "no_result_accuracy": 0.3333333333333333,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.015534572037770332,
+            "recall_at_5": 0.007767286018885166,
+            "support": 12,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "visual_similar_business_irrelevant": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          }
+        },
+        "support": 24,
+        "unjudged_returned_count": 0,
+        "unsupported_constraint_disclosure": 1.0
+      }
+    },
+    "hard_filter_clip_business_guard": {
+      "comparison_boundary": "scorer correction only; overall deltas include denominator/definition changes, not model improvement",
+      "delta_new_minus_old": {
+        "failure_rate": 0.0,
+        "filter_correctness": 0.0,
+        "mrr_at_10": -0.25,
+        "ndcg_at_10": -0.5855051894961099,
+        "no_result_accuracy": -0.16666666666666663,
+        "no_result_rate": 0.0,
+        "recall_at_10": -0.019862951399465263,
+        "recall_at_5": -0.017495959826716756
+      },
+      "new_on_old_ranking_query_subset": {
+        "mrr_at_10": {
+          "query_denominator": 12,
+          "value": 1.0
+        },
+        "ndcg_at_10": {
+          "query_denominator": 12,
+          "value": 0.8289896210077803
+        },
+        "recall_at_10": {
+          "query_denominator": 12,
+          "value": 0.07945180559786104
+        },
+        "recall_at_5": {
+          "query_denominator": 12,
+          "value": 0.06998383930686702
+        }
+      },
+      "old": {
+        "filter_denominator": 24,
+        "metrics": {
+          "failure_rate": 0.0,
+          "filter_correctness": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "no_result_accuracy": 1.0,
+          "no_result_rate": 0.5,
+          "recall_at_10": 0.07945180559786104,
+          "recall_at_5": 0.06998383930686702
+        },
+        "no_result_rate_was_dataset_slice_ratio": true,
+        "query_denominator": 24,
+        "ranking_denominator": 12
+      },
+      "scorer_v2": {
+        "dataset_no_result_accuracy": 1.0,
+        "dataset_no_result_slice_rate": 0.5,
+        "denominators": {
+          "dataset_no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 24,
+            "value": 1.0
+          },
+          "dataset_no_result_slice_rate": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "failure_rate": {
+            "denominator": 24,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "filter_correctness": {
+            "denominator": 16,
+            "numerator": 16,
+            "value": 1.0
+          },
+          "mrr_at_10": {
+            "denominator": 16,
+            "numerator": 12.0,
+            "value": 0.75
+          },
+          "mrr_at_5": {
+            "denominator": 16,
+            "numerator": 12.0,
+            "value": 0.75
+          },
+          "ndcg_at_10": {
+            "denominator": 24,
+            "numerator": 9.947875452093363,
+            "value": 0.41449481050389014
+          },
+          "ndcg_at_5": {
+            "denominator": 24,
+            "numerator": 10.807477983071847,
+            "value": 0.4503115826279936
+          },
+          "no_relevant_judgments_rate": {
+            "denominator": 24,
+            "numerator": 8,
+            "value": 0.3333333333333333
+          },
+          "no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 20,
+            "value": 0.8333333333333334
+          },
+          "no_result_rate": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "recall_at_10": {
+            "denominator": 16,
+            "numerator": 0.9534216671743324,
+            "value": 0.059588854198395776
+          },
+          "recall_at_5": {
+            "denominator": 16,
+            "numerator": 0.8398060716824043,
+            "value": 0.05248787948015027
+          },
+          "unsupported_constraint_disclosure": {
+            "denominator": 24,
+            "numerator": 24,
+            "value": 1.0
+          }
+        },
+        "failure_rate": 0.0,
+        "filter_correctness": 1.0,
+        "mrr_at_10": 0.75,
+        "mrr_at_5": 0.75,
+        "ndcg_at_10": 0.41449481050389014,
+        "ndcg_at_5": 0.4503115826279936,
+        "no_relevant_judgments_rate": 0.3333333333333333,
+        "no_result_accuracy": 0.8333333333333334,
+        "no_result_rate": 0.5,
+        "ranking_support": 16,
+        "recall_at_10": 0.059588854198395776,
+        "recall_at_5": 0.05248787948015027,
+        "slices": {
+          "business_guard_no_result": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 1.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "city_business_facility_price": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 7.153805026175963,
+                "value": 0.8942256282719954
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 7.717591745298915,
+                "value": 0.9646989681623643
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.8283582089552238,
+                "value": 0.10354477611940298
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.7254035942735303,
+                "value": 0.09067544928419129
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.8942256282719954,
+            "ndcg_at_5": 0.9646989681623643,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.10354477611940298,
+            "recall_at_5": 0.09067544928419129,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_conflict": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 4.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 4.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 2.7940704259174014,
+                "value": 0.6985176064793504
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 3.089886237772933,
+                "value": 0.7724715594432332
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.12506345821910853,
+                "value": 0.03126586455477713
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.11440247740887399,
+                "value": 0.028600619352218498
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.6985176064793504,
+            "ndcg_at_5": 0.7724715594432332,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.03126586455477713,
+            "recall_at_5": 0.028600619352218498,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_empty_no_result": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.0,
+            "mrr_at_5": 0.0,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 1.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.0,
+            "recall_at_5": 0.0,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "hard_filter_before_rerank": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.25,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 16,
+                "numerator": 4,
+                "value": 0.25
+              },
+              "failure_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 16,
+                "numerator": 12.0,
+                "value": 0.75
+              },
+              "mrr_at_5": {
+                "denominator": 16,
+                "numerator": 12.0,
+                "value": 0.75
+              },
+              "ndcg_at_10": {
+                "denominator": 16,
+                "numerator": 9.947875452093363,
+                "value": 0.6217422157558352
+              },
+              "ndcg_at_5": {
+                "denominator": 16,
+                "numerator": 10.807477983071847,
+                "value": 0.6754673739419904
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 12,
+                "value": 0.75
+              },
+              "no_result_rate": {
+                "denominator": 16,
+                "numerator": 4,
+                "value": 0.25
+              },
+              "recall_at_10": {
+                "denominator": 16,
+                "numerator": 0.9534216671743324,
+                "value": 0.059588854198395776
+              },
+              "recall_at_5": {
+                "denominator": 16,
+                "numerator": 0.8398060716824043,
+                "value": 0.05248787948015027
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.75,
+            "mrr_at_5": 0.75,
+            "ndcg_at_10": 0.6217422157558352,
+            "ndcg_at_5": 0.6754673739419904,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 0.75,
+            "no_result_rate": 0.25,
+            "ranking_support": 16,
+            "recall_at_10": 0.059588854198395776,
+            "recall_at_5": 0.05248787948015027,
+            "support": 16,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "image_similar": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 7.153805026175963,
+                "value": 0.8942256282719954
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 7.717591745298915,
+                "value": 0.9646989681623643
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.8283582089552238,
+                "value": 0.10354477611940298
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.7254035942735303,
+                "value": 0.09067544928419129
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.8942256282719954,
+            "ndcg_at_5": 0.9646989681623643,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.10354477611940298,
+            "recall_at_5": 0.09067544928419129,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "no_result": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_10": {
+                "denominator": 12,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 12,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 12,
+                "numerator": 8,
+                "value": 0.6666666666666666
+              },
+              "no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 8,
+                "value": 0.6666666666666666
+              },
+              "no_result_rate": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.0,
+            "mrr_at_5": 0.0,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 0.6666666666666666,
+            "no_result_accuracy": 0.6666666666666666,
+            "no_result_rate": 1.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.0,
+            "recall_at_5": 0.0,
+            "support": 12,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "visual_similar_business_irrelevant": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 1.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          }
+        },
+        "support": 24,
+        "unjudged_returned_count": 0,
+        "unsupported_constraint_disclosure": 1.0
+      }
+    },
+    "hard_filter_light_rerank": {
+      "comparison_boundary": "scorer correction only; overall deltas include denominator/definition changes, not model improvement",
+      "delta_new_minus_old": {
+        "failure_rate": 0.0,
+        "filter_correctness": 0.0,
+        "mrr_at_10": -0.25,
+        "ndcg_at_10": -0.5855051894961099,
+        "no_result_accuracy": -0.16666666666666663,
+        "no_result_rate": -0.33333333333333337,
+        "recall_at_10": -0.019862951399465263,
+        "recall_at_5": -0.017495959826716756
+      },
+      "new_on_old_ranking_query_subset": {
+        "mrr_at_10": {
+          "query_denominator": 12,
+          "value": 1.0
+        },
+        "ndcg_at_10": {
+          "query_denominator": 12,
+          "value": 0.8289896210077803
+        },
+        "recall_at_10": {
+          "query_denominator": 12,
+          "value": 0.07945180559786104
+        },
+        "recall_at_5": {
+          "query_denominator": 12,
+          "value": 0.06998383930686702
+        }
+      },
+      "old": {
+        "filter_denominator": 24,
+        "metrics": {
+          "failure_rate": 0.0,
+          "filter_correctness": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "no_result_accuracy": 0.6666666666666666,
+          "no_result_rate": 0.5,
+          "recall_at_10": 0.07945180559786104,
+          "recall_at_5": 0.06998383930686702
+        },
+        "no_result_rate_was_dataset_slice_ratio": true,
+        "query_denominator": 24,
+        "ranking_denominator": 12
+      },
+      "scorer_v2": {
+        "dataset_no_result_accuracy": 0.6666666666666666,
+        "dataset_no_result_slice_rate": 0.5,
+        "denominators": {
+          "dataset_no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 16,
+            "value": 0.6666666666666666
+          },
+          "dataset_no_result_slice_rate": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "failure_rate": {
+            "denominator": 24,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "filter_correctness": {
+            "denominator": 16,
+            "numerator": 16,
+            "value": 1.0
+          },
+          "mrr_at_10": {
+            "denominator": 16,
+            "numerator": 12.0,
+            "value": 0.75
+          },
+          "mrr_at_5": {
+            "denominator": 16,
+            "numerator": 12.0,
+            "value": 0.75
+          },
+          "ndcg_at_10": {
+            "denominator": 24,
+            "numerator": 9.947875452093363,
+            "value": 0.41449481050389014
+          },
+          "ndcg_at_5": {
+            "denominator": 24,
+            "numerator": 10.807477983071847,
+            "value": 0.4503115826279936
+          },
+          "no_relevant_judgments_rate": {
+            "denominator": 24,
+            "numerator": 8,
+            "value": 0.3333333333333333
+          },
+          "no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "no_result_rate": {
+            "denominator": 24,
+            "numerator": 4,
+            "value": 0.16666666666666666
+          },
+          "recall_at_10": {
+            "denominator": 16,
+            "numerator": 0.9534216671743324,
+            "value": 0.059588854198395776
+          },
+          "recall_at_5": {
+            "denominator": 16,
+            "numerator": 0.8398060716824043,
+            "value": 0.05248787948015027
+          },
+          "unsupported_constraint_disclosure": {
+            "denominator": 24,
+            "numerator": 24,
+            "value": 1.0
+          }
+        },
+        "failure_rate": 0.0,
+        "filter_correctness": 1.0,
+        "mrr_at_10": 0.75,
+        "mrr_at_5": 0.75,
+        "ndcg_at_10": 0.41449481050389014,
+        "ndcg_at_5": 0.4503115826279936,
+        "no_relevant_judgments_rate": 0.3333333333333333,
+        "no_result_accuracy": 0.5,
+        "no_result_rate": 0.16666666666666666,
+        "ranking_support": 16,
+        "recall_at_10": 0.059588854198395776,
+        "recall_at_5": 0.05248787948015027,
+        "slices": {
+          "business_guard_no_result": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "city_business_facility_price": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 7.153805026175963,
+                "value": 0.8942256282719954
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 7.717591745298915,
+                "value": 0.9646989681623643
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.8283582089552238,
+                "value": 0.10354477611940298
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.7254035942735303,
+                "value": 0.09067544928419129
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.8942256282719954,
+            "ndcg_at_5": 0.9646989681623643,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.10354477611940298,
+            "recall_at_5": 0.09067544928419129,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_conflict": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 4.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 4.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 2.7940704259174014,
+                "value": 0.6985176064793504
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 3.089886237772933,
+                "value": 0.7724715594432332
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.12506345821910853,
+                "value": 0.03126586455477713
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.11440247740887399,
+                "value": 0.028600619352218498
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.6985176064793504,
+            "ndcg_at_5": 0.7724715594432332,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.03126586455477713,
+            "recall_at_5": 0.028600619352218498,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_empty_no_result": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.0,
+            "mrr_at_5": 0.0,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 1.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.0,
+            "recall_at_5": 0.0,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "hard_filter_before_rerank": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.25,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 16,
+                "numerator": 4,
+                "value": 0.25
+              },
+              "failure_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 16,
+                "numerator": 12.0,
+                "value": 0.75
+              },
+              "mrr_at_5": {
+                "denominator": 16,
+                "numerator": 12.0,
+                "value": 0.75
+              },
+              "ndcg_at_10": {
+                "denominator": 16,
+                "numerator": 9.947875452093363,
+                "value": 0.6217422157558352
+              },
+              "ndcg_at_5": {
+                "denominator": 16,
+                "numerator": 10.807477983071847,
+                "value": 0.6754673739419904
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 12,
+                "value": 0.75
+              },
+              "no_result_rate": {
+                "denominator": 16,
+                "numerator": 4,
+                "value": 0.25
+              },
+              "recall_at_10": {
+                "denominator": 16,
+                "numerator": 0.9534216671743324,
+                "value": 0.059588854198395776
+              },
+              "recall_at_5": {
+                "denominator": 16,
+                "numerator": 0.8398060716824043,
+                "value": 0.05248787948015027
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.75,
+            "mrr_at_5": 0.75,
+            "ndcg_at_10": 0.6217422157558352,
+            "ndcg_at_5": 0.6754673739419904,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 0.75,
+            "no_result_rate": 0.25,
+            "ranking_support": 16,
+            "recall_at_10": 0.059588854198395776,
+            "recall_at_5": 0.05248787948015027,
+            "support": 16,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "image_similar": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 7.153805026175963,
+                "value": 0.8942256282719954
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 7.717591745298915,
+                "value": 0.9646989681623643
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.8283582089552238,
+                "value": 0.10354477611940298
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.7254035942735303,
+                "value": 0.09067544928419129
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.8942256282719954,
+            "ndcg_at_5": 0.9646989681623643,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.10354477611940298,
+            "recall_at_5": 0.09067544928419129,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "no_result": {
+            "dataset_no_result_accuracy": 0.3333333333333333,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 4,
+                "value": 0.3333333333333333
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_10": {
+                "denominator": 12,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 12,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 12,
+                "numerator": 8,
+                "value": 0.6666666666666666
+              },
+              "no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 12,
+                "numerator": 4,
+                "value": 0.3333333333333333
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.0,
+            "mrr_at_5": 0.0,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 0.6666666666666666,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.3333333333333333,
+            "ranking_support": 4,
+            "recall_at_10": 0.0,
+            "recall_at_5": 0.0,
+            "support": 12,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "visual_similar_business_irrelevant": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          }
+        },
+        "support": 24,
+        "unjudged_returned_count": 0,
+        "unsupported_constraint_disclosure": 1.0
+      }
+    },
+    "structured_filter_clip": {
+      "comparison_boundary": "scorer correction only; overall deltas include denominator/definition changes, not model improvement",
+      "delta_new_minus_old": {
+        "failure_rate": 0.0,
+        "filter_correctness": 0.0,
+        "mrr_at_10": -0.25,
+        "ndcg_at_10": -0.5855051894961099,
+        "no_result_accuracy": -0.16666666666666663,
+        "no_result_rate": -0.33333333333333337,
+        "recall_at_10": -0.019862951399465263,
+        "recall_at_5": -0.017495959826716756
+      },
+      "new_on_old_ranking_query_subset": {
+        "mrr_at_10": {
+          "query_denominator": 12,
+          "value": 1.0
+        },
+        "ndcg_at_10": {
+          "query_denominator": 12,
+          "value": 0.8289896210077803
+        },
+        "recall_at_10": {
+          "query_denominator": 12,
+          "value": 0.07945180559786104
+        },
+        "recall_at_5": {
+          "query_denominator": 12,
+          "value": 0.06998383930686702
+        }
+      },
+      "old": {
+        "filter_denominator": 24,
+        "metrics": {
+          "failure_rate": 0.0,
+          "filter_correctness": 1.0,
+          "mrr_at_10": 1.0,
+          "ndcg_at_10": 1.0,
+          "no_result_accuracy": 0.6666666666666666,
+          "no_result_rate": 0.5,
+          "recall_at_10": 0.07945180559786104,
+          "recall_at_5": 0.06998383930686702
+        },
+        "no_result_rate_was_dataset_slice_ratio": true,
+        "query_denominator": 24,
+        "ranking_denominator": 12
+      },
+      "scorer_v2": {
+        "dataset_no_result_accuracy": 0.6666666666666666,
+        "dataset_no_result_slice_rate": 0.5,
+        "denominators": {
+          "dataset_no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 16,
+            "value": 0.6666666666666666
+          },
+          "dataset_no_result_slice_rate": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "failure_rate": {
+            "denominator": 24,
+            "numerator": 0,
+            "value": 0.0
+          },
+          "filter_correctness": {
+            "denominator": 16,
+            "numerator": 16,
+            "value": 1.0
+          },
+          "mrr_at_10": {
+            "denominator": 16,
+            "numerator": 12.0,
+            "value": 0.75
+          },
+          "mrr_at_5": {
+            "denominator": 16,
+            "numerator": 12.0,
+            "value": 0.75
+          },
+          "ndcg_at_10": {
+            "denominator": 24,
+            "numerator": 9.947875452093363,
+            "value": 0.41449481050389014
+          },
+          "ndcg_at_5": {
+            "denominator": 24,
+            "numerator": 10.807477983071847,
+            "value": 0.4503115826279936
+          },
+          "no_relevant_judgments_rate": {
+            "denominator": 24,
+            "numerator": 8,
+            "value": 0.3333333333333333
+          },
+          "no_result_accuracy": {
+            "denominator": 24,
+            "numerator": 12,
+            "value": 0.5
+          },
+          "no_result_rate": {
+            "denominator": 24,
+            "numerator": 4,
+            "value": 0.16666666666666666
+          },
+          "recall_at_10": {
+            "denominator": 16,
+            "numerator": 0.9534216671743324,
+            "value": 0.059588854198395776
+          },
+          "recall_at_5": {
+            "denominator": 16,
+            "numerator": 0.8398060716824043,
+            "value": 0.05248787948015027
+          },
+          "unsupported_constraint_disclosure": {
+            "denominator": 24,
+            "numerator": 24,
+            "value": 1.0
+          }
+        },
+        "failure_rate": 0.0,
+        "filter_correctness": 1.0,
+        "mrr_at_10": 0.75,
+        "mrr_at_5": 0.75,
+        "ndcg_at_10": 0.41449481050389014,
+        "ndcg_at_5": 0.4503115826279936,
+        "no_relevant_judgments_rate": 0.3333333333333333,
+        "no_result_accuracy": 0.5,
+        "no_result_rate": 0.16666666666666666,
+        "ranking_support": 16,
+        "recall_at_10": 0.059588854198395776,
+        "recall_at_5": 0.05248787948015027,
+        "slices": {
+          "business_guard_no_result": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "city_business_facility_price": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 7.153805026175963,
+                "value": 0.8942256282719954
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 7.717591745298915,
+                "value": 0.9646989681623643
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.8283582089552238,
+                "value": 0.10354477611940298
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.7254035942735303,
+                "value": 0.09067544928419129
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.8942256282719954,
+            "ndcg_at_5": 0.9646989681623643,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.10354477611940298,
+            "recall_at_5": 0.09067544928419129,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_conflict": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 4.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 4.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 2.7940704259174014,
+                "value": 0.6985176064793504
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 3.089886237772933,
+                "value": 0.7724715594432332
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.12506345821910853,
+                "value": 0.03126586455477713
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.11440247740887399,
+                "value": 0.028600619352218498
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.6985176064793504,
+            "ndcg_at_5": 0.7724715594432332,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.03126586455477713,
+            "recall_at_5": 0.028600619352218498,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "filter_empty_no_result": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 4,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.0,
+            "mrr_at_5": 0.0,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 1.0,
+            "ranking_support": 4,
+            "recall_at_10": 0.0,
+            "recall_at_5": 0.0,
+            "support": 4,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "hard_filter_before_rerank": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.25,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 16,
+                "numerator": 4,
+                "value": 0.25
+              },
+              "failure_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 16,
+                "numerator": 12.0,
+                "value": 0.75
+              },
+              "mrr_at_5": {
+                "denominator": 16,
+                "numerator": 12.0,
+                "value": 0.75
+              },
+              "ndcg_at_10": {
+                "denominator": 16,
+                "numerator": 9.947875452093363,
+                "value": 0.6217422157558352
+              },
+              "ndcg_at_5": {
+                "denominator": 16,
+                "numerator": 10.807477983071847,
+                "value": 0.6754673739419904
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 16,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 16,
+                "numerator": 12,
+                "value": 0.75
+              },
+              "no_result_rate": {
+                "denominator": 16,
+                "numerator": 4,
+                "value": 0.25
+              },
+              "recall_at_10": {
+                "denominator": 16,
+                "numerator": 0.9534216671743324,
+                "value": 0.059588854198395776
+              },
+              "recall_at_5": {
+                "denominator": 16,
+                "numerator": 0.8398060716824043,
+                "value": 0.05248787948015027
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 16,
+                "numerator": 16,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.75,
+            "mrr_at_5": 0.75,
+            "ndcg_at_10": 0.6217422157558352,
+            "ndcg_at_5": 0.6754673739419904,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 0.75,
+            "no_result_rate": 0.25,
+            "ranking_support": 16,
+            "recall_at_10": 0.059588854198395776,
+            "recall_at_5": 0.05248787948015027,
+            "support": 16,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "image_similar": {
+            "dataset_no_result_accuracy": 1.0,
+            "dataset_no_result_slice_rate": 0.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "mrr_at_5": {
+                "denominator": 8,
+                "numerator": 8.0,
+                "value": 1.0
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 7.153805026175963,
+                "value": 0.8942256282719954
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 7.717591745298915,
+                "value": 0.9646989681623643
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 8,
+                "numerator": 0.8283582089552238,
+                "value": 0.10354477611940298
+              },
+              "recall_at_5": {
+                "denominator": 8,
+                "numerator": 0.7254035942735303,
+                "value": 0.09067544928419129
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 1.0,
+            "mrr_at_5": 1.0,
+            "ndcg_at_10": 0.8942256282719954,
+            "ndcg_at_5": 0.9646989681623643,
+            "no_relevant_judgments_rate": 0.0,
+            "no_result_accuracy": 1.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 8,
+            "recall_at_10": 0.10354477611940298,
+            "recall_at_5": 0.09067544928419129,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "no_result": {
+            "dataset_no_result_accuracy": 0.3333333333333333,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 4,
+                "value": 0.3333333333333333
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 4,
+                "numerator": 4,
+                "value": 1.0
+              },
+              "mrr_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "mrr_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_10": {
+                "denominator": 12,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 12,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 12,
+                "numerator": 8,
+                "value": 0.6666666666666666
+              },
+              "no_result_accuracy": {
+                "denominator": 12,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 12,
+                "numerator": 4,
+                "value": 0.3333333333333333
+              },
+              "recall_at_10": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "recall_at_5": {
+                "denominator": 4,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 12,
+                "numerator": 12,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": 1.0,
+            "mrr_at_10": 0.0,
+            "mrr_at_5": 0.0,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 0.6666666666666666,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.3333333333333333,
+            "ranking_support": 4,
+            "recall_at_10": 0.0,
+            "recall_at_5": 0.0,
+            "support": 12,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          },
+          "visual_similar_business_irrelevant": {
+            "dataset_no_result_accuracy": 0.0,
+            "dataset_no_result_slice_rate": 1.0,
+            "denominators": {
+              "dataset_no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "dataset_no_result_slice_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "failure_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "filter_correctness": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "mrr_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "ndcg_at_10": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "ndcg_at_5": {
+                "denominator": 8,
+                "numerator": 0.0,
+                "value": 0.0
+              },
+              "no_relevant_judgments_rate": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              },
+              "no_result_accuracy": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "no_result_rate": {
+                "denominator": 8,
+                "numerator": 0,
+                "value": 0.0
+              },
+              "recall_at_10": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "recall_at_5": {
+                "denominator": 0,
+                "numerator": 0,
+                "value": null
+              },
+              "unsupported_constraint_disclosure": {
+                "denominator": 8,
+                "numerator": 8,
+                "value": 1.0
+              }
+            },
+            "failure_rate": 0.0,
+            "filter_correctness": null,
+            "mrr_at_10": null,
+            "mrr_at_5": null,
+            "ndcg_at_10": 0.0,
+            "ndcg_at_5": 0.0,
+            "no_relevant_judgments_rate": 1.0,
+            "no_result_accuracy": 0.0,
+            "no_result_rate": 0.0,
+            "ranking_support": 0,
+            "recall_at_10": null,
+            "recall_at_5": null,
+            "support": 8,
+            "unjudged_returned_count": 0,
+            "unsupported_constraint_disclosure": 1.0
+          }
+        },
+        "support": 24,
+        "unjudged_returned_count": 0,
+        "unsupported_constraint_disclosure": 1.0
+      }
+    }
+  },
+  "configuration_canonical_sha256": "34bec7d51479d00b5c768113f01ee1d8ff83bc12d3a517b077a96510faca47b6",
+  "contract": {
+    "binary_threshold": 2,
+    "duplicates": "reject_query_document_and_prediction_duplicates",
+    "filter": "all returned docs satisfy supported filters using locked catalog; empty vacuously correct; macro over filtered queries only",
+    "graded_gain": "2**grade - 1",
+    "idcg": "complete valid qrels sorted by grade, truncated at k",
+    "ks": [
+      5,
+      10
+    ],
+    "no_positive": "Recall/MRR null and excluded; nDCG null only if IDCG=0; report denominators",
+    "no_result": "successful empty hits; failures separately counted, not abstentions",
+    "query_universe": "exact_manifest_support_missing_method_is_failed_zero_not_dropped",
+    "unjudged": "zero_gain_and_nonrelevant_keep_rank_report_count"
+  },
+  "denominators": {
+    "corpus_documents": 1000,
+    "qrels_pairs": 24000,
+    "queries": 24
+  },
+  "evidence_record_sha256": "ad75fb2afa7102d9656e38da2513e9d1451babe607016244e59a9cec307ffbec",
+  "fresh_test_120_opened": false,
+  "gate_disposition": "OLD_GATE_HISTORICAL_ONLY_SCORER_CHANGED_NO_REQUALIFICATION_OR_THRESHOLD_RETUNING",
+  "historical_inference_hardware": {
+    "gpu": "NVIDIA L40S"
+  },
+  "historical_job_id": "29996439",
+  "historical_source_commit": "3c6beecae5c555372ad2585eedee0fd0efe9cde7",
+  "historical_source_snapshot_sha256": "b66e91562f66cc13ff01aaff8be78f1747169bb65eba13843688372363d12010",
+  "human_support": 0,
+  "input_files_sha256": {
+    "annotations": "0794ab1e70933db2016542a6d1822a96402b167d5fe451e4203a835d75f3c3c9",
+    "old_metrics": "b1807f0e33be1b021a8c6193777daa2957f33a5630e8e38b785bb10caf941802",
+    "predictions": "42a8b777c53e6efb9979ee3c8e41e1686a027370006583f7d00959c206dba357",
+    "queries": "38e000e1a4cda6e5be4f78f8c44d00d122ac8f958aa251175cfb1bdc5de566f6"
+  },
+  "metadata_member_sha256": "7a79894fb027e2f0e6e6aa943a5af21c10c72b084f0dd866c931405debfcd42d",
+  "new_inference": false,
+  "offline_hardware": {
+    "gpu_used": false,
+    "machine": "AMD64",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "python": "3.13.13"
+  },
+  "performance_disposition": "UNCHANGED_NO_NEW_TIMING_NO_QUALITY_LATENCY_PROMOTION",
+  "pool_lock_canonical_sha256": "b7f69e4247e5114cd8d19787ed6a7befd8bf3d8f0c930457b1e7698effb6acee",
+  "predictions_canonical_sha256": "88483c6024af1e0239ab2bf3dab995a64ad30ec79851c71efeb3b8e64f79a7ba",
+  "qrels_reconstruction": "historical annotation rules applied unchanged to all 1000 locked metadata records; not human truth",
+  "qrels_sha256": "6d88f03228c29d894600d70918bc57c53572c6d1486452cda20d85f5c9df4a84",
+  "query_manifest_sha256": "a3bdb83ccee2493919eab47655f604ca6cf99f3a0fd3e3bce18d770fc4548387",
+  "query_reconstruction": "retained original manifest, exact committed file hash",
+  "query_universe_sha256": "b81d197456186323932784a419ce693fca0bd5d39eb27b4d2ae196bddd4f01d8",
+  "report_content_sha256": "a0a8f2df6bf185fef21a00c47a1915ae415ab8476f1c5d5ae3716657fae81c41",
+  "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+  "schema_version": "offline_scorer_v2_audit_20260914",
+  "scorer_files_sha256": {
+    "scripts/audit_search_scorer_v2.py": "e99bb5391bdb4b5df327d2c3c37a02b4860d430255b1c4fa82a683ac8b6e54a0",
+    "src/evaluation/relevance_evidence.py": "170ab090073f05f58578ece47294e7b5e5fbb77d5ae96ddf4b85dda9cbdee93b",
+    "src/evaluation/search_scorer_v2.py": "d5cf172bb42717dbbad8a282cbc57aff9b8204b829884df26d27a4eee6f87948"
+  },
+  "scorer_git_sha": "315c469276a9b249f0e83523a1684d6954c864c7",
+  "status": "RECOMPUTED_FROM_HASH_VERIFIED_EXISTING_PREDICTIONS"
+}
