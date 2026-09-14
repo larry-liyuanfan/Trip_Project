@@ -1,0 +1,35 @@
+{
+  "schema_version": "scorer_v2_identity_patch_invariance",
+  "status": "PASS",
+  "original_offline_rescore_commit": "315c469276a9b249f0e83523a1684d6954c864c7",
+  "identity_fix_commit": "e2cc1f06608ed48de101eeb015c54e52e2b825e8",
+  "issue_reproduced_before_fix": "alice rater could be accepted as independent ALICE adjudicator",
+  "fix": "Use one NFKC-strip-casefold identity comparison for headers, raters, adjudicators and programmatic_ prefixes",
+  "new_focused_test_count": 4,
+  "post_fix_scorer_and_cli_tests": {"run": 30, "passed": 30, "skipped": 0},
+  "verification_method": "Call audit_search_scorer_v2.audit under the identity-fix commit on the same hash-verified old inputs; assert entire comparison objects and qrels SHA equal the immutable prior reports",
+  "cases": {
+    "v4_final": {
+      "immutable_report": "v4_final_offline_recompute_v2.json",
+      "immutable_report_file_sha256": "9b04b484e7af3cc28569eb12af1991ff25fd7ef1793c3bb32e17aa1b8cd2a006",
+      "old_and_new_comparison_canonical_sha256": "741f3f63e91dc30a015f660ed71473da1c0a19a57136c98c5eb5b50f9e684b3e",
+      "old_and_new_qrels_sha256": "6d88f03228c29d894600d70918bc57c53572c6d1486452cda20d85f5c9df4a84",
+      "all_metrics_and_denominators_identical": true
+    },
+    "v8_validation": {
+      "immutable_report": "v8_validation_offline_recompute_v2.json",
+      "immutable_report_file_sha256": "ed79097d6b6c34d25f9b01532a02ad9ef102139a2850a49ce0a37413b4c7831e",
+      "old_and_new_comparison_canonical_sha256": "c2296e3a560abf138bb9e8651c67d5b3a62f9a88bae67f3eceaef5936c3544f8",
+      "old_and_new_qrels_sha256": "751f6494559550fd8e56c9738af5bce95260063007079329744bb9b0c3416818",
+      "all_metrics_and_denominators_identical": true
+    }
+  },
+  "boundaries": {
+    "all_actual_rescore_labels": "weak_or_synthetic",
+    "human_authenticity_verified": false,
+    "fresh_test_120_opened": false,
+    "new_model_inference": false,
+    "historical_reports_modified": false,
+    "model_improvement_claim": false
+  }
+}

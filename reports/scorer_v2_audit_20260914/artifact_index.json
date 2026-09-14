@@ -4,6 +4,9 @@
   "branch": "codex/trip-scorer-audit-20260914",
   "dependency_merge_commit": "7706670c484c68af53b35854487ac0587cb33c9f",
   "scorer_commit": "315c469276a9b249f0e83523a1684d6954c864c7",
+  "scorer_commit_scope": "original immutable offline rescore reports and verification.json",
+  "current_scorer_commit": "e2cc1f06608ed48de101eeb015c54e52e2b825e8",
+  "current_verification": "verification_identity_fix.json",
   "historical_dependency_commit": "43bed689cbc4c3dc670c884857dc146494528afc",
   "files": [
     {
@@ -22,6 +25,18 @@
       "file": "verification.json",
       "sha256": "7b0f79332b8b060a0751eab064f050d5097c3619a85dcce7b69bb95b057cb951",
       "canonical_content_sha256": "91d72311aa9b11969985468f3e2915e78ea521fcc0300cb0a4300dc1aedc46da",
+      "excluded_self_hash_field": "content_sha256"
+    },
+    {
+      "file": "identity_fix_invariance.json",
+      "sha256": "613569f0accb4bd905d6ac6f5e1150339dc17d597c9ddf720451e7560c6f7e37",
+      "canonical_content_sha256": "9e9f490061cf8ae66ff36e9a5c8b0bc5a4301fbd660a6e09a4ca2e10bcfccf9f",
+      "excluded_self_hash_field": null
+    },
+    {
+      "file": "verification_identity_fix.json",
+      "sha256": "5cd04fad97e490760936cd70bf7b4bc37e1bba9eeb5bf271bd99f8f378cf3cd7",
+      "canonical_content_sha256": "3a0daa934304d02932a9a6b8e0e2111f49db331b79f98f7fc4c91936772954c0",
       "excluded_self_hash_field": "content_sha256"
     }
   ],

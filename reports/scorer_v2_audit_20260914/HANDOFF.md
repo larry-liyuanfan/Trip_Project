@@ -11,11 +11,19 @@
   `codex/trip-relevance-eval` 只读、干净、未改动。
 - 独立依赖 merge：`7706670c484c68af53b35854487ac0587cb33c9f`，无冲突。
 - 评分代码/测试/契约提交：`315c469276a9b249f0e83523a1684d6954c864c7`。
+- 独立验收 P2 补修提交：`e2cc1f06608ed48de101eeb015c54e52e2b825e8`；这是当前评分源码，
+  下文两份离线重算报告及首轮 verification 仍明确绑定旧 `315c469`，不覆盖或偷换 code SHA。
 - 本目录证据位于后续独立 evidence commit；用 `git log --oneline -- reports/scorer_v2_audit_20260914`
   定位。只推送本工作分支，不自行合入 dev/stg/main。
 - 正式 release、四层包、旧配置/模型/Prompt/历史实验 JSON 不变。未改求职主简历。
 
 ## 修复的真实缺陷
+
+总控追加 P2 已复现并修复：原 rater `alice` 的大小写变体 `ALICE` 曾能通过独立仲裁者校验。
+当前对 header、ratings、adjudicator 与 `programmatic_` 前缀统一 NFKC/strip/casefold 比较，
+覆盖大小写、外层空白和全角变体；增加四项针对性用例。规范化不构成人工身份认证。
+新代码调用同一 hash-locked audit 后，两份旧报告的整个 comparison 对象和 qrels SHA
+均完全相同；见 [identity_fix_invariance.json](identity_fix_invariance.json)。没有覆盖原报告。
 
 | 缺陷 | 修复 |
 | --- | --- |
@@ -87,6 +95,9 @@ v4 guard 的 dataset no-result accuracy=24/24，而 qrels 口径仅 20/24；v8 �
 - [verification.json](verification.json)：当前源码提交的 CPU 回归、CLI 配置、正式包只读校验、
   Compose 静态配置和 diff check 的实际结果与日志 SHA。
 - [artifact_index.json](artifact_index.json)：本次追加证据的文件 SHA 与 canonical SHA。
+- [identity_fix_invariance.json](identity_fix_invariance.json)：P2 身份修复不改变 weak 指标/分母/
+  qrels 的等价性核验；[verification_identity_fix.json](verification_identity_fix.json) 为
+  当前 `e2cc1f0` 源码的追加全量验证，不替换 `verification.json`。
 
 | 历史记录 | 本轮状态 | 原因/限制 |
 | --- | --- | --- |
@@ -100,7 +111,16 @@ v4 guard 的 dataset no-result accuracy=24/24，而 qrels 口径仅 20/24；v8 �
 
 ## 当前提交的实际验证
 
-源码提交 `315c469276a9b249f0e83523a1684d6954c864c7` 的最终验证：
+当前 P2 修复源码 `e2cc1f06608ed48de101eeb015c54e52e2b825e8` 的追加最终验证已完成：
+`python -m unittest discover -s tests -v` 共 **1013 项，1011 passed、2 skipped、0 failure/error**，
+约 130.25 秒。评分/CLI 定向 30 项全部通过；四项新增测试覆盖仲裁 ID 大小写/空白/全角别名、
+programmatic 前缀变体、ratings 与 header 的一致规范化、weak 前缀不误升为人工。
+tripctl、正式包只读复验、Compose 静态配置、diff check 再次全部 exit 0。
+跳过原因与 Docker config warning 不变。精确记录见 `verification_identity_fix.json`，日志
+在 `outputs/scorer-v2-verification-identity-fix`。之后仅追加证据与索引，没有源码改动。
+
+以下首轮记录绑定原源码 `315c469276a9b249f0e83523a1684d6954c864c7`，继续保留，**不是当前
+最终代码的测试计数**：
 
 - `python -m unittest discover -s tests -v`：1009 项，1007 passed、2 skipped，失败/错误 0，
   约 125.82 秒。两项 skip 是既有 Week8 Spartan launch-script 检查（本地交接刻意不含对应
@@ -114,9 +134,10 @@ v4 guard 的 dataset no-result accuracy=24/24，而 qrels 口径仅 20/24；v8 �
 - `git diff --check`：PASS。新增报告在提交前另行执行 staged diff check。
 - 原分支 `43bed689...` 仍干净，main 仍为 `d6e0d800...`；无共享 checkout 写入。
 
-精确命令、运行 CPU/OS/Python、耗时、skip 原因及日志 SHA 见 `verification.json`。
-日志保留于 Git 忽略的 `outputs/scorer-v2-verification-final`。无 live GPU/Milvus 推理与新
-端到端 benchmark。本工作包 CPU 重验证已结束，**重验证槽已释放**；不再后台计算或监控。
+首轮精确命令、运行 CPU/OS/Python、耗时、skip 原因及日志 SHA 见 `verification.json`；
+对应日志保留于 Git 忽略的 `outputs/scorer-v2-verification-final`。无 live GPU/Milvus 推理与新
+端到端 benchmark。包括 P2 补修在内的本工作包 CPU 重验证已结束，**重验证槽已释放**；
+不再后台计算或监控。
 
 ## 重现入口
 

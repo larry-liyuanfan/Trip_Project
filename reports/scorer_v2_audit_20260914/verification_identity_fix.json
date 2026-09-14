@@ -1,0 +1,90 @@
+{
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-v"
+      ],
+      "elapsed_seconds": 130.2531468999805,
+      "exit_code": 0,
+      "log_sha256": "dc191b1d4e5c8987e6727745f37303d3b641676a488b69484debbca5247c7fcf",
+      "name": "full_cpu_unittest",
+      "skip_reasons": [
+        "'Spartan launch scripts are intentionally excluded from the local handoff'",
+        "'Spartan launch scripts are intentionally excluded from the local handoff'"
+      ],
+      "skipped": 2,
+      "status": "PASS",
+      "test_count": 1013
+    },
+    {
+      "command": [
+        "python",
+        "scripts/tripctl.py",
+        "validate"
+      ],
+      "elapsed_seconds": 0.2671579000307247,
+      "exit_code": 0,
+      "log_sha256": "4c8da9d9ecd10d8303ee5098bc9e1279fb98e6d13e812e257a8f1ea928eb2930",
+      "name": "tripctl_validate",
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "python",
+        "scripts/verify_final_delivery.py",
+        "<formal-package>"
+      ],
+      "elapsed_seconds": 1.5972695000236854,
+      "exit_code": 0,
+      "log_sha256": "4bb951afd61382fe55e266565fcc81209f14c969f92457d6e58c13eb021aa5cf",
+      "name": "formal_package_read_only",
+      "status": "PASS"
+    },
+    {
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "docker/system/docker-compose.yml",
+        "--env-file",
+        "docker/system/.env.example",
+        "config",
+        "--quiet"
+      ],
+      "elapsed_seconds": 0.13632049999432638,
+      "exit_code": 0,
+      "log_sha256": "84e381f34878f13902bb5d0f4a24a9cd1b28bc13d668089ba097730e6926099b",
+      "name": "compose_config_only",
+      "status": "PASS",
+      "warnings_present": true
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "elapsed_seconds": 0.0692020999849774,
+      "exit_code": 0,
+      "log_sha256": "7f503d56c1b7cd03e890fd1e4cb6086dbfff7a7f164f63218c1b593679a8c9e7",
+      "name": "diff_check",
+      "status": "PASS"
+    }
+  ],
+  "content_sha256": "3a0daa934304d02932a9a6b8e0e2111f49db331b79f98f7fc4c91936772954c0",
+  "git_sha": "e2cc1f06608ed48de101eeb015c54e52e2b825e8",
+  "hardware": {
+    "gpu_used": false,
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "python": "3.13.13"
+  },
+  "schema_version": "search_scorer_v2_cpu_verification",
+  "status": "PASS"
+}
