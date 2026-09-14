@@ -12,18 +12,19 @@
 - 40 个恢复的非云端历史测试文件及其最小脚本、Prompt、release 和实验配置依赖。
 - 历史 requirements、decisions、experiments、Prompt 与评测设计文档。
 
-恢复后的 `dev` 测试集为 912 项通过、2 项跳过。两个跳过项只检查 Spartan 作业脚本；
-项目已决定不再依赖 Spartan，因此不恢复对应 `.sbatch` 文件，也不把跳过解释为模型通过。
-`main/stg` 的精简交付测试集仍为 521 项。
+原清理/恢复基线时点的 `dev` 测试集为 912 项通过、2 项跳过。两个跳过项只检查历史
+Spartan 作业脚本；当时正式交接不再依赖 Spartan，未恢复对应 `.sbatch` 文件，
+跳过不代表模型通过。原 `main/stg` 精简交付树的历史测试计数为 521 项。
+下文证据增强阶段另行恢复的脚本不属于这一清理基线。
 
-## 未恢复内容
+## 原清理基线未恢复内容
 
 - Spartan 作业、迁移工具和专用依赖。
 - OSS 上传工具、Bucket 配置和云端副本。
 - 旧阿里云/GPU ECS 部署文件及密钥路径。
 - 模型缓存、adapter、原始 Yelp 图片、生成数据集和大体量运行输出。
 
-这些内容不是当前运行依赖。清理前的完整文本仍可在 Git 提交 `2eb51d4` 查看；不要为了
+这些内容不是正式 release 的运行依赖。清理前的完整文本仍可在 Git 提交 `2eb51d4` 查看；不要为了
 复现旧环境而重新启用云资源。正式四层包仅存在于本机 Git 外目录
 `outputs/releases/trip-qwen3-vl-8b-week8-final-v1`，GitHub 仓库本身不包含模型资产。
 
@@ -37,10 +38,14 @@
 ## 搜索与系统证据增强
 
 后续 `dev` 恢复了本任务所需的 Spartan 脚本，但它们只面向 Iris 项目内的隔离项目空间，
-不重新启用已删除的通用云端依赖。新增资产包括：
+不重新启用已删除的通用云端依赖。它们是 dev 历史复现资产，不可自动恢复作业；
+旧锁不能增加字段后继续复用已消费测试。新运行必须有独立授权、数据锁和源码身份。
+
+当前搜索评分以 [scorer v2 审计交接](../reports/scorer_v2_audit_20260914/HANDOFF.md)
+及[评分契约](search_scorer_v2.md)为准；下列 v1 评分和配置为旧协议历史入口，旧 gate 不继承为 v2：
 
 - `configs/evaluation/evidence_enhancement_v1.json` 与两个独立弱池 manifest；
-- `src/evaluation/relevance_evidence.py` 的失败关闭评分；
+- 历史 `src/evaluation/relevance_evidence.py` 评分入口（其当前实现已由 v2 修正）；
 - 搜索、VLM、历史 development 审计和端到端性能脚本；
 - `scripts/spartan/relevance_eval_*_v1.sbatch` 的显式项目根/环境/缓存约束；
 - `experiments/search_evidence_enhancement_v1.json` 的小型机器证据。

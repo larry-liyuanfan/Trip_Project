@@ -89,7 +89,9 @@ experiments/  保留的机器可读历史证据
 配对诊断已完成：v9 风格 F1 .8571→1.0、设施 .9815→1.0，但价位 1.0→.9412，
 超过预锁回退 .05，整体仍为负实验；该结果来自已查看的 synthetic development。
 
-`dev` 另提供搜索业务相关性、VLM/SFT 角色对比和端到端分阶段性能协议：
+`dev` 另提供搜索业务相关性、VLM/SFT 角色对比和端到端分阶段性能协议。
+以下 v1–v9 配置、报告和机器 JSON 均为当时旧协议的历史证据，旧 gate 不继承为 scorer v2
+门禁；当前搜索评分入口为上方的 v2 评分契约与审计交接：
 
 - 协议：`docs/evidence_enhancement.md`
 - v1 配置：`configs/evaluation/evidence_enhancement_v1.json`
@@ -121,13 +123,14 @@ experiments/  保留的机器可读历史证据
 P95 `2.4097 ms` 只表示 vector query；新 Commons 查询池目前为弱标注，不能宣称人工业务
 相关性。历史 Fresh Test 120 不重跑、不调参。
 自动化 v2 另将 1000 张 formal index source image 逐字节注册，使用互不重叠的 synthetic
-calibration/一次性 holdout。v4 进一步在三向隔离 synthetic 集上完成搜索最终
-门槛，并实际运行 concurrency=1/2/4 的 loopback HTTP + 外部单节点 Milvus 2.6.18
+calibration/一次性 holdout。v4 在当时旧评分协议下记录三向隔离 synthetic 集的搜索最终
+门槛通过（不代表 scorer v2 通过），并实际运行 concurrency=1/2/4 的 loopback HTTP + 外部单节点 Milvus 2.6.18
 standalone 服务基准。该性能实验因候选/基线 c=1 HTTP P95 比值 2.168 超过
 1.25 而保留为负实验；它不是 multi-node distributed Milvus 或生产 SLA。搜索和 VLM
 质量仍是 synthetic/weak，human support=0。后续 v5 只改变上下文专项训练数据组成，
 在新 development 上将 context recall 从 7/24 提至 24/24，并以同一 A100 上 c=1 HTTP
-P95 比值 .985 通过延迟门后一次性消费 synthetic final；final n=48 全部协议指标通过。
+P95 比值 .985 通过当时延迟门后一次性消费 synthetic final；final n=48 在当时协议下全部指标通过，
+该历史 gate 不提供新 scorer v2 的通过资格。
 该结果不修改正式 release，也不能包装成人工视觉或真实业务相关性。
 独立的 v4 byte audit 又将 training/development/已消费 final 各 24 张 synthetic 查询图
 逐字节与正式索引 1000/1000 原图比对：72/72 查询图和 1000/1000 索引图覆盖完整，
@@ -137,7 +140,7 @@ query-vs-index byte/source collision 均为 0。该结果只补齐数据隔离�
 降低 unsupported hallucination（47/96→5/96），但多主体冲突 abstention 仅 5/8，未达到
 预锁 6/8 门槛，因此整体保留为负实验且不运行候选服务性能。v8 使用 40 条 calibration 和
 40 条一次性 validation 检查 no-result；固定 v4 margin guard 与新 dual-centroid guard 均为
-17/20，说明既有 guard 通过新 synthetic 压力门，但新方案没有相对收益。首次两节点 Milvus
+17/20，说明既有 guard 通过当时旧协议的 synthetic 压力门（不继承为 v2 gate），但新方案没有相对收益。首次两节点 Milvus
 运行因自动通告了不可跨节点路由的网卡地址而超时，没有 HTTP 请求分母；该失败不被写成服务
 性能结果。全部新增质量证据仍为 synthetic/weak，human support=0，Fresh Test 继续冻结。
 v9 已固定以 v7 Adapter 为基线，在全新 development 每角色 132 条上只改变多主体反例训练
@@ -145,7 +148,7 @@ v9 已固定以 v7 Adapter 为基线，在全新 development 每角色 132 条�
 F1 从 1.0 降至 .8571，回退 .1429 超过预锁 .05，故整体作为负实验；两角色在新的显式
 multi-subject slice 都是 24/24，不能声称相对提升，且串行性能阶段未运行。
 
-分布式 repair-1 job `30042086` 则在 Iris `yzhang3504` 的两个 A100 节点上完成：五个跨节点
+分布式 repair-1 job `30042086` 则在 Iris 的两个 A100 节点上完成：五个跨节点
 probe、1000 向量 collection、112 条 steady HTTP raw rows 和独立 verifier 均通过。v5/v4
 c=1 HTTP P95 比值为 1.019≤1.25；两个角色各 56 条 steady 请求、共 112 条均零失败；v5 c=1
 HTTP P50/P95 为 1055.00/1059.76 ms，其中 Milvus 查询 P50/P95 仅 3.65/3.82 ms。该结果明确
@@ -246,8 +249,10 @@ docker compose -f docker/system/docker-compose.yml --env-file docker/system/.env
 git diff --check
 ```
 
-正式 v1 交付包内保留的封装证据为 948/948；仓库完成交接清理后，当前保留代码的
-回归集为 521/521。两者分别描述历史封装时点和当前精简工作树，不应混为同一测试规模。
+正式 v1 交付包内保留的封装证据为 948/948；原精简交接树在清理时的历史回归计数为
+521/521，并非当前开发树计数。2026-09-14 固定 `e2cc1f0` 源码的审计验证为 1013 项
+（1011 pass、2 项既有 skip），见[固定源码验证记录](reports/scorer_v2_audit_20260914/HANDOFF.md)。
+不同源码时点的计数分别保留，后续实验测试只在相应实验报告追加。
 
 ## 数据与安全
 

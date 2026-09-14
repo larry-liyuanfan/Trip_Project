@@ -1,5 +1,9 @@
 # 报告索引
 
+当前搜索评分入口优先读取 [scorer v2 审计交接](scorer_v2_audit_20260914/HANDOFF.md)。
+以下 v4/v8/v9 等旧报告和机器 JSON 是当时旧协议历史证据，原文件保持不变；
+旧 gate 不继承为 v2 门禁，追加重算也不是新模型提升。
+
 最新输入质量修复与配对诊断：`development/reviews/card_render_repair_v10.md`。
 该诊断使用已查看的 v9 development，不构成独立测试提升。
 已完成配对实跑，风格改善但价位回退导致诊断门 FAIL；完整结果与 SHA 在报告中。
@@ -14,7 +18,7 @@
 阶段性选择和指标不得覆盖当前 release 配置；需要重现实验时再结合 `experiments/` 中的
 机器可读身份与 Git 提交读取。
 
-当前 `dev` 搜索算法证据入口为
+旧协议时点的 `dev` 搜索算法证据入口为
 `development/reviews/search_algorithm_evidence_enhancement_report.md`；对应最新机器证据为
 `../experiments/search_algorithm_evidence_v4.json` 与
 `../experiments/context_focus_evidence_v5.json`、
@@ -25,5 +29,5 @@
 `../experiments/retrieval_query_leakage_evidence_v4.json`。质量证据均为 synthetic/weak，
 human support=0；v7 是门槛失败的负实验，v8 通过压力门但新候选与固定基线持平。
 v9 同样是门槛失败的负实验；双节点 Milvus HTTP 性能证据通过固定探索门，但不支持生产 SLA。
-这些证据不覆盖正式 release 或冻结 Fresh Test。
+这些旧协议证据不覆盖正式 release、冻结 Fresh Test 或当前 scorer v2 结论。
 

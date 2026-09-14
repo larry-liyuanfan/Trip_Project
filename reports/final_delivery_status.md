@@ -58,13 +58,16 @@ python scripts/tripctl.py validate
 python -m unittest discover -s tests -v
 ```
 
-正式封装时完整单元测试为 948/948；完成仓库交接清理后，当前保留代码的回归集为
-521/521。包验证和 runtime 隔离导入均为 `PASS`。项目整体经历和各阶段结论见
+正式封装时完整单元测试为 948/948；原精简交接树清理时的历史回归集为 521/521，
+不是当前开发树计数。2026-09-14 固定 `e2cc1f0` 源码验证为 1013 项（1011 pass、2 项既有 skip），
+见[固定源码验证记录](scorer_v2_audit_20260914/HANDOFF.md)。后续实验测试仅在其报告追加。
+原包验证和 runtime 隔离导入均为 `PASS`。项目整体经历和各阶段结论见
 `reports/project_summary.md`；运行交接见 `docs/model_handoff.md`。
 
 ## Development 后续说明
 
 `dev` 后续增加了独立搜索弱池、历史 VLM development 重算、新 VLM weak/synthetic 小池及
 端到端性能协议。它们不修改本页正式 release、四层包或既有 final gate；详情见
-`docs/evidence_enhancement.md`。在完成双人相关性标注或新的正式晋级决策前，检索业务相关性
-仍保持“未有人类金标支持”的边界。
+`docs/evidence_enhancement.md`。该检索弱评测及本次原预测重算始终为 human support=0。
+只有真实相关性标注及必要的身份、来源和裁决核验，才能改变其人类金标支持结论；
+发布或晋级决策本身不能改变标注来源。此边界仅指该检索弱评测，不抹去项目其他历史 VLM 人标集。
