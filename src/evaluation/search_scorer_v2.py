@@ -7,7 +7,7 @@ import statistics
 from typing import Any
 
 from src.evaluation.relevance_evidence import (
-    _norm, _required_sha, _required_text, _weak_grade, canonical_json_sha256,
+    _annotator_identity_key, _norm, _required_sha, _required_text, _weak_grade, canonical_json_sha256,
 )
 
 SCORER_VERSION = "search_scorer_v2"
@@ -95,8 +95,12 @@ def _grade(value: Any) -> int:
 
 
 def _validate_human_judgment(judgment: dict, declared_annotators: set[str]) -> None:
-    ratings = unique_index(judgment.get("ratings"), "annotator_id", "human ratings")
-    if len(ratings) < 2 or set(ratings) != declared_annotators:
+    raw_ratings = unique_index(judgment.get("ratings"), "annotator_id", "human ratings")
+    ratings = {_annotator_identity_key(name): row for name, row in raw_ratings.items()}
+    if len(ratings) != len(raw_ratings):
+        raise ValueError("human ratings require distinct normalized annotator identities")
+    declared = {_annotator_identity_key(name) for name in declared_annotators}
+    if len(ratings) < 2 or set(ratings) != declared:
         raise ValueError("each human query-document pair requires two distinct declared annotators")
     if any(name.startswith("programmatic_") for name in ratings):
         raise ValueError("programmatic annotator cannot claim human")
@@ -106,7 +110,7 @@ def _validate_human_judgment(judgment: dict, declared_annotators: set[str]) -> N
         if grades != {judgment["grade"]}:
             raise ValueError("unresolved human conflict or final grade differs from agreement")
     elif resolution == "adjudicated":
-        adjudicator = _required_text(judgment, "adjudicator_id")
+        adjudicator = _annotator_identity_key(_required_text(judgment, "adjudicator_id"))
         if adjudicator in ratings or adjudicator.startswith("programmatic_"):
             raise ValueError("adjudicator must be an independent human identity")
         _required_text(judgment, "adjudication_reason")

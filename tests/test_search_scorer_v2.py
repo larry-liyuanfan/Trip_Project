@@ -237,6 +237,47 @@ class FailClosedTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "explicit"):
             score_search_results(q, a, r, corpus=gold["documents"])
 
+    def test_adjudicator_case_whitespace_and_unicode_aliases_are_not_independent(self):
+        for identity in ("ALICE", " Alice ", "ＡＬＩＣＥ", "BOB"):
+            data = fixture(human=True)
+            judgment = data[3]["queries"][0]["judgments"][0]
+            judgment["ratings"][0]["grade"] = 0
+            judgment.update(conflict_resolution="adjudicated", adjudicator_id=identity,
+                            adjudication_reason="case-variant regression fixture")
+            with self.subTest(identity=identity), self.assertRaisesRegex(ValueError, "independent"):
+                run_fixture(data)
+
+    def test_programmatic_prefix_aliases_rejected_for_human_and_adjudicator(self):
+        for identity in ("PROGRAMMATIC_reviewer", "Programmatic_Reviewer", "ＰＲＯＧＲＡＭＭＡＴＩＣ_reviewer"):
+            data = fixture(human=True)
+            data[1][0]["annotators"][0] = identity
+            with self.subTest(scope="header", identity=identity), self.assertRaisesRegex(ValueError, "programmatic"):
+                run_fixture(data)
+            data = fixture(human=True)
+            judgment = data[3]["queries"][0]["judgments"][0]
+            judgment["ratings"][0]["grade"] = 0
+            judgment.update(conflict_resolution="adjudicated", adjudicator_id=identity, adjudication_reason="fixture")
+            with self.subTest(scope="adjudicator", identity=identity), self.assertRaisesRegex(ValueError, "independent"):
+                run_fixture(data)
+
+    def test_ratings_use_same_normalization_as_header_without_granting_authenticity(self):
+        data = fixture(human=True)
+        for judgment in data[3]["queries"][0]["judgments"]:
+            judgment["ratings"][0]["annotator_id"] = "ＡＬＩＣＥ"
+            judgment["ratings"][1]["annotator_id"] = "BOB"
+        report = run_fixture(data)
+        self.assertTrue(report["qrels_validation"]["human_protocol_complete"])
+        self.assertFalse(report["qrels_validation"]["promotion_eligible_as_human_ground_truth"])
+        data[3]["queries"][0]["judgments"][0]["ratings"].append({"annotator_id": "alice", "grade": 3})
+        with self.assertRaisesRegex(ValueError, "distinct normalized"):
+            run_fixture(data)
+
+    def test_weak_prefix_is_normalized_consistently_without_becoming_human(self):
+        data = fixture()
+        data[1][0]["annotators"] = ["PROGRAMMATIC_fixture"]
+        data[3]["annotation_sha256"] = sha(data[1])
+        self.assertEqual(run_fixture(data)["evidence_class"], "weak_or_synthetic_not_human")
+
 
 if __name__ == "__main__":
     unittest.main()

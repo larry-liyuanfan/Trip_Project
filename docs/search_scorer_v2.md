@@ -65,6 +65,11 @@ documents/ratings have unique IDs. These checks validate the **declared protocol
 real-world identity of people or the actual image bytes. Scoring alone never promotes records to
 verified human ground truth; authenticity and image-byte verification remain external requirements.
 
+Human identity comparisons (declared annotators, per-pair raters, adjudicator exclusion and the
+`programmatic_` prefix) all use the same `NFKC -> strip -> casefold` equivalence. Case, outer-space
+or full-width variants cannot establish a second person or an independent adjudicator. This
+normalization still does not authenticate the person behind any ID.
+
 Weak/synthetic metadata grading is a separate explicit path:
 `score_search_results(..., corpus=full_metadata)`. It constructs qrels across the entire supplied
 catalog, hashes both corpus and annotations, and labels the result weak/synthetic. It is never a

@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import statistics
+import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
@@ -180,16 +181,16 @@ def validate_annotation_protocol(
         if provenance == "human":
             if len(annotators) < 2:
                 raise ValueError(f"{query_id}: human labels require two annotators")
-            if len({item.casefold() for item in annotators}) != len(annotators):
+            if len({_annotator_identity_key(item) for item in annotators}) != len(annotators):
                 raise ValueError(f"{query_id}: human labels require distinct annotators")
-            if any(item.startswith("programmatic_") for item in annotators):
+            if any(_annotator_identity_key(item).startswith("programmatic_") for item in annotators):
                 raise ValueError(f"{query_id}: programmatic annotator cannot claim human")
             if record.get("conflict_resolution") not in {"none", "adjudicated"}:
                 raise ValueError(f"{query_id}: human conflicts require adjudication status")
             if qrels is None:
                 raise ValueError("human scoring requires explicit query-document qrels")
         elif provenance in {"weak_programmatic_metadata", "synthetic"}:
-            if any(not item.startswith("programmatic_") for item in annotators):
+            if any(not _annotator_identity_key(item).startswith("programmatic_") for item in annotators):
                 raise ValueError(f"{query_id}: weak labels cannot name a human annotator")
             if record.get("conflict_resolution") != "not_applicable_single_programmatic":
                 raise ValueError(f"{query_id}: weak labels require explicit conflict scope")
@@ -607,6 +608,13 @@ def _required_text(record: dict[str, Any], key: str, prefix: str = "record") -> 
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{prefix}.{key} must be non-empty text")
     return value
+
+
+def _annotator_identity_key(value: str) -> str:
+    """One comparison key for declared human identities, ratings and adjudicators."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("annotator identity must be non-empty text")
+    return unicodedata.normalize("NFKC", value).strip().casefold()
 
 
 def _required_sha(record: dict[str, Any], key: str, prefix: str) -> str:
