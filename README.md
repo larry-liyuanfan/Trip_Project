@@ -73,6 +73,78 @@ experiments/  保留的机器可读历史证据
 `dev` 专属报告、历史配置和权衡证据不随代码晋级；不要直接在 `main` 开发。
 核心代码入口和关键不变量见 `docs/code_guide.md`。
 
+`dev` 中可复现的历史实验入口和清理边界见 `docs/development_history.md`。
+
+### Development-only 证据增强
+
+2026-09-07 补充：发现并修复 v9 合成卡片的长行截断和缺失下划线字形；
+原 v9 模型回退的归因需结合配对渲染诊断，见
+`reports/development/reviews/card_render_repair_v10.md`。正式 Git 外交付包已重新定位并验证 PASS。
+配对诊断已完成：v9 风格 F1 .8571→1.0、设施 .9815→1.0，但价位 1.0→.9412，
+超过预锁回退 .05，整体仍为负实验；该结果来自已查看的 synthetic development。
+
+`dev` 另提供搜索业务相关性、VLM/SFT 角色对比和端到端分阶段性能协议：
+
+- 协议：`docs/evidence_enhancement.md`
+- v1 配置：`configs/evaluation/evidence_enhancement_v1.json`
+- 自动化 v2 配置与预运行锁：`configs/evaluation/automated_evidence_v2.json`、
+  `configs/evaluation/evidence_enhancement/automated_pool_lock_v2.json`
+- 自动化 v2 机器证据：`experiments/search_evidence_enhancement_v2.json`
+- v4 预锁配置、三向数据锁与机器证据：
+  `configs/evaluation/automated_evidence_v4.json`、
+  `configs/evaluation/evidence_enhancement/exploration_pool_lock_v4.json`、
+  `experiments/search_algorithm_evidence_v4.json`
+- v5 上下文专项配置、数据锁与机器证据：`configs/evaluation/automated_evidence_v5.json`、
+  `configs/evaluation/evidence_enhancement/context_focus_pool_lock_v5.json`、
+  `experiments/context_focus_evidence_v5.json`
+- v7 语义鲁棒性负实验：`configs/evaluation/automated_evidence_v7.json`、
+  `experiments/semantic_robustness_evidence_v7.json`
+- v8 无结果压力验证：`configs/evaluation/automated_evidence_v8_no_result.json`、
+  `experiments/no_result_stress_evidence_v8.json`
+- v4 查询/正式索引字节隔离复核：`configs/evaluation/retrieval_query_leakage_v4.json`、
+  `experiments/retrieval_query_leakage_evidence_v4.json`
+- v9 多主体专项负实验：`configs/evaluation/automated_evidence_v9.json`、
+  `configs/evaluation/evidence_enhancement/semantic_robustness_pool_lock_v9.json`、
+  `experiments/semantic_robustness_evidence_v9.json`
+- v6 双节点 distributed Milvus HTTP 证据：
+  `configs/evaluation/automated_evidence_v6_distributed.json`、
+  `experiments/distributed_milvus_http_evidence_v6.json`
+- 报告：`reports/development/reviews/search_algorithm_evidence_enhancement_report.md`
+
+该轨道不修改正式 v1。历史 Milvus `Recall@10=1.0` 只表示 ANN 对精确余弦 Top10 的保真度，
+P95 `2.4097 ms` 只表示 vector query；新 Commons 查询池目前为弱标注，不能宣称人工业务
+相关性。历史 Fresh Test 120 不重跑、不调参。
+自动化 v2 另将 1000 张 formal index source image 逐字节注册，使用互不重叠的 synthetic
+calibration/一次性 holdout。v4 进一步在三向隔离 synthetic 集上完成搜索最终
+门槛，并实际运行 concurrency=1/2/4 的 loopback HTTP + 外部单节点 Milvus 2.6.18
+standalone 服务基准。该性能实验因候选/基线 c=1 HTTP P95 比值 2.168 超过
+1.25 而保留为负实验；它不是 multi-node distributed Milvus 或生产 SLA。搜索和 VLM
+质量仍是 synthetic/weak，human support=0。后续 v5 只改变上下文专项训练数据组成，
+在新 development 上将 context recall 从 7/24 提至 24/24，并以同一 A100 上 c=1 HTTP
+P95 比值 .985 通过延迟门后一次性消费 synthetic final；final n=48 全部协议指标通过。
+该结果不修改正式 release，也不能包装成人工视觉或真实业务相关性。
+独立的 v4 byte audit 又将 training/development/已消费 final 各 24 张 synthetic 查询图
+逐字节与正式索引 1000/1000 原图比对：72/72 查询图和 1000/1000 索引图覆盖完整，
+query-vs-index byte/source collision 均为 0。该结果只补齐数据隔离，不是相关性指标。
+
+后续 v7 只改变语义鲁棒性 synthetic training 数据，在新 development 每角色 96 条上显著
+降低 unsupported hallucination（47/96→5/96），但多主体冲突 abstention 仅 5/8，未达到
+预锁 6/8 门槛，因此整体保留为负实验且不运行候选服务性能。v8 使用 40 条 calibration 和
+40 条一次性 validation 检查 no-result；固定 v4 margin guard 与新 dual-centroid guard 均为
+17/20，说明既有 guard 通过新 synthetic 压力门，但新方案没有相对收益。首次两节点 Milvus
+运行因自动通告了不可跨节点路由的网卡地址而超时，没有 HTTP 请求分母；该失败不被写成服务
+性能结果。全部新增质量证据仍为 synthetic/weak，human support=0，Fresh Test 继续冻结。
+v9 已固定以 v7 Adapter 为基线，在全新 development 每角色 132 条上只改变多主体反例训练
+构成。候选的 objective 提升 .01327，业态/价位/设施和 hallucination 有正向变化，但 style
+F1 从 1.0 降至 .8571，回退 .1429 超过预锁 .05，故整体作为负实验；两角色在新的显式
+multi-subject slice 都是 24/24，不能声称相对提升，且串行性能阶段未运行。
+
+分布式 repair-1 job `30042086` 则在 Iris `yzhang3504` 的两个 A100 节点上完成：五个跨节点
+probe、1000 向量 collection、112 条 steady HTTP raw rows 和独立 verifier 均通过。v5/v4
+c=1 HTTP P95 比值为 1.019≤1.25；两个角色各 56 条 steady 请求、共 112 条均零失败；v5 c=1
+HTTP P50/P95 为 1055.00/1059.76 ms，其中 Milvus 查询 P50/P95 仅 3.65/3.82 ms。该结果明确
+证明阶段计时与双节点运行完整性，但固定输入仍是 synthetic training request，不能写成生产 SLA。
+
 ## 环境
 
 创建基础环境：
@@ -178,6 +250,7 @@ git diff --check
 - 商品最终参考为模型生成 silver，不是人工视觉金标。
 - 商品价位没有有效正支持，相关指标保持 `N/A/PENDING`。
 - Recall 工程基准不等于人工业务相关性。
+- 新 Commons 搜索/VLM 池为 weak/synthetic development 诊断，不参与正式发布晋级。
 
 数据、评测与检索契约见 `docs/data_pipeline.md`、`docs/evaluation.md` 和
 `docs/retrieval.md`；当前不可变决策见 `docs/architecture_decisions.md`。

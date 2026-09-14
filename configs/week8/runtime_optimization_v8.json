@@ -1,0 +1,57 @@
+{
+  "schema_version": "week8_runtime_optimization_config_v8",
+  "benchmark_sections": ["product_latency"],
+  "dialogue": {
+    "run_id": "week8_dialogue_not_run_product_latency_v8",
+    "profiles": [
+      {
+        "role": "current",
+        "prompt_version": "week8_dialogue_first_turn_v2",
+        "max_new_tokens": 384,
+        "execution_mode": "model_generated_contract",
+        "semantic_fallback_enabled": false
+      },
+      {
+        "role": "candidate",
+        "prompt_version": "week8_dialogue_deterministic_v4",
+        "max_new_tokens": 128,
+        "execution_mode": "deterministic_contract_v1",
+        "semantic_fallback_enabled": true
+      }
+    ],
+    "cases": [
+      {
+        "case_id": "dialogue-not-run-product-latency-v8",
+        "request": {
+          "messages": [{"role": "user", "content": "本配置不执行对话基准。"}],
+          "image_urls": [],
+          "state": {}
+        },
+        "expected_state": {}
+      }
+    ]
+  },
+  "product_latency": {
+    "run_id": "week8_product_prepared_input_cache_development_20260827_v8",
+    "image": "data/samples/images/cafe_001.jpg",
+    "text_context": null,
+    "warmup_runs": 2,
+    "measured_runs": 10,
+    "profiles": [
+      {
+        "role": "current",
+        "max_new_tokens": 384,
+        "visual_max_pixels": null,
+        "processor_cache_entries": 0,
+        "prepared_input_cache_entries": 0
+      },
+      {
+        "role": "prepared_input_cached",
+        "max_new_tokens": 384,
+        "visual_max_pixels": null,
+        "processor_cache_entries": 0,
+        "prepared_input_cache_entries": 1
+      }
+    ]
+  }
+}

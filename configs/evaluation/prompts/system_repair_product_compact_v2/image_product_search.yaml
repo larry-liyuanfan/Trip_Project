@@ -1,0 +1,6 @@
+scenario: image_product_search
+schema_name: image_product_search_v1.schema.json
+format_skeleton: >-
+  {"business_category":"unknown","style_tags":[],"visible_facilities":[],"price_range":"unknown","observed_evidence":[],"inferred_attributes":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  识别图片中的 OTA 商品属性并严格输出指定 JSON Schema；不可猜测不可见字段。逐个检查必填键、枚举、数组类型和 JSON 闭合后立即结束。

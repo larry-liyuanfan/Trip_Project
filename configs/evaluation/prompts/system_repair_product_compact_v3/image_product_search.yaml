@@ -1,0 +1,6 @@
+scenario: image_product_search
+schema_name: image_product_search_v1.schema.json
+format_skeleton: >-
+  {"business_category":"unknown","style_tags":[],"visible_facilities":[],"price_range":"unknown","observed_evidence":[],"inferred_attributes":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  识别图片中的 OTA 商品属性，不可猜测不可见字段。必须且只能输出 business_category、style_tags、visible_facilities、price_range、observed_evidence、inferred_attributes、unknown_fields、confidence 八个顶层键；证据只写短句。逐个检查后立即闭合 JSON。

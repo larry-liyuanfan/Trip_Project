@@ -1,0 +1,101 @@
+{
+  "schema_version": "week7_multitask_context_v2",
+  "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+  "dataset": {
+    "dataset_version": "week7_fresh_multitask_context_20260819_v2",
+    "seed": 20260819,
+    "output_root": "outputs/week7/locked_data",
+    "source_paths": {
+      "strong_pairs": "data/yelp/processed/strong_image_caption_pairs.parquet",
+      "medium_pairs": "data/yelp/processed/image_business_attribute_pairs.parquet",
+      "week3_exclusions": ["data/eval/registry/evaluation_exclusion_manifest.jsonl", "data/eval/registry/evaluation_exclusion_manifest_v2.jsonl"],
+      "week5_pools": "outputs/week5_qwen3_vl_4b/pools",
+      "week6_split_manifest": "outputs/week6/locked_data/week6_week5_final_human300_20260817_v4/split_manifest.jsonl",
+      "week5_dialogue_candidates": "outputs/week5_qwen3_vl_4b/runs/dialogue-week5_dialogues_merged_10000_20260816_522b4af/candidates.jsonl",
+      "week5_dialogue_human_validation": "outputs/week5_qwen3_vl_4b/runs/dialogue-week5_dialogues_merged_10000_20260816_522b4af/human_validation.jsonl"
+    },
+    "train_total": 3000,
+    "train_per_core_scenario": 760,
+    "general_regularization_count": 270,
+    "dialogue_count": 450,
+    "development_per_core_scenario": 30,
+    "test_per_core_scenario": 30,
+    "development_dialogue_count": 24,
+    "test_dialogue_count": 24,
+    "general_regularization_fraction": 0.09,
+    "dialogue_fraction": 0.15,
+    "silver_weight": 0.5
+  },
+  "sampling": {
+    "strategy": "sha256_rank_five_dimension_fresh_visual_evidence_v2",
+    "core_scenario_weights": {"image_product_search": 0.3333333333333333, "after_sales": 0.3333333333333333, "itinerary_planning": 0.3333333333333333},
+    "tool_call_dialogue_fraction": 0.10,
+    "dialogue_rounds_min": 5,
+    "dialogue_rounds_max": 8
+  },
+  "quantization": {"load_in_4bit": true, "bnb_4bit_quant_type": "nf4", "bnb_4bit_use_double_quant": true, "bnb_4bit_compute_dtype": "bfloat16"},
+  "lora": {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.08,
+    "bias": "none",
+    "language_target_suffixes": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    "visual_projection_candidates": ["visual_projection", "visual.merger.linear_fc1", "visual.merger.linear_fc2"],
+    "save_adapter_only": true
+  },
+  "training": {
+    "optimizer": "adamw_torch",
+    "learning_rate": 0.00015,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.03,
+    "max_grad_norm": 1.0,
+    "per_device_train_batch_size": 1,
+    "per_device_eval_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "effective_global_batch_size_one_gpu": 16,
+    "gradient_checkpointing": true,
+    "bf16": true,
+    "attn_implementation": "sdpa",
+    "epochs": 2,
+    "max_length": 8192,
+    "logging_steps": 10,
+    "evaluation_fraction_steps": 0.1,
+    "early_stopping_patience": 2,
+    "save_total_limit": 20,
+    "load_best_model_at_end": true,
+    "metric_for_best_model": "eval_weighted_composite",
+    "greater_is_better": true
+  },
+  "evaluation": {
+    "scenario_weights": {"image_product_search": 0.30, "after_sales": 0.35, "itinerary_planning": 0.35},
+    "metric_weights": {
+      "image_product_search": {"business_category_accuracy": 0.25, "price_range_accuracy": 0.15, "style_f1": 0.20, "facility_f1": 0.20, "label_completeness": 0.10, "json_compliance": 0.05, "schema_pass": 0.05},
+      "after_sales": {"issue_type_accuracy": 0.20, "severity_accuracy": 0.20, "key_information_f1": 0.25, "ocr_recall": 0.15, "json_compliance": 0.10, "schema_pass": 0.10},
+      "itinerary_planning": {"constraint_recognition_accuracy": 0.25, "hard_constraint_recall": 0.15, "soft_constraint_recall": 0.15, "itinerary_element_completeness": 0.20, "constraint_check_coverage": 0.15, "json_compliance": 0.05, "schema_pass": 0.05}
+    },
+    "non_regression": {"max_relative_task_drop": 0.02, "json_schema_absolute_drop": 0.0, "minimum_support_ratio": 1.0, "max_latency_ratio": 1.25, "max_failure_rate": 0.02, "max_failure_rate_absolute_increase": 0.01},
+    "schema_decoding": {"scope": "format_only", "max_latency_ratio": 1.50, "max_fallback_failure_rate": 0.02, "semantic_claims_allowed": false, "paired_order": "sample_interleaved_free_then_constrained"},
+    "dialogue_dimensions": ["historical_image_reference", "requirement_update", "context_carryover", "logical_consistency"],
+    "human_review_queue_size": 24,
+    "week6_adapter_sha256": {
+      "image_product_search": "8b57961542a5fd82767b6e71a470b08cecd7ed4c2a8c14beda0480b5acaa5df0",
+      "after_sales": "36bcc21bedbb9aad4f58cb0cd1870d97a5d5e83aca2f0580d4e3750b298a2160",
+      "itinerary_planning": "7ab168a0f7073f2fad3369c028f744585362a0668f77c024098d9b27d92c9a6a"
+    }
+  },
+  "experiment_identity": {
+    "development_baseline_run_ids": {
+      "image_product_search": "week7_dev_week6_product_20260819_v2",
+      "after_sales": "week7_dev_week6_after_sales_20260819_v2",
+      "itinerary_planning": "week7_dev_week6_itinerary_20260819_v2"
+    },
+    "zero_shot_development_run_id": "week7_dev_zero_shot_20260819_v2",
+    "schema_free_run_id": "week7_dev_schema_free_20260819_v2",
+    "schema_constrained_run_id": "week7_dev_schema_constrained_20260819_v2",
+    "multitask_sft_run_id": "week7_multitask_context_sft_20260819_v2",
+    "test_run_id": "week7_test_once_20260819_v2"
+  },
+  "dynamic_adjustment_policy": {"in_place_changes_allowed": false, "test_feedback_allowed": false, "new_config_and_run_id_required": true, "trigger": "development_only_after_completed_run"},
+  "dpo": {"maximum_ablations": 1, "requires_real_quality_review": true, "requires_visual_evidence": true, "requires_schema_validation": true, "self_bootstrap_allowed": false}
+}

@@ -61,3 +61,10 @@ python -m unittest discover -s tests -v
 正式封装时完整单元测试为 948/948；完成仓库交接清理后，当前保留代码的回归集为
 521/521。包验证和 runtime 隔离导入均为 `PASS`。项目整体经历和各阶段结论见
 `reports/project_summary.md`；运行交接见 `docs/model_handoff.md`。
+
+## Development 后续说明
+
+`dev` 后续增加了独立搜索弱池、历史 VLM development 重算、新 VLM weak/synthetic 小池及
+端到端性能协议。它们不修改本页正式 release、四层包或既有 final gate；详情见
+`docs/evidence_enhancement.md`。在完成双人相关性标注或新的正式晋级决策前，检索业务相关性
+仍保持“未有人类金标支持”的边界。

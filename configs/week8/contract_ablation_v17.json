@@ -1,0 +1,35 @@
+{
+  "run_id": "week8_contract_development_20260829_v17",
+  "source_review_config": "configs/week8/product_review_v1.json",
+  "release_config": "configs/releases/qwen3_vl_system_week8_v7.json",
+  "output_root": "outputs/week8/review/week8_contract_development_20260829_v17",
+  "development_indices": "all",
+  "profiles": ["observation_incumbent", "observation_evidence_guard"],
+  "product_prompt": "week8_product_visual_evidence_guard_v1",
+  "observation_config": "configs/week8/product_observation_subject_review_v2.json",
+  "observation_profile_configs": {
+    "observation_incumbent": "configs/week8/product_observation_subject_review_v2.json",
+    "observation_evidence_guard": "configs/week8/product_observation_evidence_guard_v1.json"
+  },
+  "itinerary_prompt": "week8_itinerary_actionable_v5",
+  "schema_constrained_retry": false,
+  "product_max_new_tokens": 768,
+  "itinerary_max_new_tokens": 3072,
+  "itinerary_requests": [],
+  "reference_run": "outputs/week8/review/week8_visual_teacher_style_revision_20260828_v1",
+  "reference_raw_sha256": "29a34f8aff360286c1e4053c0e53e24fe143ab877538d7bf848314cf1f9a51aa",
+  "reference_manifest_sha256": "39670e793fdbb9d26e255465c66361e3b49cbabeb41d2fc7ab5ccf3840d8cce5",
+  "final_test_access": false,
+  "human_annotation_count": 0,
+  "selection_policy": "independent_visual_silver_no_regression",
+  "incumbent_role": "observation_incumbent",
+  "continuation_policy": {
+    "all_semantic_fields_nonregressing": true,
+    "minimum_speed_gain_ratio": 0.95,
+    "minimum_output_token_ratio": 0.9,
+    "final_access": false
+  },
+  "reference_revision_config": "configs/week8/visual_teacher_style_revision_v1.json",
+  "formal_baseline_generation_config": "configs/week8/contract_ablation_v7.json",
+  "experiment_notes": "Compare the locked v12 observation contract with an image-only evidence-audit Prompt on the unchanged 60-row development set. The candidate strengthens observable-object requirements for style and facilities without teacher labels, sample identities, merchant metadata, support deletion or final access. Price remains unknown without a verified visual comparison scale."
+}

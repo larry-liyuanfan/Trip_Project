@@ -79,6 +79,19 @@ Git 历史查阅，机器可读的必要实验身份保留在 `experiments/`。
 
 这些边界不阻止本次正式交付，但后续开发不得把它们改写成已解决。
 
+## 正式交付后的 development 证据增强
+
+在不修改正式 v1、也不重新消费 Fresh Test 120 的前提下，`dev` 新增四轨证据协议：
+ANN-vs-exact、独立查询业务语义、VLM/SFT one-factor 语义和端到端分阶段性能。检索查询来自
+5 张独立 Commons 图片，覆盖同类视觉、城市/业态/设施/价位组合、视觉相似但业务无关、
+无结果和过滤冲突。当前标签为 metadata 弱标签，不是人工金标。
+
+VLM 角色严格区分 zero-shot、Week 7 checkpoint-226 旧 unified 和 system-repair
+checkpoint-87；Week 6 单任务 adapter 不代替 unified。历史 168 条 development 原始输出仅做
+字段级重算和身份审计，本任务另建与历史五维 identity 分离的小型 weak/synthetic 池，因此
+历史选择证据与新增诊断结果不混分。完整结果和事实边界见
+`reports/development/reviews/search_algorithm_evidence_enhancement_report.md`。
+
 ## 个人开发经历
 
 本人独立完成了需求拆解、数据处理、评测集与隔离机制、Prompt/Schema 设计、批量推理、

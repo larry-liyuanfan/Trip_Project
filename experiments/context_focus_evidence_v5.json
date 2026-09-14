@@ -1,0 +1,150 @@
+{
+  "schema_version": "context_focus_evidence_v5",
+  "status": "COMPLETED_EXPLORATION_EVIDENCE",
+  "date": "2026-09-03",
+  "evidence_class": "deterministic_synthetic_programmatic_not_human_ground_truth",
+  "gate_class": "exploration_only_not_release_or_production_gate",
+  "human_annotation_support": 0,
+  "fresh_test_used": false,
+  "formal_release_changed": false,
+  "formal_release_id": "trip-qwen3-vl-8b-week8-final-v1",
+  "source": {
+    "branch": "codex/trip-relevance-eval",
+    "implementation_commit": "15fe56eb871e731df98e11b8207a08583dce84a4",
+    "source_snapshot_sha256": "802cc2e3e9466bcd6f55e709c010a52f98b64edfa18907c1c8d5af4ac325fa5e",
+    "source_manifest_file_sha256": "575a86103edc3f06729185eda81e27953f0bd4f82fcce4d38510b04c5822f84c",
+    "configuration_sha256": "19fe23860797c8a3883c81084c63086bc4debeb0665ceeaa9e8e02522509c165",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b"
+  },
+  "isolation": {
+    "training_support": {"total": 528, "product": 144, "dialogue": 384},
+    "development_support": {"total": 48, "product": 24, "dialogue": 24},
+    "final_support": {"total": 48, "product": 24, "dialogue": 24},
+    "source_id_image_sha256_sample_id_and_dialogue_text_sha256_pairwise_overlap": 0,
+    "status": "PASS",
+    "pool_lock_canonical_sha256": "5069c65079804a378a0cafc4df54da2343c75c06bcb27b301e1fe7947e376742",
+    "development_manifest_canonical_sha256": "80df9e48fe2af4d5b27aee2bf67dccac9bb6811b6813f0028b64e4848cc027f4",
+    "final_manifest_canonical_sha256": "33a5dab5582a3855710a4b3e4efaba663f56ba44a0b4b2acf7f4acdb134d6959",
+    "final_consumed_once": true,
+    "final_consumption_marker_file_sha256": "0006e246a002359d1d2bc3a6b5596de4e27f0b807de68e593a244b082f703705"
+  },
+  "training": {
+    "primary_factor_changed_from_v4": "context_focused_synthetic_training_data_composition_and_support",
+    "prompt_changed_from_v4": false,
+    "initial_adapter_model_sha256": "529026d7e704bb3e2e7761a641df765f88b69f071dd970e339497aa2af108c77",
+    "candidate_adapter_model_sha256": "b8a1ce69bbce2be99d02a7445a7aaa1fe36a954c42fb1404e26b2244f825cac4",
+    "adapter_config_sha256": "11c81acf9abae4aeca42cacd219cf98f514d16c2f70ae798b7f1146d8136d9fe",
+    "training_manifest_file_sha256": "3a040e8f8079cc428e9bc208f96c126c715dc79fef8c0db28a3c2d76773e9d62",
+    "epochs": 1,
+    "global_steps": 33,
+    "train_loss": 0.034456132239111786,
+    "train_runtime_seconds": 187.2586,
+    "train_samples_per_second": 2.82,
+    "peak_gpu_memory_allocated_bytes": 11050416128,
+    "peak_gpu_memory_reserved_bytes": 13591642112,
+    "run_summary_file_sha256": "9520fcb1d5b4394fca273da7dc26c623dd871d931d346a389251f63ec7053d89",
+    "metadata_defect": "immutable run_summary schema_version was overwritten with the identity schema; metric keys and hashes remain present, and the writer was fixed after the run"
+  },
+  "development": {
+    "slurm_job_id": "29998754",
+    "selection_file_sha256": "301c510b3b54238589ada585f487ad67d313425e55a185cff74364d5833c53f9",
+    "raw_result_canonical_sha256": "2fb29a93ea0f985ed7952ba9b868a828c9a5a9010689d0ebd179633bc3e709f5",
+    "fixed_gate_status": "PASS",
+    "denominators": {"candidate": 48, "product": 24, "dialogue": 24, "unknown_opportunities": 36, "multi_subject": 6},
+    "baseline_v4": {
+      "field_metrics": {
+        "business_category": {"precision": 0.9583333333333334, "recall": 0.9583333333333334, "f1": 0.9583333333333334, "support": 24},
+        "style_tags": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 12},
+        "visible_facilities": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 12},
+        "price_range": {"precision": 0.75, "recall": 0.75, "f1": 0.75, "support": 12}
+      },
+      "supported_field_exact_match": 0.875,
+      "unknown_field_abstention_accuracy": 1.0,
+      "unsupported_hallucination_rate": 0.0,
+      "first_attempt_json_compliance": 1.0,
+      "correction_trigger_rate": 0.0,
+      "dialogue": {"context_recall": 0.2916666666666667, "state_value_correct": 0.625, "task_key_correct": 0.20833333333333334, "value_correct": 0.5, "first_turn_routing_correct": 1.0}
+    },
+    "candidate_v5": {
+      "field_metrics": {
+        "business_category": {"precision": 0.9583333333333334, "recall": 0.9583333333333334, "f1": 0.9583333333333334, "support": 24},
+        "style_tags": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 12},
+        "visible_facilities": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 12},
+        "price_range": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 12}
+      },
+      "supported_field_exact_match": 0.9583333333333334,
+      "unknown_field_abstention_accuracy": 1.0,
+      "unsupported_hallucination_rate": 0.0,
+      "first_attempt_json_compliance": 1.0,
+      "correction_trigger_rate": 0.0,
+      "insufficient_evidence_abstention_accuracy": 1.0,
+      "multi_subject_abstention_accuracy": 1.0,
+      "dialogue": {"context_recall": 1.0, "state_value_correct": 1.0, "task_key_correct": 1.0, "value_correct": 1.0, "first_turn_routing_correct": 1.0}
+    }
+  },
+  "service_performance": {
+    "slurm_job_id": "29998754",
+    "hardware": {"node": "spartan-gpgpu127.hpc.unimelb.edu.au", "gpu": "NVIDIA A100 80GB PCIe", "visible_gpu_count": 1, "cpu_per_task": 8, "memory_mib": 65536, "python": "3.11.3", "torch": "2.8.0+cu128", "cuda": "12.8"},
+    "transport": "real_loopback_HTTP_FastAPI_Uvicorn",
+    "milvus": {"version": "2.6.18", "deployment": "external_single_node_standalone_not_Lite_not_distributed", "rpm_sha256": "3686f38c672dd73e6b99c0bb7829984439256724793a44d7cfd9c6fc0181a447", "visible_entities": 1000, "cold_startup_ms": 1936.3428317010403, "collection_build_and_load_ms": 8216.357240453362},
+    "protocol": {"cold_requests_per_role": 1, "warmup_requests_per_role": 2, "steady_batches_per_concurrency_per_role": 8, "steady_requests_per_role": 56, "concurrency": [1, 2, 4], "max_new_tokens": 32},
+    "fixed_gate_status": "PASS",
+    "concurrency_1_http_p95_ratio_candidate_to_baseline": 0.98495985017561,
+    "maximum_ratio": 1.25,
+    "failure_rate_max_observed": 0.0,
+    "baseline_v4": {
+      "service_startup_cold_ms": 37039.359329268336,
+      "first_request_http_e2e_ms": 1885.3677911683917,
+      "steady": {
+        "1": {"support": 8, "http_p50_ms": 1024.0964582189918, "http_p95_ms": 1046.0324566811323, "clip_p50_ms": 7.014418486505747, "clip_p95_ms": 7.568106986582279, "milvus_p50_ms": 3.176399040967226, "milvus_p95_ms": 3.477885387837887, "rerank_p50_ms": 0.027826987206935883, "rerank_p95_ms": 0.03613065928220749, "vlm_p50_ms": 1008.8355946354568, "vlm_p95_ms": 1029.7470511868596, "throughput_rps": 0.9732062045604601, "peak_vram_mib": 6864.3193359375, "failure_rate": 0.0},
+        "2": {"support": 16, "http_p50_ms": 1528.9678843691945, "http_p95_ms": 2045.8175130188465, "queue_p50_ms": 501.5430669300258, "throughput_rps": 0.9824469539935838, "peak_vram_mib": 6872.4443359375, "failure_rate": 0.0},
+        "4": {"support": 32, "http_p50_ms": 2534.305064473301, "http_p95_ms": 4076.094496063888, "queue_p50_ms": 1520.7664747722447, "throughput_rps": 0.9853614217142592, "peak_vram_mib": 6888.6943359375, "failure_rate": 0.0}
+      }
+    },
+    "candidate_v5": {
+      "service_startup_cold_ms": 36038.99320401251,
+      "first_request_http_e2e_ms": 1596.159802749753,
+      "steady": {
+        "1": {"support": 8, "http_p50_ms": 1025.4036393016577, "http_p95_ms": 1030.2999718114734, "clip_p50_ms": 7.003576494753361, "clip_p95_ms": 7.398298010230064, "milvus_p50_ms": 3.210032358765602, "milvus_p95_ms": 3.5934671759605408, "rerank_p50_ms": 0.028574373573064804, "rerank_p95_ms": 0.03324728459119797, "vlm_p50_ms": 1009.8211928270757, "vlm_p95_ms": 1014.5821701735258, "throughput_rps": 0.9759369573445636, "peak_vram_mib": 6864.3193359375, "failure_rate": 0.0},
+        "2": {"support": 16, "http_p50_ms": 1527.5956192053854, "http_p95_ms": 2052.8827318921685, "queue_p50_ms": 504.952454008162, "throughput_rps": 0.9790042291725101, "peak_vram_mib": 6872.4443359375, "failure_rate": 0.0},
+        "4": {"support": 32, "http_p50_ms": 2528.993315063417, "http_p95_ms": 4097.307843156159, "queue_p50_ms": 1517.8034091368318, "throughput_rps": 0.9847139535060988, "peak_vram_mib": 6888.6943359375, "failure_rate": 0.0}
+      }
+    },
+    "summary_file_sha256": "89f957eb9f1adbc10f427a83aec68a07da4468948eb43c0bc8c8ad8a1ee87d94",
+    "raw_file_sha256": "6d324d4dca41f85384ec1de7e8473d8109a1156cede8ba08c6aa91b1c7de4c6e",
+    "production_sla_supported": false,
+    "multi_node_distributed_milvus": "NOT_RUN"
+  },
+  "final": {
+    "status": "PASS_SYNTHETIC_EXPLORATION_ONLY",
+    "denominators": {"total": 48, "product": 24, "dialogue": 24, "unknown_opportunities": 36, "multi_subject": 6, "insufficient_evidence": 12},
+    "field_metrics": {
+      "business_category": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 24},
+      "style_tags": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 12},
+      "visible_facilities": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 12},
+      "price_range": {"precision": 1.0, "recall": 1.0, "f1": 1.0, "support": 12}
+    },
+    "supported_field_exact_match": 1.0,
+    "unknown_field_abstention_accuracy": 1.0,
+    "unsupported_hallucination_rate": 0.0,
+    "first_attempt_json_compliance": 1.0,
+    "correction_trigger_rate": 0.0,
+    "dialogue": {"context_recall": 1.0, "state_value_correct": 1.0, "task_key_correct": 1.0, "value_correct": 1.0, "first_turn_routing_correct": 1.0},
+    "raw_result_canonical_sha256": "ceb1f4e991050ce96c0c695749ed503965adfc5477c7d235f202a63d1c4b9ca1",
+    "raw_file_sha256": "989ed785f668cc83398618a5fb11f536e04abd7960fba2286d05d0e953435a7a",
+    "metrics_file_sha256": "1ae18a590d2169d0284111ddbb1bba090d13c17d2aab6604e0c1d34132dce620"
+  },
+  "execution": {
+    "successful_job": {"slurm_job_id": "29998754", "state": "COMPLETED", "elapsed": "00:14:14", "batch_max_rss_kib": 21021740},
+    "prior_failed_attempt": {"slurm_job_id": "29998410", "state": "FAILED_DURING_BASE_MODEL_LOAD", "development_or_final_opened": false, "scientific_result": false},
+    "chain_summary_file_sha256": "283d10e7a6bdea5f6425a26456ab6b4005b062f294a84d0dc043f966aed19c4a"
+  },
+  "fact_boundaries": [
+    "all VLM quality labels are deterministic synthetic and human_annotation_support is zero",
+    "the frozen 120-sample Fresh Test was not read, tuned on, or rerun",
+    "the service benchmark is loopback HTTP with single-node standalone Milvus, not a distributed cluster or production SLA",
+    "the formal release, its adapter, prompts, thresholds, and artifacts remain unchanged"
+  ]
+}

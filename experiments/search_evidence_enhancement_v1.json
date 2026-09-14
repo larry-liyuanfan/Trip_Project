@@ -1,0 +1,186 @@
+{
+  "schema_version": "search_evidence_enhancement_v1",
+  "status": "COMPLETED_DEVELOPMENT_DIAGNOSTIC",
+  "promotion_eligible": false,
+  "formal_release_changed": false,
+  "fresh_test_120_reused": false,
+  "fresh_test_120_offline_audited": true,
+  "decision": {
+    "search_diagnostic": "STRUCTURED_FILTER_POSITIVE_WEAK_EVIDENCE",
+    "performance_gate": "PASS",
+    "joint_quality_latency_gate": "FAIL_NOT_ELIGIBLE_WEAK_LABEL",
+    "quality_failures": [
+      "current first-attempt JSON compliance 0.75 is below old unified 1.0",
+      "current dialogue first-turn routing accuracy 0.333333 is below old unified 1.0",
+      "current facility F1 0.0 is below old unified 0.2"
+    ],
+    "release_action": "NO_CHANGE"
+  },
+  "execution": {
+    "environment": "Spartan Iris project isolated workspace and Python 3.11 venv",
+    "hardware": "NVIDIA A100 80GB PCIe MIG 1g.20gb",
+    "git_base_sha": "5456f477c80e54a0764051206898fccd48db6237",
+    "implementation_commit_sha": "4cb78787974214d20f8c6d0bbb4dffcd84376d36",
+    "evaluation_config_sha256": "bd83f69b6714d624316ac82a49fe4463a282b66ad37c0492d4479f2375fa6130",
+    "run_source_snapshot": {
+      "manifest": "experiments/relevance_evidence_source_snapshot_v1.json",
+      "sha256": "ec422d421b05749a1617004c5aa4d7ff1f0341e283902880c78df8a83e485dea",
+      "file_support": 23,
+      "validation": "PASS_AT_START_OF_EACH_FINAL_JOB"
+    },
+    "python": "3.11.3",
+    "torch": "2.8.0+cu128",
+    "transformers": "4.57.1",
+    "pymilvus": "2.6.16",
+    "jobs": {
+      "environment": {"job_id": "29925637", "state": "COMPLETED", "exit_code": "0:0"},
+      "historical_development_audit": {"job_id": "29926868", "state": "COMPLETED", "exit_code": "0:0"},
+      "search": {"job_id": "29926869", "state": "COMPLETED", "exit_code": "0:0"},
+      "new_vlm_v2_zero_shot": {"job_id": "29926870", "state": "COMPLETED", "exit_code": "0:0"},
+      "new_vlm_v2_old_unified": {"job_id": "29926871", "state": "COMPLETED", "exit_code": "0:0"},
+      "new_vlm_v2_current_checkpoint_87": {"job_id": "29926872", "state": "COMPLETED", "exit_code": "0:0"},
+      "performance_old_unified": {"job_id": "29926873", "state": "COMPLETED", "exit_code": "0:0"},
+      "performance_current_checkpoint_87": {"job_id": "29926874", "state": "COMPLETED", "exit_code": "0:0"},
+      "historical_final_test_offline_audit": {"job_id": "29927144", "state": "COMPLETED", "exit_code": "0:0"}
+    },
+    "superseded_unbound_diagnostic_jobs": ["29925666", "29926147", "29926561", "29926562", "29926563", "29926414", "29926415"]
+  },
+  "formal_retrieval_audit": {
+    "archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b",
+    "vector_member_sha256": "021f09d764038a3ce53d28d348b4c1b6f5b50ba82f51d69ccd2b1acfeee059ee",
+    "metadata_member_sha256": "7a79894fb027e2f0e6e6aa943a5af21c10c72b084f0dd866c931405debfcd42d",
+    "benchmark_member_sha256": "21b296fea2ffbc3422c0863eeb87e5f6151de7cddecba18997ebdf9218ac1d90",
+    "historical": {
+      "scope": "ann_vs_exact_vector_query_only",
+      "query_support": 100,
+      "recall_at_10": 1.0,
+      "mean_ms": 2.235452996683307,
+      "p95_ms": 2.409699955023825,
+      "business_relevance_supported": false,
+      "end_to_end_supported": false
+    }
+  },
+  "independent_query_pool": {
+    "query_support": 10,
+    "unique_asset_support": 5,
+    "manifest_sha256": "a259f3dde00efc4225afcaf9f43e00d34345a977605347a655cfcb249ee33125",
+    "annotation_sha256": "e9bc8fa6be25cff65d7ff4fcdc2f352bf4e6d0c410366b3d9a75bc9792eb8349",
+    "exact_asset_source_registry_sha256": "ad7130d83f1636053048a1298a1a373456679d15a937378a76f5318fec02682f",
+    "label_provenance": "weak_programmatic_metadata",
+    "human_review_support": 0,
+    "source_isolation": "PASS_INDEPENDENT_PUBLIC_SOURCE_NOT_YELP",
+    "byte_level_index_query_collision_check": "NOT_RUN_MISSING_INDEX_IMAGE_SHA",
+    "slices": [
+      "image_similar",
+      "city_business_facility_price",
+      "visual_similar_business_irrelevant",
+      "no_result",
+      "filter_conflict"
+    ]
+  },
+  "search": {
+    "raw_result_canonical_sha256": "09ab01d2e74424b9aa126245eeedd2187b7479ca1c2a23077c97387ad4373cb6",
+    "raw_file_sha256": "ef2ed32c41ebb0c7938a8cebd13cc40ded9e621fc9d88fe769fd668d97cb87e1",
+    "summary_file_sha256": "94d6626af72762d01660fb9561730979efc2f734ab9a9eb889981c21b47cfa94",
+    "ann_vs_exact": {"query_support": 10, "recall_at_10": 1.0, "business_relevance_supported": false},
+    "business_semantics": {
+      "clip_exact": {"ranking_support": 8, "recall_at_5": 0.004549954310082241, "recall_at_10": 0.00883338409990862, "mrr_at_10": 0.4, "ndcg_at_10": 0.8020030398203617, "no_result_accuracy": 0.8, "filter_correctness": 0.5, "failure_rate": 0.0},
+      "clip_milvus": {"ranking_support": 8, "recall_at_5": 0.004549954310082241, "recall_at_10": 0.00883338409990862, "mrr_at_10": 0.4, "ndcg_at_10": 0.8020030398203617, "no_result_accuracy": 0.8, "filter_correctness": 0.5, "failure_rate": 0.0},
+      "structured_filter_clip": {"ranking_support": 8, "recall_at_5": 0.04621662097674891, "recall_at_10": 0.050633313026703215, "mrr_at_10": 0.65, "ndcg_at_10": 0.825341644337076, "no_result_accuracy": 0.9, "filter_correctness": 1.0, "failure_rate": 0.0},
+      "lightweight_rerank": {"ranking_support": 8, "recall_at_5": 0.025383287643415575, "recall_at_10": 0.029799979693369883, "mrr_at_10": 0.525, "ndcg_at_10": 0.7904861268241897, "no_result_accuracy": 0.8, "filter_correctness": 0.5, "failure_rate": 0.0}
+    },
+    "stage_timing_ms": {
+      "clip_encode": {"support": 10, "p50": 16.674278769642115, "p95": 381.1441408470273},
+      "milvus": {"support": 10, "p50": 3.130781464278698, "p95": 3.967459313571453},
+      "rerank": {"support": 10, "p50": 0.1274733804166317, "p95": 0.2376241609454155},
+      "search_path": {"support": 10, "p50": 28.421295806765556, "p95": 412.7317313104868}
+    }
+  },
+  "historical_development_recomputation": {
+    "status": "AUDIT_ONLY_ALREADY_USED_FOR_HISTORICAL_SELECTION",
+    "support": 168,
+    "scenario_support": {"image_product_search": 48, "after_sales": 48, "itinerary_planning": 48, "dialogue": 24},
+    "label_provenance": "programmatic_silver",
+    "dataset_sha256": "dea8c75a9a49ac4a98811db6bb1e881a8f5f43a48fa67ae1df7b58d542a6dc58",
+    "dataset_lock_sha256": "9d1dc4aa6d51e0b5f1aff5fd84893b54a67b0bcd35dd1cea394531c8f0325bed",
+    "config_sha256": "b5d555fdbf117a0ced08560b8160c2edda66f0532241f1ffc1c2570e97ff70ca",
+    "audit_file_sha256": "19497e293081b3c8494965abc17907f427dad195770c16f176c5a3b20088585b",
+    "first_attempt_correction_status": "NOT_RECORDED_IN_PRESERVED_RAW_SCHEMA",
+    "roles": {
+      "zero_shot": {"raw_sha256": "86895ababdca937bccd3ccbe40b8c63b8fa4a3cf54aee04c627a67b80dff98c2", "adapter_sha256": null, "product_support": 48, "category_f1": 0.0, "style_f1": 0.0, "facility_f1": 0.0, "price_f1": 0.0, "price_reference_support": 5, "product_exact_match": 0.0, "unknown_field_hallucination_rate": 0.0, "dialogue_support": 24, "dialogue_automatic_composite": 0.1533843537414966, "mean_latency_ms": 3242.231443773822, "failure_rate": 0.017857142857142856},
+      "old_unified_adapter": {"raw_sha256": "7ba40d30824ce1f1608928b6757d7e8dfd4823cc6c5a01ea750e1c1e25ceb421", "adapter_sha256": "ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee", "product_support": 48, "category_f1": 0.0, "style_f1": 0.0, "facility_f1": 0.0, "price_f1": 0.0, "price_reference_support": 5, "product_exact_match": 0.0, "unknown_field_hallucination_rate": 0.0, "dialogue_support": 24, "dialogue_automatic_composite": 0.9529457973264662, "mean_latency_ms": 9628.888643640537, "failure_rate": 0.0},
+      "current_system_repair_checkpoint_87": {"raw_sha256": "6b123981fe6b86d99a75ac731cc865e28887b5755176a0269a57c1184d05dee3", "adapter_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a", "product_support": 48, "category_f1": 1.0, "style_f1": 0.6138613861386139, "facility_f1": 0.8701298701298701, "price_f1": 0.0, "price_reference_support": 5, "product_exact_match": 0.3333333333333333, "unknown_field_hallucination_rate": 0.10416666666666667, "dialogue_support": 24, "dialogue_automatic_composite": 0.9820971255415345, "mean_latency_ms": 10707.536666737204, "failure_rate": 0.0}
+    }
+  },
+  "new_vlm_weak_v2": {
+    "status": "COMPLETED_DIAGNOSTIC_NOT_FOR_PROMOTION",
+    "data_lock_sha256": "bc67a10ef27892cba19ba66cba95c7c9d8eb31ff2632abc741146cdf98ed2f2e",
+    "prompt_sha256": "5f6efd985c303e975af7afa5dd503dc7d1760924b8f75f9b91beb4c7cdcf41b1",
+    "generation_config_sha256": "c8123ee8c9e909ac07e0cb6dd5b20df8d2a6f99a3e33d3039f8a9a7f695dd2df",
+    "support": {"product": 5, "dialogue": 3, "multi_subject": 0},
+    "multi_subject_status": "PENDING_NO_CREDIBLE_SAMPLE",
+    "price_status": "NOT_APPLICABLE_NO_SUPPORTED_REFERENCE",
+    "rejected_v1": {"status": "REJECTED_MISSING_ASSET_BYTE_BINDING", "data_lock_sha256": "9655bf045ffdf343d5fd9540bb2dd526180ad000fec2837986a9b03aa5bd5abb"},
+    "score_file_sha256": "d33b3ab867742f3ba88d8ad98e2ab475eb8fbba025b117d19dc4ba626a583b40",
+    "roles": {
+      "zero_shot": {"result_sha256": "213523e26336d71cb492a03e310f2506b1f6d7bc0d59637b77a04538ab074fbc", "raw_file_sha256": "478e454754ecd82dccbe7fb9f6717637e79f975100eb64e0387fa578c30dcf57", "category_f1": 0.8, "style_f1": 0.11764705882352941, "facility_f1": 0.16666666666666666, "price_f1": null, "price_unknown_abstention_accuracy": 0.8, "supported_field_exact_match": 0.0, "unknown_field_hallucination_rate": 0.2, "first_attempt_json_compliance": 1.0, "correction_trigger_rate": 0.0, "dialogue_context_recall": 0.0, "dialogue_state_value_accuracy": 0.0, "dialogue_task_key_accuracy": 0.0, "dialogue_value_accuracy": 0.6666666666666666, "dialogue_first_turn_routing_accuracy": 1.0, "mean_latency_ms": 5059.347382280976, "peak_vram_mib": 6649.46435546875},
+      "old_unified_adapter": {"result_sha256": "c7b257f8b94bcaa372fb2e04b080fb2a145a78f706669620918260b97506f8ed", "raw_file_sha256": "ef0c782177380f5f62843f33514d6c94848f242d31fe2351b7b03569b057f7eb", "category_f1": 0.8, "style_f1": 0.0, "facility_f1": 0.2, "price_f1": null, "price_unknown_abstention_accuracy": 1.0, "supported_field_exact_match": 0.0, "unknown_field_hallucination_rate": 0.0, "first_attempt_json_compliance": 1.0, "correction_trigger_rate": 0.0, "dialogue_context_recall": 0.0, "dialogue_state_value_accuracy": 0.0, "dialogue_task_key_accuracy": 0.0, "dialogue_value_accuracy": 0.0, "dialogue_first_turn_routing_accuracy": 1.0, "mean_latency_ms": 3186.1169307958335, "peak_vram_mib": 6709.05810546875},
+      "current_system_repair_checkpoint_87": {"result_sha256": "b7ac06390a57126e91bd6d5d44fb1ea7b88b2242125d58c3dd8af10f634a750d", "raw_file_sha256": "500bbf2dffd63c1036290bef94a6263f83ae9f2d26e9bf4ced632c1a02e5e814", "category_f1": 0.8, "style_f1": 0.14285714285714285, "facility_f1": 0.0, "price_f1": null, "price_unknown_abstention_accuracy": 1.0, "supported_field_exact_match": 0.0, "unknown_field_hallucination_rate": 0.0, "first_attempt_json_compliance": 0.75, "correction_trigger_rate": 0.25, "dialogue_context_recall": 0.0, "dialogue_state_value_accuracy": 0.0, "dialogue_task_key_accuracy": 0.0, "dialogue_value_accuracy": 0.0, "dialogue_first_turn_routing_accuracy": 0.3333333333333333, "mean_latency_ms": 5327.1325918613, "peak_vram_mib": 6709.05810546875}
+    }
+  },
+  "end_to_end_performance": {
+    "status": "PASS_FIXED_GATES",
+    "hardware": "NVIDIA A100 80GB PCIe MIG 1g.20gb",
+    "protocol": {"cold_repetitions": 1, "warmup_repetitions": 3, "steady_repetitions": 30},
+    "comparison_file_sha256": "c0b005a3b123ea8246f01d29e5d167d256fab765eca5cff4b8c2d72e052c416f",
+    "old_unified": {"raw_file_sha256": "e2122d63698ace1a529d30e55aae43163c8292af6d571e1ae857a5d66bcac7e9", "cold_support": 1, "cold_startup_ms": 27616.190049797297, "cold_clip_ms": 216.72167629003525, "cold_milvus_ms": 5.885167047381401, "cold_rerank_ms": 0.03293994814157486, "cold_vlm_ms": 4965.840014629066, "cold_end_to_end_ms": 32815.27598109096, "steady_support": 30, "steady_end_to_end_p50_ms": 4722.287434153259, "steady_end_to_end_p95_ms": 4767.037739045918, "steady_clip_p50_ms": 16.14302024245262, "steady_clip_p95_ms": 17.582066357135773, "steady_milvus_p50_ms": 3.7376675754785538, "steady_milvus_p95_ms": 4.762937314808369, "steady_rerank_p50_ms": 0.02336781471967697, "steady_rerank_p95_ms": 0.0313417986035347, "steady_vlm_p50_ms": 4699.30603262037, "steady_vlm_p95_ms": 4741.174328140914, "peak_vram_mib": 7036.5947265625, "throughput_qps": 0.21161916650863283, "failure_rate": 0.0},
+    "current_checkpoint_87": {"raw_file_sha256": "66b411ee24e5700246ba353bde1ae7029c28098117ce09badcbd151a2d7f891c", "cold_support": 1, "cold_startup_ms": 25970.983191393316, "cold_clip_ms": 162.5714423134923, "cold_milvus_ms": 6.097429431974888, "cold_rerank_ms": 0.030304305255413055, "cold_vlm_ms": 4291.315467096865, "cold_end_to_end_ms": 30440.223143436015, "steady_support": 30, "steady_end_to_end_p50_ms": 4082.5027101673186, "steady_end_to_end_p95_ms": 4121.383138000965, "steady_clip_p50_ms": 15.860842540860176, "steady_clip_p95_ms": 16.795707866549492, "steady_milvus_p50_ms": 3.4038610756397247, "steady_milvus_p95_ms": 4.293374717235565, "steady_rerank_p50_ms": 0.022617168724536896, "steady_rerank_p95_ms": 0.02600252628326416, "steady_vlm_p50_ms": 4059.5583678223193, "steady_vlm_p95_ms": 4098.890110850334, "peak_vram_mib": 7036.5947265625, "throughput_qps": 0.24476927105476873, "failure_rate": 0.0},
+    "candidate_to_baseline_p95_ratio": 0.8645585295546296,
+    "fixed_gate_thresholds": {"max_steady_p95_ms": 12000, "max_failure_rate": 0.02, "max_peak_vram_mib": 8192, "max_candidate_to_baseline_p95_ratio": 1.25},
+    "fact_boundary": "one fixed short hotel-search probe; not a universal production latency claim"
+  },
+  "historical_0_780639": {
+    "reported_value": 0.780639,
+    "recorded_value": 0.7806388888888889,
+    "status": "PASS_HISTORICAL_FINAL_TEST_OFFLINE_AUDIT_ONLY",
+    "local_handoff_status": "EVIDENCE_GAP_RAW_SAMPLE_OUTPUTS_NOT_IN_LOCAL_HANDOFF",
+    "remote_search_scope": "Iris system-repair-20260824 outputs/system_repair only",
+    "model_executed": false,
+    "used_for_tuning_or_promotion": false,
+    "audit_implementation_commit_sha": "496f067d36b3d2b79041dcf268d2e041045c280b",
+    "audit_source_snapshot_sha256": "6bc1efd779dadbe60c016fa4e1229cb33497f6019fe6e4f6f90de19569000bed",
+    "audit_file_sha256": "6deb77b113b1ece1b0cc69df46ca8faca7571aee5405ed9b8d07bb895f4eaf98",
+    "source_identity": {
+      "support": 120,
+      "raw_outputs_sha256": "3444649815298a82fbae328c521f5b9ee1595ae2dcbf8007311ae043b015eb19",
+      "metrics_sha256": "853bd67ece5cce91f0b028d992daecabc9b5a701e14e3f92fb73960f69d01018",
+      "dataset_sha256": "f31519911ff1622b307a0a9d59e224c0572b2623c0cb859131c3c6617140f456",
+      "gate_sha256": "9574b05bccff1e9d988181615937f40e634d9c81e8ea7049bda644652b1da77d",
+      "consumption_sha256": "2a86c9d683bcd7ebc76fc549367c54e9156b2b848fb63d2890f7b22225369082"
+    },
+    "product": {
+      "support": 30,
+      "category": {"support": 29, "precision": 1.0, "recall": 1.0, "f1": 1.0, "mismatch_count": 0},
+      "style": {"support": 25, "precision": 0.96, "recall": 0.8888888888888888, "f1": 0.923076923076923, "mismatch_count": 3},
+      "facility": {"support": 30, "precision": 0.86, "recall": 0.8113207547169812, "f1": 0.8349514563106797, "mismatch_count": 14},
+      "price": {"support": 5, "precision": 0.0, "recall": 0.0, "f1": 0.0, "mismatch_count": 5},
+      "exact_match": 0.4,
+      "unknown_field_opportunity_support": 31,
+      "unknown_field_hallucination_count": 6,
+      "unknown_field_hallucination_rate": 0.1935483870967742,
+      "final_recorded_json_compliance": 1.0,
+      "operational_failure_count": 0,
+      "multi_subject_conflict_support": 0,
+      "multi_subject_conflict_status": "NOT_SCORABLE_NO_PRESERVED_MULTI_SUBJECT_LABEL"
+    },
+    "first_attempt_and_correction": "NOT_RECORDED_IN_PRESERVED_FINAL_RAW_SCHEMA"
+  },
+  "verification": {
+    "unit_tests": {"status": "PASS", "run": 926, "skipped": 2},
+    "tripctl_validate": "PASS",
+    "formal_final_delivery_verifier": {"status": "PASS", "packaged_test_record": 948},
+    "docker_compose_config": "PASS",
+    "evidence_pool_and_formal_hash_validation": "PASS",
+    "git_diff_check": "PASS"
+  }
+}

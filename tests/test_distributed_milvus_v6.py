@@ -1,0 +1,260 @@
+"""Unit tests for the fail-closed distributed Milvus v6 path."""
+
+from __future__ import annotations
+
+import socket
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from scripts.prepare_distributed_milvus_runtime_v6 import configure_milvus_text
+from scripts.run_distributed_milvus_cluster_v6 import (
+    build_minio_environment,
+    build_minio_server_command,
+    candidate_port_bases,
+    find_local_port_base,
+    prepare_node,
+    probe_tcp_endpoint,
+    resolve_inter_node_ipv4,
+    serve_milvus,
+)
+from scripts.run_http_milvus_service_benchmark_v4 import _validate_external_cluster_identity
+from scripts.smoke_distributed_milvus_runtime_v6 import validate_dependencies
+
+
+class DistributedMilvusV6Tests(unittest.TestCase):
+    def test_runtime_config_uses_remote_dependencies_without_default_secret(self) -> None:
+        template = "\n".join(
+            [
+                "localhost:2379",
+                "    embed: true # Whether to enable embedded Etcd (an in-process EtcdServer).",
+                "  address: localhost:9000",
+                "  port: 9000 # Port of MinIO or S3 service.",
+                "  accessKeyID: " + "minio" + "admin",
+                "  secretAccessKey: " + "minio" + "admin",
+                "  type: default",
+                "  storageType: local # please adjust in embedded Milvus: local, available values are [local, remote, opendal], value minio is deprecated, use remote instead",
+                "/var/lib/milvus/data/",
+                "/var/lib/milvus/rdb_data",
+                "/tmp/milvus_access",
+                "  ip:  # TCP/IP address of rootCoord. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of proxy. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of queryCoord. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of queryNode. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of dataCoord. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of dataNode. If not specified, use the first unicastable address",
+                "  ip:  # TCP/IP address of streamingNode. If not specified, use the first unicastable address",
+                "  port: 22125 # TCP port of rootCoord",
+                "  port: 19530 # TCP port of proxy",
+                "  internalPort: 19529",
+                "  port: 19531 # TCP port of queryCoord",
+                "  port: 21123 # TCP port of queryNode",
+                "  port: 13333 # TCP port of dataCoord",
+                "  port: 21124 # TCP port of dataNode",
+                "  port: 22222 # TCP port of streamingNode",
+                "  minSegmentSizeToEnableIndex: 1024",
+                "    enabled: true # Whether to enable the http server",
+                "",
+            ]
+        )
+        configured = configure_milvus_text(
+            template,
+            control_node="node-a",
+            port_base=28000,
+            access_key="trip0123456789abcd",
+            secret_key="s" * 40,
+            output_dir=Path("/tmp/trip-distributed-milvus-1/runtime"),
+            component_ip="10.20.30.40",
+            component_port_base=28100,
+        )
+        self.assertIn("node-a:28000", configured)
+        self.assertIn("embed: false", configured)
+        self.assertNotIn("embed: true", configured)
+        self.assertIn("node-a:28001", configured)
+        self.assertIn("port: 28104 # TCP port of proxy", configured)
+        self.assertIn("storageType: remote", configured)
+        self.assertIn("type: woodpecker", configured)
+        self.assertNotIn("minio" + "admin", configured)
+        self.assertNotIn("port: 19530", configured)
+        self.assertEqual(configured.count("ip: 10.20.30.40"), 7)
+        self.assertNotIn("first unicastable address", configured)
+
+    def test_external_identity_requires_two_nodes_and_exact_roles(self) -> None:
+        expected_server = {
+            "version": "2.6.18",
+            "package_sha256": "a" * 64,
+            "multi_node_distributed_cluster": True,
+        }
+        identity = {
+            "schema_version": "distributed_milvus_cluster_identity_v6",
+            "status": "READY",
+            "nodes": ["node-a", "node-b"],
+            "roles": {
+                "mixcoord": "node-a",
+                "proxy": "node-a",
+                "querynode": "node-b",
+                "datanode": "node-b",
+                "streamingnode": "node-b",
+            },
+            "milvus_server": expected_server,
+        }
+        _validate_external_cluster_identity(identity, {"milvus_server": expected_server})
+        identity["nodes"] = ["node-a"]
+        with self.assertRaisesRegex(ValueError, "exactly two unique nodes"):
+            _validate_external_cluster_identity(identity, {"milvus_server": expected_server})
+
+    def test_external_identity_rejects_cross_mixed_control_and_worker_roles(self) -> None:
+        server = {
+            "version": "2.6.18",
+            "package_sha256": "a" * 64,
+            "multi_node_distributed_cluster": True,
+        }
+        identity = {
+            "schema_version": "distributed_milvus_cluster_identity_v6",
+            "status": "READY",
+            "nodes": ["node-a", "node-b"],
+            "roles": {
+                "mixcoord": "node-a",
+                "proxy": "node-b",
+                "querynode": "node-b",
+                "datanode": "node-a",
+                "streamingnode": "node-b",
+            },
+            "milvus_server": server,
+        }
+        with self.assertRaisesRegex(ValueError, "control roles"):
+            _validate_external_cluster_identity(identity, {"milvus_server": server})
+        identity["roles"]["proxy"] = "node-a"
+        with self.assertRaisesRegex(ValueError, "worker roles"):
+            _validate_external_cluster_identity(identity, {"milvus_server": server})
+
+    def test_smoke_dependency_validation_is_fail_closed(self) -> None:
+        config = {
+            "performance": {
+                "milvus_server": {
+                    "multi_node_distributed_cluster": False,
+                    "package_sha256": "a" * 64,
+                },
+                "dependencies": {},
+            }
+        }
+        args = type("Args", (), {})()
+        with self.assertRaisesRegex(ValueError, "locked distributed"):
+            validate_dependencies(args, config)
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.prepare_runtime")
+    def test_worker_preparation_creates_separate_query_streaming_and_data_runtimes(
+        self,
+        prepare_runtime: mock.Mock,
+    ) -> None:
+        output_dir = Path("/tmp/trip-distributed-milvus-test")
+        prepare_node(
+            rpm=Path("milvus.rpm"),
+            output_dir=output_dir,
+            control_node="node-a",
+            port_base=28000,
+            expected_rpm_sha256="a" * 64,
+            access_key="trip0123456789abcd",
+            secret_key="s" * 40,
+            placement="worker",
+            component_ip="10.20.30.41",
+        )
+        self.assertEqual(prepare_runtime.call_count, 2)
+        calls = prepare_runtime.call_args_list
+        self.assertEqual(calls[0].kwargs["output_dir"], output_dir / "runtime-query-streaming")
+        self.assertEqual(calls[0].kwargs["component_port_base"], 28000)
+        self.assertEqual(calls[1].kwargs["output_dir"], output_dir / "runtime-data")
+        self.assertEqual(calls[1].kwargs["component_port_base"], 28020)
+        self.assertTrue(all(call.kwargs["component_ip"] == "10.20.30.41" for call in calls))
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.socket.getaddrinfo")
+    def test_inter_node_address_uses_the_single_dns_ipv4(self, getaddrinfo: mock.Mock) -> None:
+        getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.26.92.199", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.26.92.199", 0)),
+        ]
+        self.assertEqual(resolve_inter_node_ipv4("node-a"), "172.26.92.199")
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.socket.getaddrinfo")
+    def test_inter_node_address_rejects_ambiguous_or_loopback_dns(self, getaddrinfo: mock.Mock) -> None:
+        getaddrinfo.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.2", 0)),
+        ]
+        with self.assertRaisesRegex(RuntimeError, "expected one usable DNS IPv4"):
+            resolve_inter_node_ipv4("node-a")
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.socket.create_connection")
+    def test_cross_node_probe_fails_closed(self, create_connection: mock.Mock) -> None:
+        create_connection.side_effect = OSError("unreachable")
+        with self.assertRaisesRegex(TimeoutError, "cross-node TCP endpoint"):
+            probe_tcp_endpoint("10.0.0.2", 28003, 0.01)
+
+    def test_unknown_placements_are_rejected(self) -> None:
+        common = {
+            "rpm": Path("milvus.rpm"),
+            "output_dir": Path("/tmp/trip-distributed-milvus-test"),
+            "control_node": "node-a",
+            "port_base": 28000,
+            "expected_rpm_sha256": "a" * 64,
+            "access_key": "trip0123456789abcd",
+            "secret_key": "s" * 40,
+            "component_ip": "10.20.30.40",
+        }
+        with self.assertRaisesRegex(ValueError, "unsupported node placement"):
+            prepare_node(**common, placement="invalid")
+        with self.assertRaisesRegex(ValueError, "unsupported Milvus placement"):
+            serve_milvus(Path("/tmp/runtime"), "invalid", 28013)
+
+    def test_minio_credentials_do_not_replace_home(self) -> None:
+        base_env = {"HOME": "/home/yzhang3504", "EXISTING": "value"}
+        env = build_minio_environment(
+            base_env,
+            access_key="trip0123456789abcd",
+            secret_key="s" * 40,
+        )
+        self.assertEqual(env["HOME"], base_env["HOME"])
+        self.assertEqual(env["MINIO_ROOT_USER"], "trip0123456789abcd")
+        self.assertNotIn("MINIO_CONFIG_DIR", env)
+
+    def test_minio_command_sets_job_local_config_and_certs_before_server(self) -> None:
+        data_dir = Path.cwd() / "minio-data"
+        config_dir = Path.cwd() / "minio-config"
+        certs_dir = Path.cwd() / "minio-certs"
+        command = build_minio_server_command(
+            Path("minio"),
+            data_dir=data_dir,
+            config_dir=config_dir,
+            certs_dir=certs_dir,
+            address=":28001",
+            console_address=":28002",
+        )
+        self.assertEqual(
+            command[:6],
+            ["minio", "--config-dir", str(config_dir), "--certs-dir", str(certs_dir), "server"],
+        )
+        self.assertEqual(command[6], str(data_dir))
+
+    def test_candidate_port_blocks_are_deterministic_bounded_and_non_overlapping(self) -> None:
+        candidates = candidate_port_bases("30004341")
+        self.assertEqual(candidates, candidate_port_bases("30004341"))
+        self.assertEqual(len(candidates), len(set(candidates)))
+        self.assertGreaterEqual(min(candidates), 24000)
+        self.assertLessEqual(max(candidates) + 53, 65535)
+        ordered = sorted(candidates)
+        self.assertTrue(
+            all(right - left >= 64 for left, right in zip(ordered, ordered[1:]))
+        )
+
+    @mock.patch("scripts.run_distributed_milvus_cluster_v6.check_port_blocks")
+    def test_local_port_selection_skips_a_colliding_block(self, check_blocks: mock.Mock) -> None:
+        check_blocks.side_effect = [OSError("occupied"), None]
+        candidates = candidate_port_bases("30004341")
+        selected = find_local_port_base("30004341", (0, 20, 40))
+        self.assertEqual(selected, candidates[1])
+        self.assertEqual(check_blocks.call_args_list[0].args, (candidates[0], (0, 20, 40)))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,100 @@
+{
+  "schema_version": "week8_product_understanding_v5",
+  "week8": {
+    "scope": "product_understanding_primary",
+    "dataset_version": "week8_product_understanding_20260827_v5",
+    "source_version": "week8_product_fresh_20260827_v2",
+    "seed": 20260827,
+    "label_policy": "programmatic_silver_only",
+    "human_annotation_required": false,
+    "historical_artifacts_immutable": true
+  },
+  "model": {
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b",
+    "adapter_name": "trip-qwen3-vl-8b-system-repair-checkpoint-87-v1",
+    "adapter_model_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a",
+    "adapter_path_env": "TRIP_ADAPTER_DIR"
+  },
+  "fresh_source": {
+    "build_id": "week8_product_fresh_source_build_20260827_v2",
+    "output_root": "data/yelp/week8_product_fresh_20260827_v2",
+    "candidate_extract_count": 6000,
+    "selected_photo_count": 1000,
+    "minimum_eligible_count": 700,
+    "minimum_per_ota_category": 1,
+    "minimum_per_ota_category_by_category": {
+      "hotel": 13,
+      "attraction": 7,
+      "restaurant": 500
+    },
+    "candidate_minimum_per_ota_category": 1,
+    "candidate_minimum_per_ota_category_by_category": {
+      "hotel": 100,
+      "attraction": 100,
+      "restaurant": 500
+    },
+    "retain_all_categories_below": 1000,
+    "max_candidates_per_business": 8,
+    "official_photos_zip_size": 7447210067
+  },
+  "dataset": {
+    "output_root": "outputs/week8/product_understanding_v5/locked_data",
+    "development_count": 60,
+    "test_count": 60,
+    "continuation_train_count": 400,
+    "source_paths": {
+      "strong_pairs": "data/yelp/week8_product_fresh_20260827_v2/processed/strong_image_caption_pairs.parquet",
+      "medium_pairs": "data/yelp/week8_product_fresh_20260827_v2/processed/image_business_attribute_pairs.parquet",
+      "photos": "data/yelp/week8_product_fresh_20260827_v2/interim/photos.parquet",
+      "week3_exclusions": [
+        "data/eval/registry/evaluation_exclusion_manifest.jsonl",
+        "data/eval/registry/evaluation_exclusion_manifest_v2.jsonl"
+      ],
+      "week5_pools": "outputs/week5_qwen3_vl_4b/pools",
+      "week6_split_manifest": "outputs/week6/locked_data/week6_week5_final_human300_20260817_v4/split_manifest.jsonl",
+      "superseded_identity_manifests": [
+        "outputs/week7/locked_data/week7_fresh_multitask_context_20260820_v3/identity_manifest.jsonl",
+        "outputs/week7/locked_data/week7_corrected_multitask_context_20260822_v4/identity_manifest.jsonl",
+        "outputs/week7/locked_data/week7_corrected_multitask_context_20260823_v4_fix1/identity_manifest.jsonl",
+        "outputs/week7/locked_data/week7_corrected_multitask_context_20260824_v4_fix2/identity_manifest.jsonl",
+        "outputs/system_repair/locked_data/system_repair_fresh_multitask_20260824_v1/identity_manifest.jsonl",
+        "outputs/system_repair/locked_data/system_repair_fresh_multitask_20260825_v2/identity_manifest.jsonl"
+      ]
+    },
+    "split_category_minimums": {
+      "development": {"hotel": 3, "attraction": 2, "restaurant": 20},
+      "test": {"hotel": 3, "attraction": 2, "restaurant": 20},
+      "train": {"hotel": 7, "attraction": 3, "restaurant": 100}
+    },
+    "split_field_support_minimums": {
+      "development": {"style": 25, "facility": 30},
+      "test": {"style": 25, "facility": 30},
+      "train": {"style": 80, "facility": 200}
+    }
+  },
+  "prompts": {
+    "current_release": "system_repair_product_compact_v3",
+    "compact_field_check": "week8_product_field_check_v1",
+    "visual_evidence_guard": "week8_product_evidence_guard_v1"
+  },
+  "generation": {
+    "max_new_tokens": 384,
+    "do_sample": false,
+    "temperature": 0.0,
+    "max_length": 8192
+  },
+  "selection": {
+    "primary_metric": "composite",
+    "require_strict_composite_improvement": true,
+    "minimum_json_compliance": 1.0,
+    "minimum_schema_pass": 1.0,
+    "maximum_failure_rate": 0.0,
+    "minimum_support_ratio": 1.0
+  },
+  "experiment_identity": {
+    "development_run_id": "week8_product_prompt_development_20260827_v5",
+    "selection_id": "week8_product_prompt_selection_20260827_v5",
+    "final_test_run_id": "week8_product_final_test_once_20260827_v5"
+  }
+}

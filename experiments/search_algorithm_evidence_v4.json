@@ -1,0 +1,256 @@
+{
+  "schema_version": "search_algorithm_evidence_v4",
+  "status": "COMPLETED_EXPLORATION_EVIDENCE",
+  "date": "2026-09-03",
+  "evidence_class": "deterministic_synthetic_programmatic_not_human_ground_truth",
+  "gate_class": "exploration_only_not_release_or_production_gate",
+  "human_annotation_support": 0,
+  "fresh_test_used": false,
+  "formal_release_changed": false,
+  "formal_release_id": "trip-qwen3-vl-8b-week8-final-v1",
+  "source": {
+    "branch": "codex/trip-relevance-eval",
+    "search_implementation_commit": "3c6beecae5c555372ad2585eedee0fd0efe9cde7",
+    "search_source_snapshot_sha256": "b66e91562f66cc13ff01aaff8be78f1747169bb65eba13843688372363d12010",
+    "training_implementation_commit": "938c8fd3abc9cc3a530f76e4dd82c26816156f89",
+    "post_training_implementation_commit": "5af48aee5aa3df3f8d79b9f6543c82f8c524f8b2",
+    "post_training_source_snapshot_sha256": "9d9f1269ddb0c0248937aca1417558801dc84780898424b8152ce0e55cbceb13",
+    "configuration_sha256": "22d0cb98248ba1930540d9d2c0e98bb13dbb7e1dbf39019a259c1799c46076d9",
+    "retrieval_archive_sha256": "3cdb98f4d50bc72ae53c4e7e96d823ea5b08af93f41df5d14ff1118d12d1a15b"
+  },
+  "isolation": {
+    "search_support_by_split": {
+      "training": 24,
+      "development": 24,
+      "final": 24
+    },
+    "vlm_support_by_split": {
+      "training": 288,
+      "development": 36,
+      "final": 36
+    },
+    "source_id_image_sha256_and_record_id_pairwise_overlap": 0,
+    "status": "PASS",
+    "index_query_byte_collision": "NOT_RUN_MISSING_INDEX_IMAGE_SHA",
+    "query_source_relation": "deterministic_synthetic_not_yelp"
+  },
+  "search": {
+    "slurm_job_id": "29996439",
+    "hardware": "NVIDIA L40S",
+    "index_support": 1000,
+    "selected_on_development": {
+      "business_guard_threshold": 0.0,
+      "star_rating_weight": 0.0,
+      "candidate_grid_support": 14
+    },
+    "denominators": {
+      "final_query_support": 24,
+      "final_ranking_support": 12,
+      "final_no_result_support": 12,
+      "final_hard_filter_support": 16
+    },
+    "ann_fidelity_not_business_relevance": {
+      "metric": "ANN-vs-exact Recall@10",
+      "development": 1.0,
+      "final": 0.9916666666666667,
+      "query_support_per_split": 24,
+      "business_semantic_relevance_supported": false
+    },
+    "final_metrics": {
+      "clip_exact": {
+        "recall_at_5": 0.0059777642400243676,
+        "recall_at_10": 0.008554167935831048,
+        "mrr_at_10": 0.625,
+        "ndcg_at_10": 0.8435025435485161,
+        "no_result_slice_accuracy": 0.0,
+        "filter_correctness": 0.3333333333333333,
+        "failure_rate": 0.0
+      },
+      "clip_milvus": {
+        "recall_at_5": 0.0059777642400243676,
+        "recall_at_10": 0.008554167935831048,
+        "mrr_at_10": 0.625,
+        "ndcg_at_10": 0.8435025435485161,
+        "no_result_slice_accuracy": 0.0,
+        "filter_correctness": 0.3333333333333333,
+        "failure_rate": 0.0
+      },
+      "structured_filter_clip": {
+        "recall_at_5": 0.06998383930686702,
+        "recall_at_10": 0.07945180559786104,
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 1.0,
+        "no_result_slice_accuracy": 0.3333333333333333,
+        "filter_correctness": 1.0,
+        "failure_rate": 0.0
+      },
+      "hard_filter_light_rerank": {
+        "recall_at_5": 0.06998383930686702,
+        "recall_at_10": 0.07945180559786104,
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 1.0,
+        "no_result_slice_accuracy": 0.3333333333333333,
+        "filter_correctness": 1.0,
+        "failure_rate": 0.0
+      },
+      "hard_filter_clip_business_guard": {
+        "recall_at_5": 0.06998383930686702,
+        "recall_at_10": 0.07945180559786104,
+        "mrr_at_10": 1.0,
+        "ndcg_at_10": 1.0,
+        "no_result_slice_accuracy": 1.0,
+        "filter_correctness": 1.0,
+        "failure_rate": 0.0
+      }
+    },
+    "development_gate": "PASS",
+    "final_gate": "PASS",
+    "final_consumed_once": true,
+    "artifact_sha256": {
+      "summary_file": "11ef008de5d4d3636278c1cc7b0907c41447dbb3067c16b44b92275ca9d1da98",
+      "final_result_canonical": "88483c6024af1e0239ab2bf3dab995a64ad30ec79851c71efeb3b8e64f79a7ba",
+      "final_results_file": "42a8b777c53e6efb9979ee3c8e41e1686a027370006583f7d00959c206dba357",
+      "final_metrics_file": "b1807f0e33be1b021a8c6193777daa2957f33a5630e8e38b785bb10caf941802",
+      "selection_file": "33deb6d37052afdc9d3266bf92815a1618c9cb482c798eeec98d8601a79e1770",
+      "final_consumption_marker": "1f0b359b35a23cb28739c46f8489c345e49e59909184869287b50e5ea374d57c"
+    }
+  },
+  "training": {
+    "slurm_job_id": "29996742",
+    "initial_adapter_role": "current_system_repair_checkpoint_87",
+    "initial_adapter_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a",
+    "candidate_adapter_sha256": "529026d7e704bb3e2e7761a641df765f88b69f071dd970e339497aa2af108c77",
+    "support": 288,
+    "product_support": 192,
+    "dialogue_support": 96,
+    "global_steps": 18,
+    "epochs": 1,
+    "train_loss": 0.1758450155870782,
+    "runtime_seconds": 67.1254,
+    "samples_per_second": 4.29,
+    "peak_gpu_memory_allocated_bytes": 11060194816,
+    "peak_gpu_memory_reserved_bytes": 13589544960,
+    "trainable_parameters": 15622144,
+    "total_parameters": 5024110832,
+    "development_or_final_opened_during_training": false,
+    "run_summary_file_sha256": "12319a873bed977d00d33e2e7468f2d92c85ad0ec28835c2887c9369a832cfff"
+  },
+  "vlm_development": {
+    "shared_support_per_role": 36,
+    "product_support_per_role": 24,
+    "dialogue_support_per_role": 12,
+    "unknown_field_opportunity_support_per_role": 36,
+    "roles": {
+      "zero_shot": {
+        "field_f1": {"business_category": 1.0, "style_tags": 1.0, "visible_facilities": 1.0, "price_range": 0.25},
+        "supported_exact_match": 0.625,
+        "unknown_abstention_accuracy": 1.0,
+        "unsupported_hallucination_rate": 0.0,
+        "first_attempt_json_compliance": 1.0,
+        "correction_trigger_rate": 0.0,
+        "dialogue": {"context_recall": 0.0, "state_value": 0.3333333333333333, "task_key": 0.0, "task_value": 0.75, "first_turn_route": 1.0}
+      },
+      "old_unified_adapter": {
+        "adapter_sha256": "ccc6062f7e451b9265c571c0df397903cbbc707a6bf2e894039079175e5f24ee",
+        "field_f1": {"business_category": 0.7916666666666666, "style_tags": 0.9090909090909091, "visible_facilities": 1.0, "price_range": 0.3333333333333333},
+        "supported_exact_match": 0.5,
+        "unknown_abstention_accuracy": 1.0,
+        "unsupported_hallucination_rate": 0.0,
+        "first_attempt_json_compliance": 1.0,
+        "correction_trigger_rate": 0.0,
+        "dialogue": {"context_recall": 0.08333333333333333, "state_value": 0.0, "task_key": 0.0, "task_value": 0.25, "first_turn_route": 1.0}
+      },
+      "current_system_repair_checkpoint_87": {
+        "adapter_sha256": "c2fbb5c768485021a24df74ec75ff2bcf1b646c89935cb463cd476d0a48eaa2a",
+        "field_f1": {"business_category": 0.625, "style_tags": 0.6666666666666666, "visible_facilities": 0.6666666666666666, "price_range": 0.3333333333333333},
+        "supported_exact_match": 0.4583333333333333,
+        "unknown_abstention_accuracy": 0.33333333333333337,
+        "unsupported_hallucination_rate": 0.6666666666666666,
+        "first_attempt_json_compliance": 0.8888888888888888,
+        "correction_trigger_rate": 0.1111111111111111,
+        "dialogue": {"context_recall": 0.0, "state_value": 0.0, "task_key": 0.0, "task_value": 0.25, "first_turn_route": 0.6666666666666666}
+      },
+      "targeted_exploration_adapter_v4": {
+        "adapter_sha256": "529026d7e704bb3e2e7761a641df765f88b69f071dd970e339497aa2af108c77",
+        "field_f1": {"business_category": 1.0, "style_tags": 1.0, "visible_facilities": 1.0, "price_range": 0.6666666666666666},
+        "supported_exact_match": 0.8333333333333334,
+        "unknown_abstention_accuracy": 1.0,
+        "unsupported_hallucination_rate": 0.0,
+        "first_attempt_json_compliance": 1.0,
+        "correction_trigger_rate": 0.0,
+        "dialogue": {"context_recall": 0.4166666666666667, "state_value": 1.0, "task_key": 0.8333333333333334, "task_value": 1.0, "first_turn_route": 1.0}
+      }
+    },
+    "candidate_objective": 0.9166666666666666,
+    "checkpoint_87_objective": 0.4477430555555556,
+    "objective_improvement": 0.468923611111111,
+    "gate": "FAIL_CONTEXT_RECALL_0.4167_BELOW_0.6",
+    "final_consumed": false,
+    "selection_file_sha256": "5a494c740a95c4d33f7b1c4d4567f76bb7d6c9ccec0859e48bc52aa5be028b7b"
+  },
+  "service_performance": {
+    "slurm_job_id": "29996972",
+    "hardware": {
+      "node": "spartan-gpgpu002.hpc.unimelb.edu.au",
+      "gpu": "NVIDIA L40S",
+      "cuda": "12.8",
+      "torch": "2.8.0+cu128",
+      "python": "3.11.3"
+    },
+    "scope": {
+      "http": "real_loopback_HTTP_FastAPI_Uvicorn",
+      "milvus": "external_server_process_single_node_standalone_not_Milvus_Lite",
+      "distributed_cluster": "NOT_RUN_MULTI_NODE_CLUSTER",
+      "production_sla_supported": false
+    },
+    "milvus": {
+      "version": "2.6.18",
+      "visible_entities": 1000,
+      "startup_cold_ms": 1845.4992892220616,
+      "collection_build_and_load_ms": 8359.160970896482
+    },
+    "denominators": {
+      "cold_requests_per_role": 1,
+      "warmup_requests_per_role": 2,
+      "steady_requests_per_role": 56,
+      "steady_batches_per_concurrency_per_role": 8
+    },
+    "roles": {
+      "current_system_repair_checkpoint_87": {
+        "startup_cold_ms": 21029.79062963277,
+        "first_request_http_e2e_ms": 1041.788401082158,
+        "steady": {
+          "1": {"support": 8, "http_p50_ms": 555.7189919054508, "http_p95_ms": 558.5398189723492, "clip_p50_ms": 4.380236845463514, "milvus_p50_ms": 2.5217216461896896, "rerank_p50_ms": 0.020858831703662872, "vlm_p50_ms": 544.1243168897927, "throughput_rps": 1.7998782140325056, "peak_vram_mib": 6864.3193359375, "failure_rate": 0.0},
+          "2": {"support": 16, "http_p50_ms": 828.9566524326801, "http_p95_ms": 1105.4117633029819, "queue_p50_ms": 271.18257666006684, "throughput_rps": 1.8107916389859768, "peak_vram_mib": 6872.4443359375, "failure_rate": 0.0},
+          "4": {"support": 32, "http_p50_ms": 1384.35714924708, "http_p95_ms": 2214.973014779389, "queue_p50_ms": 826.1377001181245, "throughput_rps": 1.8051611010318744, "peak_vram_mib": 6888.6943359375, "failure_rate": 0.0}
+        }
+      },
+      "targeted_exploration_adapter_v4": {
+        "startup_cold_ms": 20022.10609987378,
+        "first_request_http_e2e_ms": 1634.8506323993206,
+        "steady": {
+          "1": {"support": 8, "http_p50_ms": 1206.5591332502663, "http_p95_ms": 1210.954806767404, "clip_p50_ms": 4.44420101121068, "milvus_p50_ms": 2.540372312068939, "rerank_p50_ms": 0.021492596715688705, "vlm_p50_ms": 1194.9657970108092, "throughput_rps": 0.8290068503897766, "peak_vram_mib": 6864.3193359375, "failure_rate": 0.0},
+          "2": {"support": 16, "http_p50_ms": 1806.972608435899, "http_p95_ms": 2426.83891300112, "queue_p50_ms": 597.9688242077827, "throughput_rps": 0.8290590442491547, "peak_vram_mib": 6872.4443359375, "failure_rate": 0.0},
+          "4": {"support": 32, "http_p50_ms": 3016.8149969540536, "http_p95_ms": 4827.348434366286, "queue_p50_ms": 1801.6407382674515, "throughput_rps": 0.82928156464674, "peak_vram_mib": 6888.6943359375, "failure_rate": 0.0}
+        }
+      }
+    },
+    "candidate_to_baseline_concurrency_1_http_p95_ratio": 2.1680724733205694,
+    "latency_ratio_maximum": 1.25,
+    "gate": "FAIL",
+    "experiment_disposition": "NEGATIVE_EXPERIMENT_RETAINED",
+    "artifact_sha256": {
+      "raw_file": "ba6b844f10d0bf45b5e4e03d74c7e9f8d689251a86b5d38f623224756d4a389e",
+      "summary_file": "2f54a1076e5920e9066e299cbf8aa82732d13521e96e9e540f913f10e6acdc6d",
+      "logs_file": "ae61ba651fa6555992c292cec8825e28d96007ee20d47be0d6d518e399f1b167"
+    }
+  },
+  "fact_boundaries": [
+    "All v4 relevance and VLM labels are deterministic synthetic or weak; none are human relevance judgments.",
+    "ANN-vs-exact Recall@10 is retrieval implementation fidelity, not business relevance.",
+    "The service benchmark is real loopback HTTP with one external single-node Milvus standalone process, not a multi-node distributed deployment or production SLA.",
+    "The historical 2.4097 ms number is Milvus vector-query-only latency and is not end-to-end service latency.",
+    "The frozen 120-sample Fresh Test was neither opened nor rerun in this cycle.",
+    "The v4 VLM final split was not consumed because the development context-recall gate failed."
+  ]
+}

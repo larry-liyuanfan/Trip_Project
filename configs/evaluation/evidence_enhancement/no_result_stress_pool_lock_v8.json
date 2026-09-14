@@ -1,0 +1,63 @@
+{
+  "asset_registry_canonical_sha256": "ef58bf7fca76d8c5fcbd4e5c23a230405d1ea1db16e384b5cbaba5e819c45e16",
+  "asset_registry_support": 80,
+  "evidence_class": "deterministic_synthetic_calibration_and_one_time_validation_only",
+  "final_policy": "not_defined_not_generated_not_opened",
+  "generator_version": "trip_no_result_stress_pool_v8",
+  "human_annotation_support": 0,
+  "image_encoding": "binary_ppm_p6_rgb_384x256",
+  "isolation": {
+    "calibration_vs_validation": {
+      "image_sha256": [],
+      "query_id": [],
+      "source_id": []
+    },
+    "status": "PASS"
+  },
+  "prior_v4_training_isolation": {
+    "compared_prior_query_support": 24,
+    "overlaps": {
+      "calibration": {
+        "image_sha256": [],
+        "query_id": [],
+        "source_id": []
+      },
+      "validation": {
+        "image_sha256": [],
+        "query_id": [],
+        "source_id": []
+      }
+    },
+    "status": "PASS"
+  },
+  "prior_v4_training_lock_sha256": "b7f69e4247e5114cd8d19787ed6a7befd8bf3d8f0c930457b1e7698effb6acee",
+  "schema_version": "no_result_stress_pool_lock_v8",
+  "search": {
+    "calibration": {
+      "annotation_canonical_sha256": "e847b58c3350fba030a244d6eba8a7375dc330851bed379fe976ba3c6fee6361",
+      "annotation_file_sha256": "9110c908039cb32e5b1ec7dae27afa167cf5ba15c4c7b98e20394183ba8852fe",
+      "business_positive_support": 20,
+      "no_result_support": 20,
+      "query_manifest_canonical_sha256": "06d1ac8618a846d798c18f2e1473864aff4d4dc9429c65a604e1ee7a20fbf2da",
+      "query_manifest_file_sha256": "4fcedf249c41bca5413f156c825c3410795ea9f5d43fe9dc87dbf0dd08ba98ff",
+      "query_support": 40,
+      "ranking_support": 20
+    },
+    "validation": {
+      "annotation_canonical_sha256": "4789ab76d2987b710fbee727969e51e21bbd977e21d61301d4ca76cfd299a895",
+      "annotation_file_sha256": "7a3c062c2e52ee689877b6792b1030cd691e82e02f9af0d2a272c7e8fc016e90",
+      "business_positive_support": 20,
+      "no_result_support": 20,
+      "query_manifest_canonical_sha256": "0c89da0cbea9872b834b33edcae97038b72f2e73d8549a1af3fc52d3c61f2fd3",
+      "query_manifest_file_sha256": "0abc96e19485ef64c97fb61616762dd9ca4bc62b1baa72bec334427f56180c3e",
+      "query_support": 40,
+      "ranking_support": 20
+    }
+  },
+  "split_identity_policy": "query_id_source_id_and_image_sha256_disjoint",
+  "splits": [
+    "calibration",
+    "validation"
+  ],
+  "validation_policy": "exclusive_marker_before_first_manifest_or_annotation_open"
+}

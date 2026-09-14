@@ -1,0 +1,12 @@
+{
+  "schema_version": "relevance_source_snapshot_v1",
+  "git_base_sha": "5456f477c80e54a0764051206898fccd48db6237",
+  "implementation_commit_sha": "496f067d36b3d2b79041dcf268d2e041045c280b",
+  "materialization": "git_archive_of_implementation_commit",
+  "files": [
+    {"path": "scripts/audit_system_repair_final_test.py", "sha256": "d1c493fc59329f405f97d24c50cf7d84c132e70a6e1fd39ae5d6d67107b64a7a"},
+    {"path": "scripts/audit_system_repair_development.py", "sha256": "9545022bf000fea8563dc9383c1c1bb6fb3e4e97238055f71158fde08b06f1dd"},
+    {"path": "scripts/verify_relevance_source_snapshot.py", "sha256": "e18096f0e76c0356efab3dfef745a619b8e524111926e11dde42b5152029666b"},
+    {"path": "scripts/spartan/relevance_eval_final_test_audit_v1.sbatch", "sha256": "6b4f4fdb1209cf227ed9fdd7283443a3b762c22ff554b79056bffdaa761f9e7a"}
+  ]
+}

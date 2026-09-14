@@ -1,0 +1,51 @@
+{
+  "protocol": "product_visual_observation_v4",
+  "subject_categories": {
+    "hotel_space": "hotel",
+    "dining_space": "restaurant",
+    "visitor_attraction": "attraction",
+    "retail_space": "other",
+    "industrial_space": "other",
+    "food_closeup": "unknown",
+    "unidentified_space": "unknown",
+    "mixed_subjects": "unknown"
+  },
+  "style_vocabulary": [
+    "casual",
+    "classy",
+    "cozy",
+    "historic",
+    "modern",
+    "romantic",
+    "rustic",
+    "trendy",
+    "upscale",
+    "vintage",
+    "industrial",
+    "minimalist",
+    "traditional",
+    "natural"
+  ],
+  "facility_vocabulary": [
+    "bar",
+    "outdoor_seating",
+    "pool",
+    "front_desk",
+    "parking",
+    "wifi_sign",
+    "wheelchair_access",
+    "gym",
+    "spa",
+    "playground",
+    "seating",
+    "dining_tables",
+    "counter",
+    "elevator",
+    "restroom_sign"
+  ],
+  "max_new_tokens": 768,
+  "max_attempts": 2,
+  "price_policy": "unknown_without_verified_comparison_scale",
+  "system_prompt": "You record observable image facts for an OTA application. Do not infer unseen merchant amenities, prices, or venue identity from dataset conventions. Return compact JSON only. No reasoning or chain of thought.",
+  "task_prompt": "Inspect the entire image, using only directly visible objects. Classify an identifiable venue, not the photography style: hotel_space requires a guest bedroom/reception; dining_space requires a recognizable dining/serving setting; visitor_attraction requires a site, exhibit or landmark; retail_space requires visible retail activity; industrial_space requires manufacturing/processing equipment. A menu, brand sign, artistic lighting or food alone cannot establish the venue category. food_closeup means food fills the frame without identifiable venue fixtures. unidentified_space means insufficient category evidence, but still retain any directly visible furniture; mixed_subjects means unrelated main scenes, not multiple people or chairs. Write a short subject_fact. Check ALL style labels independently. industrial: exposed pipes/utilitarian structure; rustic: rough unfinished timber/stone, not any brown furniture; vintage: recognizably retro furnishings; traditional: classic ornament/cabinetry; modern: contemporary designed furniture/lighting, not just clean walls; minimalist: deliberately sparse decor; natural: real dominant landscape/plants, not a picture of plants; casual: simple informal dining furniture; cozy: warm intimate enclosed decor; romantic: intimate mood lighting/table decor; classy/upscale: clearly refined coordinated furnishings; trendy: distinctive contemporary artistic decor; historic: visible period architecture. Omit unsupported style labels. For ALL visible facilities use seating for actual chairs/benches, dining_tables for recognizable dining tables, counter for a service counter; drink-serving taps/liquor equipment supports bar, which may also support counter. A menu never implies chairs. Bottles alone do not imply a bar. Check outdoor_seating, parking, pool, front_desk, wifi_sign, wheelchair_access, gym, spa, playground, elevator and restroom_sign only from directly visible features/signs. Do not invent hidden objects behind dark windows. A food_closeup supports no venue styles/facilities. Encode style_evidence and facility_evidence as objects mapping supported labels to compact 2-5-word observable facts, each at most 80 characters. Use {} for insufficient evidence, not absence. Keep all supported labels, at most ten distinct facts across fields, reusing a fact for related labels. Copy readable prices to price_text; do not infer price tier. No metadata, explanations or reasoning."
+}

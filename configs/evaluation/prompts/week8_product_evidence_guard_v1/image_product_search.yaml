@@ -1,0 +1,6 @@
+scenario: image_product_search
+schema_name: image_product_search_v1.schema.json
+format_skeleton: >-
+  {"business_category":"unknown","style_tags":[],"visible_facilities":[],"price_range":"unknown","observed_evidence":[],"inferred_attributes":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  先识别主视觉主体；多主体、遮挡或用途模糊时不要强行归类。分别核对业态、全部可见风格、核心设施和价位。只有图片直接显示数值价格、价格标识或明确可区分的奢华等级证据时才判断价位，否则 price_range 必须为 unknown 并在 unknown_fields 中包含 price_range。不得把装饰物当设施，不得扩展未见风格；已输出的非 unknown 标签应由 observed_evidence 中的短事实支持。

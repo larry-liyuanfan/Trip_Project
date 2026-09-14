@@ -1,0 +1,4 @@
+scenario: itinerary_planning
+schema_name: itinerary_planning_v2.schema.json
+task_instruction: >-
+  先从原文确定城市、天数、必去/禁去、交通、预算和结束时间。城市和天数也必须各自进入 hard_constraints 与 constraint_check，不能遗漏。按准确天数生成 itinerary，day_index 从1连续递增。默认每天两个具体活动；明确要求更多时才增加。为活动填写建议 HH:MM 开始和结束时间，任何一天最后活动必须在用户截止时间之前结束。place_name 填建议地点；transport 只写地铁、公交、步行等方式，不编造线路号、车站或精确车程。日期未指定则 null。所有 source_evidence 为 []，不能编造检索引用；所需实时开放/预约信息写入 unknown_fields，说明尚待核实。hard_constraints 与 constraint_check 逐项对齐；status 根据实际计划选择 satisfied/violated/unknown，evidence 必须具体且简短。没有预算就不生成预算约束或预算检查；明确预算则给出标为估算的分项和合计，不能假装实际报价。style_preferences 和 observed_evidence 只保留图片直接支持的简短事实；不确定则为空。文字偏好仅进 soft_constraints。不要复制 Schema 中所有可选枚举值。

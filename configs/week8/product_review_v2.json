@@ -1,0 +1,21 @@
+{
+  "schema_version": "week8_product_review_v2",
+  "run_id": "week8_product_decode_review_20260827_v2",
+  "product_config": "configs/week8/product_understanding_v7.json",
+  "two_stage_config": "configs/week8/product_two_stage_v1.json",
+  "release_config": "configs/releases/qwen3_vl_system_week8_v7.json",
+  "dataset_lock_sha256": "321bea495df6e53813d79caa93fcd3478391ecf0b613f972500f7463224b0301",
+  "development_count": 60,
+  "final_test_access": "forbidden",
+  "human_annotation": false,
+  "human_review": false,
+  "human_acceptance": false,
+  "profiles": [
+    "product_release",
+    "evidence_contract_unconstrained_base"
+  ],
+  "evidence_max_new_tokens": 256,
+  "product_max_new_tokens": 384,
+  "selection_policy": "diagnostic_only_no_automatic_release_promotion",
+  "rationale": "Base constrained generations terminated inside Chinese strings; isolate decoding from visual ability using strict post-generation validation."
+}

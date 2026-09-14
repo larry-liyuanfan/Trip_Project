@@ -1,0 +1,203 @@
+{
+  "analyzer_lf_sha256": "b30fe6a1f6484bf9093197456144482fbb1a19ef5af43d499821d7e962679ca5",
+  "decision": {
+    "default_product_route": "no_review",
+    "facility_review_status": "DEVELOPMENT_ONLY_NOT_PROMOTED",
+    "reason": "Only the no-review v12 product identity has locked final and packaged acceptance; development-only routes cannot replace it."
+  },
+  "generation_config_sha256": "27e2ce116810f1598523acefeba5c307555a5bbee772b07d7ab9a97fb000937f",
+  "generation_identity_sha256": "a2e0bfcd80c34cd67fdf16a3ef6226c59bb60660e2c5970c546ae6e3759eb7f9",
+  "human_annotation_count": 0,
+  "label_source": "model_generated_silver",
+  "latency_interpretation": "recorded full elapsed when reviewed; recorded attempt latency when skipped",
+  "observation_config_sha256": "7541e5fdf80f591a78f8de4e1ca7472d1f41778330b4b14413fe0ce7f8312437",
+  "phase": "development_counterfactual",
+  "protocol": "week8_target_free_facility_routing_tradeoff_v1",
+  "raw_sha256": "0fba5b1131ad861db8ea8c756af28132a299705a9b175ac7b3870470ec131dd6",
+  "reference_raw_sha256": "29a34f8aff360286c1e4053c0e53e24fe143ab877538d7bf848314cf1f9a51aa",
+  "route_inputs": "current_image_observation_only",
+  "routes": {
+    "all_eligible": {
+      "latency_ms": {
+        "mean": 8532.513849685589,
+        "p50": 9258.037570863962,
+        "p95": 14382.060111500323
+      },
+      "metrics": {
+        "business_category_accuracy": 0.8717948717948718,
+        "business_category_including_unknown_accuracy": 0.8833333333333333,
+        "composite": 0.7868362868362868,
+        "facility_f1": 0.8513513513513513,
+        "facility_precision": 0.9,
+        "facility_recall": 0.8076923076923077,
+        "internal_consistency_rate": 1.0,
+        "json_compliance": 1.0,
+        "label_completeness": 0.751827242524917,
+        "price_range_accuracy": null,
+        "request_failure_rate": 0.0,
+        "schema_pass_rate": 1.0,
+        "style_f1": 0.6373626373626373,
+        "style_precision": 0.6170212765957447,
+        "style_recall": 0.6590909090909091,
+        "unknown_accuracy": 0.9333333333333333
+      },
+      "multilabel_counts": {
+        "facility": {
+          "fn": 15,
+          "fp": 7,
+          "tp": 63
+        },
+        "style": {
+          "fn": 15,
+          "fp": 18,
+          "tp": 29
+        }
+      },
+      "tokens": {
+        "input_mean": 1444.6833333333334,
+        "input_total": 86681,
+        "output_mean": 122.66666666666667,
+        "output_total": 7360
+      },
+      "trigger_rate": 0.6833333333333333,
+      "triggered": 41
+    },
+    "evidence_conflict": {
+      "latency_ms": {
+        "mean": 7295.523233603065,
+        "p50": 7397.56540581584,
+        "p95": 12944.225324317813
+      },
+      "metrics": {
+        "business_category_accuracy": 0.8717948717948718,
+        "business_category_including_unknown_accuracy": 0.8833333333333333,
+        "composite": 0.7733227733227733,
+        "facility_f1": 0.8108108108108109,
+        "facility_precision": 0.8571428571428571,
+        "facility_recall": 0.7692307692307693,
+        "internal_consistency_rate": 1.0,
+        "json_compliance": 1.0,
+        "label_completeness": 0.7280177187153931,
+        "price_range_accuracy": null,
+        "request_failure_rate": 0.0,
+        "schema_pass_rate": 1.0,
+        "style_f1": 0.6373626373626373,
+        "style_precision": 0.6170212765957447,
+        "style_recall": 0.6590909090909091,
+        "unknown_accuracy": 0.9291666666666667
+      },
+      "multilabel_counts": {
+        "facility": {
+          "fn": 18,
+          "fp": 10,
+          "tp": 60
+        },
+        "style": {
+          "fn": 15,
+          "fp": 18,
+          "tp": 29
+        }
+      },
+      "tokens": {
+        "input_mean": 1185.4333333333334,
+        "input_total": 71126,
+        "output_mean": 105.93333333333334,
+        "output_total": 6356
+      },
+      "trigger_rate": 0.25,
+      "triggered": 15
+    },
+    "no_review": {
+      "latency_ms": {
+        "mean": 6637.312835330765,
+        "p50": 6669.551792088896,
+        "p95": 10747.86301702261
+      },
+      "metrics": {
+        "business_category_accuracy": 0.8717948717948718,
+        "business_category_including_unknown_accuracy": 0.8833333333333333,
+        "composite": 0.7740202449879869,
+        "facility_f1": 0.8129032258064516,
+        "facility_precision": 0.8181818181818182,
+        "facility_recall": 0.8076923076923077,
+        "internal_consistency_rate": 1.0,
+        "json_compliance": 1.0,
+        "label_completeness": 0.7466223698781839,
+        "price_range_accuracy": null,
+        "request_failure_rate": 0.0,
+        "schema_pass_rate": 1.0,
+        "style_f1": 0.6373626373626373,
+        "style_precision": 0.6170212765957447,
+        "style_recall": 0.6590909090909091,
+        "unknown_accuracy": 0.925
+      },
+      "multilabel_counts": {
+        "facility": {
+          "fn": 15,
+          "fp": 14,
+          "tp": 63
+        },
+        "style": {
+          "fn": 15,
+          "fp": 18,
+          "tp": 29
+        }
+      },
+      "tokens": {
+        "input_mean": 1038.4666666666667,
+        "input_total": 62308,
+        "output_mean": 97.18333333333334,
+        "output_total": 5831
+      },
+      "trigger_rate": 0.0,
+      "triggered": 0
+    },
+    "observable_uncertainty": {
+      "latency_ms": {
+        "mean": 7360.403022139023,
+        "p50": 7397.56540581584,
+        "p95": 12944.225324317813
+      },
+      "metrics": {
+        "business_category_accuracy": 0.8717948717948718,
+        "business_category_including_unknown_accuracy": 0.8833333333333333,
+        "composite": 0.7786080586080586,
+        "facility_f1": 0.8266666666666667,
+        "facility_precision": 0.8611111111111112,
+        "facility_recall": 0.7948717948717948,
+        "internal_consistency_rate": 1.0,
+        "json_compliance": 1.0,
+        "label_completeness": 0.7473975636766335,
+        "price_range_accuracy": null,
+        "request_failure_rate": 0.0,
+        "schema_pass_rate": 1.0,
+        "style_f1": 0.6373626373626373,
+        "style_precision": 0.6170212765957447,
+        "style_recall": 0.6590909090909091,
+        "unknown_accuracy": 0.9375
+      },
+      "multilabel_counts": {
+        "facility": {
+          "fn": 16,
+          "fp": 10,
+          "tp": 62
+        },
+        "style": {
+          "fn": 15,
+          "fp": 18,
+          "tp": 29
+        }
+      },
+      "tokens": {
+        "input_mean": 1206.2333333333333,
+        "input_total": 72374,
+        "output_mean": 106.7,
+        "output_total": 6402
+      },
+      "trigger_rate": 0.2833333333333333,
+      "triggered": 17
+    }
+  },
+  "selection_use": "diagnostic_only",
+  "test_rows_read": false
+}

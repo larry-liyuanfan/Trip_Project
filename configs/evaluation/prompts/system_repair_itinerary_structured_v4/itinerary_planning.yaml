@@ -1,0 +1,6 @@
+scenario: itinerary_planning
+schema_name: itinerary_planning_v2.schema.json
+format_skeleton: >-
+  {"style_preferences":[],"hard_constraints":[],"soft_constraints":[],"required_itinerary_elements":["daily_schedule"],"itinerary":[{"day_index":1,"date":null,"summary":"简短摘要","activities":[{"start_time":null,"end_time":null,"place_name":null,"activity":"简短活动","transport":null,"source_evidence":[]}]}],"constraint_check":[{"constraint":"原始约束短语","constraint_type":"hard","status":"unknown","evidence":null}],"observed_evidence":[],"unknown_fields":[],"confidence":null}
+task_instruction: >-
+  必须按骨架顺序输出九个顶层键。图片只提取最多3项 style_preferences，不得进入文字约束。只从原始文字逐项抽取约束：天数、预算、截止时间以及必须、包含、不得等要求进入 hard_constraints；偏好、优先、慢节奏、尽量等进入 soft_constraints。required_itinerary_elements 只允许 daily_schedule、poi、accommodation、meals、transport、duration、budget_check、end_time_check、constraint_check；始终包含 daily_schedule。itinerary 天数必须等于原始要求，每天1至2个简短活动，source_evidence 固定为空数组，图片无法证明地点时 place_name 使用 null。constraint_check 必须是对象数组，每项只包含 constraint、constraint_type、status、evidence；constraint 复制对应约束，evidence 使用 null。observed_evidence 最多3项，只写图片直接可见事实。完成后立即闭合 JSON。

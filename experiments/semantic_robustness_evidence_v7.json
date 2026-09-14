@@ -1,0 +1,140 @@
+{
+  "schema_version": "semantic_robustness_evidence_v7",
+  "status": "COMPLETED_NEGATIVE_EXPERIMENT",
+  "date": "2026-09-04",
+  "evidence_class": "synthetic_programmatic_development_only_not_human_ground_truth",
+  "gate_class": "development_only_exploration_not_release_or_production_gate",
+  "human_annotation_support": 0,
+  "fresh_test_used": false,
+  "final_defined_or_consumed": false,
+  "formal_release_changed": false,
+  "formal_release_id": "trip-qwen3-vl-8b-week8-final-v1",
+  "source": {
+    "branch": "codex/trip-relevance-eval",
+    "implementation_commit": "84c9b500b303e76c7338d463999a1581df94ffbb",
+    "source_snapshot_sha256": "5f7797423ebd6f911625c06b0e4dae4058c60b2621bdd0221520ee18e5c02e91",
+    "source_manifest_file_sha256": "40614cb9f4b6b7228b890dadd075086fa0a7633ee4373b88a3c5d5f3256d8a56",
+    "configuration_file_sha256": "fd810d5f1300ed9d554a3b83258a3c077faf6417f84fbf6b2966ee8b05442900",
+    "pool_lock_file_sha256": "34e8677b5adf22f8d4b4317564a80fec49c2132b0afd79d7471d78dbc59387c9",
+    "pool_lock_canonical_sha256": "61378ce3e9225451653042f70f3d227182f8627d6c643daa854c3fd0fff75e79",
+    "base_model": "Qwen/Qwen3-VL-8B-Instruct",
+    "base_revision": "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b"
+  },
+  "isolation": {
+    "training_support": {"total": 512, "product": 256, "dialogue": 256},
+    "development_support_per_role": {"total": 96, "product": 48, "dialogue": 48},
+    "raw_development_rows": 192,
+    "training_development_source_image_sample_and_dialogue_identity_overlap": 0,
+    "v5_development_or_final_reused": false,
+    "status": "PASS"
+  },
+  "training": {
+    "primary_factor_changed_from_v5": "robustness_training_data_only",
+    "prompt_changed_from_v5": false,
+    "initial_adapter_model_sha256": "b8a1ce69bbce2be99d02a7445a7aaa1fe36a954c42fb1404e26b2244f825cac4",
+    "candidate_adapter_model_sha256": "a06742ebf6344567650e3ae95e67c56116db212d07eeb5eb5c31fd6ae519b5b1",
+    "adapter_config_sha256": "1bad849c1745bd7b1c6f1a094321d7005594a0dc1bdcad3beaafe631e4866016",
+    "training_manifest_sha256": "688d0ec2e9884a0741b86bf4e554c5495d7dd008ae04ccf91f33d801092367be",
+    "global_steps": 32,
+    "duration_seconds": 112.36212062835693,
+    "trainable_parameters": 15622144,
+    "total_parameters": 5024110832,
+    "peak_gpu_memory_allocated_bytes": 11028188672,
+    "peak_gpu_memory_reserved_bytes": 13591642112,
+    "development_or_final_opened_during_training": false,
+    "run_summary_file_sha256": "37f481c71f666696114be65d3ebecef51e9ce16877f39439aa703e0f9c8dcaf0"
+  },
+  "development": {
+    "slurm_job_id": "30005386",
+    "hardware": {"gpu": "NVIDIA L40S", "gpu_count": 1, "cpu_count": 8, "memory_gib": 64},
+    "elapsed": "00:06:56",
+    "fixed_prompt_model_revision_and_generation_across_roles": true,
+    "denominators_per_role": {
+      "all_records": 96,
+      "product": 48,
+      "dialogue": 48,
+      "unknown_field_opportunities": 96,
+      "insufficient_visual_evidence": 16,
+      "multi_subject_conflict": 8
+    },
+    "baseline_v5": {
+      "field_metrics": {
+        "business_category": {"precision": 0.717948717948718, "recall": 0.875, "f1": 0.7887323943661971, "tp": 28, "fp": 11, "fn": 4, "evaluable_reference_support": 32},
+        "style_tags": {"precision": 0.5769230769230769, "recall": 0.75, "f1": 0.6521739130434783, "tp": 30, "fp": 22, "fn": 10, "evaluable_reference_support": 24},
+        "visible_facilities": {"precision": 0.6808510638297872, "recall": 0.8888888888888888, "f1": 0.7710843373493975, "tp": 32, "fp": 15, "fn": 4, "evaluable_reference_support": 24},
+        "price_range": {"precision": 0.5517241379310345, "recall": 1.0, "f1": 0.7111111111111111, "tp": 16, "fp": 13, "fn": 0, "evaluable_reference_support": 16}
+      },
+      "supported_field_exact_match": {"correct": 33, "support": 48, "value": 0.6875},
+      "unknown_field_abstention": {"correct": 49, "support": 96, "value": 0.5104166666666667},
+      "unsupported_hallucination": {"events": 47, "opportunities": 96, "rate": 0.4895833333333333},
+      "first_attempt_json_compliance": {"correct": 96, "support": 96, "value": 1.0},
+      "correction_trigger": {"events": 0, "support": 96, "rate": 0.0},
+      "insufficient_visual_evidence_abstention": {"correct": 7, "support": 16, "value": 0.4375},
+      "multi_subject_conflict_abstention": {"correct": 0, "support": 8, "value": 0.0},
+      "dialogue": {
+        "context_recall": {"correct": 42, "support": 48, "value": 0.875},
+        "state_value_correct": {"correct": 18, "support": 48, "value": 0.375},
+        "task_key_correct": {"correct": 30, "support": 48, "value": 0.625},
+        "task_value_correct": {"correct": 46, "support": 48, "value": 0.9583333333333334},
+        "first_turn_routing_correct": {"correct": 48, "support": 48, "value": 1.0}
+      },
+      "selection_objective": 0.7310839036386411
+    },
+    "candidate_v7": {
+      "field_metrics": {
+        "business_category": {"precision": 0.9142857142857143, "recall": 1.0, "f1": 0.955223880597015, "tp": 32, "fp": 3, "fn": 0, "evaluable_reference_support": 32},
+        "style_tags": {"precision": 0.9487179487179487, "recall": 0.925, "f1": 0.9367088607594937, "tp": 37, "fp": 2, "fn": 3, "evaluable_reference_support": 24},
+        "visible_facilities": {"precision": 0.9428571428571428, "recall": 0.9166666666666666, "f1": 0.9295774647887323, "tp": 33, "fp": 2, "fn": 3, "evaluable_reference_support": 24},
+        "price_range": {"precision": 0.8888888888888888, "recall": 1.0, "f1": 0.9411764705882353, "tp": 16, "fp": 2, "fn": 0, "evaluable_reference_support": 16}
+      },
+      "supported_field_exact_match": {"correct": 43, "support": 48, "value": 0.8958333333333334},
+      "unknown_field_abstention": {"correct": 91, "support": 96, "value": 0.9479166666666666},
+      "unsupported_hallucination": {"events": 5, "opportunities": 96, "rate": 0.052083333333333336},
+      "first_attempt_json_compliance": {"correct": 96, "support": 96, "value": 1.0},
+      "correction_trigger": {"events": 0, "support": 96, "rate": 0.0},
+      "insufficient_visual_evidence_abstention": {"correct": 13, "support": 16, "value": 0.8125},
+      "multi_subject_conflict_abstention": {"correct": 5, "support": 8, "value": 0.625},
+      "dialogue": {
+        "context_recall": {"correct": 48, "support": 48, "value": 1.0},
+        "state_value_correct": {"correct": 43, "support": 48, "value": 0.8958333333333334},
+        "task_key_correct": {"correct": 48, "support": 48, "value": 1.0},
+        "task_value_correct": {"correct": 48, "support": 48, "value": 1.0},
+        "first_turn_routing_correct": {"correct": 48, "support": 48, "value": 1.0}
+      },
+      "selection_objective": 0.9547559175475125,
+      "objective_improvement": 0.22367201390887148
+    },
+    "fixed_gate": {
+      "status": "FAIL",
+      "failed_checks": ["multi_subject_abstention"],
+      "observed": 0.625,
+      "required": 0.75,
+      "experiment_disposition": "NEGATIVE_EXPERIMENT_RETAINED"
+    },
+    "artifact_sha256": {
+      "baseline_raw_file": "8555251774d68f1de85fafec31af40ee7e276135a9287ae1afab501e28366244",
+      "candidate_raw_file": "37c86ffcaaa4af4dbadd83f7248c451793c1baa6e28bcc2bb9fd587884f69b2a",
+      "raw_result_canonical": "fe1f5075ab6d7db4032cfd70d3e63717a580eb6c4f00ea825c16e3027f953911",
+      "selection_file": "c4a6ac4014cbbca084fb3b15fb7c8208eab2011fddea28484809b1ff5e1f0a72",
+      "chain_summary_file": "e4acd28f42139e937599f58f1013f895e24dbe2a89dcbb9c1b2d0bf0ee28c686"
+    }
+  },
+  "service_performance": {
+    "status": "NOT_RUN_DEVELOPMENT_GATE_FAILED",
+    "concurrency": [1, 2, 4],
+    "reason": "the predeclared semantic development gate failed before service benchmarking",
+    "production_sla_supported": false
+  },
+  "independent_verification": {
+    "status": "PASS_ARTIFACT_INTEGRITY_NOT_QUALITY_GATE",
+    "verifier_commit": "287283e80735aab2424c255f9298212812e181bb",
+    "verifier_file_sha256": "6b8219100789f7ea02e3ade36594668e7fad18f252835d8aad1a4691f1088d24"
+  },
+  "fact_boundaries": [
+    "Every quality label is synthetic/programmatic and human annotation support is zero.",
+    "The candidate improved most development metrics but failed the predeclared multi-subject abstention gate, so it is a negative experiment.",
+    "No final split exists or was consumed, and the frozen 120-sample Fresh Test was not opened or rerun.",
+    "No candidate service latency result exists because the quality gate failed before performance execution.",
+    "The formal release and its adapter, prompts, schemas, thresholds, and artifacts remain unchanged."
+  ]
+}
