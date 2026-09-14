@@ -4,6 +4,9 @@
 以下 v4/v8/v9 等旧报告和机器 JSON 是当时旧协议历史证据，原文件保持不变；
 旧 gate 不继承为 v2 门禁，追加重算也不是新模型提升。
 
+最新价格冲突续训前置审计：[交接与阻断记录](price_conflict_abstention_20260914/HANDOFF.md)。
+身份内容维度不全，未生成数据、未训练/推理；不把 inventory 阻断当作模型负实验。
+
 最新输入质量修复与配对诊断：`development/reviews/card_render_repair_v10.md`。
 该诊断使用已查看的 v9 development，不构成独立测试提升。
 已完成配对实跑，风格改善但价位回退导致诊断门 FAIL；完整结果与 SHA 在报告中。

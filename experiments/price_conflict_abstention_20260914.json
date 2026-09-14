@@ -1,0 +1,84 @@
+{
+  "schema_version": "price_conflict_abstention_evidence_v1",
+  "experiment_id": "price_conflict_abstention_20260914",
+  "date": "2026-09-14",
+  "status": "BLOCKED_PROTECTED_IDENTITY_COVERAGE",
+  "completion_scope": "prerequisite_audit_and_documentation_only_model_experiment_not_run",
+  "branch": "codex/trip-scorer-audit-20260914",
+  "starting_commit": "6efd95aa39851f271033440be210ab2fc12bb0f5",
+  "documentation_commit": "c5d59556f3bbdf658f9dacae74fde3369e4b8f4e",
+  "implementation_commit": "f2eccec376b12fbb72c93e68e071803d8af19e39",
+  "accepted_scorer_source_unchanged": "e2cc1f06608ed48de101eeb015c54e52e2b825e8",
+  "baseline_adapter_model_sha256": "6332a2baa03d88751c022cb6efdd9dbfb21e6f88f32f31f4d9cb775a0bf38f17",
+  "config": "configs/evaluation/price_conflict_abstention_20260914.json",
+  "config_file_sha256": "289cb481fb0d464475721b13624743c18baebbc3d431d71540ccba814949862a",
+  "config_canonical_sha256": "5fa47f4ea99a93ae3cb17634be8d01bc0cede487cf81fc4bdf423c29e8a94078",
+  "evidence_class": "identity_metadata_prerequisite_audit_not_model_quality",
+  "human_annotation_support": 0,
+  "inventory": {
+    "scope_denominator": 12,
+    "hash_verified_registry_files": 10,
+    "complete_required_scope_support": 0,
+    "existing_registry_rows_sum_not_distinct_samples": 96788,
+    "new_samples_generated": 0,
+    "actual_overlap_checks": "NOT_RUN_NO_NEW_DATA_LOCK",
+    "actual_overlap_count": null,
+    "gap_summary": [
+      "available_registries_lack_query_and_source_content_sha256",
+      "week6_79936_membership_rows_lack_source_id_and_image_sha256_as_well",
+      "v4_image_registry_does_not_cover_dialogue_queries",
+      "complete_v5_row_identity_registry_not_located_in_bounded_allowed_scope",
+      "remaining_protected_pool_coverage_not_certified_after_upstream_block"
+    ],
+    "historical_fresh_lock_file_sha256": "df11258ed8fbe9bd6b68383599b167cfbd08e1571d13bdb004ec08d9114dd57d",
+    "historical_fresh_lock_consumption_status_is_stale": true
+  },
+  "execution": {
+    "gpu_jobs_submitted": 0,
+    "gpu_seconds_consumed": 0,
+    "training_runs": 0,
+    "development_inference_rows": 0,
+    "candidate_adapter_sha256": null,
+    "new_data_lock_sha256": null,
+    "new_input_visual_qa": "NOT_RUN_NO_NEW_IMAGES",
+    "training_snapshot": "NOT_CREATED_PRECONDITION_BLOCKED",
+    "model_quality_metrics": null,
+    "model_quality_gate": "NOT_RUN",
+    "performance_matrix": "NOT_RUN_OUT_OF_SCOPE",
+    "fresh_test_raw_samples_or_predictions_opened": false,
+    "sealed_final_opened_or_regenerated": false,
+    "final_consumed": false,
+    "new_monitor_or_heartbeat": false,
+    "cpu_slot": "RELEASED_TO_CURRENT_CROSS_PROJECT_COORDINATOR"
+  },
+  "interpretation": {
+    "positive_result": "18_focused_tests_pass_and_independent_inventory_hash_count_checks_agree",
+    "negative_model_experiment": false,
+    "model_improvement_claim": false,
+    "strict_single_factor_claim": false,
+    "optimization_steps_confound_disclosed": true,
+    "future_comparison_name": "price_conflict_enriched_continuation_vs_fixed_v9",
+    "synthetic_distribution_limit": "same_renderer_template_family_not_real_photo_or_human_generalization"
+  },
+  "required_to_unblock": "custodian_supplied_source_bound_identity_only_exports_for_missing_content_dimensions_and_all_protected_pools_then_separate_coordinator_scheduling_no_self_opening_sealed_final",
+  "artifacts": [
+    {
+      "path": "reports/development/reviews/price_conflict_abstention_20260914.md",
+      "sha256": "948b7052a5ae5ab7c6c55bc0da7ba8913882e61be0d7dee396d3a40051b5ee4b"
+    },
+    {
+      "path": "reports/price_conflict_abstention_20260914/HANDOFF.md",
+      "sha256": "15935db830b4c38f2a81e742bbfdf480b0c1607e7318aa91b853f75f4b2e7be4"
+    },
+    {
+      "path": "reports/price_conflict_abstention_20260914/identity_inventory.json",
+      "sha256": "b2cde76a08c72e4e323cbaa16aee392719cc29e2415cb17ce56a5d1a30550ca8"
+    },
+    {
+      "path": "reports/price_conflict_abstention_20260914/verification.json",
+      "sha256": "48f706069befc7188f32f3472d71516dd7c2c828e4d0265fc7c0d6ec54ca11c6"
+    }
+  ],
+  "hash_domain": "actual_local_audit_bytes; use canonical configuration hash for cross_platform_line_endings; index excludes itself",
+  "formal_release_main_stg_resume": "unchanged"
+}

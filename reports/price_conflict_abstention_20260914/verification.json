@@ -1,0 +1,42 @@
+{
+  "schema_version": "price_conflict_prerequisite_verification_v1",
+  "date": "2026-09-14",
+  "source_commit": "f2eccec376b12fbb72c93e68e071803d8af19e39",
+  "documentation_commit": "c5d59556f3bbdf658f9dacae74fde3369e4b8f4e",
+  "hardware": {"cpu": "Intel Core i7-14700HX", "cores": 20, "logical_processors": 28, "os": "Windows 11 10.0.26200", "python": "3.13.13", "gpu_used": false},
+  "tests": {
+    "command": "python -m unittest discover -s tests -p test_protected_identity_inventory.py -v",
+    "run": 18, "passed": 18, "failed": 0, "errors": 0, "skipped": 0, "seconds": 0.198,
+    "process_exit_code": 0,
+    "scope": "inventory_preconditions_only_not_model_quality",
+    "historical_1013_suite_rerun": false
+  },
+  "inventory": {
+    "command": "python scripts/audit_price_conflict_prerequisites.py --config configs/evaluation/price_conflict_abstention_20260914.json --identity-root outputs/price-conflict-20260914/protected --output <new-versioned-report.json>",
+    "python_exit_code": 2,
+    "status": "BLOCKED_PROTECTED_IDENTITY_COVERAGE",
+    "byte_identical_postcommit_reproduction": true,
+    "independent_hashlib_and_field_count_recheck": "PASS",
+    "verified_files": 10,
+    "registry_row_sum_not_unique_samples": 96788,
+    "report_file_sha256": "b2cde76a08c72e4e323cbaa16aee392719cc29e2415cb17ce56a5d1a30550ca8",
+    "config_file_sha256": "289cb481fb0d464475721b13624743c18baebbc3d431d71540ccba814949862a"
+  },
+  "documentation_check": {"documents": 6, "local_markdown_links": 10, "broken": 0, "git_diff_check_exit_code": 0, "scope": "separate_P2_documentation_commit"},
+  "source_files_sha256": {
+    "scripts/audit_price_conflict_prerequisites.py": "b22f4d543d7046408d3d7308143039821ba04c42a4d0b5ac5691e6e73dc647b6",
+    "src/__init__.py": "c23e4ec24456337a1a86f2b82562068c5e8d32d77e19ef20398a669068dbe82b",
+    "src/evaluation/__init__.py": "64d8fcf8d4285119dcfaab319007be4623cd43a67c31a22e8977a6db0693d73c",
+    "src/evaluation/protected_identity_inventory.py": "99ef7722fd0e11ee0801eaf369baa6f4d3a554ff89c448712a64f159ca7375f5",
+    "src/evaluation/relevance_evidence.py": "6b332e426cb975cf36264d5d5e0211d347c7ba3b8f86ecbe69505400833432d3",
+    "tests/test_protected_identity_inventory.py": "283e82a85a8e492af5f59d41d7956c7db18dee2ee62826c8221b50825db32c7b",
+    "configs/evaluation/price_conflict_abstention_20260914.json": "289cb481fb0d464475721b13624743c18baebbc3d431d71540ccba814949862a"
+  },
+  "dependency_scope": "CPU inventory CLI and tests use only Python standard library plus the listed local modules; no training snapshot created",
+  "queue_check": {
+    "observed_at_utc": "2026-09-14T04:54:32Z", "account": "Iris_yzhang3504", "active_or_pending_jobs": 0,
+    "historical_jobs": [{"job_id": "30044630", "state": "COMPLETED", "elapsed": "00:09:07", "exit_code": "0:0"}, {"job_id": "30211170", "state": "COMPLETED", "elapsed": "00:07:19", "exit_code": "0:0"}]
+  },
+  "new_gpu_jobs_submitted": 0,
+  "cpu_slot": "RELEASED_TO_CURRENT_CROSS_PROJECT_COORDINATOR"
+}

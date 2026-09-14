@@ -1,0 +1,678 @@
+{
+  "available_bound_registry_support": 0,
+  "blocking_registry_ids": [
+    "system_repair_fresh_v2",
+    "evaluation_exclusion_v1",
+    "evaluation_exclusion_v2",
+    "week6_consumed",
+    "week7_v3",
+    "week7_v4",
+    "week7_v4_fix1",
+    "week7_v4_fix2",
+    "week8_audit_exclusion",
+    "synthetic_v4_images",
+    "synthetic_v5_complete",
+    "remaining_protected_pools"
+  ],
+  "config_canonical_sha256": "5fa47f4ea99a93ae3cb17634be8d01bc0cede487cf81fc4bdf423c29e8a94078",
+  "config_file_sha256": "289cb481fb0d464475721b13624743c18baebbc3d431d71540ccba814949862a",
+  "hash_verified_registry_support": 10,
+  "interpretation": "inventory only; availability is not proof of isolation or model quality",
+  "model_execution_authorized": false,
+  "overlap_check_status": "NOT_RUN_NO_NEW_DATA_LOCK",
+  "overlap_count": null,
+  "raw_protected_samples_or_predictions_opened": false,
+  "registries": [
+    {
+      "canonical_sha256": "0664835fabea23acc65caaf0090d88746a7f65271728de04f2b857937a0cd02a",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 696,
+          "row_denominator": 2268,
+          "unique_values": 578
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 2268,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 2268,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 2268,
+          "row_denominator": 2268,
+          "unique_values": 1510
+        },
+        "image_sha256": {
+          "nonempty_rows": 2268,
+          "row_denominator": 2268,
+          "unique_values": 1914
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 2268,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 2268,
+          "row_denominator": 2268,
+          "unique_values": 2268
+        },
+        "source_id": {
+          "nonempty_rows": 2268,
+          "row_denominator": 2268,
+          "unique_values": 1914
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 2268,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "512756e1928c530670ee7cd4097f025942ec423901586549389960d53cd77ac8",
+      "id": "system_repair_fresh_v2",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 2268,
+      "scope": "identity_only_train_1980_development_168_consumed_test_120",
+      "split_support": {
+        "development": 168,
+        "test": 120,
+        "train": 1980
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "e87998a1fef11f7c5f9ac365d99f1945682d6af9f201c43dfa1eb30974da21ea",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 100,
+          "row_denominator": 450,
+          "unique_values": 12
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 450,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 450,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 450,
+          "row_denominator": 450,
+          "unique_values": 450
+        },
+        "image_sha256": {
+          "nonempty_rows": 450,
+          "row_denominator": 450,
+          "unique_values": 450
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 450,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 450,
+          "row_denominator": 450,
+          "unique_values": 450
+        },
+        "source_id": {
+          "nonempty_rows": 450,
+          "row_denominator": 450,
+          "unique_values": 450
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 450,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "1430478f2af28c63025d017a806c3e8924900a168b39ca756eac8b0d776465c3",
+      "id": "evaluation_exclusion_v1",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 450,
+      "scope": "historical_evaluation_identity_registry",
+      "split_support": {
+        "not_recorded": 450
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "ed8b67f4c31bc9e089cefe00494809ef91798f6890e3ff995d366d1023bafd77",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 100,
+          "row_denominator": 450,
+          "unique_values": 12
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 450,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 450,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 450,
+          "row_denominator": 450,
+          "unique_values": 450
+        },
+        "image_sha256": {
+          "nonempty_rows": 450,
+          "row_denominator": 450,
+          "unique_values": 450
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 450,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 450,
+          "row_denominator": 450,
+          "unique_values": 450
+        },
+        "source_id": {
+          "nonempty_rows": 450,
+          "row_denominator": 450,
+          "unique_values": 450
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 450,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "8fa87e907c8318795e0986ed09c79a4f0843d4af95c9c4c3772076e05bc391a8",
+      "id": "evaluation_exclusion_v2",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 450,
+      "scope": "historical_evaluation_identity_registry",
+      "split_support": {
+        "not_recorded": 450
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "f7ff9e9950540acaeb74959669c5e618592b18461b053306da9cf49e6ba84156",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 0,
+          "row_denominator": 79936,
+          "unique_values": 0
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 79936,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 79936,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 0,
+          "row_denominator": 79936,
+          "unique_values": 0
+        },
+        "image_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 79936,
+          "unique_values": 0
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 79936,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 79936,
+          "row_denominator": 79936,
+          "unique_values": 79936
+        },
+        "source_id": {
+          "nonempty_rows": 0,
+          "row_denominator": 79936,
+          "unique_values": 0
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 79936,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "ea8cd668ea104300036b4fb23562e6a48bc77879d95653a69ad764f958503786",
+      "id": "week6_consumed",
+      "missing_or_partial_dimensions": [
+        "source_id",
+        "image_sha256",
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 79936,
+      "scope": "consumed_week6_training_validation_sample_membership_only",
+      "split_support": {
+        "train": 75992,
+        "validation": 3944
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "daa9663d3aa2f86096d9805e8880333c7f8bc1823a1fdc9b8d1a4398254e4773",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 986,
+          "row_denominator": 3228,
+          "unique_values": 820
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "image_sha256": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 3228
+        },
+        "source_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "c36abf41325d60eded5121c3b21953bef03e726ae3a6cf22b4b7eb6392a30244",
+      "id": "week7_v3",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 3228,
+      "scope": "superseded_week7_train_development_test_identity_only",
+      "split_support": {
+        "development": 114,
+        "test": 114,
+        "train": 3000
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "49b7d18de2d723fe0def6885623c90ff34fca152543aebe976206dbdde3fe2c1",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 986,
+          "row_denominator": 3228,
+          "unique_values": 820
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "image_sha256": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 3228
+        },
+        "source_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "bfd5cb958c884fabbe73d0bfa0b9e6a4b0c70fef0ae48f95633bdf345d14255f",
+      "id": "week7_v4",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 3228,
+      "scope": "superseded_week7_train_development_test_identity_only",
+      "split_support": {
+        "development": 114,
+        "test": 114,
+        "train": 3000
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "7ea04aa126261c9b7b954512fa3e1b039f2e6263921ed722b8de6783291a86a4",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 1066,
+          "row_denominator": 3228,
+          "unique_values": 900
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "image_sha256": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 3228
+        },
+        "source_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "f3ae7c2f04142aa99e7551b86c0c0ecdb2bcc68ca5469fd513c9fa7b3b3d6d54",
+      "id": "week7_v4_fix1",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 3228,
+      "scope": "superseded_week7_train_development_test_identity_only",
+      "split_support": {
+        "development": 114,
+        "test": 114,
+        "train": 3000
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "3b853d488097c28b7b1ce38bb51e2a51ff56f15b6e526fe7dd684921fdacf306",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 1066,
+          "row_denominator": 3228,
+          "unique_values": 900
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "image_sha256": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 3228
+        },
+        "source_id": {
+          "nonempty_rows": 3228,
+          "row_denominator": 3228,
+          "unique_values": 2730
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 3228,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "730888f509d82545a092e223bd020f643e05e443d9122d94bc5c4790e5e64bc4",
+      "id": "week7_v4_fix2",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 3228,
+      "scope": "superseded_week7_train_development_test_identity_only",
+      "split_support": {
+        "development": 114,
+        "test": 114,
+        "train": 3000
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "0a6ddcf1d536fabc1cfe8f8f33d33d137b4446e55c400da909f6a19095e76b60",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 0,
+          "row_denominator": 460,
+          "unique_values": 0
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 460,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 460,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 460,
+          "row_denominator": 460,
+          "unique_values": 460
+        },
+        "image_sha256": {
+          "nonempty_rows": 460,
+          "row_denominator": 460,
+          "unique_values": 460
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 460,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 460,
+          "row_denominator": 460,
+          "unique_values": 460
+        },
+        "source_id": {
+          "nonempty_rows": 460,
+          "row_denominator": 460,
+          "unique_values": 460
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 460,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "60cf99966d2f0c51d907d5e01148cfdaf8546afb6d9059a1a05e8bb72f2c5aff",
+      "id": "week8_audit_exclusion",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 460,
+      "scope": "available_week8_audit_exclusion_subset_not_all_week8_pools",
+      "split_support": {
+        "test": 60,
+        "train": 400
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "canonical_sha256": "e54f53588e8000abc59d560f9b9623d01c2be90c6ed9f4527ed8f0a95351619a",
+      "fields": {
+        "constraint_template_id": {
+          "nonempty_rows": 0,
+          "row_denominator": 312,
+          "unique_values": 0
+        },
+        "content_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 312,
+          "unique_values": 0
+        },
+        "dialogue_text_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 312,
+          "unique_values": 0
+        },
+        "group_id": {
+          "nonempty_rows": 0,
+          "row_denominator": 312,
+          "unique_values": 0
+        },
+        "image_sha256": {
+          "nonempty_rows": 312,
+          "row_denominator": 312,
+          "unique_values": 312
+        },
+        "query_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 312,
+          "unique_values": 0
+        },
+        "sample_id": {
+          "nonempty_rows": 312,
+          "row_denominator": 312,
+          "unique_values": 312
+        },
+        "source_id": {
+          "nonempty_rows": 312,
+          "row_denominator": 312,
+          "unique_values": 312
+        },
+        "source_record_sha256": {
+          "nonempty_rows": 0,
+          "row_denominator": 312,
+          "unique_values": 0
+        }
+      },
+      "file_sha256": "a5f87f44c9d747ed584e72632c5d835cc6edbfc9ec7df9ada6d7d7f1e9894b86",
+      "id": "synthetic_v4_images",
+      "missing_or_partial_dimensions": [
+        "query_sha256",
+        "source_record_sha256"
+      ],
+      "row_support": 312,
+      "scope": "search_and_product_images_only_no_dialogue_queries",
+      "split_support": {
+        "development": 48,
+        "final": 48,
+        "training": 216
+      },
+      "status": "INCOMPLETE_DIMENSIONS"
+    },
+    {
+      "id": "synthetic_v5_complete",
+      "reason": "aggregate_committed_lock_exists_but_row_identity_registry_not_located_no_final_regeneration_allowed",
+      "scope": "v5_training_development_final_identity_only_including_dialogue",
+      "status": "UNAVAILABLE"
+    },
+    {
+      "id": "remaining_protected_pools",
+      "reason": "not_certified_after_upstream_coverage_block_available_train_dev_only_reconstruction_is_not_a_full_protected_registry",
+      "scope": "v4_dialogue_v7_v9_v10_seen_development_other_week8_and_weak_query_pools",
+      "status": "UNAVAILABLE"
+    }
+  ],
+  "registry_support": 12,
+  "schema_version": "protected_identity_inventory_v1",
+  "status": "BLOCKED_PROTECTED_IDENTITY_COVERAGE"
+}
