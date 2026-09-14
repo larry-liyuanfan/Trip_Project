@@ -157,8 +157,12 @@ def validate_query_manifest(
 def validate_annotation_protocol(
     queries: list[dict[str, Any]],
     annotations: list[dict[str, Any]],
+    *,
+    qrels: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Reject weak labels presented as human review and incomplete query support."""
+    if not queries or len({record["query_id"] for record in queries}) != len(queries):
+        raise ValueError("query universe must be nonempty and unique")
     expected = {record["query_id"] for record in queries}
     actual: set[str] = set()
     counts: Counter[str] = Counter()
@@ -169,15 +173,21 @@ def validate_annotation_protocol(
         actual.add(query_id)
         provenance = _required_text(record, "label_provenance")
         annotators = record.get("annotators")
-        if not isinstance(annotators, list) or not all(
-            isinstance(item, str) and item for item in annotators
+        if not isinstance(annotators, list) or not annotators or not all(
+            isinstance(item, str) and item.strip() == item and item for item in annotators
         ):
             raise ValueError(f"{query_id}: annotators must be a non-empty string list")
         if provenance == "human":
             if len(annotators) < 2:
                 raise ValueError(f"{query_id}: human labels require two annotators")
+            if len({item.casefold() for item in annotators}) != len(annotators):
+                raise ValueError(f"{query_id}: human labels require distinct annotators")
+            if any(item.startswith("programmatic_") for item in annotators):
+                raise ValueError(f"{query_id}: programmatic annotator cannot claim human")
             if record.get("conflict_resolution") not in {"none", "adjudicated"}:
                 raise ValueError(f"{query_id}: human conflicts require adjudication status")
+            if qrels is None:
+                raise ValueError("human scoring requires explicit query-document qrels")
         elif provenance in {"weak_programmatic_metadata", "synthetic"}:
             if any(not item.startswith("programmatic_") for item in annotators):
                 raise ValueError(f"{query_id}: weak labels cannot name a human annotator")
@@ -186,7 +196,9 @@ def validate_annotation_protocol(
         else:
             raise ValueError(f"{query_id}: unsupported label provenance {provenance}")
         rules = record.get("grade_rules")
-        if not isinstance(rules, dict) or not isinstance(rules.get("grades"), dict):
+        if provenance != "human" and (
+            not isinstance(rules, dict) or not isinstance(rules.get("grades"), dict)
+        ):
             raise ValueError(f"{query_id}: grade_rules.grades is required")
         counts[provenance] += 1
     if actual != expected:
@@ -194,12 +206,20 @@ def validate_annotation_protocol(
             f"annotation/query support mismatch: missing={sorted(expected - actual)}, "
             f"extra={sorted(actual - expected)}"
         )
+    qrels_validation = None
+    if qrels is not None:
+        from src.evaluation.search_scorer_v2 import validate_qrels
+        qrels_validation = validate_qrels(queries, annotations, qrels)
     return {
         "status": "PASS",
         "support": len(annotations),
         "provenance_support": dict(sorted(counts.items())),
-        "human_review_support": counts["human"],
-        "promotion_eligible_as_human_ground_truth": counts["human"] == len(annotations),
+        "declared_human_query_support": counts["human"],
+        "human_review_support": 0,
+        "human_protocol_complete": bool(qrels_validation) and counts["human"] == len(annotations),
+        "promotion_eligible_as_human_ground_truth": False,
+        "human_authenticity_status": "NOT_VERIFIED_BY_SCORER",
+        "qrels_validation": qrels_validation,
         "annotation_sha256": canonical_json_sha256(annotations),
     }
 
@@ -247,69 +267,22 @@ def score_search_results(
     annotations: list[dict[str, Any]],
     results: list[dict[str, Any]],
     methods: Iterable[str] = SEARCH_METHODS,
+    *,
+    qrels: dict[str, Any] | None = None,
+    corpus: list[dict[str, Any]] | None = None,
+    ks: tuple[int, ...] = (5, 10),
+    binary_threshold: int = 2,
 ) -> dict[str, Any]:
-    """Score business semantics independently from ANN exact-neighbour fidelity."""
-    query_index = {item["query_id"]: item for item in queries}
-    annotation_index = {item["query_id"]: item for item in annotations}
-    result_index = {item["query_id"]: item for item in results}
-    if set(result_index) != set(query_index):
-        raise ValueError("search result support must exactly match the query lock")
-    output: dict[str, Any] = {
-        "scope": "business_semantic_relevance",
-        "query_support": len(queries),
-        "methods": {},
-        "query_manifest_sha256": canonical_json_sha256(queries),
-        "annotation_sha256": canonical_json_sha256(annotations),
-        "result_sha256": canonical_json_sha256(results),
-    }
-    for method in methods:
-        per_query: list[dict[str, Any]] = []
-        failures = 0
-        for query_id, query in query_index.items():
-            row = result_index[query_id]
-            method_result = row.get("methods", {}).get(method)
-            if not isinstance(method_result, dict):
-                failures += 1
-                per_query.append(_failed_query_metrics(query_id, query))
-                continue
-            hits = method_result.get("hits")
-            if not isinstance(hits, list):
-                failures += 1
-                per_query.append(_failed_query_metrics(query_id, query))
-                continue
-            grades = [_weak_grade(hit, annotation_index[query_id]) for hit in hits]
-            expected_no_result = "no_result" in query.get("slices", [])
-            predicted_no_result = bool(method_result.get("no_result"))
-            filters = query.get("requested_filters", {})
-            supported_filters = {
-                key: value for key, value in filters.items() if key in {"city", "business_category", "price_range"}
-            }
-            filter_checks = [
-                all(_norm(hit.get(key)) == _norm(value) for key, value in supported_filters.items())
-                for hit in hits
-            ]
-            relevant = [grade >= 2 for grade in grades]
-            relevant_total = max(int(method_result.get("relevant_total", sum(relevant))), 0)
-            per_query.append(
-                {
-                    "query_id": query_id,
-                    "slices": query.get("slices", []),
-                    "ranking_evaluable": not expected_no_result,
-                    "recall_at_5": _recall(relevant[:5], relevant_total),
-                    "recall_at_10": _recall(relevant[:10], relevant_total),
-                    "mrr_at_10": _mrr(grades[:10]),
-                    "ndcg_at_10": _ndcg(grades[:10]),
-                    "no_result_correct": expected_no_result == predicted_no_result,
-                    "filter_correct": all(filter_checks) if supported_filters and hits else (
-                        predicted_no_result if supported_filters else True
-                    ),
-                    "unsupported_constraints_unapplied": set(query.get("unsupported_constraints", []))
-                    == set(method_result.get("unsupported_constraints_unapplied", [])),
-                    "failed": False,
-                }
-            )
-        output["methods"][method] = _aggregate_search_method(per_query, failures)
-    return output
+    """Scorer v2: require full qrels or explicitly weak full-corpus metadata."""
+    from src.evaluation.search_scorer_v2 import build_weak_qrels, score
+
+    if qrels is not None and corpus is not None:
+        raise ValueError("provide qrels or weak corpus, not both")
+    if qrels is None:
+        if corpus is None:
+            raise ValueError("full qrels or full weak corpus required; hit-only scoring is invalid")
+        qrels = build_weak_qrels(queries, annotations, corpus)
+    return score(queries, annotations, results, tuple(methods), qrels, ks, binary_threshold)
 
 
 def score_ann_fidelity(records: list[dict[str, Any]], top_k: int = 10) -> dict[str, Any]:
@@ -547,7 +520,13 @@ def _weak_grade(hit: dict[str, Any], annotation: dict[str, Any]) -> int:
     return 0
 
 
-def _aggregate_search_method(per_query: list[dict[str, Any]], failures: int) -> dict[str, Any]:
+def _aggregate_search_method_v1(per_query: list[dict[str, Any]], failures: int) -> dict[str, Any]:
+    """Historical byte-compatible verifier ONLY. Not an evaluation entry point.
+
+    v1 mislabeled the dataset slice ratio as no_result_rate and omitted failures
+    from ranking averages. Preserve to verify immutable historical artifacts.
+    Current scoring uses search_scorer_v2.aggregate with actual predictions.
+    """
     ranking = [row for row in per_query if row["ranking_evaluable"] and not row["failed"]]
     slices: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in per_query:
@@ -579,38 +558,9 @@ def _aggregate_search_method(per_query: list[dict[str, Any]], failures: int) -> 
     }
 
 
-def _failed_query_metrics(query_id: str, query: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "query_id": query_id,
-        "slices": query.get("slices", []),
-        "ranking_evaluable": "no_result" not in query.get("slices", []),
-        "recall_at_5": 0.0,
-        "recall_at_10": 0.0,
-        "mrr_at_10": 0.0,
-        "ndcg_at_10": 0.0,
-        "no_result_correct": False,
-        "filter_correct": False,
-        "unsupported_constraints_unapplied": False,
-        "failed": True,
-    }
-
-
-def _recall(relevant: list[bool], total: int) -> float:
-    return sum(relevant) / max(total, 1)
-
-
-def _mrr(grades: list[int]) -> float:
-    for index, grade in enumerate(grades, start=1):
-        if grade >= 2:
-            return 1.0 / index
-    return 0.0
-
-
-def _ndcg(grades: list[int]) -> float:
-    dcg = sum((2**grade - 1) / math.log2(index + 2) for index, grade in enumerate(grades))
-    ideal = sorted(grades, reverse=True)
-    idcg = sum((2**grade - 1) / math.log2(index + 2) for index, grade in enumerate(ideal))
-    return dcg / idcg if idcg else 0.0
+def _ndcg(grades: list[int], full_qrels_grades: list[int], k: int = 10) -> float | None:
+    from src.evaluation.search_scorer_v2 import ndcg
+    return ndcg(grades, full_qrels_grades, k)
 
 
 def _prf(tp: int, fp: int, fn: int) -> dict[str, int | float]:

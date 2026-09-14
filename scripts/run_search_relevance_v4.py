@@ -48,6 +48,8 @@ def main() -> None:
         raise FileExistsError(f"output directory already exists: {args.output_dir}")
     args.output_dir.mkdir(parents=True)
     config = json.loads(args.config.read_text(encoding="utf-8"))
+    from src.evaluation.search_scorer_v2 import require_versioned_inference_protocol
+    require_versioned_inference_protocol(config)
     expected_lock = json.loads(Path(config["pool"]["committed_lock"]).read_text(encoding="utf-8"))
     actual_lock = json.loads((args.bundle_dir / "bundle_lock.json").read_text(encoding="utf-8"))
     if actual_lock != expected_lock:
@@ -83,7 +85,7 @@ def main() -> None:
         candidate = {"business_guard_threshold": float(threshold), "star_rating_weight": float(star_weight)}
         rows, ann_rows = _evaluate(prepared_development, candidate, centroids, config)
         report = score_search_results(
-            development, development_annotations, rows, methods=SEARCH_V4_METHODS
+            development, development_annotations, rows, methods=SEARCH_V4_METHODS, corpus=archive["metadata"]
         )
         metrics = report["methods"]["hard_filter_clip_business_guard"]
         candidates.append({
@@ -104,7 +106,7 @@ def main() -> None:
         prepared_development, selected["configuration"], centroids, config
     )
     development_report = score_search_results(
-        development, development_annotations, development_rows, methods=SEARCH_V4_METHODS
+        development, development_annotations, development_rows, methods=SEARCH_V4_METHODS, corpus=archive["metadata"]
     )
     development_ann = score_ann_fidelity(
         development_ann_rows, top_k=int(config["search"]["top_k"])
@@ -166,7 +168,7 @@ def main() -> None:
     final_rows, final_ann_rows = _evaluate(
         prepared_final, selected["configuration"], centroids, config
     )
-    final_report = score_search_results(final, final_annotations, final_rows, methods=SEARCH_V4_METHODS)
+    final_report = score_search_results(final, final_annotations, final_rows, methods=SEARCH_V4_METHODS, corpus=archive["metadata"])
     final_ann = score_ann_fidelity(final_ann_rows, top_k=int(config["search"]["top_k"]))
     final_gate = apply_search_v4_gates(final_report, final_ann, config["search"]["final_gates"])
     _write_jsonl(args.output_dir / "final_results.jsonl", final_rows)

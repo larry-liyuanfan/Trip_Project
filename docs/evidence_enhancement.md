@@ -1,5 +1,11 @@
 # 搜索、VLM 与端到端证据增强协议
 
+2026-09-14 评分纠错覆盖说明：本页 v1/v2/v4/v8 搜索数字保留为历史记录，其中旧 nDCG
+使用了返回池内 IDCG，旧 `no_result_rate` 是标签切片占比。当前口径改用
+[`search_scorer_v2`](search_scorer_v2.md)，校正结果与不可重算项见
+[`scorer_v2_audit_20260914/HANDOFF`](../reports/scorer_v2_audit_20260914/HANDOFF.md)。
+旧 gate 成功不能自动晋级为新评分契约下的成功；本文旧“人工协议通过”也不构成真人身份核验。
+
 2026-09-07 输入质量修复：v9 合成卡片存在长行静默截断及下划线缺字，详见
 `reports/development/reviews/card_render_repair_v10.md` 和 `experiments/card_render_repair_v10.json`。
 旧 v9 指标保留，但不能将其风格回退全部归因于训练；新配对诊断只测渲染因素，

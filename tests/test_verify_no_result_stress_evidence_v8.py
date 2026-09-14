@@ -11,7 +11,10 @@ from pathlib import Path
 from scripts.run_no_result_stress_v8 import METHODS, _method_summaries, _objective
 from scripts.verify_no_result_stress_evidence_v8 import verify_evidence_bundle
 from src.evaluation.no_result_stress_v8 import apply_no_result_stress_v8_gate
-from src.evaluation.relevance_evidence import _aggregate_search_method, canonical_json_sha256, file_sha256
+from src.evaluation.relevance_evidence import (
+    _aggregate_search_method_v1 as _aggregate_search_method,
+    canonical_json_sha256, file_sha256,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]

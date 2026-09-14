@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import statistics
+import subprocess
 import sys
 import tarfile
 import time
@@ -54,6 +55,10 @@ def main() -> None:
 
     score_search = subparsers.add_parser("score-search")
     score_search.add_argument("--results", type=Path, required=True)
+    score_search.add_argument("--qrels", type=Path, help="Explicit search_qrels_v2 JSON; mandatory for human labels")
+    score_search.add_argument("--weak-corpus", type=Path, help="Full locked metadata JSONL; weak/synthetic only")
+    score_search.add_argument("--ks", type=int, nargs="+", default=[5, 10])
+    score_search.add_argument("--binary-threshold", type=int, default=2)
     score_search.add_argument("--output", type=Path, required=True)
 
     score_vlm = subparsers.add_parser("score-vlm")
@@ -82,7 +87,21 @@ def main() -> None:
     elif args.command == "score-search":
         queries, annotations = _load_protocol(config)
         results = load_jsonl(args.results)
-        report = score_search_results(queries, annotations, results)
+        report = score_search_results(
+            queries, annotations, results,
+            qrels=_load_json(args.qrels) if args.qrels else None,
+            corpus=load_jsonl(args.weak_corpus) if args.weak_corpus else None,
+            ks=tuple(args.ks), binary_threshold=args.binary_threshold,
+        )
+        report["provenance"] = {
+            "git_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+            "config_sha256": file_sha256(args.config), "predictions_file_sha256": file_sha256(args.results),
+            "label_input_file_sha256": file_sha256(args.qrels or args.weak_corpus),
+            "scorer_file_sha256": file_sha256(Path("src/evaluation/search_scorer_v2.py")),
+            "entry_point_sha256": file_sha256(Path(__file__)),
+            "platform": platform.platform(), "processor": platform.processor(),
+            "python": platform.python_version(), "gpu_used": False,
+        }
         _write_json_exclusive(args.output, report)
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     elif args.command == "score-vlm":
@@ -162,6 +181,8 @@ def run_search_evaluation(
     retrieval_archive: Path,
     output: Path,
 ) -> dict[str, Any]:
+    from src.evaluation.search_scorer_v2 import require_versioned_inference_protocol
+    require_versioned_inference_protocol(config)
     if output.exists():
         raise FileExistsError(f"search output already exists: {output}")
     expected_archive = config["formal_release_read_only"]["retrieval_archive_sha256"]
@@ -283,7 +304,7 @@ def run_search_evaluation(
 
     output.parent.mkdir(parents=True, exist_ok=True)
     _write_jsonl_exclusive(output, rows)
-    semantic = score_search_results(queries, annotations, rows)
+    semantic = score_search_results(queries, annotations, rows, corpus=metadata)
     ann = score_ann_fidelity(ann_rows, top_k=top_k)
     summary = {
         "status": "completed",

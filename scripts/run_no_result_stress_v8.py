@@ -44,6 +44,8 @@ def main() -> None:
         raise FileExistsError(f"output directory already exists: {args.output_dir}")
     args.output_dir.mkdir(parents=True)
     config = _load_object(args.config)
+    from src.evaluation.search_scorer_v2 import require_versioned_inference_protocol
+    require_versioned_inference_protocol(config)
     expected_lock = _load_object(Path(config["pool"]["committed_lock"]))
     if _load_object(args.bundle_dir / "bundle_lock.json") != expected_lock:
         raise ValueError("generated v8 bundle differs from the committed lock")
@@ -89,7 +91,7 @@ def main() -> None:
             "business_similarity_threshold": float(business_similarity),
         }
         rows = _evaluate(calibration_prepared, centroids, candidate, config)
-        report = score_search_results(calibration, calibration_annotations, rows, methods=METHODS)
+        report = score_search_results(calibration, calibration_annotations, rows, methods=METHODS, corpus=archive["metadata"])
         candidates.append({
             "configuration": candidate,
             "objective": _objective(report["methods"]["dual_centroid_guard"], guard["selection_objective"]),
@@ -102,7 +104,7 @@ def main() -> None:
     ))[0]
     calibration_rows = _evaluate(calibration_prepared, centroids, selected["configuration"], config)
     calibration_report = score_search_results(
-        calibration, calibration_annotations, calibration_rows, methods=METHODS
+        calibration, calibration_annotations, calibration_rows, methods=METHODS, corpus=archive["metadata"]
     )
     selection = {
         "schema_version": "no_result_stress_v8_calibration_selection",
@@ -150,7 +152,7 @@ def main() -> None:
     )
     validation_rows = _evaluate(validation_prepared, centroids, selected["configuration"], config)
     validation_report = score_search_results(
-        validation, validation_annotations, validation_rows, methods=METHODS
+        validation, validation_annotations, validation_rows, methods=METHODS, corpus=archive["metadata"]
     )
     fixed_gate = apply_no_result_stress_v8_gate(
         validation_report,

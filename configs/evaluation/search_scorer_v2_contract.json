@@ -1,0 +1,21 @@
+{
+  "schema_version": "search_scorer_v2_contract",
+  "scorer_version": "search_scorer_v2",
+  "grades": [0, 1, 2, 3],
+  "binary_threshold": 2,
+  "ks": [5, 10],
+  "graded_gain": "2**grade - 1",
+  "idcg_scope": "all_valid_qrels_for_query",
+  "recall_denominator": "all_qrels_grades_greater_than_or_equal_to_binary_threshold",
+  "query_universe": "exact_manifest_query_ids",
+  "unjudged": "zero_gain_nonrelevant_keep_rank_and_report_count",
+  "duplicates": "reject",
+  "zero_binary_positives": "recall_mrr_null_excluded_report_denominator",
+  "zero_idcg": "ndcg_null_excluded_report_denominator",
+  "missing_method": "failed_zero_on_evaluable_queries_not_removed",
+  "no_result_rate": "successful_empty_predictions_divided_by_all_queries",
+  "human_qrels": "two_distinct_annotators_per_pair_with_agreement_or_independent_adjudication",
+  "promotion_gate": "NOT_DEFINED_OFFLINE_SCORER_REPAIR_ONLY",
+  "historical_prediction_reuse": "offline_recompute_only_not_new_independent_test",
+  "fresh_test_120": "DO_NOT_OPEN_OR_RERUN"
+}

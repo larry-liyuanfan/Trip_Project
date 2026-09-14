@@ -145,7 +145,7 @@ class SearchScoringTests(unittest.TestCase):
             for name in ("clip_exact", "clip_milvus", "structured_filter_clip", "lightweight_rerank")
         }
         report = score_search_results(
-            [query], [annotation], [{"query_id": "q1", "methods": methods}]
+            [query], [annotation], [{"query_id": "q1", "methods": methods}], corpus=[hit]
         )
         exact = report["methods"]["clip_exact"]
         self.assertEqual(exact["ranking_support"], 1)
@@ -164,7 +164,8 @@ class SearchScoringTests(unittest.TestCase):
             for name in ("clip_exact", "clip_milvus", "structured_filter_clip", "lightweight_rerank")
         }
         report = score_search_results(
-            [query], [_annotation()], [{"query_id": "q1", "methods": methods}]
+            [query], [_annotation()], [{"query_id": "q1", "methods": methods}],
+            corpus=[{"image_id": "excluded", "business_category": "restaurant"}],
         )
         self.assertEqual(report["methods"]["clip_exact"]["ranking_support"], 0)
         self.assertEqual(report["methods"]["clip_exact"]["no_result_accuracy"], 1.0)

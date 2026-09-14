@@ -50,6 +50,8 @@ def main() -> None:
         raise FileExistsError(f"output directory already exists: {args.output_dir}")
     args.output_dir.mkdir(parents=True)
     config = json.loads(args.config.read_text(encoding="utf-8"))
+    from src.evaluation.search_scorer_v2 import require_versioned_inference_protocol
+    require_versioned_inference_protocol(config)
     expected_pool_lock = _verify_bundle_lock(config, args.bundle_dir)
     if file_sha256(args.retrieval_archive) != config["formal_release_read_only"]["retrieval_archive_sha256"]:
         raise ValueError("formal retrieval archive SHA-256 mismatch")
@@ -85,7 +87,7 @@ def main() -> None:
         }
         rows, ann_rows = _evaluate_prepared(prepared_calibration, candidate_config, config)
         metrics = score_search_results(
-            calibration, calibration_annotations, rows, methods=SEARCH_V2_METHODS
+            calibration, calibration_annotations, rows, methods=SEARCH_V2_METHODS, corpus=archive["metadata"]
         )
         method = metrics["methods"]["hard_filter_light_rerank"]
         objective = (
@@ -107,7 +109,7 @@ def main() -> None:
         prepared_calibration, selected["configuration"], config
     )
     calibration_report = score_search_results(
-        calibration, calibration_annotations, selected_rows, methods=SEARCH_V2_METHODS
+        calibration, calibration_annotations, selected_rows, methods=SEARCH_V2_METHODS, corpus=archive["metadata"]
     )
     selection_record = {
         "schema_version": "search_relevance_v2_calibration_selection",
@@ -157,7 +159,7 @@ def main() -> None:
         prepared_holdout, selected["configuration"], config
     )
     holdout_report = score_search_results(
-        holdout, holdout_annotations, holdout_rows, methods=SEARCH_V2_METHODS
+        holdout, holdout_annotations, holdout_rows, methods=SEARCH_V2_METHODS, corpus=archive["metadata"]
     )
     holdout_ann = score_ann_fidelity(holdout_ann_rows, top_k=int(config["search"]["top_k"]))
     gates = apply_search_v2_gates(

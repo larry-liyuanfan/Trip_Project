@@ -1,5 +1,11 @@
 # Trip_Project
 
+2026-09-14 评分审计：旧搜索 nDCG 的 IDCG 只覆盖已返回结果、`no_result_rate` 实际是数据切片
+占比；这些历史数字不再作为当前正确评分依据。现已改为完整 qrels、明确分母和逐文档标注校验，
+并追加原预测离线重算，不是模型提升或新的独立测试。见 [评分契约](docs/search_scorer_v2.md)
+与 [审计交接/证据索引](reports/scorer_v2_audit_20260914/HANDOFF.md)。ANN-vs-exact Recall
+仍仅表示索引一致性；不修改正式 release 或 Fresh Test 120。
+
 面向 OTA 场景的多模态理解、视觉检索、智能售后和行程规划系统。项目以
 `Qwen/Qwen3-VL-8B-Instruct`、PEFT adapter、CLIP 和 Milvus 为核心，提供版本锁定的
 FastAPI 服务、结构化输出校验、失败关闭以及可复验交付包。

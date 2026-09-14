@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.run_no_result_stress_v8 import METHODS, _method_summaries, _objective
 from src.evaluation.no_result_stress_v8 import apply_no_result_stress_v8_gate
 from src.evaluation.relevance_evidence import (
-    _aggregate_search_method,
+    _aggregate_search_method_v1 as _aggregate_search_method,
     canonical_json_sha256,
     file_sha256,
     load_jsonl,
