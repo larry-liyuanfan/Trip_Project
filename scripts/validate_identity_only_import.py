@@ -30,7 +30,7 @@ def main() -> int:
             approved_sources_sha256=args.approved_sources_sha256,
             expected_scope_count=12,
         )
-    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
         print(json.dumps({
             "status": "IDENTITY_IMPORT_VALIDATION_FAILED",
             "error_type": type(error).__name__,

@@ -430,6 +430,60 @@ class IdentityOnlyImportTests(unittest.TestCase):
         self.assertFalse(failed_output.exists())
         self.assertFalse(json.loads(failed.stderr)["model_execution_authorized"])
 
+    def test_rehashed_bundle_rejects_invalid_optional_identity_digest_via_api_and_cli(self):
+        _, approved, export, manifest = self.build_fixture()
+        identity = self.bundle / export["scopes"][0]["path"]
+        row = json.loads(identity.read_text(encoding="utf-8"))
+        row["dialogue_text_sha256"] = "not-a-sha"
+        identity.write_text(json.dumps(row) + "\n", encoding="utf-8")
+        export["scopes"][0].update(
+            file_sha256=file_sha256(identity), canonical_rows_sha256=canonical_json_sha256([row]),
+        )
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "optional identity dialogue_text_sha256"):
+            self.validate(approved, manifest)
+
+        output = self.root / "invalid-optional-validation.json"
+        command = [
+            sys.executable, "scripts/validate_identity_only_import.py",
+            "--bundle-root", str(self.bundle),
+            "--export-manifest-sha256", file_sha256(manifest),
+            "--approved-sources", str(approved),
+            "--approved-sources-sha256", file_sha256(approved),
+            "--output", str(output),
+        ]
+        failed = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(failed.returncode, 2, failed.stderr)
+        self.assertFalse(output.exists())
+        self.assertEqual(json.loads(failed.stderr)["status"], "IDENTITY_IMPORT_VALIDATION_FAILED")
+        self.assertNotIn("Traceback", failed.stderr)
+
+    def test_malformed_approval_types_have_stable_cli_failure(self):
+        for field, malformed in [
+            ("required_fields", ["sample_id", {"not": "a string"}]),
+            ("image_identity_policy", ["required"]),
+        ]:
+            with self.subTest(field=field):
+                approval, approved, export, manifest = self.build_fixture()
+                approval["sources"][0][field] = malformed
+                self.rewrite_json(approved, approval)
+                export["approved_sources_file_sha256"] = file_sha256(approved)
+                self.rewrite_json(manifest, export)
+                output = self.root / f"malformed-{field}.json"
+                command = [
+                    sys.executable, "scripts/validate_identity_only_import.py",
+                    "--bundle-root", str(self.bundle),
+                    "--export-manifest-sha256", file_sha256(manifest),
+                    "--approved-sources", str(approved),
+                    "--approved-sources-sha256", file_sha256(approved),
+                    "--output", str(output),
+                ]
+                failed = subprocess.run(command, capture_output=True, text=True, check=False)
+                self.assertEqual(failed.returncode, 2, failed.stderr)
+                self.assertFalse(output.exists())
+                self.assertNotIn("Traceback", failed.stderr)
+                self.assertFalse(json.loads(failed.stderr)["model_execution_authorized"])
+
 
 if __name__ == "__main__":
     unittest.main()

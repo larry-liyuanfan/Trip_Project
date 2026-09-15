@@ -148,11 +148,12 @@ def _validate_approval_registry(value: dict[str, Any], expected_scope_count: int
         _require_sha(source["source_manifest_file_sha256"], "approved source manifest SHA-256")
         _require_sha(source["data_lock_file_sha256"], "approved data lock SHA-256")
         policy = source["image_identity_policy"]
-        if policy not in IMAGE_IDENTITY_POLICIES:
+        if not isinstance(policy, str) or policy not in IMAGE_IDENTITY_POLICIES:
             raise ValueError("unsupported image identity policy")
         fields = source["required_fields"]
         if (
             not isinstance(fields, list)
+            or any(not isinstance(field, str) for field in fields)
             or len(set(fields)) != len(fields)
             or set(fields) - set(IDENTITY_FIELDS)
             or not COMMON_IMPORT_FIELDS.issubset(fields)
@@ -234,6 +235,12 @@ def _validate_import_rows(
             _require_sha(row[field], f"identity {field}")
         for field in required - SHA_FIELDS:
             _require_string(row[field], f"identity {field}")
+        for field in SHA_FIELDS:
+            if row.get(field) not in (None, ""):
+                _require_sha(row[field], f"optional identity {field}")
+        for field in (set(IDENTITY_FIELDS) - SHA_FIELDS) | {"record_id"}:
+            if row.get(field) not in (None, ""):
+                _require_string(row[field], f"optional identity {field}")
         if row.get("contains_image_bytes") not in (None, False):
             raise ValueError("identity export claims image bytes")
         sample_id = row["sample_id"]
@@ -242,7 +249,10 @@ def _validate_import_rows(
         seen_samples.add(sample_id)
         if approved["image_identity_policy"] == "not_applicable_text_only" and row.get("image_sha256"):
             raise ValueError("text-only scope unexpectedly contains image identity")
-        identity = canonical_json_sha256({field: row.get(field) for field in IDENTITY_FIELDS})
+        identity = canonical_json_sha256({
+            field: row.get(field) if row.get(field) not in (None, "") else None
+            for field in IDENTITY_FIELDS
+        })
         previous = global_samples.get(sample_id)
         if previous is not None and previous != identity:
             raise ValueError("conflicting duplicate sample_id across export scopes")
