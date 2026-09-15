@@ -8,7 +8,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.evaluation.protected_identity_inventory import audit_inventory
+from src.evaluation.protected_identity_inventory import (
+    IMPORT_CANONICALIZATION,
+    audit_inventory,
+    validate_identity_only_import,
+)
 from src.evaluation.relevance_evidence import canonical_json_sha256, file_sha256
 
 
@@ -172,6 +176,259 @@ class ProtectedIdentityInventoryTests(unittest.TestCase):
         self.assertEqual(new["training"]["fixed_baseline_additional_optimizer_steps"], 0)
         self.assertEqual(new["resource_limits"]["max_gpu_jobs"], 1)
         self.assertEqual(new["final_policy"], "not_defined_not_generated_not_consumed")
+
+
+class IdentityOnlyImportTests(unittest.TestCase):
+    """All bundle contents are tiny synthetic fixtures, never project identities."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.bundle = self.root / "synthetic_bundle"
+        self.bundle.mkdir()
+
+    def build_fixture(self, scope_count=12, *, text_scope=None):
+        text_scope = scope_count - 1 if text_scope is None else text_scope
+        sources = []
+        scopes = []
+        scope_ids = []
+        for index in range(scope_count):
+            scope_id = f"synthetic_scope_{index:02d}"
+            scope_ids.append(scope_id)
+            text_only = index == text_scope
+            required = [
+                "sample_id", "source_id", "source_record_sha256", "query_sha256",
+                "content_sha256", "dialogue_text_sha256" if text_only else "image_sha256",
+            ]
+            source_manifest_sha = f"{index + 1:064x}"
+            data_lock_sha = f"{index + 101:064x}"
+            sources.append({
+                "scope_id": scope_id,
+                "source_manifest_file_sha256": source_manifest_sha,
+                "data_lock_file_sha256": data_lock_sha,
+                "required_fields": required,
+                "image_identity_policy": "not_applicable_text_only" if text_only else "required",
+            })
+            row = {
+                "sample_id": f"synthetic-sample-{index}",
+                "source_id": f"synthetic-source-{index}",
+                "source_record_sha256": f"{index + 201:064x}",
+                "query_sha256": f"{index + 301:064x}",
+                "content_sha256": f"{index + 401:064x}",
+                "dialogue_text_sha256" if text_only else "image_sha256": f"{index + 501:064x}",
+                "contains_image_bytes": False,
+            }
+            identity = self.bundle / f"scope-{index:02d}.jsonl"
+            identity.write_text(json.dumps(row, sort_keys=True) + "\n", encoding="utf-8")
+            scopes.append({
+                "scope_id": scope_id,
+                "path": identity.name,
+                "file_sha256": file_sha256(identity),
+                "canonical_rows_sha256": canonical_json_sha256([row]),
+                "row_count": 1,
+                "source_manifest_file_sha256": source_manifest_sha,
+                "data_lock_file_sha256": data_lock_sha,
+            })
+        approval = {
+            "schema_version": "identity_import_approved_sources_v1",
+            "canonicalization_version": IMPORT_CANONICALIZATION,
+            "approval_id": "synthetic-unit-test-approval-not-custodian-evidence",
+            "required_scope_ids": scope_ids,
+            "sources": sources,
+        }
+        approved_path = self.root / "synthetic_approved_sources.json"
+        approved_path.write_text(json.dumps(approval, sort_keys=True) + "\n", encoding="utf-8")
+        manifest = {
+            "schema_version": "identity_only_export_manifest_v1",
+            "canonicalization_version": IMPORT_CANONICALIZATION,
+            "export_id": "synthetic-unit-test-export-not-real-data",
+            "approval_id": approval["approval_id"],
+            "approved_sources_file_sha256": file_sha256(approved_path),
+            "scopes": scopes,
+        }
+        manifest_path = self.bundle / "export_manifest.json"
+        manifest_path.write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
+        return approval, approved_path, manifest, manifest_path
+
+    def validate(self, approved_path, manifest_path, scope_count=12):
+        return validate_identity_only_import(
+            bundle_root=self.bundle,
+            export_manifest_sha256=file_sha256(manifest_path),
+            approved_sources_path=approved_path,
+            approved_sources_sha256=file_sha256(approved_path),
+            expected_scope_count=scope_count,
+        )
+
+    def rewrite_json(self, path, value):
+        path.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
+
+    def test_complete_twelve_scope_fixture_validates_but_never_authorizes(self):
+        _, approved, _, manifest = self.build_fixture()
+        report = self.validate(approved, manifest)
+        self.assertEqual(report["status"], "VALIDATED_IMPORT_NOT_TRAINING_AUTHORIZATION")
+        self.assertEqual((report["scope_support"], report["scope_denominator"]), (12, 12))
+        self.assertEqual(report["row_support"], 12)
+        self.assertFalse(report["model_execution_authorized"])
+        self.assertTrue(report["coordinator_release_required"])
+        self.assertFalse(report["custodian_attestation_verified"])
+        self.assertIsNone(report["human_annotation_support"])
+        self.assertEqual(report["leakage_check_status"], "NOT_RUN")
+        self.assertIsNone(report["overlap_count"])
+
+    def test_unbound_approval_registry_is_rejected(self):
+        _, approved, _, manifest = self.build_fixture()
+        with self.assertRaisesRegex(ValueError, "approved source registry file SHA-256 mismatch"):
+            validate_identity_only_import(
+                bundle_root=self.bundle,
+                export_manifest_sha256=file_sha256(manifest),
+                approved_sources_path=approved,
+                approved_sources_sha256="f" * 64,
+            )
+
+    def test_unknown_canonicalization_is_rejected_in_both_trust_layers(self):
+        approval, approved, export, manifest = self.build_fixture()
+        approval["canonicalization_version"] = "invented-normalization"
+        self.rewrite_json(approved, approval)
+        with self.assertRaisesRegex(ValueError, "approved canonicalization"):
+            self.validate(approved, manifest)
+        approval["canonicalization_version"] = IMPORT_CANONICALIZATION
+        export["canonicalization_version"] = "invented-normalization"
+        self.rewrite_json(approved, approval)
+        export["approved_sources_file_sha256"] = file_sha256(approved)
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "export canonicalization"):
+            self.validate(approved, manifest)
+
+    def test_export_manifest_must_bind_the_approved_registry(self):
+        _, approved, export, manifest = self.build_fixture()
+        export["approved_sources_file_sha256"] = "f" * 64
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "not bound to the approved source registry"):
+            self.validate(approved, manifest)
+
+    def test_missing_scope_is_rejected(self):
+        _, approved, export, manifest = self.build_fixture()
+        export["scopes"].pop()
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "cover every approved scope"):
+            self.validate(approved, manifest)
+
+    def test_self_reported_source_hash_cannot_replace_approved_identity(self):
+        _, approved, export, manifest = self.build_fixture()
+        export["scopes"][0]["source_manifest_file_sha256"] = "f" * 64
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "is not approved"):
+            self.validate(approved, manifest)
+
+    def test_file_and_canonical_hashes_are_recomputed(self):
+        _, approved, export, manifest = self.build_fixture()
+        identity = self.bundle / export["scopes"][0]["path"]
+        identity.write_text(identity.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "file SHA-256 mismatch"):
+            self.validate(approved, manifest)
+        export["scopes"][0]["file_sha256"] = file_sha256(identity)
+        export["scopes"][0]["canonical_rows_sha256"] = "f" * 64
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "canonical rows SHA-256 mismatch"):
+            self.validate(approved, manifest)
+
+    def test_missing_required_field_and_raw_payload_are_rejected(self):
+        for mutation, message in [
+            (lambda row: row.pop("query_sha256"), "missing an approved required field"),
+            (lambda row: row.update({"prompt": "forbidden raw prompt"}), "non-identity fields"),
+            (lambda row: row.update({"contains_image_bytes": True}), "claims image bytes"),
+        ]:
+            with self.subTest(message=message):
+                _, approved, export, manifest = self.build_fixture()
+                identity = self.bundle / export["scopes"][0]["path"]
+                row = json.loads(identity.read_text(encoding="utf-8"))
+                mutation(row)
+                identity.write_text(json.dumps(row) + "\n", encoding="utf-8")
+                export["scopes"][0]["file_sha256"] = file_sha256(identity)
+                export["scopes"][0]["canonical_rows_sha256"] = canonical_json_sha256([row])
+                self.rewrite_json(manifest, export)
+                with self.assertRaisesRegex(ValueError, message):
+                    self.validate(approved, manifest)
+
+    def test_duplicate_and_conflicting_sample_ids_are_rejected(self):
+        _, approved, export, manifest = self.build_fixture()
+        first_path = self.bundle / export["scopes"][0]["path"]
+        first = json.loads(first_path.read_text(encoding="utf-8"))
+        first_path.write_text(json.dumps(first) + "\n" + json.dumps(first) + "\n", encoding="utf-8")
+        export["scopes"][0].update(
+            file_sha256=file_sha256(first_path), canonical_rows_sha256=canonical_json_sha256([first, first]),
+            row_count=2,
+        )
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "duplicate sample_id within"):
+            self.validate(approved, manifest)
+
+        _, approved, export, manifest = self.build_fixture()
+        second_path = self.bundle / export["scopes"][1]["path"]
+        second = json.loads(second_path.read_text(encoding="utf-8"))
+        second["sample_id"] = "synthetic-sample-0"
+        second_path.write_text(json.dumps(second) + "\n", encoding="utf-8")
+        export["scopes"][1].update(
+            file_sha256=file_sha256(second_path), canonical_rows_sha256=canonical_json_sha256([second]),
+        )
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "conflicting duplicate sample_id"):
+            self.validate(approved, manifest)
+
+    def test_duplicate_json_keys_are_rejected(self):
+        _, approved, export, manifest = self.build_fixture()
+        identity = self.bundle / export["scopes"][0]["path"]
+        identity.write_text('{"sample_id":"a","sample_id":"b"}\n', encoding="utf-8")
+        export["scopes"][0]["file_sha256"] = file_sha256(identity)
+        export["scopes"][0]["canonical_rows_sha256"] = canonical_json_sha256([{"sample_id": "b"}])
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "duplicate JSON object key"):
+            self.validate(approved, manifest)
+
+    def test_text_only_policy_requires_dialogue_digest_and_forbids_image(self):
+        approval, approved, export, manifest = self.build_fixture(scope_count=2, text_scope=1)
+        approval["sources"][1]["required_fields"].remove("dialogue_text_sha256")
+        self.rewrite_json(approved, approval)
+        with self.assertRaisesRegex(ValueError, "lacks its required digest"):
+            self.validate(approved, manifest, scope_count=2)
+        approval, approved, export, manifest = self.build_fixture(scope_count=2, text_scope=1)
+        identity = self.bundle / export["scopes"][1]["path"]
+        row = json.loads(identity.read_text(encoding="utf-8"))
+        row["image_sha256"] = "f" * 64
+        identity.write_text(json.dumps(row) + "\n", encoding="utf-8")
+        export["scopes"][1].update(
+            file_sha256=file_sha256(identity), canonical_rows_sha256=canonical_json_sha256([row]),
+        )
+        self.rewrite_json(manifest, export)
+        with self.assertRaisesRegex(ValueError, "unexpectedly contains image"):
+            self.validate(approved, manifest, scope_count=2)
+
+    def test_cli_exit_codes_and_exclusive_output(self):
+        _, approved, _, manifest = self.build_fixture()
+        output = self.root / "validation.json"
+        command = [
+            sys.executable, "scripts/validate_identity_only_import.py",
+            "--bundle-root", str(self.bundle),
+            "--export-manifest-sha256", file_sha256(manifest),
+            "--approved-sources", str(approved),
+            "--approved-sources-sha256", file_sha256(approved),
+            "--output", str(output),
+        ]
+        success = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(success.returncode, 0, success.stderr)
+        self.assertFalse(json.loads(output.read_text(encoding="utf-8"))["model_execution_authorized"])
+        original = output.read_bytes()
+        overwrite = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertNotEqual(overwrite.returncode, 0)
+        self.assertEqual(output.read_bytes(), original)
+        failed_output = self.root / "failed.json"
+        command[command.index("--approved-sources-sha256") + 1] = "f" * 64
+        command[command.index("--output") + 1] = str(failed_output)
+        failed = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(failed.returncode, 2)
+        self.assertFalse(failed_output.exists())
+        self.assertFalse(json.loads(failed.stderr)["model_execution_authorized"])
 
 
 if __name__ == "__main__":
