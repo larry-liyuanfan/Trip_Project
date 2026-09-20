@@ -101,6 +101,12 @@ checkpoint-87；Week 6 单任务 adapter 不代替 unified。历史 168 条 deve
 历史选择证据与新增诊断结果不混分。完整结果和事实边界见
 `reports/development/reviews/search_algorithm_evidence_enhancement_report.md`。
 
+2026-09-20 的后续身份恢复仅针对确定性 synthetic train/development：v4/v5/v7/v9 共恢复
+10 个子 scope、2,328 行 query/source/content identity，并逐 split 匹配 committed lock；
+未生成或读取 final/test。由于原 12-scope 完整覆盖仍为 0/12，训练门禁继续 BLOCKED，
+也没有重新提交 Spartan 作业。详见
+`reports/development/reviews/identity_recovery_20260920.md`。
+
 ## 个人开发经历
 
 本人独立完成了需求拆解、数据处理、评测集与隔离机制、Prompt/Schema 设计、批量推理、

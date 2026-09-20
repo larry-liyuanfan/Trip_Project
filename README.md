@@ -87,6 +87,11 @@ experiments/  保留的机器可读历史证据
 状态为 `BLOCKED_PROTECTED_IDENTITY_COVERAGE`；未生成新数据或提交训练。
 详见[本轮交接](reports/price_conflict_abstention_20260914/HANDOFF.md)，不声称模型回退已修复。
 
+2026-09-20 在不生成或读取 final/test 的前提下，从 v4/v5/v7/v9 已提交锁恢复了
+10 个 train/development 子 scope、2,328 行扁平 identity-only 证据；但原始完整覆盖仍为
+0/12，状态继续为 `BLOCKED`，不据此重提 Spartan 作业。范围、哈希与负结果见
+[身份恢复报告](reports/development/reviews/identity_recovery_20260920.md)。
+
 2026-09-07 补充：发现并修复 v9 合成卡片的长行截断和缺失下划线字形；
 原 v9 模型回退的归因需结合配对渲染诊断，见
 `reports/development/reviews/card_render_repair_v10.md`。正式 Git 外交付包已重新定位并验证 PASS。
