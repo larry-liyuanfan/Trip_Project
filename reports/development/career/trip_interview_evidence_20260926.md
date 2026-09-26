@@ -117,10 +117,17 @@ CLIP 512 维 -> Milvus HNSW/COSINE -> 允许的标量过滤 -> FastAPI
 | Fresh Test 三场景 `0.780639/1.0/1.0` | A100 job `29569338` 的已完成历史 final；对话自动 composite=`0.973330`。 | 仅作历史发布描述；不可再选模或重跑。 |
 | 商品 60 条 `0.745493` | Week 8 观察 v2 + base 的自动-silver development。 | 可与同表的正式 Prompt + adapter 对比；不是 Fresh Test。 |
 | 商品 100 条 `0.736721` | 锁定 v9 的另一批自动-silver final comparison。 | 不能与 60 条或 Fresh Test 混算。 |
-| `97.67%` | 当前 tracked `dev` 和可达 Git 历史中没有对应项目指标。 | 不要引用。最接近的是对话自动 composite `0.973330`（97.333%），不是 97.67%。 |
+| `97.67%` | 历史 Fresh Test 120 中的 30 条对话样本，自动 **上下文词项召回**=`0.976667`；同表的对话自动 composite=`0.973330`。 | 可写为“30 条对话的自动上下文要素召回率 97.67%”，不是任务成功率、人工评分或当前正式 release 的新测量。 |
 
 历史 Fresh Test 的离线审计还确认：商品字段 price F1=`0`（support=5），facility F1=`0.835`
 （support=30），unknown 幻觉率=`0.1935`。这说明“JSON/Schema=100%”不能替代语义质量。
+
+`97.67%` 的来源为
+[`reports/development/reviews/system_consolidation_repair_report.md`](../reviews/system_consolidation_repair_report.md)
+Fresh Test 表，以及 `src/training/week7_evaluation.py`：它把每条对话中期望上下文词项的命中数
+除以该条的期望词项数，再在样本间取平均。历史报告保存 120 行 raw/metrics 的 SHA-256
+`344464…eb19` / `853bd6…1018`，但本轮只读取报告与评分定义，未定位或重算 raw，因此这是
+“有可追溯历史报告、当前工作包未原始重算”，不是新的测量。
 
 ## 最小复核入口
 
